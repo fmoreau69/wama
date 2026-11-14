@@ -765,17 +765,24 @@ def surface_source_nature(app: str, surface: str, source) -> str | None:
     """La nature d'une SOURCE (une URL, la ligne d'un lot) qui entre par une surface, AVANT que son
     fichier n'arrive : une adresse qui NOMME son fichier passe la porte du dépôt
     (`surface_file_nature`, None = refus) ; sinon ce que l'adresse dit d'avance
-    (`url_ingest.url_nature` : une plateforme média), '' quand seul le téléchargement le dira — le
-    `derive` de l'app la pose alors. Le chemin se lit sans sa requête (`photo.jpg?w=1` est une
-    image). Écrit le 2026-11-10 : l'enhancer le faisait en ligne, l'anonymizer faisait naître un
-    PDF reçu par URL en vidéo, avec les réglages de l'image."""
+    (`url_ingest.url_nature` : une plateforme média) — None quand aucun domaine de la surface ne
+    prend cette nature —, '' quand seul le téléchargement le dira : le `derive` de l'app la pose
+    alors. Le chemin se lit sans sa requête (`photo.jpg?w=1` est une image). Écrit le 2026-11-10 :
+    l'enhancer le faisait en ligne, l'anonymizer faisait naître un PDF reçu par URL en vidéo, avec
+    les réglages de l'image. ⚠ Jusqu'au 2026-11-14, la nature d'une plateforme était rendue SANS
+    être confrontée à la surface : une adresse de vidéo naissait « vidéo » dans une app qui n'en
+    prend pas (mesuré sur le parc avant d'y brancher les vues générées)."""
     import os
     from urllib.parse import unquote, urlparse
     from wama.common.utils.url_ingest import url_nature
     path = unquote(urlparse(str(source or '')).path)
     if os.path.splitext(path)[1]:
         return surface_file_nature(app, surface, path)
-    return url_nature(source)
+    nature = url_nature(source)
+    if not nature:
+        return ''
+    taken = {t for d in surface_domains(app, surface) for t in accepts(app, d)}
+    return nature if nature in taken else None
 
 
 def mode_param(app: str, domain_id: str) -> str:

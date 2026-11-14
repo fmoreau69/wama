@@ -361,41 +361,28 @@ def render_views(manifest: dict) -> tuple:
     # glu, c'est un manque de gabarit. Ici les DEUX pièces existaient — le détecteur commun
     # `category_of_path` et le vocabulaire `body.ports.inputs[].types` — et le gabarit ne
     # lisait ni l'un ni l'autre : il déclarait le trou et rouvrait un arbitrage.
+    # ⚠ Depuis le 2026-11-14 (`ROUTE §11 #42` ⑦ c-d) la vue générée lit la porte COMMUNE de sa
+    # surface, celle des apps réelles, de « Envoyer vers », des importeurs et de l'outil de
+    # l'assistant (`app_modes.surface_file_nature`, `surface_source_nature`) : les extensions que
+    # l'app déclare, puis un domaine qui prend la nature, lue comme il la déclare
+    # (`extension_natures`). Elle portait un vocabulaire recopié du manifeste (`_TYPES_ENTREE`) et
+    # `category_of_path`, qui range « document » toute extension inconnue.
     nature_champ = d['nature_field']         # colonne de nature de l'ÉLÉMENT, sinon ''
-    types_entree = d['types_entree']
     bloc_nature = f'''
 
-# Vocabulaire d'ENTRÉE de l'app — projection de `body.ports.inputs[].types` du manifeste
-# (lui-même extrait d'APP_CATALOG['<app>']['input_types']). Écrit ici pour que la vue ne
-# dépende pas du catalogue à l'exécution ; il se REGÉNÈRE avec la vue, donc il ne peut pas
-# dériver de sa source.
-_TYPES_ENTREE = {types_entree!r}
-
-
 def _nature(nom):
-    """Catégorie média d'un nom de fichier, CONTRAINTE au vocabulaire déclaré de l'app.
-
-    Le détecteur est `app_registry.category_of_path` — la source UNIQUE du dépôt (celle dont
-    `probe_media` se sert pour son aiguillage), pas un second détecteur écrit pour l'occasion.
-
-    Hors vocabulaire → '' plutôt qu'une valeur approchée. Mesuré le 2026-08-29 : sur les 59
-    extensions acceptées par le converter, le commun s'accorde 56 fois avec le détecteur de
-    l'app ; les 3 écarts (.md, .markdown, .txt) tiennent à ce que le commun distingue 'text'
-    de 'document' là où l'app ne déclare pas 'text'. L'appelant le SIGNALE : un champ vide et
-    dit se répare, une valeur fausse et muette se propage.
-    """
-    from wama.common.app_registry import category_of_path
-    cat = category_of_path(nom)
-    return cat if cat in _TYPES_ENTREE else ''
+    """La nature d'un fichier qui entre par cette surface — la porte COMMUNE du dépôt
+    (`app_modes.surface_file_nature`) ; '' quand elle le refuse. L'appelant le SIGNALE : un champ
+    vide et dit se répare, une valeur fausse et muette se propage."""
+    from wama.common.utils.app_modes import surface_file_nature
+    return surface_file_nature('{app}', '{app}', nom) or ''
 
 
 def _nature_url(url):
-    """Nature d'une URL AVANT son téléchargement — la table commune de `url_ingest.url_nature`
-    (plateforme média, extension), contrainte au même vocabulaire ; '' si elle ne la connaît
-    pas. Sans elle, une URL YouTube (`watch?v=…`) était classée par son « extension »."""
-    from wama.common.utils.url_ingest import url_nature
-    cat = url_nature(url)
-    return cat if cat in _TYPES_ENTREE else ''
+    """La nature d'une SOURCE avant l'arrivée de son fichier (`app_modes.surface_source_nature`) :
+    None quand la porte la refuse, '' quand seul le téléchargement le dira."""
+    from wama.common.utils.app_modes import surface_source_nature
+    return surface_source_nature('{app}', '{app}', url)
 
 ''' if nature_champ else ''
 
@@ -736,10 +723,15 @@ def batch_preview(request):
                     obj.{_nom} = nom
                     obj.save(update_fields=['{_nom}'])""" if _nom else "pass")
     bc_nom_fichier = f"kwargs['{_nom}'] = _dest.name" if _nom else "pass"
-    bc_nature_url = (f"""nature = _nature_url(src) or _nature(nom or src)
+    # L'adresse d'abord ; le nom de fichier que la ligne donne tranche quand elle ne dit rien.
+    # Une nature encore inconnue ('') n'est ni écrite ni signalée : le `derive` de l'ingest la
+    # pose à l'arrivée du fichier. Seul un REFUS de la porte se dit.
+    bc_nature_url = (f"""nature = _nature_url(src)
+                if not nature and nom:
+                    nature = _nature(nom) or None
                 if nature:
                     kwargs['{nature_champ}'] = nature
-                else:
+                elif nature is None:
                     avertissements.append((nom or src) + ' : nature hors vocabulaire')"""
                      if nature_champ else "pass")
     bc_nature_fichier = (f"""nature = _nature(_dest.name)
@@ -755,7 +747,7 @@ def batch_preview(request):
     # inline ne se partage pas : import refusant de mélanger les natures, drag&drop les
     # mélangeant. Depuis le 2026-10-16 l'import passe lui-même par la fabrique
     # (`consolidate_arrival`) : un seul consommateur, `group_key`, pour les deux gestes.
-    # ⚠ NOM DISTINCT de `bloc_nature` (ligne ~161), qui porte `_TYPES_ENTREE` + `def _nature`.
+    # ⚠ NOM DISTINCT de `bloc_nature` (plus haut), qui porte `def _nature` et `def _nature_url`.
     # Ma première graphie réutilisait ce nom et l'ÉCRASAIT : l'app générée perdait son
     # vocabulaire d'entrée et sa détection de nature, tout en gardant les appels `_nature(...)`
     # — donc un NameError à la première utilisation. Trois tests de `tests_codegen_lot` l'ont

@@ -89,15 +89,6 @@ def _function_source(src, name):
     return ast.get_source_segment(src, node)
 
 
-def _types_entree(src):
-    """La valeur ÉVALUÉE de `_TYPES_ENTREE` — pas une sous-chaîne de la source."""
-    for noeud in ast.parse(src).body:
-        if (isinstance(noeud, ast.Assign) and noeud.targets
-                and getattr(noeud.targets[0], 'id', '') == '_TYPES_ENTREE'):
-            return ast.literal_eval(noeud.value)
-    return None
-
-
 class CheminDeLotTest(SimpleTestCase):
 
     @classmethod
@@ -534,74 +525,35 @@ class CheminDeLotTest(SimpleTestCase):
         for cle in ("'success'", "'count'", "'batches'", "'warnings'"):
             self.assertIn(cle, corps, f'clé {cle} absente de la réponse')
 
-    def test_le_vocabulaire_d_entree_est_LU_au_manifeste_et_non_ecrit_en_dur(self):
-        """`_TYPES_ENTREE` doit SUIVRE `body.ports.inputs[].types`, pas le recopier une fois.
+    def test_the_generated_gate_is_the_common_one_of_its_surface(self):
+        """`ROUTE §11 #42` ⑦ c-d (2026-11-14): the generated view reads the gate the real apps,
+        « Envoyer vers », the importers and the assistant read (`app_modes.surface_file_nature`,
+        `surface_source_nature`). It carried a vocabulary copied from the manifest
+        (`_TYPES_ENTREE`) and `category_of_path`, which files any unknown extension as a document.
+        The two functions are EXECUTED: a comment naming the brick would not count."""
+        from unittest import mock
 
-        Le test mute le manifeste plutôt que de comparer à la valeur attendue : c'est la seule
-        façon de distinguer « dérivé » de « écrit en dur avec la bonne valeur ce jour-là ».
-        Même famille que la liste d'apps codée en dur du drag&drop, qui valait exactement le
-        catalogue moins la dernière app ajoutée.
-        """
-        from copy import deepcopy
+        from wama.common.utils import app_modes
+        self.assertNotIn('_TYPES_ENTREE', self.src)
+        gate = _function_source(self.src, '_nature')
+        source = _function_source(self.src, '_nature_url')
+        self.assertNotIn('category_of_path', gate + source)
+        space = {}
+        exec(gate + '\n\n' + source, space)
+        with mock.patch.object(app_modes, 'surface_file_nature', return_value=None) as asked:
+            self.assertEqual('', space['_nature']('x.bin'), 'a refusal is an empty nature')
+        self.assertEqual((SOURCE, SOURCE, 'x.bin'), asked.call_args.args)
+        with mock.patch.object(app_modes, 'surface_source_nature', return_value=None) as asked:
+            self.assertIsNone(space['_nature_url']('https://x.org/a'))
+        self.assertEqual((SOURCE, SOURCE, 'https://x.org/a'), asked.call_args.args)
 
-        from wama.common.manifests.ingest import extract
-        manifest = deepcopy(extract('app', SOURCE))
-        ports = (manifest.get('body') or {}).get('ports') or {}
-        if not (ports.get('inputs') or []):
-            self.skipTest(f'{SOURCE} sans ports.inputs')
-        ports['inputs'][0]['types'] = ['audio']
-        src, raison = render_views(manifest)
-        self.assertIsNotNone(src, f'génération impossible : {raison}')
-        self.assertIn("_TYPES_ENTREE = ('audio',)", src,
-                      'le vocabulaire ne suit pas le manifeste (valeur figée dans le gabarit)')
-
-    def test_le_port_de_prompt_n_entre_pas_dans_le_vocabulaire_de_FICHIERS(self):
-        """`_TYPES_ENTREE` sert à nommer la nature d'un FICHIER — le prompt n'en est pas un.
-
-        Le manifeste déclare les entrées par RÔLE (`body.ports.inputs[].group` : travail /
-        référence / prompt). Sur imager, composer, synthesizer et avatarizer, un port
-        `group: 'prompt'` porte le type `'prompt'` — un jeton que `category_of_path` ne peut
-        JAMAIS rendre. L'unir aux autres reviendrait à écrire un vocabulaire dont un membre
-        n'est comparable à rien : inoffensif sur le converter (qui n'a pas ce port), faux dès
-        la 2ᵉ app portée. C'est le défaut que ce test empêche de revenir avec le portage.
-        """
-        from copy import deepcopy
-
-        from wama.common.manifests.ingest import extract
-        manifest = deepcopy(extract('app', SOURCE))
-        ports = (manifest.get('body') or {}).get('ports') or {}
-        if not (ports.get('inputs') or []):
-            self.skipTest(f'{SOURCE} sans ports.inputs')
-        ports['inputs'][0]['types'] = ['image']
-        ports['inputs'].append({'id': 'prompt', 'label': 'Prompt', 'group': 'prompt',
-                                'types': ['prompt'], 'multi': False})
-        src, raison = render_views(manifest)
-        self.assertIsNotNone(src, f'génération impossible : {raison}')
-        self.assertEqual(_types_entree(src), ('image',),
-                         "le port `prompt` est entré dans le vocabulaire de fichiers")
-
-    def test_le_repli_sur_accepts_ecarte_l_homonyme_text(self):
-        """En repli sur `modes.domains[].accepts`, `text` désigne le PROMPT, pas un fichier.
-
-        `text` est un homonyme dans ce dépôt, et les deux sens se croisent ici : dans
-        `input_types`/`accepts` il veut dire **texte brut** (c'est pourquoi
-        `studio_node_ports` écrit `c != 'text'` pour le sortir du port travail) ; dans
-        `category_of_path` il veut dire **fichier texte** (.txt/.md/.csv/.srt). Le retenir au
-        repli ferait écrire `media_type='text'` (sens fichier) au nom d'une déclaration qui
-        parlait du prompt — une valeur plausible et fausse, exactement ce que `_nature` refuse
-        d'écrire pour une extension hors vocabulaire.
-        """
-        from copy import deepcopy
-
-        from wama.common.manifests.ingest import extract
-        manifest = deepcopy(extract('app', SOURCE))
-        body = manifest.get('body') or {}
-        body['ports'] = {'inputs': [], 'outputs': ((body.get('ports') or {}).get('outputs') or [])}
-        body['modes'] = {'domains': [{'id': 'x', 'accepts': ['text', 'image', 'inconnu']}]}
-        src, raison = render_views(manifest)
-        self.assertIsNotNone(src, f'génération impossible : {raison}')
-        self.assertEqual(_types_entree(src), ('image',),
-                         "le repli retient `text` (sens prompt) ou un jeton hors taxonomie")
+    def test_a_source_whose_nature_is_not_known_yet_is_neither_written_nor_reported(self):
+        """Only a REFUSAL of the gate is reported; a nature the download alone will tell is left
+        to the `derive` of the ingest — the address was guessed « document » until 2026-11-14."""
+        body = _fonction(self.src, 'batch_create')
+        self.assertIn('nature = _nature_url(src)', body)
+        self.assertIn('elif nature is None:', body)
+        self.assertNotIn('_nature(nom or src)', body)
 
     def test_la_nature_est_renseignee_dans_LES_DEUX_chemins_de_creation(self):
         """`upload` et `batch_create` doivent doter l'élément de la même façon.

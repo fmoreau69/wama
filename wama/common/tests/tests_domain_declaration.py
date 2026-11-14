@@ -413,3 +413,25 @@ class StartToolFollowsTheSurfaceTest(SimpleTestCase):
                 continue
             with self.subTest(surface=surface):
                 self.assertEqual(f'start_{surface}', start_tool_for(app, prefix))
+
+
+class WhatASourceSaysInAdvanceTest(SimpleTestCase):
+    """`surface_source_nature` (2026-11-14): what an address says before its file arrives is
+    confronted with the surface — a video platform address was born « video » in an app that
+    takes none. Measured over the fleet before the generated views were plugged onto it."""
+
+    VIDEO = 'https://www.youtube.com/watch?v=abc'
+
+    def test_a_platform_address_has_its_nature_only_where_a_domain_takes_it(self):
+        answers = set()
+        for app, domain in _domains():
+            surface = app_modes.domain_surface(app, domain)
+            taken = {t for d in app_modes.surface_domains(app, surface)
+                     for t in app_modes.accepts(app, d)}
+            expected = 'video' if 'video' in taken else None
+            answers.add(expected)
+            with self.subTest(app=app, surface=surface):
+                self.assertEqual(expected, app_modes.surface_source_nature(app, surface, self.VIDEO))
+                self.assertEqual('', app_modes.surface_source_nature(app, surface, 'https://x.org/page'),
+                                 'an address that says nothing: the download will tell')
+        self.assertEqual({'video', None}, answers, 'the fleet holds both cases')

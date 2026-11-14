@@ -153,8 +153,8 @@ class AlignementDuMondeLabTest(SimpleTestCase):
 def _generated_status_choices(src: str):
     """La valeur ÉVALUÉE des états du modèle généré — pas une sous-chaîne.
 
-    (Idiome du dépôt, cf. `tests_codegen_lot._types_entree` : chercher le texte attesterait
-    de la mise en forme du gabarit, pas de ce que l'app naissante déclarera.)
+    (Idiome du dépôt : chercher le texte attesterait de la mise en forme du gabarit, pas de ce
+    que l'app naissante déclarera.)
 
     ⚠ `models_gen` assemble par DEUX chemins, et ils n'écrivent pas la même forme : la
     fabrique à partir d'un modèle existant rend `choices=[…]` en ligne, celle qui part du

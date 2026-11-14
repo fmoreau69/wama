@@ -31455,3 +31455,36 @@ commités ; `conformite` reste périmé (fichier d'une autre session).
 - **Vu sur un serveur jetable** (compte de test élevé puis rétabli) : 200, 11 processus dans le
   volet, 13 tuiles, fiche dérivée au clic, tri par nom, aucune erreur JS. Reste connu : une section
   SANS tuile (aucune opération lancée) garde son titre sous un filtre de nature.
+
+## §PALIER 2026-11-14 (soir), « DOMAINES ⑦ : (a) domaines d'un process DÉCLARÉS, (c)-(d) la vue générée lit la porte commune » — commits locaux, non poussés — 🔴 relancer gunicorn ET les workers (`ProcessSpec.domains` est lu par le squelette de tâche) — 🔚 (b) : la brique commune des lots d'une page par domaine, puis le gabarit ; recréation des jumelles
+
+**Livré** :
+- **(a)** `ProcessSpec.domains` — les domaines de l'app auxquels un process se réserve, en DONNÉE :
+  jugé par `AppPipeline.applies` (`in_domain`, `element_domain_or_first`), refusé à la déclaration
+  pour un domaine que l'app ne déclare pas, exporté (`process.domains` du nœud), rendu par
+  `function_specs_gen` (`ProcessSpec(...)` et `output_spec(...)`). L'anonymizer : six process, deux
+  constantes, plus de fonction `applies` de domaine. Manifeste `pipelines/anonymizer.json` régénéré.
+- **(c)** la vue générée lit `app_modes.surface_file_nature` ; `_TYPES_ENTREE` retiré (`R236`).
+- **(d)** les sources lisent `surface_source_nature`, corrigée : la nature d'une plateforme est
+  confrontée à ce que prennent les domaines de la surface (None = refus, '' = le téléchargement dira).
+
+**Mesuré avant de brancher (c)-(d)**, 22 apps du catalogue, chaque extension déclarée : seuls écarts —
+une extension inconnue n'est plus rangée « document » ; enhancer : l'audio refusé sur la surface
+image / vidéo et le GIF lu « vidéo », comme l'app réelle.
+
+**Gardes et contre-épreuves** (six mutations, six rouges) : domaine non jugé ; domaines non rendus
+par le générateur ; un domaine sans process ; plateforme non confrontée à la surface ; porte générée
+détachée de la porte commune ; nature inconnue signalée comme un refus.
+
+**Non fait, nommé** : (b) la page générée par domaine — rien de commun à lire, le partage des lots
+est écrit dans la vue de l'anonymizer (`ROUTE §11 #42`) ; les douze jumelles gardent l'ancien code
+jusqu'à leur régénération ; suite complète non rejouée ; `tests_process_pipeline` rouge sur le seul
+manifeste du composer (travail non commité d'une autre session) ; `enhancer.tests_declared_weights`
+rouge d'avant.
+
+**Défaut de MA main trouvé par cette revérification, réparé** : `templates_gen.render_base` levait
+`NameError` depuis le commit du matin (`0217ddb02`) — le titre retiré, la ligne du pied de page le
+lisait encore ; toute création d'app DE ZÉRO tombait. `tests_codegen_templates` le disait, il
+n'était pas dans le périmètre rejoué ce matin-là (la garde ajoutée alors lisait la SOURCE du
+gabarit, pas son rendu). Le pied de page n'est plus écrit : celui du socle s'applique.
+Budgets de langue recalés à la mesure (code 2555 → 2553, noms de tests 1317 → 1315).
