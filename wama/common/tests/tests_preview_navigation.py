@@ -618,8 +618,8 @@ class OnePreviewBrickTest(SimpleTestCase):
         body = panel[panel.index('function moveSelection('):panel.index('if (cfg.keyboardNav !== false)')]
         self.assertIn('nextStop(queueStops(entries)', body)
         self.assertIn('selectBatch(e.batch)', body)
-        self.assertIn("(e.key === 'ArrowDown' || e.key === 'ArrowUp') && (itemId !== null || batchId !== null)",
-                      panel)
+        self.assertIn("(act === 'next_card' || act === 'previous_card') "
+                      "&& (itemId !== null || batchId !== null)", panel)
 
     def test_the_nightly_gestures_are_registered(self):
         from wama.common.services import nightly_tests

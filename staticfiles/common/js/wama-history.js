@@ -76,6 +76,11 @@
 
     var DEFAULT_MAX = 100;
     var DEFAULT_BURST_MS = 900;
+    /** Les touches de l'historique PAR DÉFAUT, `{touche: action}` — celles que la brique « Actions
+     *  de la surface » déclare au registre (`surfaces.py`, tenues égales par `tests_surfaces`).
+     *  ⚠ Par le CARACTÈRE, jamais la place : en AZERTY, Z et W sont permutés par rapport au
+     *  QWERTY — la place `KeyW` y porterait Ctrl+Z. */
+    var HISTORY_KEYS = { 'Ctrl+z': 'undo', 'Ctrl+Shift+z': 'redo', 'Ctrl+y': 'redo' };
 
     function create(config) {
         config = config || {};
@@ -250,13 +255,11 @@
             if (ev.target.closest(redoSelector)) { ev.preventDefault(); redo(); }
         });
 
-        // ⚠ `ev.key`, jamais `ev.code` : en AZERTY, Z et W sont permutés par rapport au QWERTY —
-        // `ev.code` y rendrait `KeyW` pour un Ctrl+Z. `ev.key` donne le caractère réellement
-        // produit par la disposition.
+        // L'ACTION de la frappe se lit à la table de la brique (`WamaKeys.action`, 2026-11-14) :
+        // `undo`, `redo`, ou rien — un préréglage ou un réglage d'utilisateur redonne leurs touches
+        // à ces deux noms (`WamaKeys.remap`).
         function historyKey(ev) {
-            if (!(ev.ctrlKey || ev.metaKey) || ev.altKey) return '';
-            var k = (ev.key || '').toLowerCase();
-            return k === 'z' || k === 'y' ? k : '';
+            return global.WamaKeys.action(ev, 'surface_actions', HISTORY_KEYS) || '';
         }
 
         // Le clavier commun (`WamaKeys`, 2026-10-29) : une brique PRIORITAIRE de la page. Elle passe
@@ -275,7 +278,7 @@
             // `restore()` reconstruit le DOM (le champ en cours d'édition disparaît) : on ferme la
             // rafale pour que la frappe d'après ouvre une entrée propre.
             endBurst();
-            if (k === 'y' || (k === 'z' && ev.shiftKey)) redo(); else undo();
+            if (k === 'redo') redo(); else undo();
             return true;
         } });
 

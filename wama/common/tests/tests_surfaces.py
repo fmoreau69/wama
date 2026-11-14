@@ -1978,8 +1978,20 @@ class BrickShortcutsTest(SimpleTestCase):
                               K.action(ev('KeyL', 'l', {altKey: true, ctrlKey: true}), 'x', table)],
                     numpad: [K.action(ev('NumpadEnter', 'Enter'), 'x', table),
                              K.action(ev('NumpadEnter', 'Enter', {ctrlKey: true}), 'x', table),
-                             K.action(ev('NumpadEnter', 'Enter', {shiftKey: true}), 'x', table)]};
+                             K.action(ev('NumpadEnter', 'Enter', {shiftKey: true}), 'x', table)],
+                    letters: (function () {
+                        var t = {'Ctrl+z': 'undo', 'Ctrl+Shift+z': 'redo', 'Ctrl+y': 'redo'};
+                        return [K.action(ev('KeyW', 'z', {ctrlKey: true}), 'h', t),   // AZERTY : Z is on W
+                                K.action(ev('KeyW', 'Z', {ctrlKey: true, shiftKey: true}), 'h', t),
+                                K.action(ev('KeyY', 'Y', {ctrlKey: true, shiftKey: true}), 'h', t),
+                                K.action(ev('KeyZ', 'z', {metaKey: true}), 'h', t),
+                                K.action(ev('KeyZ', 'z', {ctrlKey: true, altKey: true}), 'h', t),
+                                K.action(ev('KeyZ', 'z'), 'h', t)];
+                    })()};
         })()''')
+        self.assertEqual(['undo', 'redo', 'redo', 'undo', None, None], list(out['letters']),
+                         'a letter said by its CHARACTER can name Shift too (Ctrl+Shift+z redoes), and '
+                         'Shift never takes away the one that does not (Ctrl+Shift+y)')
         self.assertEqual(['edit', 'cut', 'edit'], list(out['numpad']),
                          'a NAMED key is also read at what it produces : the Enter of the numeric pad '
                          'has another place and the same name')
@@ -2801,7 +2813,7 @@ class EveryKeyTableFollowsTheRegistryTest(SimpleTestCase):
     #: the port to `WamaKeys.action` (`WAMA_VOLETS §3-ter`). A list that can only SHRINK : a ported
     #: brick leaves it in the same commit, a new brick never enters it. Keys not named by design
     #: are not counted : those typed in a field, those the brick only follows, Escape.
-    NOT_YET_NAMED = ('inspector_panel', 'surface_actions')
+    NOT_YET_NAMED = ()          # empty since 2026-11-14 : every entry is now a new gap
 
     def test_every_brick_names_its_keys_but_the_declared_gaps(self):
         from wama.common.surfaces import BRICKS, load_all

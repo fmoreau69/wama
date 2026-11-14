@@ -1116,11 +1116,12 @@ register_brick(UIBrick(
     description="Annuler / rétablir (historique commun), enregistrer, appliquer — rejouer le "
                 "process que la modification a périmé.",
     script='common/js/surfaces/brick-surface-actions.js',
-    shortcuts=(Shortcut(('Ctrl+KeyZ',), 'annuler', 'page', handled_by='common/js/wama-history.js',
-                        targets=('.wama-brick-actions .wama-undo',)),
-               Shortcut(('Ctrl+Shift+KeyZ', 'Ctrl+KeyY'), 'rétablir', 'page',
+    # Dites par leur CARACTÈRE : en azerty, Z n'est pas à la place de `KeyZ` (`wama-history.js`).
+    shortcuts=(Shortcut(('Ctrl+z',), 'annuler', 'page', handled_by='common/js/wama-history.js',
+                        targets=('.wama-brick-actions .wama-undo',), names=('undo',)),
+               Shortcut(('Ctrl+Shift+z', 'Ctrl+y'), 'rétablir', 'page',
                         handled_by='common/js/wama-history.js',
-                        targets=('.wama-brick-actions .wama-redo', '')))))
+                        targets=('.wama-brick-actions .wama-redo', ''), names=('redo', 'redo')))))
 
 
 # ── Briques de PAGE (2026-10-19, `ROUTE §F3b`, étape 3) ──────────────────────────────────────
@@ -1188,8 +1189,9 @@ register_brick(UIBrick(
     mount='common/_inspector_actions.html',
     declarations=('app.inspector', 'app.params'),
     shortcuts=(Shortcut(('ArrowUp', 'ArrowDown'), 'choisir la card précédente / suivante de la file',
-                        'page'),
-               Shortcut(('Enter', 'Space'), 'déplier / replier la card choisie', 'page'),
+                        'page', names=('previous_card', 'next_card')),
+               Shortcut(('Enter', 'Space'), 'déplier / replier la card choisie', 'page',
+                        names=('toggle_card', 'toggle_card')),
                Shortcut(('Escape',), 'ne plus choisir de card', 'page'))))
 
 # 2026-10-29 (`WAMA_VOLETS §3-ter`, demande de Fabien : « finir la mise en briques, notamment de

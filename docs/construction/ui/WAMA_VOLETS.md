@@ -1127,8 +1127,20 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
     place — l'Entrée et les flèches du pavé numérique (`NumpadEnter`, `Numpad4`) ne répondaient
     plus sur les briques portées, qui lisaient avant ce que la touche produit. `WamaKeys.action`
     lit les deux.
-    ⏳ Restent, dans l'ordre : les autres briques sur `WamaKeys.action`
-    (segments, ligne de temps, écriture, partition, zones, file, inspecteur, visionneuse) ; le
+    ✅ **Annuler / rétablir, 2026-11-14** (`HISTORY_KEYS`, dans `wama-history.js`, pour la
+    brique « Actions de la surface ») — Ctrl+Z, Ctrl+Maj+Z, Ctrl+Y, dites par leur CARACTÈRE
+    (`Ctrl+z`, `Ctrl+Shift+z`, `Ctrl+y` : en azerty, Z est à la place de `KeyW`) ; le registre,
+    qui les déclarait par leur place (`Ctrl+KeyZ`), dit maintenant ce que le code lit. Une lettre
+    dite par son caractère peut donc nommer Maj : `WamaKeys.action` cherche d'abord `Shift+` et
+    la lettre, puis la lettre seule (Ctrl+Maj+Y rétablit, comme avant). Même ensemble de frappes
+    qu'avant (Alt refusé, ⌘ lu comme Ctrl, champ de formulaire laissé à sa pile native). Joué au
+    navigateur : `common.history.studio`, `transcriber.editor_parity`.
+    ✅ **L'inspecteur, 2026-11-14** (`INSPECTOR_KEYS` : ↑/↓ card précédente / suivante, Entrée
+    et Espace déplier / replier ; Échap lu à part) — lu SANS ses modificateurs, que la sélection
+    a toujours ignorés (même choix que la navigation de la visionneuse). C'était la dernière
+    brique : la liste `NOT_YET_NAMED` de la garde générique est VIDE, toute brique qui teste
+    encore ses touches à la main est désormais un écart neuf.
+    ⏳ Restent, dans l'ordre : le
     préréglage DÉCLARÉ d'une page et celui du transcriber ; alors seulement les défauts décidés
     (←/→ = un pas, Ctrl 1 s, Maj 5 s, Alt 30 s) ; le réglage par compte et ses pages.
 - ⏳ **VISION, à ne pas oublier (Fabien, 2026-11-12) — composer une page D'ÉDITION DE ZÉRO.** On a

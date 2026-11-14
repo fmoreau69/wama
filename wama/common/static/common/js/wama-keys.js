@@ -190,8 +190,10 @@
         // briques qui lisaient `e.key` les prenaient.
         var named = typeof e.key === 'string' && e.key.length > 1 ? e.key : null;
         var byChar = charCombo(e);
+        // Une lettre dite par son CARACTÈRE peut nommer Maj elle aussi (`Ctrl+Shift+z`, rétablir).
+        var shifted = byChar && e.shiftKey ? mods + shift + e.key.toLowerCase() : null;
         var found = table[combo(e)] || (named && table[mods + shift + named])
-            || (byChar && table[byChar]) || null;
+            || (shifted && table[shifted]) || (byChar && table[byChar]) || null;
         if (found || !e.shiftKey) return found;
         return table[mods + e.code] || (named && table[mods + named]) || null;
     }

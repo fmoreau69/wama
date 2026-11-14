@@ -840,17 +840,25 @@
     // qui le fermait la désélectionnait — mesuré le 2026-10-29) ou un bouton atteint au clavier
     // (Entrée l'active au lieu de déplier la card). Toute page le charge (`base.html`) ; un banc
     // V8 qui monte le panneau seul s'en passe.
+    // Ses touches PAR DÉFAUT, `{touche: action}` — celles que la brique déclare au registre
+    // (`surfaces.py`, `inspector_panel.shortcuts`, tenues égales par `tests_surfaces`). L'ACTION
+    // d'une frappe se lit au clavier commun (`WamaKeys.action`, 2026-11-14), SANS ses
+    // modificateurs : la sélection les a toujours ignorés. Échap ne se nomme pas.
+    const INSPECTOR_KEYS = { 'ArrowUp': 'previous_card', 'ArrowDown': 'next_card',
+                             'Enter': 'toggle_card', 'Space': 'toggle_card' };
     if (cfg.keyboardNav !== false) {
       if (global.WamaKeys) global.WamaKeys.register({ owner: 'inspector_panel', scope: 'page', handle: function (e) {
-        if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && (itemId !== null || batchId !== null)) {
-          moveSelection(e.key === 'ArrowDown' ? 1 : -1);
+        const bare = { code: e.code, key: e.key };
+        const act = global.WamaKeys.action(bare, 'inspector_panel', INSPECTOR_KEYS);
+        if ((act === 'next_card' || act === 'previous_card') && (itemId !== null || batchId !== null)) {
+          moveSelection(act === 'next_card' ? 1 : -1);
           return true;
         }
         if (e.key === 'Escape' && (itemId !== null || batchId !== null)) {
           deselect();
           return true;
         }
-        if ((e.key === 'Enter' || e.key === ' ') && itemId !== null) {
+        if (act === 'toggle_card' && itemId !== null) {
           const card = qc.querySelector(CARD_SEL + '[data-id="' + itemId + '"]');
           if (card) {
             card.dispatchEvent(new CustomEvent('wama:card-activate', { bubbles: true, detail: { id: itemId } }));
