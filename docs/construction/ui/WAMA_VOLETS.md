@@ -1113,6 +1113,20 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
     registre la déclare ainsi, `key_label` l'affiche en majuscule, et une lettre se lit en
     minuscule au clavier commun (Maj et le verrouillage des majuscules ne la changent pas).
     Ctrl+Maj+A reste hors de la file, comme avant.
+    ✅ **La navigation de la visionneuse et la RÈGLE DES FLÈCHES, 2026-11-14** (`VIEWER_KEYS`,
+    dans `media-preview.js`) — premier pas qui CHANGE un comportement (décision de Fabien du
+    12/11) : à l'arrêt les quatre flèches naviguent, comme avant ; PENDANT LA LECTURE, ←/→ vont
+    au transport (un saut dans le média) et ↑/↓ restent à la navigation ; Espace, J/K/L, `,` `.`,
+    Début / Fin toujours au transport. « Transport en cours d'utilisation » est lu comme « le
+    média joue » (`axis.playing()`) : aucun état à retenir, aucune touche pour en sortir — la
+    pause rend les flèches. La navigation se lit sans ses modificateurs, qu'elle a toujours
+    ignorés. Gardes : `ViewerTransportKeysTest` (V8, vrai clavier et vrai axe), et trois mesures
+    neuves au scénario `common.preview_sync` (« . » fait un pas, → saute pendant la lecture,
+    → navigue à l'arrêt).
+    ⚠ **Régression de la veille trouvée et corrigée** : une touche NOMMÉE n'était lue qu'à sa
+    place — l'Entrée et les flèches du pavé numérique (`NumpadEnter`, `Numpad4`) ne répondaient
+    plus sur les briques portées, qui lisaient avant ce que la touche produit. `WamaKeys.action`
+    lit les deux.
     ⏳ Restent, dans l'ordre : les autres briques sur `WamaKeys.action`
     (segments, ligne de temps, écriture, partition, zones, file, inspecteur, visionneuse) ; le
     préréglage DÉCLARÉ d'une page et celui du transcriber ; alors seulement les défauts décidés

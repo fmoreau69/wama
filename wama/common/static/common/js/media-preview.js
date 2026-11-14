@@ -1458,9 +1458,15 @@
      * n'en reçoivent aucune, et le gestionnaire de fichiers n'a plus les siennes (il détournait la
      * navigation d'une card vers ses fichiers — mesuré le 2026-10-13).
      */
-    const NAV_KEYS = {
-        ArrowLeft: { dir: -1, byCard: false }, ArrowRight: { dir: 1, byCard: false },
-        ArrowUp: { dir: -1, byCard: true }, ArrowDown: { dir: 1, byCard: true },
+    /** Les touches de la navigation PAR DÉFAUT, `{touche: action}` — celles que la brique déclare
+     *  au registre (`surfaces.py`, `media_viewer.shortcuts`, tenues égales par `tests_surfaces`). */
+    const VIEWER_KEYS = {
+        'ArrowLeft': 'previous_file', 'ArrowRight': 'next_file',
+        'ArrowUp': 'previous_card', 'ArrowDown': 'next_card',
+    };
+    const VIEWER_MOVES = {
+        previous_file: { dir: -1, byCard: false }, next_file: { dir: 1, byCard: false },
+        previous_card: { dir: -1, byCard: true }, next_card: { dir: 1, byCard: true },
     };
 
     function viewerOpen() {
@@ -1501,12 +1507,21 @@
                 closeFullscreen();
                 return true;
             }
-            const key = NAV_KEYS[e.key];
-            if (key) {
-                _navigate(key.dir, key.byCard);
+            // L'ACTION de la frappe, lue à la table de la visionneuse (`WamaKeys.action`, 2026-11-14)
+            // — sans ses modificateurs : la navigation les a toujours ignorés.
+            const bare = { code: e.code, key: e.key };
+            const move = VIEWER_MOVES[window.WamaKeys.action(bare, 'media_viewer', VIEWER_KEYS)];
+            const transport = _viewerTransport();
+            // Pendant la LECTURE, ←/→ sont au transport (décision de Fabien, 2026-11-12 : « ne
+            // laisser que haut / bas pour la navigation lorsque le transport est en cours
+            // d'utilisation ») ; ↑/↓ restent à la navigation ; à l'arrêt, les quatre naviguent.
+            if (move && !move.byCard && transport && _viewerKeys.axis.playing()) {
+                return !!transport.handle(e);
+            }
+            if (move) {
+                _navigate(move.dir, move.byCard);
                 return true;
             }
-            const transport = _viewerTransport();
             return !!(transport && transport.handle(e));
         },
         // Le relâché d'une touche prise : au magnéto de ce qu'elle montre, comme l'appui.

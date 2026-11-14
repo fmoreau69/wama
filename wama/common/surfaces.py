@@ -1246,7 +1246,7 @@ register_brick(UIBrick(
     # garde le sien — et passe à l'axe de ce qu'elle montre les touches du magnéto (`WamaAxis.keys`).
     # Les touches du magnéto sont traitées par l'axe (`WamaAxis.keys`, un script qu'elle requiert).
     shortcuts=(Shortcut(('Space',), 'lecture / pause de la vidéo montrée (son lecteur natif la garde '
-                                    "quand il a le focus)"),
+                                    "quand il a le focus)", names=('toggle',)),
                Shortcut(('Ctrl+Space',), 'lecture / pause, même pendant la frappe',
                         names=('toggle_always',)),
                Shortcut(('KeyJ', 'KeyK', 'KeyL'), 'lecture arrière / pause / lecture avant, par crans '
@@ -1255,11 +1255,13 @@ register_brick(UIBrick(
                         names=('step_back', 'step_forward')),
                Shortcut(('Home', 'End'), 'aller au début / à la fin de la vidéo',
                         names=('start', 'end')),
-               Shortcut(('ArrowLeft', 'ArrowRight'), "fichier précédent / suivant de l'élément",
+               Shortcut(('ArrowLeft', 'ArrowRight'), "fichier précédent / suivant de l'élément ; "
+                                                     "pendant la lecture : reculer / avancer d'un saut",
                         handled_by='common/js/media-preview.js',
-                        targets=('.wama-preview-nav-prev', '.wama-preview-nav-next')),
+                        targets=('.wama-preview-nav-prev', '.wama-preview-nav-next'),
+                        names=('previous_file', 'next_file')),
                Shortcut(('ArrowUp', 'ArrowDown'), 'card précédente / suivante',
-                        handled_by='common/js/media-preview.js',
+                        handled_by='common/js/media-preview.js', names=('previous_card', 'next_card'),
                         targets=('#wamaMediaPreviewModal .wama-preview-nav-prev',
                                  '#wamaMediaPreviewModal .wama-preview-nav-next')),
                Shortcut(('Escape',), 'quitter le plein écran',

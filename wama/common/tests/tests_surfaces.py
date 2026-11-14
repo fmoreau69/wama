@@ -1935,7 +1935,10 @@ class BrickShortcutsTest(SimpleTestCase):
         for shortcut in BRICKS['media_transport'].shortcuts:
             if shortcut.scope == 'page':
                 self.assertEqual(len(shortcut.keys), len(shortcut.names), shortcut.keys)
-        viewer = {key: name for s in BRICKS['media_viewer'].shortcuts for key, name in zip(s.keys, s.names)}
+        # ... those the transport reads for it : its own browsing keys have their table
+        # (`handled_by`, held by the generic guard).
+        viewer = {key: name for s in BRICKS['media_viewer'].shortcuts if not s.handled_by
+                  for key, name in zip(s.keys, s.names)}
         self.assertTrue(viewer)
         self.assertEqual({}, {k: n for k, n in viewer.items() if table.get(k) != n})
         self.assertNotIn("case 'KeyL'", axis, 'no key is tested by hand any more')
@@ -1955,7 +1958,7 @@ class BrickShortcutsTest(SimpleTestCase):
         v8.eval(KeyDispatcherTest.SETUP + _js('common/js/wama-keys.js'))
         out = v8.eval('''(function () {
             var K = window.WamaKeys, table = {'KeyJ': 'reverse', 'Shift+ArrowLeft': 'far', ',': 'step_back',
-                                              'Alt+KeyL': 'follow'};
+                                              'Alt+KeyL': 'follow', 'Enter': 'edit', 'Ctrl+Enter': 'cut'};
             function ev(code, key, mods) { return Object.assign({code: code, key: key}, mods || {}); }
             var before = [K.action(ev('KeyJ', 'j'), 'x', table),
                           K.action(ev('ArrowLeft', 'ArrowLeft', {shiftKey: true}), 'x', table),
@@ -1972,8 +1975,14 @@ class BrickShortcutsTest(SimpleTestCase):
                     shifted: [K.action(ev('KeyJ', 'J', {shiftKey: true}), 'x', table),
                               K.action(ev('KeyJ', 'j', {shiftKey: true, ctrlKey: true}), 'x', table),
                               K.action(ev('KeyL', 'L', {shiftKey: true, altKey: true}), 'x', table),
-                              K.action(ev('KeyL', 'l', {altKey: true, ctrlKey: true}), 'x', table)]};
+                              K.action(ev('KeyL', 'l', {altKey: true, ctrlKey: true}), 'x', table)],
+                    numpad: [K.action(ev('NumpadEnter', 'Enter'), 'x', table),
+                             K.action(ev('NumpadEnter', 'Enter', {ctrlKey: true}), 'x', table),
+                             K.action(ev('NumpadEnter', 'Enter', {shiftKey: true}), 'x', table)]};
         })()''')
+        self.assertEqual(['edit', 'cut', 'edit'], list(out['numpad']),
+                         'a NAMED key is also read at what it produces : the Enter of the numeric pad '
+                         'has another place and the same name')
         self.assertEqual(['reverse', None, 'follow', None], list(out['shifted']),
                          'Shift never takes a key away (Alt+Shift+L still follows) ; Ctrl and Alt '
                          'always make another key')
@@ -2792,7 +2801,7 @@ class EveryKeyTableFollowsTheRegistryTest(SimpleTestCase):
     #: the port to `WamaKeys.action` (`WAMA_VOLETS §3-ter`). A list that can only SHRINK : a ported
     #: brick leaves it in the same commit, a new brick never enters it. Keys not named by design
     #: are not counted : those typed in a field, those the brick only follows, Escape.
-    NOT_YET_NAMED = ('inspector_panel', 'media_viewer', 'surface_actions')
+    NOT_YET_NAMED = ('inspector_panel', 'surface_actions')
 
     def test_every_brick_names_its_keys_but_the_declared_gaps(self):
         from wama.common.surfaces import BRICKS, load_all
@@ -2826,7 +2835,13 @@ class EveryKeyTableFollowsTheRegistryTest(SimpleTestCase):
                     continue
                 table = re.search(r'(?:var|const|let)\s+%s\s*=\s*\{(.*?)\}\s*;' % call.group(1),
                                   code, re.S)
-                declared = {k: n for s in brick.shortcuts for k, n in zip(s.keys, s.names)}
+                # The keys THIS module reads : those it handles for the brick (`handled_by`), or —
+                # for the brick's own script — those no other module handles. The viewer's browsing
+                # keys are in its page module, its transport keys in the transport's table.
+                handles = any(s.handled_by == path for s in brick.shortcuts)
+                declared = {k: n for s in brick.shortcuts
+                            if (s.handled_by == path if handles else not s.handled_by)
+                            for k, n in zip(s.keys, s.names)}
                 with self.subTest(brick=key):
                     self.assertTrue(table, f'{key} : table {call.group(1)} not declared in {path}')
                     self.assertEqual(declared, dict(re.findall(r"'([^']+)':\s*'(\w+)'", table.group(1))))

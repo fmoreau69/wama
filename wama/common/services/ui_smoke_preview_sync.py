@@ -50,7 +50,12 @@ STILL = ('pause1', 'seek', 'pause2')
 
 #: Le clavier de la visionneuse : phase, touche, attente (ms). `focus` donne le focus à la vidéo.
 KEYS = (('space', 'Space', 1500), ('space2', 'Space', 600), ('L', 'l', 1200), ('K', 'k', 600),
-        ('J', 'j', 1000), ('K2', 'k', 600), ('home', 'Home', 600), ('focus', None, 0),
+        ('J', 'j', 1000), ('K2', 'k', 600), ('home', 'Home', 600),
+        # 2026-11-14 : un pas au clavier ; et les flèches — au transport PENDANT la lecture, à la
+        # navigation à l'arrêt (décision de Fabien du 12/11).
+        ('step', '.', 400), ('play3', 'Space', 800), ('right', 'ArrowRight', 500),
+        ('space3', 'Space', 600), ('rightRest', 'ArrowRight', 500), ('home2', 'Home', 600),
+        ('focus', None, 0),
         ('native', 'Space', 1000), ('native2', 'Space', 600))
 
 PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>preview sync</title>
@@ -431,6 +436,12 @@ def _viewer_keys(browser, url, verdict, ignored):
     verdict(log.get('J') and moved('J') < -0.5 and after['J']['paused'],
             f"J : en arrière, la vidéo muette ({moved('J'):.2f} s en 1 s)")
     verdict(log.get('home') and after['home']['t'] < 0.05, f"Début : au début ({after['home']['t']:.3f})")
+    verdict(log.get('step') and 0 < moved('step') < 0.2 and after['step']['paused'],
+            f"« . » : un pas en avant, la lecture arrêtée ({moved('step'):.3f} s)")
+    verdict(log.get('right') and moved('right') > 4 and not after['right']['paused'],
+            f"→ pendant la lecture : un saut dans le média ({moved('right'):.2f} s)")
+    verdict(log.get('rightRest') and abs(moved('rightRest')) < 0.05 and after['rightRest']['paused'],
+            f"→ à l'arrêt : la navigation, le temps ne bouge pas ({moved('rightRest'):.3f} s)")
     verdict(log.get('native') is False and not after['native']['paused'] and log.get('native2') is False
             and after['native2']['paused'],
             "Espace sur le lecteur natif qui a le focus : il le garde, une bascule par frappe "

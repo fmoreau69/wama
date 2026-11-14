@@ -438,6 +438,49 @@ class ViewerTransportKeysTest(SimpleTestCase):
         self.assertEqual([True, 0], list(out['home']))
         self.assertFalse(out['closed'], 'closed, the viewer takes nothing')
 
+    def test_while_playing_left_and_right_go_to_the_transport_and_up_and_down_keep_browsing(self):
+        """2026-11-14 (Fabien, 12/11 : « ne laisser que les touches haut/bas pour la navigation
+        preview lorsque le transport est en cours d'utilisation, sinon laisser toutes les flèches
+        en navigation ») — at rest the four arrows browse, as before ; while the medium PLAYS,
+        ←/→ jump in it and ↑/↓ still browse. The arrows of the numeric pad browse too (the old
+        code read the key produced, not its place)."""
+        out = self.v8.eval("""(function () {
+            function press(code, key) {
+                var e = {code: code, key: key, target: {}, ctrlKey: false, metaKey: false, altKey: false,
+                         shiftKey: false, defaultPrevented: false,
+                         preventDefault: function () { e.defaultPrevented = true; }};
+                keyListeners.forEach(function (fn) { fn(e); });
+                return e.defaultPrevented;
+            }
+            var v = {tagName: 'VIDEO', currentTime: 0, duration: 60, paused: true, ended: false,
+                     readyState: 4, seeking: false, playbackRate: 1, attrs: {},
+                     addEventListener: function () {}, removeEventListener: function () {},
+                     setAttribute: function (k, x) { v.attrs[k] = String(x); },
+                     getAttribute: function (k) { return k in v.attrs ? v.attrs[k] : null; },
+                     hasAttribute: function (k) { return k in v.attrs; },
+                     removeAttribute: function (k) { delete v.attrs[k]; },
+                     play: function () { v.paused = false; return null; },
+                     pause: function () { v.paused = true; }};
+            shown = v; window.WamaMediaPreview.playOnAxis(v, [{el: v}]);
+            var axis = v._wamaAxis, r = {};
+            axis.seek(10);
+            r.rest = [press('ArrowRight', 'ArrowRight'), axis.time()];
+            r.numpad = [press('Numpad6', 'ArrowRight'), axis.time()];
+            press('Space', ' ');
+            r.right = [press('ArrowRight', 'ArrowRight'), axis.time()];
+            r.left = [press('ArrowLeft', 'ArrowLeft'), axis.time()];
+            r.up = [press('ArrowUp', 'ArrowUp'), axis.time(), axis.playing()];
+            press('Space', ' ');
+            r.restAgain = [press('ArrowLeft', 'ArrowLeft'), axis.time(), axis.playing()];
+            return r;
+        })()""")
+        self.assertEqual([True, 10], list(out['rest']), 'at rest → browses, the time does not move')
+        self.assertEqual([True, 10], list(out['numpad']))
+        self.assertEqual([True, 15], list(out['right']), 'playing → jumps forward')
+        self.assertEqual([True, 10], list(out['left']))
+        self.assertEqual([True, 10, True], list(out['up']), 'playing, ↑ still browses')
+        self.assertEqual([True, 10, False], list(out['restAgain']), 'paused again → browses again')
+
 
 class PreviewSyncVerdictTest(SimpleTestCase):
     """The readings of `common.preview_sync` (the precision of the preview playback, measured in a

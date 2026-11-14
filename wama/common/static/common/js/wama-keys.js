@@ -183,10 +183,17 @@
      *  `Shift+…` l'emporte. Ctrl et Alt, eux, font toujours une autre touche. */
     function action(e, owner, defaults) {
         var table = tableOf(owner, defaults);
+        var mods = (e.ctrlKey || e.metaKey ? 'Ctrl+' : '') + (e.altKey ? 'Alt+' : '');
+        var shift = e.shiftKey ? 'Shift+' : '';
+        // Une touche NOMMÉE se lit aussi à ce qu'elle PRODUIT (`e.key`) : l'Entrée et les flèches
+        // du pavé numérique ont une autre place (`NumpadEnter`, `Numpad4`) et le même nom — les
+        // briques qui lisaient `e.key` les prenaient.
+        var named = typeof e.key === 'string' && e.key.length > 1 ? e.key : null;
         var byChar = charCombo(e);
-        var found = table[combo(e)] || (byChar && table[byChar]) || null;
+        var found = table[combo(e)] || (named && table[mods + shift + named])
+            || (byChar && table[byChar]) || null;
         if (found || !e.shiftKey) return found;
-        return table[(e.ctrlKey || e.metaKey ? 'Ctrl+' : '') + (e.altKey ? 'Alt+' : '') + e.code] || null;
+        return table[mods + e.code] || (named && table[mods + named]) || null;
     }
     /** Surcharge les touches de `owner` : `{action: [touches]}` (une liste vide la tait). */
     function remap(owner, table) {
