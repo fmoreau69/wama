@@ -170,6 +170,17 @@ class SyncWritesThePlatformRefTest(TestCase):
         self.assertEqual('huggingface:Org/M',
                          AIModel.objects.get(model_key='transcriber:m').platform_ref)
 
+    def test_a_license_named_by_the_discovery_fills_the_column_never_the_publishers_one(self):
+        """2026-11-13 : la licence qu'une découverte déclare (`extra_info['license']`) restait hors
+        de la colonne que le registre des licences lit — 10 lignes (Demucs, EgoBlur, Phonon…).
+        Elle comble un VIDE ; la licence de la carte de l'éditeur, déjà posée, reste."""
+        from wama.model_manager.services.model_sync import ModelSyncService
+        ModelSyncService()._sync_model('transcriber:m', self._info(extra_info={'license': 'mit'}))
+        self.assertEqual('mit', AIModel.objects.get(model_key='transcriber:m').license)
+        AIModel.objects.filter(model_key='transcriber:m').update(license='apache-2.0')
+        ModelSyncService()._sync_model('transcriber:m', self._info(extra_info={'license': 'mit'}))
+        self.assertEqual('apache-2.0', AIModel.objects.get(model_key='transcriber:m').license)
+
     def test_the_base_model_pair_survives_a_discovery_that_does_not_know_it(self):
         from wama.model_manager.models import ModelSource, ModelType
         from wama.model_manager.services.model_registry import ModelInfo

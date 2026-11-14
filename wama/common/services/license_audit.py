@@ -88,7 +88,17 @@ _CATALOGUE = {
     'flux-1-dev-non-commercial': (NON_COMMERCIAL, True),  # FLUX.1 [dev] NC — les SORTIES restent libres
     'cogvideox-license':      (NON_COMMERCIAL, True),  # CogVideoX — recherche libre ; commercial = enregistrement
     'hunyuan-community':      (INTERDITE, True),       # Tencent Hunyuan — « excluding … European Union »
+    # ── Ajoutées le 2026-11-13 (registre des licences revu rétroactivement, demande de Fabien) ──
+    'fair-noncommercial-research': (NON_COMMERCIAL, True),  # FAIR NC Research (Meta, PLM de perception_models)
+    's-lab-1.0':              (NON_COMMERCIAL, True),  # S-Lab License 1.0 (NTU, CodeFormer) — non commerciale
+    'polyform-noncommercial': (NON_COMMERCIAL, True),  # PolyForm Noncommercial 1.0.0
+    'lgpl':                   (COPYLEFT_FAIBLE, True), # LGPL sans version dite (même famille que 2.1 et 3.0)
+    'mit-cmu':                (PERMISSIVE, True),      # MIT-CMU (SPDX)
+    'psf-2.0':                (PERMISSIVE, True),      # Python Software Foundation License (« Python style »)
 }
+
+#: Ce qu'un amont écrit quand il ne dit RIEN : une licence inconnue, pas un identifiant de plus.
+_SILENT = {'unknown', 'none', 'n/a', 'na', 'other/unknown'}
 
 #: Graphies rencontrées en amont → identifiant normalisé. PyPI rend du texte libre
 #: (« Apache 2.0 License », « BSD 3-Clause License »), HuggingFace du SPDX minuscule : sans
@@ -103,6 +113,18 @@ _ALIAS = {
     'cc0': 'cc0-1.0', 'cc-by-nc': 'cc-by-nc-4.0', 'cc-by': 'cc-by-4.0',
     'etalab': 'etalab-2.0', 'licence ouverte': 'etalab-2.0',
     'isc license': 'isc',
+    # Graphies relevées dans les registres le 2026-11-13 (15 textes « à qualifier » qui étaient
+    # des licences connues).
+    'apache license 2.0': 'apache-2.0', 'apache license version 2.0': 'apache-2.0',
+    'creative commons attribution-noncommercial 4.0 international': 'cc-by-nc-4.0',
+    'cc by 4.0': 'cc-by-4.0', 'cc by-nc 4.0': 'cc-by-nc-4.0',
+    'gnu general public license v3 or later': 'gpl-3.0', 'gplv3+': 'gpl-3.0',
+    'lgpl-2.1-or-later': 'lgpl-2.1', 'lgpl-2.1-only': 'lgpl-2.1',
+    'lgpl-3.0-only': 'lgpl-3.0', 'lgpl-3.0-or-later': 'lgpl-3.0',
+    'the unlicense': 'unlicense', 'sam license': 'sam-license', 'sam': 'sam-license',
+    'fair noncommercial research': 'fair-noncommercial-research',
+    's-lab license 1.0': 's-lab-1.0', 's-lab 1.0': 's-lab-1.0',
+    'polyform noncommercial': 'polyform-noncommercial', 'python style': 'psf-2.0',
 }
 
 
@@ -125,6 +147,8 @@ def normaliser_licence(brut) -> str:
     # On coupe ce qui suit une parenthèse ou une virgule : les amonts collent souvent l'URL.
     texte = re.split(r'[(,]', texte, 1)[0].strip()
     texte = texte.rstrip('.').strip()
+    if texte in _SILENT:
+        return ''
     if texte in _CATALOGUE:
         return texte
     if texte in _ALIAS:

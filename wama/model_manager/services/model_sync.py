@@ -453,6 +453,15 @@ class ModelSyncService:
         # retirée avec `identity.hf_id` des manifestes (migration `0031`, `REMOVAL_LEDGER` R181).
         if model_info.platform_ref:
             defaults['platform_ref'] = model_info.platform_ref
+        # LICENCE DÉCLARÉE par la découverte (`extra_info['license']`, 2026-11-13) : la colonne ne
+        # se remplissait que par l'identité lue sur la carte de l'éditeur (`provenance`) — une ligne
+        # hors du Hub ou à carte muette gardait sa licence dans `extra_info`, que le registre des
+        # licences ne lit pas (10 lignes mesurées : Demucs, EgoBlur, TalkingHead, FLUX.1-dev GGUF,
+        # Phonon…). Elle comble un VIDE, jamais une licence établie par l'éditeur.
+        _declared_license = str((model_info.extra_info or {}).get('license') or '').strip()
+        if _declared_license and not (AIModel.objects.filter(model_key=model_key)
+                                      .values_list('license', flat=True).first()):
+            defaults['license'] = _declared_license[:64]
         # A priori DÉCLARÉ avec sa source (`model_quality.DECLARED_PRIORS`, 2026-10-03) quand la
         # découverte n'en dit rien — versionné, sourcé, au lieu d'une valeur posée à la main en base.
         from .model_quality import declared_prior

@@ -38,7 +38,7 @@
     "entry_points": {},
     "identity": {
       "author": "Meta AI Research, FAIR",
-      "license": "FAIR Noncommercial Research License",
+      "license": "Apache-2.0 AND FAIR Noncommercial Research License",
       "repository": "https://github.com/facebookresearch/perception_models",
       "summary": "Models of the Perception family.",
       "version": "e72b6810b113"
