@@ -129,6 +129,22 @@ class EveryPageIsThePiecesTest(SimpleTestCase):
                     self.assertRegex(code, rf'class="tab-pane[^"]*"[^>]*data-domain="{d}"')
                     self.assertIn(f'data-domain-settings="{d}"', code)
 
+    def test_no_app_page_rewrites_its_title_its_icon_or_its_subtitle(self):
+        """2026-11-14 : dix pages réécrivaient leur titre à la main, plus long que le libellé
+        déclaré (« Media Anonymizer », « AI Image & Video Generation ») — le socle lit la
+        déclaration (`APP_CATALOG` : libellé, icône, description), le générateur ne l'écrit plus."""
+        found = []
+        for app in REAL_APPS:
+            for page in sorted((ROOT / 'wama' / app / 'templates' / app).glob('*.html')):
+                code = code_only(page.as_posix(), page.read_text(encoding='utf-8'))
+                found += [f'{app}/{page.name} : {block}'
+                          for block in ('app_title', 'app_icon', 'app_description')
+                          if f'block {block} ' in code]
+        self.assertEqual([], found)
+        generator = (ROOT / 'wama' / 'common' / 'manifests' / 'codegen'
+                     / 'templates_gen.py').read_text(encoding='utf-8')
+        self.assertNotIn('block app_title', generator)
+
     def test_no_app_script_starts_a_bar_or_switches_the_domains(self):
         found = []
         for app in REAL_APPS:
@@ -177,12 +193,24 @@ class TheServedPageCarriesTheDomainsTest(TestCase):
                 self.assertNotIn('data-wama-domain-tabs', html)
                 self.assertNotIn('data-wama-page-domain', html, 'nothing to choose: no selector')
 
+    def test_the_title_of_a_page_is_the_label_its_app_declares(self):
+        for app in REAL_APPS:
+            with self.subTest(app=app):
+                html = self._get(app)
+                spec = app_registry.APP_CATALOG[app]
+                heading = re.search(r'<h1 class="display-4 mb-3">(.*?)</h1>', html, re.S).group(1)
+                self.assertIn(spec['label'], heading)
+                self.assertIn(f'class="{spec["icon"]}"', heading)
+                self.assertNotIn('data-wama-page-domain', heading, 'the title stays short')
+
     def test_the_title_of_a_page_with_several_domains_is_their_selector(self):
-        """2026-11-12 : un LIEN par domaine dans le titre, celui de la page marqué — et le
-        premier déclaré tant que le compte n'a rien choisi."""
+        """Un LIEN par domaine SOUS le titre (2026-11-14 : un clic, titre court — le menu du
+        12/11 en demandait deux), celui de la page marqué — et le premier déclaré tant que le
+        compte n'a rien choisi."""
         for app in MULTI:
             with self.subTest(app=app):
                 html = self._get(app)
+                self.assertNotIn('wama-page-domain-toggle', html, 'one click: links, not a menu')
                 domains = get_domains(app)
                 self.assertIn(f'data-wama-page-domain="{domains[0]["id"]}" data-app="{app}"', html)
                 index = reverse(f'{app}:index')

@@ -253,6 +253,15 @@ titre, de la même lecture (`navigation.domain_links`) ; le clic sur l'app garde
 **Le compte de l'onglet « File d'attente »** est celui du domaine de la page (`wama:domain-stats`,
 `wama-modes.js`) ; le second `#queueCount` de la page de l'anonymizer reste à retirer.
 
+**Retour de Fabien à l'écran, le 2026-11-14 — le sélecteur change de forme** : le titre « App / Domaine ▾ »
+était trop long, et il fallait DEUX clics pour changer de domaine. Les domaines sont désormais des
+LIENS directs sous le titre (un clic, `_page_domain.html` : un `<nav>`, `aria-current`, ce que fait
+chacun au survol), et le titre ne dit plus que l'app. Même jour : le titre, l'icône et le sous-titre
+d'une page sont ceux que l'app DÉCLARE (`APP_CATALOG`, lus par le socle) — dix pages les réécrivaient
+à la main, plus longs (« Media Anonymizer », « AI Image & Video Generation », « Speech-to-Text
+Transcriber ») ; le générateur ne les écrit plus. Décision du même jour : le Studio aura UN NŒUD PAR
+DOMAINE (« sinon on complexifie »).
+
 **Reste, dans l'ordre** : ⑥ puis ⑦ de `ROUTE §11 #42` — le nœud du Studio, l'outil de l'assistant et
 la grille (`audio_enhancer` en dur), puis le générateur, qui hérite du sélecteur par le socle mais
 dont la page générée doit ranger ses volets par domaine. À juger à l'écran par Fabien : la mise en

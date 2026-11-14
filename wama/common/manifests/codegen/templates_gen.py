@@ -833,20 +833,13 @@ def render_base(manifest: dict) -> tuple:
 
     from ..builtin.app import _GEN_MARK
     app = manifest.get('key')
-    ident = (manifest.get('body') or {}).get('identity') or {}
-    title = ident.get('verbose_name') or manifest.get('name') or app
-    icon = ident.get('icon') or 'fas fa-cog'
-    color = ident.get('color') or ''
-    style = f' style="color: {escape(color)}"' if color else ''
     mark = _GEN_MARK.format(app_id=app)
     src = f'''{{% extends 'common/app_modern_base.html' %}}
 {{% comment %}}{mark} — base.html GÉNÉRÉ depuis la facette identity (render_base).
 Fine couche sur l'ossature commune ; « À propos » et « Aide » viennent d'APP_CATALOG.
-Ne pas éditer à la main : rejouer la génération après modification du manifeste.{{% endcomment %}}
-
-{{% block app_icon %}}<i class="{escape(icon)}"{style}></i>{{% endblock %}}
-{{% block app_title %}}{escape(title)}{{% endblock %}}
-{{% block app_description %}}{escape(manifest.get('description') or '')}{{% endblock %}}
+Ne pas éditer à la main : rejouer la génération après modification du manifeste.
+L'icône, le titre et le sous-titre ne sont PAS écrits (2026-11-14) : le socle les lit de la
+déclaration de l'app (`APP_CATALOG`), comme pour toute page d'app.{{% endcomment %}}
 
 {{% block console_content_id %}}{app}-console-content{{% endblock %}}
 {{% block console_app_name %}}{app}{{% endblock %}}

@@ -80,17 +80,19 @@
         color: var(--wama-text-small);
     }
 
-    /* Le domaine dans le titre (`_page_domain.html`) : le nom du domaine EST le bouton. */
-    .wama-page-domain { display: inline-flex; align-items: baseline; gap: .3em; }
-    .wama-page-domain-sep { color: var(--wama-border-strong); }
-    .wama-page-domain-toggle { color: var(--wama-accent-text); text-decoration: none;
-                               border-bottom: 2px solid rgba(var(--wama-accent-rgb), .45); }
-    .wama-page-domain-toggle:hover, .wama-page-domain-toggle:focus-visible {
-        color: var(--wama-accent-text); border-bottom-color: var(--wama-accent); }
-    .wama-page-domain-toggle::after { font-size: .45em; vertical-align: .35em; }
-    .wama-page-domain .dropdown-menu { min-width: 16rem; }
-    .wama-page-domain .dropdown-item[aria-current="page"] {
-        background: rgba(var(--wama-accent-rgb), .16); }
+    /* Les domaines de la page (`_page_domain.html`) : un lien par domaine, sous le titre. */
+    .wama-page-domain { display: inline-flex; flex-wrap: wrap; justify-content: center; margin: 0 0 .9rem; }
+    .wama-page-domain-link { display: inline-flex; align-items: center; gap: .45rem; padding: .35rem .95rem;
+                             border: 1px solid var(--wama-border-strong); margin-left: -1px;
+                             color: var(--wama-text-body); text-decoration: none; }
+    .wama-page-domain-link:first-child { border-radius: .5rem 0 0 .5rem; margin-left: 0; }
+    .wama-page-domain-link:last-child { border-radius: 0 .5rem .5rem 0; }
+    .wama-page-domain-link:hover, .wama-page-domain-link:focus-visible {
+        color: var(--wama-accent-text); border-color: var(--wama-accent); position: relative; z-index: 1; }
+    .wama-page-domain-link[aria-current="page"] {
+        color: var(--wama-accent-text); border-color: var(--wama-accent);
+        background: rgba(var(--wama-accent-rgb), .16); position: relative; z-index: 1; }
+    .wama-page-domain-link .badge:empty { display: none; }
 
     .wama-page-domain-what { color: var(--wama-text-small); margin: -.5rem 0 0; }
 
@@ -121,11 +123,12 @@
     <!-- Titre de l'application -->
     <div class="text-center mb-3">
         <h1 class="display-4 mb-3">
-            {% block app_icon %}<i class="fas fa-cog"></i>{% endblock %}
-            {% block app_title %}Application{% endblock %}
-            {# Le DOMAINE de la page, dans le titre (2026-11-12) : rien pour une app d'un seul domaine. #}
-            {% if page_domain %}{% include 'common/_page_domain.html' %}{% endif %}
+            {# L'icône et le titre : ceux que l'app DÉCLARE (`APP_CATALOG`, 2026-11-14) — dix pages les réécrivaient à la main, plus longs (« Media Anonymizer », « AI Image & Video Generation »). #}
+            {% block app_icon %}<i class="{{ current_app_spec.icon|default:'fas fa-cog' }}"{% if current_app_spec.color %} style="color:{{ current_app_spec.color }};"{% endif %}></i>{% endblock %}
+            {% block app_title %}{{ current_app_spec.label|default:'Application' }}{% endblock %}
         </h1>
+        {# Les DOMAINES de la page, en liens directs sous le titre (2026-11-14) : un clic, et le titre reste court. Rien pour une app d'un seul domaine. #}
+        {% if page_domain %}{% include 'common/_page_domain.html' %}{% endif %}
         <p class="lead text-body-emphasis">
             {# Le sous-titre : la description DÉCLARÉE de l'app (`APP_CATALOG`, 2026-11-06) — une page qui l'écrit à la main la recopie. #}
             {% block app_description %}{{ current_app_spec.description|default:'' }}{% endblock %}
