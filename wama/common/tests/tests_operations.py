@@ -115,6 +115,20 @@ class ThePageTest(TestCase):
             self.assertIn(f'data-operation="{op["key"]}"', html)
             self.assertIn(op['label'], html)
         self.assertIn('data-wama-processes', html)
+        # The right panel, as on the other management pages: the processes at its head, the
+        # derived record of the selected tile; and the COMMON bar (search, facet, declared sort).
+        centre, _, panel = html.partition('class="wama-cat-wrap"')[2].partition('id="right-panel-top"')
+        self.assertIn('data-wama-processes', panel, 'the processes live in the right panel')
+        self.assertNotIn('data-wama-processes', centre)
+        self.assertIn('id="inspectorRegistreDetail"', html)
+        self.assertIn('data-wama-inspecte=".wama-cat-card"', centre)
+        for piece in ('data-wama-filter-bar', 'data-cible-vivante="1"', 'data-f-role="sort"',
+                      'data-f-facette="nature"', 'data-f-groupe'):
+            self.assertIn(piece, centre)
+        for nature in operations.NATURES.values():
+            self.assertIn(nature, centre)
+        self.assertIn(f'data-f-nature="{operations.NATURES["operation"]}"', centre)
+        self.assertIn(f'data-nature="{operations.NATURES["job"]}"', centre)
         self.assertIn(f'data-api="{reverse("model_manager:api_services")}"', html)
         for script in ('wama-processes.js', 'wama-operations.js'):
             self.assertIn(script, html)
@@ -161,6 +175,9 @@ class ThePageTest(TestCase):
         with mock.patch.object(mcp_client, 'call_dev_tool', return_value=jobs):
             listed = self.client.get(reverse('common:api_operations_jobs')).json()
         self.assertEqual(['a'], [j['id'] for j in listed['jobs']], 'its own jobs only')
+        # What the tile says comes from the declaration, not from the script.
+        self.assertEqual((operations.OPERATIONS['check_docs']['label'], 'Terminée', 'success'),
+                         tuple(listed['jobs'][0][k] for k in ('label', 'state_label', 'tone')))
         self.assertNotIn('dev_tools', (ROOT / 'wama' / 'common' / 'views.py').read_text(encoding='utf-8'))
 
     def test_the_model_manager_page_no_longer_restarts_processes(self):
@@ -220,7 +237,8 @@ class ScriptsRenderPureListsTest(SimpleTestCase):
                            {'key': 'default', 'label': 'Worker default', 'kind': 'worker',
                             'state': 'restarting', 'state_label': 'Relance', 'tone': 'info', 'actions': []}])
         html = self.v8.eval(f'WamaProcesses._render({rows}, true)')
-        self.assertEqual(2, html.count('class="wama-cat-card"'))
+        self.assertEqual(2, html.count('class="ops-process '))
+        self.assertIn('title="Il finit sa tâche."', html, 'what its restart cuts, said on the line')
         self.assertIn('Worker &lt;gpu>', html)
         self.assertIn('data-process="gpu"', html)
         self.assertNotIn('data-process="default"', html, 'no gesture offered while it restarts')
@@ -229,10 +247,16 @@ class ScriptsRenderPureListsTest(SimpleTestCase):
                       'no watchdog, no order')
 
     def test_the_jobs_say_their_state_and_an_empty_list_says_so(self):
-        jobs = json.dumps([{'id': '20261114-101010-abcdef', 'tool': 'operation:check_docs',
-                            'status': 'running', 'user': 'ada'}])
-        html = self.v8.eval(f'WamaOperations._renderJobs({jobs})')
-        self.assertIn('check_docs', html)
+        jobs = json.dumps([operations.job_row(
+            {'id': '20261114-101010-abcdef', 'tool': 'operation:check_docs', 'status': 'running',
+             'user': 'ada'}, 'operation:')])
+        html = self.v8.eval(f'WamaOperations._renderJobs({jobs}, "Opération lancée")')
+        self.assertIn(operations.OPERATIONS['check_docs']['label'], html)
         self.assertIn('En cours', html)
+        self.assertIn('bg-info', html, 'the tone table of the processes')
+        # A tile of the management pages: filtered, sorted and inspected by the common bricks.
+        for piece in ('class="wama-cat-card', 'data-f-nature="Opération lancée"',
+                      'data-f-etat="En cours"', 'data-s-since="20261114-101010-abcdef"'):
+            self.assertIn(piece, html)
         self.assertIn('data-job="20261114-101010-abcdef"', html)
         self.assertIn('Aucune opération lancée', self.v8.eval('WamaOperations._renderJobs([])'))

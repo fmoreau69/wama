@@ -276,7 +276,12 @@
         }
 
         function appliquerClient() {
-            if (liveTarget && selCible) { elements = $$(selCible, racine || document); }
+            if (liveTarget && selCible) {
+                elements = $$(selCible, racine || document);
+                // Une liste re-rendue revient dans l'ordre de son composant : le tri choisi se
+                // ré-applique avec le filtre (2026-11-14, page « Exploitation »).
+                if (sorter && sorter.value) { sortElements(elements, sorter.value); }
+            }
             var q = recherche ? recherche.value.toLowerCase().trim() : '';
             var visibles = 0;
             elements.forEach(function (el) {

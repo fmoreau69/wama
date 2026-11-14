@@ -5,28 +5,32 @@
  * La page ne connaît aucune opération : le serveur les rend (un formulaire par opération) et les
  * lance en tâche de fond (`dev_run_operation`, par le serveur de développement). Ici : poster le
  * formulaire, relire la liste des tâches — plus souvent tant qu'une tourne —, et montrer la fin
- * du journal d'une tâche au clic.
+ * du journal d'une tâche au clic. Une tâche est une TUILE des pages de gestion : elle porte sa
+ * nature (`data-f-nature`, le mot que la page déclare sur l'hôte), son état (libellé et ton
+ * rendus par le serveur, `operations.JOB_STATES`) et ses clés de tri (`data-s-*`) — la barre
+ * commune la filtre et la trie, l'inspecteur commun en dérive la fiche.
  */
 (function (global) {
   'use strict';
 
-  var STATES = {
-    running: ['En cours', 'bg-info text-dark'], done: ['Terminée', 'bg-success'],
-    failed: ['En échec', 'bg-danger'], interrupted: ['Interrompue', 'bg-warning text-dark'],
-  };
+  // Les classes d'un TON : celles de la liste des processus (une table, pas deux).
+  var TONES = (global.WamaProcesses && global.WamaProcesses.TONES) || {};
   var BUSY_MS = 4000, IDLE_MS = 30000;
 
   function esc(value) { return global.WamaApp.escapeHtml(value == null ? '' : String(value)); }
 
   /** Les tâches — rendu PUR (liste → HTML), exécuté tel quel par les tests. */
-  function renderJobs(jobs) {
+  function renderJobs(jobs, nature) {
     if (!jobs || !jobs.length) return '<p class="text-body-secondary">Aucune opération lancée.</p>';
-    return jobs.map(function (job) {
-      var state = STATES[job.status] || [job.status || '?', 'bg-secondary'];
-      var name = String(job.tool || '').replace(/^operation:/, '');
-      return '<div class="wama-cat-card ops-job" data-job="' + esc(job.id) + '" tabindex="0" role="button"'
-        + ' aria-label="Voir le journal de ' + esc(name) + '">'
-        + '<h4>' + esc(name) + ' <span class="badge ' + state[1] + '">' + esc(state[0]) + '</span></h4>'
+    return jobs.map(function (job, index) {
+      var state = job.state_label || job.status || '?';
+      var name = job.label || String(job.tool || '');
+      return '<div class="wama-cat-card ops-job" data-job="' + esc(job.id) + '" data-id="' + esc(job.id) + '"'
+        + ' data-f-nature="' + esc(nature || '') + '" data-f-etat="' + esc(state) + '"'
+        + ' data-s-order="' + (index + 1) + '" data-s-label="' + esc(name) + '" data-s-since="' + esc(job.id) + '"'
+        + ' tabindex="0" role="button" aria-label="Voir le journal de ' + esc(name) + '">'
+        + '<h4>' + esc(name) + ' <span class="badge ' + (TONES[job.tone] || 'bg-secondary') + '">'
+        + esc(state) + '</span></h4>'
         + '<div class="wama-cat-meta">' + esc(job.user || '') + ' · <code>' + esc(job.id) + '</code></div>'
         + '<pre class="ops-log" hidden></pre></div>';
     }).join('');
@@ -37,7 +41,13 @@
     var host = document.getElementById('wamaOperationJobs');
     if (!root || !host) return;
     var runApi = root.dataset.runApi, jobsApi = root.dataset.jobsApi;
-    var timer = null, open = {};
+    var timer = null, open = {}, shown = null;
+
+    /** La liste vient d'être re-rendue : la barre commune ré-applique filtre et tri. */
+    function refreshBars() {
+      if (!global.WamaFilterBar) return;
+      document.querySelectorAll('[data-wama-filter-bar]').forEach(global.WamaFilterBar.refresh);
+    }
 
     function load() {
       clearTimeout(timer);
@@ -49,8 +59,12 @@
             timer = setTimeout(load, IDLE_MS);
             return;
           }
-          host.innerHTML = renderJobs(data.jobs);
-          Object.keys(open).forEach(showLog);
+          var html = renderJobs(data.jobs, host.dataset.nature);
+          if (html !== shown) {
+            host.innerHTML = html; shown = html;
+            Object.keys(open).forEach(showLog);
+            refreshBars();
+          }
           var busy = (data.jobs || []).some(function (j) { return j.status === 'running'; });
           timer = setTimeout(load, busy ? BUSY_MS : IDLE_MS);
         })

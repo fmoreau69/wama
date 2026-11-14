@@ -59,6 +59,28 @@ OPERATIONS = {
 }
 
 
+#: Les NATURES des tuiles de la page — le mot que disent la facette de la barre commune et la
+#: fiche du volet (`data-f-nature`), déclaré une fois.
+NATURES = {'operation': 'Opération', 'job': 'Opération lancée', 'report': 'Rapport nocturne'}
+
+
+#: L'état d'une opération lancée — `statut de la tâche: (libellé, ton)` ; le ton est celui des
+#: badges d'état de WAMA (`success`, `info`, `warning`, `danger`, `secondary`).
+JOB_STATES = {
+    'running': ('En cours', 'info'), 'done': ('Terminée', 'success'),
+    'failed': ('En échec', 'danger'), 'interrupted': ('Interrompue', 'warning'),
+}
+
+
+def job_row(job: dict, prefix: str) -> dict:
+    """La tâche d'une opération telle que la page la montre : le LIBELLÉ de son opération (sa clé
+    quand elle n'est plus déclarée), son état dit et son ton — rien n'est écrit dans le script."""
+    key = str(job.get('tool', ''))[len(prefix):]
+    label, tone = JOB_STATES.get(job.get('status'), (job.get('status') or '?', 'secondary'))
+    return {**job, 'operation': key, 'label': OPERATIONS.get(key, {}).get('label', key),
+            'state_label': label, 'tone': tone}
+
+
 def operations() -> list:
     """Les opérations, dans l'ordre déclaré : `[{'key', 'label', 'icon', 'description', 'argument'}]`
     — ce que la page affiche et ce que l'assistant lit (`argument` : None quand il n'y en a pas)."""

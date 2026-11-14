@@ -31439,3 +31439,19 @@ navigateur (le serveur en service ne connaît pas encore la route — après rec
 opération se suit en liste, pas comme une card ; les opérations qui ÉCRIVENT ne sont pas offertes.
 Blocs générés : `mecanismes` et `outils` régénérés dans l'arbre, seuls mes hunks de `mecanismes`
 commités ; `conformite` reste périmé (fichier d'une autre session).
+
+**Alignement du même jour (demande de Fabien : volet droit et barre des pages de gestion)** :
+- **Volet droit** : les processus y reviennent, en tête (`right_panel_top`, `volet(tete=True,
+  medias=False, actions=False)`), sous la forme compacte qu'ils avaient dans celui de la page des
+  modèles ; dessous, la fiche de la tuile choisie par l'inspecteur commun
+  (`_inspector_registre.html`, `data-wama-inspecte`).
+- **Barre commune** (`_filter_bar.html`, mode client, cible vivante) : recherche, facette NATURE
+  (`operations.NATURES`), tri déclaré (`sort_options`, `data-s-*`) ; les sections sont des groupes
+  (`data-f-groupe`) ; les rapports nocturnes sont des tuiles.
+- **Déclaré, pas écrit dans le script** : le libellé, l'état et le ton d'une opération lancée
+  viennent de `operations.job_row` (`JOB_STATES`), rendus par `api_operations_jobs`.
+- **Brique commune retouchée** : `wama-filter-bar.js` ré-applique le TRI choisi quand une liste
+  vivante est re-rendue (garde et contre-épreuve dans `tests_filter_bar_live`).
+- **Vu sur un serveur jetable** (compte de test élevé puis rétabli) : 200, 11 processus dans le
+  volet, 13 tuiles, fiche dérivée au clic, tri par nom, aucune erreur JS. Reste connu : une section
+  SANS tuile (aucune opération lancée) garde son titre sous un filtre de nature.

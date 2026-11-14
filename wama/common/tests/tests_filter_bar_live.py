@@ -29,11 +29,14 @@ function classList() {
   return { toggle: function (c, on) { if (on) { set[c] = true; } else { delete set[c]; } },
            contains: function (c) { return !!set[c]; } };
 }
+var parent = { order: [], appendChild: function (el) { this.order.push(el.app); } };
 function event(app) {
-  return { app: app, classList: classList(),
-           getAttribute: function (k) { return k === 'data-f-app' ? this.app : null; },
+  return { app: app, classList: classList(), parentNode: parent,
+           getAttribute: function (k) {
+             return (k === 'data-f-app' || k === 'data-s-name') ? this.app : null; },
            textContent: app };
 }
+var sorter = { value: 'name:asc', addEventListener: function () {} };
 var listed = [];
 var select = { value: 'all', options: { length: 3 },
                getAttribute: function (k) { return k === 'data-f-facette' ? 'app' : null; },
@@ -62,7 +65,7 @@ var document = {
 
 class LiveTargetFilterTest(SimpleTestCase):
 
-    def _mount(self, live):
+    def _mount(self, live, sorted_by_name=False):
         try:
             from py_mini_racer import MiniRacer
         except ImportError:
@@ -71,6 +74,9 @@ class LiveTargetFilterTest(SimpleTestCase):
         ctx.eval(FAKE_DOM)
         if live:
             ctx.eval("bar.attrs['data-cible-vivante'] = '1';")
+        if sorted_by_name:      # the bar carries a declared sort (`_sort_by.html`)
+            ctx.eval("""bar.querySelector = function (sel) {
+                          return sel === '[data-f-role="sort"]' ? sorter : null; };""")
         ctx.eval("select.value = 'imager'; listed = [event('imager'), event('describer')];")
         ctx.eval(SOURCE.read_text(encoding='utf-8'))          # auto-montage sur la barre
         return ctx
@@ -93,6 +99,17 @@ class LiveTargetFilterTest(SimpleTestCase):
         self.assertEqual(self._redraw_and_refresh(ctx), [False, False],
                          "sans cible vivante, la brique ne voit pas les éléments redessinés : "
                          "c'est le défaut que l'option corrige")
+
+    def test_a_redrawn_list_keeps_the_chosen_sort(self):
+        """A component redraws in ITS order (2026-11-14, the launched operations): the refresh
+        re-applies the sort with the filter."""
+        import json
+        for live, expected in ((True, ['describer', 'imager']), (False, [])):
+            with self.subTest(live=live):
+                ctx = self._mount(live=live, sorted_by_name=True)
+                ctx.eval("select.value = 'all'; listed = [event('imager'), event('describer')];"
+                         "parent.order = []; WamaFilterBar.refresh(bar);")
+                self.assertEqual(expected, json.loads(ctx.eval('JSON.stringify(parent.order)')))
 
     def test_the_served_copy_is_the_source(self):
         self.assertEqual(SERVED.read_text(encoding='utf-8'), SOURCE.read_text(encoding='utf-8'),

@@ -10,11 +10,11 @@
  * exécute à son prochain passage. Un geste qui coupe un travail redemande le mot de passe WAMA,
  * dans la confirmation commune (`WamaApp.ask`, champ masqué) — jamais en clair.
  *
- * Chaque processus est une CARTE de la charte des pages de gestion (`wama-catalog.css` :
- * `.wama-cat-card`, son état en badge, ce que coupe sa relance, son geste).
+ * Chaque processus est une LIGNE compacte du volet droit — la forme qu'il avait dans celui de la
+ * page des modèles : son nom, son état en badge, son geste ; ce que coupe sa relance en infobulle.
  *
- * Montage : la grille `[data-wama-processes]` portant `data-api` (le relevé), `data-control-api`
- * (l'ordre) et, au choix, `data-count` (sélecteur d'un compteur « en marche / total ») ; l'avis de
+ * Montage : l'hôte `[data-wama-processes]` portant `data-api` (le relevé), `data-control-api`
+ * (l'ordre) et, au choix, `data-count` (sélecteur des compteurs « en marche / total ») ; l'avis de
  * la surveillance s'écrit dans `[data-processes-notice-for="<id de la grille>"]`.
  */
 (function (global) {
@@ -33,16 +33,16 @@
     return (processes || []).map(function (p) {
       var buttons = (p.actions || []).map(function () {
         return '<button type="button" class="btn btn-sm '
-          + (p.kind === 'wama' ? 'btn-outline-danger' : 'btn-outline-primary') + '"'
-          + ' data-process="' + esc(p.key) + '"' + (canOrder ? '' : ' disabled') + '>'
-          + '<i class="fas fa-rotate me-1" aria-hidden="true"></i>Relancer</button>';
+          + (p.kind === 'wama' ? 'btn-outline-danger' : 'btn-outline-secondary') + '"'
+          + ' data-process="' + esc(p.key) + '" title="Relancer" aria-label="Relancer ' + esc(p.label) + '"'
+          + (canOrder ? '' : ' disabled') + '>'
+          + '<i class="fas fa-rotate" aria-hidden="true"></i></button>';
       }).join('');
-      return '<div class="wama-cat-card" data-id="' + esc(p.key) + '" data-kind="' + esc(p.kind) + '">'
-        + '<h4>' + esc(p.label)
-        + ' <span class="badge ' + (TONES[p.tone] || TONES.secondary) + '">' + esc(p.state_label) + '</span></h4>'
-        + (p.when_off ? '<div class="wama-cat-desc">' + esc(p.when_off) + '</div>' : '')
-        + '<div class="wama-cat-meta"><code>' + esc(p.key) + '</code></div>'
-        + '<div class="wama-cat-actions">' + buttons + '</div></div>';
+      return '<div class="ops-process d-flex justify-content-between align-items-center gap-2"'
+        + ' data-id="' + esc(p.key) + '" data-kind="' + esc(p.kind) + '" title="' + esc(p.when_off || '') + '">'
+        + '<div><span class="text-body-emphasis">' + esc(p.label) + '</span><br>'
+        + '<span class="badge ' + (TONES[p.tone] || TONES.secondary) + '">' + esc(p.state_label) + '</span></div>'
+        + '<div class="d-flex gap-1 flex-shrink-0">' + buttons + '</div></div>';
     }).join('');
   }
 
@@ -52,8 +52,8 @@
     var api = root.dataset.api, controlApi = root.dataset.controlApi;
     var list = root;
     var notice = document.querySelector('[data-processes-notice-for="' + root.id + '"]');
-    var count = root.dataset.count ? document.querySelector(root.dataset.count) : null;
-    var known = {};
+    var counts = root.dataset.count ? document.querySelectorAll(root.dataset.count) : [];
+    var known = {}, shown = null;
 
     function apply(data) {
       if (notice) {
@@ -62,11 +62,14 @@
       }
       known = {};
       (data.processes || []).forEach(function (p) { known[p.key] = p; });
-      list.innerHTML = render(data.processes, data.watchdog === 'running');
-      if (count) {
-        var running = (data.processes || []).filter(function (p) { return p.state === 'ok'; }).length;
+      // Rien n'est réécrit quand rien n'a changé : un relevé toutes les 15 s ne fait pas
+      // clignoter la liste ni perdre le focus d'un bouton.
+      var html = render(data.processes, data.watchdog === 'running');
+      if (html !== shown) { list.innerHTML = html; shown = html; }
+      var running = (data.processes || []).filter(function (p) { return p.state === 'ok'; }).length;
+      Array.prototype.forEach.call(counts, function (count) {
         count.textContent = running + '/' + (data.processes || []).length;
-      }
+      });
     }
 
     function load() {
@@ -110,7 +113,7 @@
     global.setInterval(load, REFRESH_MS);
   }
 
-  global.WamaProcesses = { mount: mount, _render: render };
+  global.WamaProcesses = { mount: mount, _render: render, TONES: TONES };
 
   function start() {
     document.querySelectorAll('[data-wama-processes]').forEach(mount);

@@ -7,16 +7,20 @@
 {% comment %}
   La page « EXPLOITATION » (2026-11-14, `ROADMAP §31.1`) — administrateurs seuls. Ce qui fait TOURNER
   WAMA et ce qui le CONTRÔLE, au même endroit :
-    • les PROCESSUS à relancer — la brique `wama-processes.js`, sortie de la page des modèles ; la
-      liste et l'état viennent du serveur (`service_supervision.processes_overview`) ;
+    • les PROCESSUS à relancer — dans le VOLET DROIT, sous la forme qu'ils avaient dans celui de la
+      page des modèles (brique `wama-processes.js` ; la liste et l'état viennent du serveur,
+      `service_supervision.processes_overview`) ;
     • les OPÉRATIONS — déclarées (`common/operations.py`), lancées en tâche de fond par le serveur
       de développement (`dev_run_operation`), suivies ici (`wama-operations.js`) ;
     • les derniers RAPPORTS NOCTURNES (`nightly_tests.recent_reports`).
   La page n'exécute rien elle-même.
 
-  Même charte que les pages de gestion existantes (registres, licences, librairies, backends) :
-  l'en-tête commun (`_catalog_header.html`, titre et icône lus de l'entrée de menu), le bandeau,
-  les compteurs, puis des cartes — squelette `wama-catalog.css`, aucune couleur écrite ici.
+  Aucune pièce n'est propre à cette page — la charte des pages de gestion (registres, licences,
+  partages) : l'en-tête du menu (`_catalog_header.html`), le bandeau, les compteurs et les tuiles
+  (`wama-catalog.css`) ; la barre COMMUNE (`_filter_bar.html`, mode client, cible vivante : la
+  liste des opérations lancées est re-rendue) avec sa recherche, la facette NATURE et le tri
+  déclaré (`data-s-*`) ; le volet de l'inspecteur commun, qui dérive la fiche d'une tuile de ce
+  qu'elle porte (`_inspector_registre.html`, `data-wama-inspecte`).
 {% endcomment %}
 
 {% block extra_css %}
@@ -29,9 +33,25 @@
   .ops-log { white-space: pre-wrap; font-size: .78rem; max-height: 22rem; overflow: auto; margin: .5rem 0 0;
              padding: .6rem .75rem; border-radius: .4rem; background: var(--wama-surface-raised);
              color: var(--wama-text-body); }
-  .ops-reports { font-size: .88rem; margin: 0; }
+  .ops-process { padding: 5px 8px; margin-bottom: 4px; font-size: .85rem; border-radius: 6px;
+                 background: rgba(var(--wama-overlay-rgb), .05); }
 </style>
 {% endblock %}
+
+{# ── Volet droit : les processus en tête, puis la fiche de la tuile sélectionnée ── #}
+{% block right_panel_top %}
+<div class="right-panel-section">
+  <div class="right-panel-section-title"><i class="fas fa-gears me-1"></i> Processus de WAMA
+    <span class="text-body-secondary ms-1" id="opsProcessState"></span></div>
+  <p class="small text-warning" data-processes-notice-for="opsProcesses" hidden></p>
+  <div id="opsProcesses" data-wama-processes data-count="#opsProcessCount, #opsProcessState"
+       data-api="{{ services_api }}" data-control-api="{{ services_control_api }}">
+    <p class="small text-body-secondary mb-0">Lecture…</p>
+  </div>
+</div>
+{% endblock %}
+{% block right_panel_settings_title %}<i class="fas fa-circle-info me-1"></i> Détail de l'élément{% endblock %}
+{% block right_panel_settings %}{% include 'common/_inspector_registre.html' %}{% endblock %}
 
 {% block content %}
 <div class="wama-cat-wrap">
@@ -41,15 +61,15 @@
   <div class="wama-cat-hero">
     <h3>Ce qui fait tourner WAMA, et ce qui le contrôle</h3>
     <p>
-      Une <strong>relance</strong> est un ordre déposé : la surveillance l'exécute à son prochain
-      passage, et un geste qui couperait un travail en cours redemande votre mot de passe WAMA.
-      Une <strong>opération</strong> est un contrôle déclaré, lancé en tâche de fond ; son journal
-      se lit ici. Rien de cette page ne modifie le code.
+      Une <strong>relance</strong> (volet de droite) est un ordre déposé : la surveillance l'exécute
+      à son prochain passage, et un geste qui couperait un travail en cours redemande votre mot de
+      passe WAMA. Une <strong>opération</strong> est un contrôle déclaré, lancé en tâche de fond ;
+      son journal se lit ici. Rien de cette page ne modifie le code.
     </p>
   </div>
 
   <div class="wama-cat-stats">
-    <div class="wama-cat-stat"><b id="opsProcessCount">–</b> processus</div>
+    <div class="wama-cat-stat"><b id="opsProcessCount">–</b> processus en marche</div>
     <div class="wama-cat-stat"><b>{{ operations|length }}</b> opération{{ operations|length|pluralize }}</div>
     {% with last=reports.0 %}{% if last %}
     <div class="wama-cat-stat"><b>{{ last.failed }}</b> rouge{{ last.failed|pluralize }} au dernier rapport nocturne</div>
@@ -57,57 +77,66 @@
     {% endif %}{% endwith %}
   </div>
 
-  <h4 class="ops-section"><i class="fas fa-rotate me-1"></i>Processus</h4>
-  <p class="small text-warning" data-processes-notice-for="opsProcesses" hidden></p>
-  <div class="wama-cat-grid" id="opsProcesses" data-wama-processes data-count="#opsProcessCount"
-       data-api="{{ services_api }}" data-control-api="{{ services_control_api }}">
-    <p class="text-body-secondary" data-processes-list>Lecture…</p>
-  </div>
+  {% include 'common/_filter_bar.html' with facettes=facettes cible='.wama-cat-card' cible_dans='#opsLists' cible_vivante=True mode='client' sort_options=sort_options sort_value='order:asc' placeholder='Rechercher (opération, rapport…)' %}
 
-  <h4 class="ops-section"><i class="fas fa-list-check me-1"></i>Opérations</h4>
-  <div class="wama-cat-grid" id="wamaOperations"
-       data-run-api="{% url 'common:api_operations_run' %}" data-jobs-api="{% url 'common:api_operations_jobs' %}">
-    {% for op in operations %}
-    <form class="wama-cat-card" data-operation="{{ op.key }}" data-id="{{ op.key }}">
-      <h4><i class="fas {{ op.icon }} me-1"></i>{{ op.label }}</h4>
-      <div class="wama-cat-desc">{{ op.description }}</div>
-      <div class="wama-cat-meta"><code>{{ op.key }}</code></div>
-      {% if op.argument %}
-      <input type="text" class="form-control form-control-sm ops-argument" name="argument" required
-             aria-label="{{ op.argument.label }}" placeholder="{{ op.argument.example }}" pattern="{{ op.argument.pattern }}">
-      {% endif %}
-      <div class="wama-cat-actions">
-        <button type="submit" class="btn btn-outline-primary btn-sm">
-          <i class="fas fa-play me-1" aria-hidden="true"></i>Lancer
-        </button>
+  {% comment %}`data-f-groupe` : un titre de section disparaît avec sa section quand le filtre la
+  vide (contrat de la barre commune). `data-wama-inspecte` : la fiche du volet, dérivée de la tuile.
+  {% endcomment %}
+  <div id="opsLists">
+    <section data-f-groupe>
+      <h4 class="ops-section"><i class="fas fa-list-check me-1"></i>Opérations</h4>
+      <div class="wama-cat-grid" id="wamaOperations"
+           data-wama-inspecte=".wama-cat-card" data-wama-inspecte-actif="wama-cat-active"
+           data-run-api="{% url 'common:api_operations_run' %}" data-jobs-api="{% url 'common:api_operations_jobs' %}">
+        {% for op in operations %}
+        <form class="wama-cat-card" data-operation="{{ op.key }}" data-id="{{ op.key }}"
+              data-f-nature="{{ natures.operation }}"
+              data-s-order="{{ forloop.counter }}" data-s-label="{{ op.label }}">
+          <h4><i class="fas {{ op.icon }} me-1"></i>{{ op.label }}</h4>
+          <div class="wama-cat-desc">{{ op.description }}</div>
+          <div class="wama-cat-meta"><code>{{ op.key }}</code></div>
+          {% if op.argument %}
+          <input type="text" class="form-control form-control-sm ops-argument" name="argument" required
+                 aria-label="{{ op.argument.label }}" placeholder="{{ op.argument.example }}" pattern="{{ op.argument.pattern }}">
+          {% endif %}
+          <div class="wama-cat-actions">
+            <button type="submit" class="btn btn-outline-primary btn-sm">
+              <i class="fas fa-play me-1" aria-hidden="true"></i>Lancer
+            </button>
+          </div>
+        </form>
+        {% endfor %}
       </div>
-    </form>
-    {% endfor %}
-  </div>
+    </section>
 
-  <h4 class="ops-section"><i class="fas fa-clock-rotate-left me-1"></i>Opérations lancées</h4>
-  <div class="wama-cat-grid" id="wamaOperationJobs"><p class="text-body-secondary">Lecture…</p></div>
+    <section data-f-groupe>
+      <h4 class="ops-section"><i class="fas fa-clock-rotate-left me-1"></i>Opérations lancées</h4>
+      <div class="wama-cat-grid" id="wamaOperationJobs" data-nature="{{ natures.job }}"
+           data-wama-inspecte=".wama-cat-card" data-wama-inspecte-actif="wama-cat-active">
+        <p class="text-body-secondary">Lecture…</p>
+      </div>
+    </section>
 
-  <h4 class="ops-section"><i class="fas fa-moon me-1"></i>Rapports nocturnes</h4>
-  <div class="wama-cat-card">
-    {% if reports %}
-    <table class="table table-sm align-middle ops-reports">
-      <thead><tr><th>Rapport</th><th class="text-end">Scénarios</th><th class="text-end">Rouges</th><th class="text-end">Sans verdict</th><th class="text-end">Durée</th></tr></thead>
-      <tbody>
-      {% for r in reports %}
-      <tr>
-        <td>{{ r.generated_at|slice:":16"|default:r.file }}{% if r.cadence %} <span class="wama-cat-badge">{{ r.cadence }}</span>{% endif %}</td>
-        <td class="text-end">{{ r.total }}</td>
-        <td class="text-end">{% if r.failed %}<span class="badge bg-danger">{{ r.failed }}</span>{% else %}0{% endif %}</td>
-        <td class="text-end">{% if r.unanswered %}<span class="badge bg-warning text-dark">{{ r.unanswered }}</span>{% else %}0{% endif %}</td>
-        <td class="text-end">{{ r.minutes }} min</td>
-      </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-    {% else %}
-    <p class="text-body-secondary mb-0">Aucun rapport nocturne.</p>
-    {% endif %}
+    <section data-f-groupe>
+      <h4 class="ops-section"><i class="fas fa-moon me-1"></i>Rapports nocturnes</h4>
+      <div class="wama-cat-grid" data-wama-inspecte=".wama-cat-card" data-wama-inspecte-actif="wama-cat-active">
+        {% for r in reports %}
+        <div class="wama-cat-card" data-id="{{ r.file }}" data-f-nature="{{ natures.report }}"
+             {% if r.cadence %}data-f-rythme="{{ r.cadence }}"{% endif %}
+             data-s-order="{{ forloop.counter }}" data-s-label="{{ r.file }}" data-s-since="{{ r.file }}">
+          <h4>{{ r.generated_at|slice:":16"|default:r.file }}
+            {% if r.failed %}<span class="badge bg-danger">{{ r.failed }} rouge{{ r.failed|pluralize }}</span>
+            {% else %}<span class="badge bg-success">vert</span>{% endif %}
+            {% if r.unanswered %}<span class="badge bg-warning text-dark">{{ r.unanswered }} sans verdict</span>{% endif %}
+          </h4>
+          <div class="wama-cat-desc">{{ r.total }} scénario{{ r.total|pluralize }} — {{ r.passed }} vert{{ r.passed|pluralize }}, {{ r.failed }} rouge{{ r.failed|pluralize }}, {{ r.skipped }} sauté{{ r.skipped|pluralize }} ; {{ r.minutes }} min.</div>
+          <div class="wama-cat-meta"><code>{{ r.file }}</code></div>
+        </div>
+        {% empty %}
+        <p class="text-body-secondary mb-0">Aucun rapport nocturne.</p>
+        {% endfor %}
+      </div>
+    </section>
   </div>
 </div>
 {% endblock %}

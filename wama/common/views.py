@@ -149,11 +149,21 @@ def operations_page(request):
     surveillance, une opération une tâche de fond du serveur de développement."""
     from django.urls import reverse
 
-    from .operations import operations
+    from .operations import NATURES, operations
+    from .services.journal import TRIS
     from .services.nightly_tests import recent_reports
     return render(request, 'common/operations.html', {
         'operations': operations(),
         'reports': recent_reports(),
+        # La barre commune des pages de gestion : la NATURE d'une tuile en facette (déclarée —
+        # la liste des opérations lancées est vide au montage), les tris aux libellés du journal.
+        'natures': NATURES,
+        'facettes': [{'cle': 'nature', 'label': 'Nature', 'tous': 'Toutes',
+                      'options': {label: label for label in NATURES.values()}}],
+        'sort_options': [('order:asc', 'Ordre de la page'), ('label:asc', TRIS['name']),
+                         ('since:desc', TRIS['recent'])],
+        # Ce que la page REMPLIT : les processus en tête du volet, la fiche de la tuile choisie.
+        'volet': volet(tete=True, medias=False, actions=False),
         'services_api': reverse('model_manager:api_services'),
         'services_control_api': reverse('model_manager:api_service_control'),
     })
@@ -185,7 +195,10 @@ def api_operations_jobs(request):
         return JsonResponse(listing, status=503)
     # Le préfixe est celui de `dev_inspect.OPERATION_TOOL` — écrit ici parce que ce processus
     # n'importe pas les outils de développement (`tests_operations` tient les deux d'accord).
-    jobs = [j for j in listing.get('jobs') or [] if str(j.get('tool', '')).startswith('operation:')]
+    from .operations import job_row
+    prefix = 'operation:'
+    jobs = [job_row(j, prefix) for j in listing.get('jobs') or []
+            if str(j.get('tool', '')).startswith(prefix)]
     return JsonResponse({'jobs': jobs[:15]})
 
 
