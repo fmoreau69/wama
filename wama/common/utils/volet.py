@@ -315,6 +315,35 @@ def page_interface(page: str) -> dict | None:
             'help': {'keys': PAGE_HELP_SHORTCUT.label, 'action': PAGE_HELP_SHORTCUT.action}}
 
 
+def app_pages(app: str) -> dict:
+    """Les PAGES d'une app, telles qu'elle les déclare (2026-11-15, décision de Fabien pour la
+    fiche de la page des applications) : sa FILE et ses domaines (`app_modes`), puis ses pages
+    D'ÉDITION (les surfaces, `surfaces.SURFACES`) — pour chacune ce à quoi elle se réserve
+    (`Surface.only` : une page par nature de fichier), ses briques, et son PRÉRÉGLAGE de touches
+    tel qu'il se lit (`keymap`, par brique : les raccourcis des actions qu'il déplace). La
+    visionneuse n'y figure pas : elle est une brique de toutes les pages, réglée comme telle."""
+    from wama.common.surfaces import BRICKS, SURFACES, load_all
+    from wama.common.utils.app_modes import get_domains
+    load_all()
+    edit = []
+    for surface in SURFACES.values():
+        if surface.app != app:
+            continue
+        keys = []
+        for brick, table in surface.keymap().items():
+            moved = [f'{s.label} — {s.action}' for s in surface.shortcuts_of(brick)
+                     if set(s.names) & set(table)]
+            if moved:
+                keys.append({'brick': BRICKS[brick].name, 'shortcuts': moved})
+        reserved = [str(v) for wanted in (surface.only or {}).values()
+                    for v in (wanted if isinstance(wanted, (list, tuple)) else (wanted,))]
+        edit.append({'id': surface.id, 'label': surface.label, 'reserved': reserved,
+                     'bricks': list(dict.fromkeys(BRICKS[s.brick].name for s in surface.slots
+                                                  if s.brick in BRICKS)),
+                     'keys': keys})
+    return {'domains': [d.get('label') or d.get('id') for d in get_domains(app)], 'edit': edit}
+
+
 def reset_layout(user, page: str) -> bool:
     """Remet la disposition de la page `page` (ou de la surface `<app>.<clé>`) à celle qu'elle
     déclare, pour `user` : sa préférence est RETIRÉE (`clear_user_app_settings`), comme

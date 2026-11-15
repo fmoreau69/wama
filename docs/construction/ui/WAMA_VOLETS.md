@@ -1212,8 +1212,27 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
     Transcriber · Correction »), et se corrige comme elle se règle — un clic, une autre frappe,
     sur l'une ou l'autre. Garde : `AccountKeysTest` (contre-épreuve : réglage non passé à la
     règle → rouge).
-    ⚠ Limites dites : (1) le module de page n'a pas encore été joué dans un NAVIGATEUR (V8 et
-    serveur seulement) ; (2) un conflit n'est cherché qu'entre touches de portée « page » — une
+    ✅ **Joué au NAVIGATEUR, 2026-11-15** — scénario `common.brick_keys` (7 gestes : touche
+    cliquable, clic puis frappe gardée et montrée, Échap, conflit dit sur les deux briques, levé
+    par une autre frappe, « Rétablir », aucune erreur de script).
+    🔴 **Ce qu'il a MESURÉ, à trancher (Fabien)** : la page des briques se lit sous le droit des
+    Registres, et un compte ORDINAIRE ne l'ouvre pas (compte de test standard, rôles communication
+    et recherche : `accessible(…, 'registries')` faux, redirigé vers l'accueil) — seul un profil
+    développeur y règle donc ses touches aujourd'hui. Le scénario le dit et joue avec le compte
+    de test développeur. ⚠ `permissions.registry_page_prefixes` dit pourtant « tout compte,
+    jamais le visiteur » : la phrase et la mesure ne s'accordent pas.
+    ✅ **La FICHE d'une app sur la page des applications, 2026-11-15** (décisions de Fabien :
+    la file et ses domaines, puis les pages d'édition ; le préréglage de touches se montre PAR
+    PAGE d'édition, pas par app — corrige « le préréglage d'une application » du 12/11 ; la
+    fiche MONTRE, les touches se règlent sur la page des briques ; la visionneuse n'y figure pas,
+    c'est une brique de toutes les pages) : `volet.app_pages(app)` lit les domaines
+    (`app_modes`) et les surfaces de l'app — ce à quoi chacune se réserve (`Surface.only`), ses
+    briques, et les raccourcis que son préréglage déplace, tels que la page les lit. Le détail
+    du volet gagne une forme générique, `rowsFrom` (des lignes calculées d'une liste des
+    données, `wama-inspector-autofill.js`). Garde : `tests_volet.AppPagesTest` (toute app du
+    catalogue, toute surface déclarée). ⚠ Une app du Lab (hors catalogue) n'a pas de fiche.
+    ⚠ Limites dites : (1) la fiche d'app n'est vérifiée qu'au serveur et en V8, pas au
+    navigateur ; (2) un conflit n'est cherché qu'entre touches de portée « page » — une
     touche de portée « brique » (qui n'agit que le focus dans sa brique) n'y entre pas ; (3) la
     visionneuse lit deux tables sous un même nom (navigation, magnéto), et son registre ne nomme
     pas les sauts : ils ne se règlent pas encore par compte ; (4) une action tue ne se rétablit

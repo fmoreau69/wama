@@ -661,7 +661,8 @@ document.addEventListener('DOMContentLoaded', function () {
     // Données serveur → lookup par nom (fusion spec + conformity + url).
     const byId = {};
     (JSON.parse(dataEl.textContent) || []).forEach(function (it) {
-        byId[it.name] = Object.assign({ _name: it.name, conformity: it.conformity, url: it.url }, it.spec);
+        byId[it.name] = Object.assign({ _name: it.name, conformity: it.conformity, url: it.url,
+                                        pages: it.pages || {} }, it.spec);
     });
 
     const APP_DETAIL_SCHEMA = [
@@ -683,6 +684,23 @@ document.addEventListener('DOMContentLoaded', function () {
             { k: 'Extensions', get: function (a) { return (a.input_extensions || []).length ? (a.input_extensions.length + ' formats') : ''; } },
             { k: 'Type de batch', field: 'batch_type' },
         ] },
+        // Les PAGES de l'app (2026-11-15, `volet.app_pages`) : sa file et ses domaines, puis ses
+        // pages d'édition — chacune avec ce à quoi elle se réserve, ses briques et son
+        // préréglage de touches. La visionneuse n'y est pas : c'est une brique de toutes les pages.
+        { section: "File d'attente", rows: [
+            { k: 'Domaines', get: function (a) { return (a.pages.domains || []).join(', '); } },
+        ] },
+        { section: "Pages d'édition", rowsFrom: function (a) {
+            const rows = [];
+            (a.pages.edit || []).forEach(function (p) {
+                const title = p.label + (p.reserved.length ? ' (' + p.reserved.join(', ') + ')' : '');
+                rows.push({ k: title, v: p.bricks.join(', ') });
+                p.keys.forEach(function (k) {
+                    rows.push({ k: '↳ touches · ' + k.brick, v: k.shortcuts.join(' ; ') });
+                });
+            });
+            return rows;
+        } },
         { section: 'Conformité', rows: [
             { k: 'Score', get: function (a) { return a.conformity ? (a.conformity.score + ' / ' + a.conformity.total) : ''; } },
             { k: 'À corriger', get: function (a) { return a.conformity ? (a.conformity.issues || []).join(', ') : ''; } },
@@ -691,6 +709,11 @@ document.addEventListener('DOMContentLoaded', function () {
     const APP_ACTIONS_SCHEMA = [
         { label: "Ouvrir l'application", icon: 'fas fa-arrow-right', cls: 'btn btn-sm btn-primary',
           when: function (a) { return !!a.url; }, href: function (a) { return a.url; } },
+        // Les touches se RÈGLENT brique par brique, sur la page des briques (décision du 15/11 :
+        // la fiche montre, elle ne règle pas).
+        { label: 'Régler les touches (briques UI)', icon: 'fas fa-keyboard', cls: 'btn btn-sm btn-outline-secondary',
+          when: function (a) { return (a.pages.edit || []).length > 0; },
+          href: function () { return "{% url 'common:ui_bricks_catalog' %}"; } },
     ];
 
     WamaInspector.init({

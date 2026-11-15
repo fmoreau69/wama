@@ -420,6 +420,7 @@ def apps_catalog_view(request):
     # Le BAC À SABLE (2026-11-02, décisions de Fabien) : un utilisateur simple ne le voit PAS,
     # même ici ; un développeur y voit aussi les apps qu'il n'a pas, avec « Demander l'accès » ;
     # le créateur d'une app et les administrateurs l'ouvrent à un développeur.
+    from .utils.volet import app_pages
     sandbox_owners = app_access.sandbox_owners()
     developer = is_developer(request.user)
     requestable = {r['app']: r for r in app_access.requestable_apps(request.user)}
@@ -447,6 +448,9 @@ def apps_catalog_view(request):
             'abonne':     autorisee and name not in apps_masquees,
             'access_request': requestable.get(name),
             'can_grant':  app_access.can_grant(request.user, name),
+            # Ses PAGES, lues de ses déclarations (2026-11-15) : la file et ses domaines, ses
+            # pages d'édition avec leur préréglage de touches — la fiche les montre.
+            'pages':      app_pages(name),
         })
 
     # ── Groupage par CATÉGORIE (APP_CATEGORIES, déclaratif + dérivable — décision 2026-07-05).

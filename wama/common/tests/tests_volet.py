@@ -972,3 +972,68 @@ class PageControlsTest(TestCase):
                 self.skipTest('pas de copie servie dans cet arbre')
             self.assertEqual((root / 'wama' / 'common' / 'static' / 'common' / rel).read_bytes(),
                              served.read_bytes(), rel)
+
+
+class AppPagesTest(TestCase):
+    """2026-11-15 (Fabien : « la distinction entre la page file d'attente d'une app, la preview, la
+    page d'édition ») — the card of an app on the applications page says its PAGES, read from what
+    it registers : its queue and domains, then its edit pages, each with what it is kept for, its
+    bricks and its key preset. Generic : every app of the catalog, every registered surface ; the
+    viewer is no page of an app (a brick of every page, set on the bricks page)."""
+
+    def test_every_edit_page_is_listed_under_its_app_with_its_bricks_and_its_keys(self):
+        from wama.common.app_registry import APP_CATALOG
+        from wama.common.surfaces import BRICKS, SURFACES, load_all
+        from wama.common.utils.app_modes import get_domains
+        from wama.common.utils.volet import app_pages
+        load_all()
+        self.assertTrue(any(s.app in APP_CATALOG for s in SURFACES.values()))
+        with_keys = 0
+        for app in APP_CATALOG:
+            pages = app_pages(app)
+            own = [s for s in SURFACES.values() if s.app == app]
+            with self.subTest(app=app):
+                self.assertEqual([s.id for s in own], [p['id'] for p in pages['edit']])
+                self.assertEqual(len(get_domains(app)), len(pages['domains']))
+                for surface, page in zip(own, pages['edit']):
+                    self.assertEqual({BRICKS[s.brick].name for s in surface.slots}, set(page['bricks']))
+                    self.assertNotIn(BRICKS['media_viewer'].name, page['bricks'])
+                    self.assertEqual(sorted(BRICKS[b].name for b in surface.keymap()),
+                                     sorted(k['brick'] for k in page['keys']))
+                    self.assertEqual(bool(surface.only), bool(page['reserved']))
+                    with_keys += len(page['keys'])
+        self.assertTrue(with_keys, 'at least one edit page keeps its keys by a preset')
+        # What a preset shows is the keys AS THE PAGE READS THEM, not the defaults.
+        correct = next(p for app in APP_CATALOG for p in app_pages(app)['edit']
+                       if SURFACES[p['id']].keymap())
+        self.assertTrue(all(' — ' in line for k in correct['keys'] for line in k['shortcuts']))
+
+    def test_the_applications_page_serves_them_and_its_card_draws_a_row_per_page(self):
+        import json
+        import re
+
+        from django.contrib.auth import get_user_model
+        from django.urls import reverse
+        from py_mini_racer import MiniRacer
+        self.client.force_login(get_user_model().objects.create_user('app-pages', password='x'))
+        page = self.client.get(reverse('common:apps_catalog')).content.decode('utf-8', 'replace')
+        data = json.loads(re.search(r'<script id="apps-data" type="application/json">(.*?)</script>',
+                                    page, re.S).group(1))
+        self.assertTrue(all('pages' in item for item in data))
+        self.assertIn('rowsFrom: function (a)', page)
+        self.assertIn(reverse('common:ui_bricks_catalog'), page, 'the keys are set on the bricks page')
+        # The generic « rows computed from the data » of the detail renderer, played in V8.
+        v8 = MiniRacer()
+        from pathlib import Path
+
+        from django.contrib.staticfiles import finders
+        v8.eval('var window = {}; var document = {createElement: function () { return {}; }};'
+                + Path(finders.find('common/js/wama-inspector-autofill.js')).read_text(encoding='utf-8'))
+        html = v8.eval('''window.WamaDetails.renderSections({list: [{n: "A", b: ["x", "y"]}, {n: "B", b: []}]},
+            [{section: "Pages", rowsFrom: function (d) { return d.list.map(function (p) {
+                return {k: p.n, v: p.b}; }); }},
+             {section: "Rien", rowsFrom: function () { return []; }}])''')
+        self.assertIn('Pages', html)
+        self.assertIn('x, y', html)
+        self.assertNotIn('>B<', html, 'an empty row is not drawn')
+        self.assertNotIn('Rien', html, 'a section without a row is not drawn')

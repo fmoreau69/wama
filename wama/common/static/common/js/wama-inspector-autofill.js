@@ -143,6 +143,15 @@
                 }
                 return;
             }
+            // Lignes CALCULÉES des données (2026-11-15) : `rowsFrom(data)` rend `[{k, v}]` — une
+            // ligne par élément d'une liste que la donnée porte (les pages d'une app).
+            if (typeof sec.rowsFrom === 'function') {
+                const rows = (sec.rowsFrom(data) || []).map(function (r) {
+                    return isEmpty(r.v) ? '' : rowHtml(r.k, esc(Array.isArray(r.v) ? r.v.join(', ') : r.v));
+                }).join('');
+                if (rows) html += (sec.section ? sectionTitle(sec.section) : '') + rows;
+                return;
+            }
             // Lignes
             if (Array.isArray(sec.rows)) {
                 const rows = sec.rows.map(function (r) {

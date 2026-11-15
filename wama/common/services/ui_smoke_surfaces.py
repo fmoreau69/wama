@@ -1428,6 +1428,140 @@ def check_page_controls(page_hook=None):
     return (not failed), detail + (f" — ÉCHECS : {failed}" if failed else '')
 
 
+def check_brick_keys(page_hook=None):
+    """Les TOUCHES D'UNE BRIQUE réglées par un compte (2026-11-15, `WAMA_VOLETS §3-ter`) — (ok,
+    détail). Sur la page des briques, avec le compte de test : la touche d'une action se clique
+    puis se frappe, elle est gardée au compte et montrée ; une touche qu'une autre brique de la
+    même page prend est DITE sur les deux briques, et une autre frappe lève le conflit ;
+    « Rétablir » retire le réglage. Le réglage du compte est rétabli tel qu'il était."""
+    from django.urls import reverse
+    from playwright.sync_api import sync_playwright
+
+    from wama.common.services.nightly_tests import SkipScenario
+    from wama.common.utils.user_keys import SETTING, SETTINGS_APP, user_keymap
+    from wama.common.utils.user_settings import (clear_user_app_settings, get_user_app_setting,
+                                                 save_user_app_settings)
+
+    token, uid = _test_session_key(), _test_account_id()
+    if not (token and uid):
+        raise SkipScenario("aucun compte de test disponible")
+
+    def account():
+        from django.contrib.auth import get_user_model
+        return get_user_model().objects.get(pk=uid)
+
+    # La page des briques se lit sous le droit des Registres : le compte de test STANDARD ne
+    # l'ouvre pas (mesuré le 2026-11-15). Le scénario le DIT et joue alors avec le compte de test
+    # développeur — celui des jumelles, routé par la clé d'une jumelle (`_test_session_key`).
+    def reaches():
+        from wama.accounts.permissions import accessible
+        return accessible(account(), 'app', 'registries')
+
+    who = 'compte de test standard'
+    if not _in_plain_thread(reaches):
+        from wama.common.app_registry import APP_CATALOG
+        twin = next((key for key, spec in APP_CATALOG.items() if spec.get('generated_from')), None)
+        if not twin:
+            raise SkipScenario("la page des briques est fermée au compte de test standard, et "
+                               "aucune jumelle ne donne le compte développeur")
+        token, uid = _test_session_key(twin), _test_account_id(twin)
+        if not (token and uid) or not _in_plain_thread(reaches):
+            raise SkipScenario("la page des briques est fermée aux deux comptes de test")
+        who = 'compte de test DÉVELOPPEUR (page fermée au compte standard)'
+
+    def restore(value):
+        if value is None:
+            clear_user_app_settings(account(), SETTINGS_APP, [SETTING])
+        else:
+            save_user_app_settings(account(), SETTINGS_APP, {SETTING: value})
+
+    before = _in_plain_thread(lambda: get_user_app_setting(account(), SETTINGS_APP, SETTING))
+    kept = lambda: _in_plain_thread(lambda: user_keymap(account()))        # noqa: E731
+    verdicts = []
+
+    def verdict(ok, text):
+        verdicts.append((bool(ok), text))
+
+    row = lambda brick: f'[data-key-settings="{brick}"]'                   # noqa: E731
+    sessions_before = _session_keys()
+    try:
+        _in_plain_thread(restore, None)
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            try:
+                context = browser.new_context(viewport={'width': 1500, 'height': 1000})
+                context.add_cookies(_cookie(token))
+                page = context.new_page()
+                page.set_default_timeout(10000)
+                errors = []
+                page.on('pageerror', lambda e: errors.append(f'pageerror: {e}'))
+                if page_hook:
+                    page_hook(page)
+                page.goto(BASE_URL.rstrip('/') + reverse('common:ui_bricks_catalog'),
+                          wait_until='load', timeout=45000)
+                page.wait_for_timeout(800)
+
+                def press(brick, name, key):
+                    page.click(f'{row(brick)} .wama-key-edit[data-name="{name}"]')
+                    page.keyboard.press(key)
+                    page.wait_for_timeout(900)
+
+                def shown(brick, name):
+                    return page.evaluate(
+                        """([row, name]) => { const k = document.querySelector(row + ' .wama-key-edit[data-name="' + name + '"]');
+                            return k ? {label: k.textContent, clash: k.classList.contains('is-conflict')} : null; }""",
+                        [row(brick), name])
+
+                clashes = lambda brick: page.locator(f'{row(brick)} .wama-key-conflict').count()   # noqa: E731
+                seen = page.evaluate(
+                    """(row) => ({data: !!document.getElementById('wama-key-settings'),
+                        module: !!document.querySelector('script[src*="wama-key-settings.js"]'),
+                        row: !!document.querySelector(row),
+                        keys: document.querySelectorAll('.wama-key-edit').length,
+                        signed: !!(JSON.parse((document.getElementById('wama-page-controls') || {}).textContent || '{}').hint),
+                        cards: document.querySelectorAll('.wama-cat-card').length, url: location.pathname,
+                        common: [!!window.WamaKeys, !!window.WamaApp]})""", row('media_transport'))
+                verdict(shown('media_transport', 'toggle'),
+                        f"la touche d'une action est cliquable ({seen}, {errors[:2]})")
+                if not shown('media_transport', 'toggle'):
+                    raise RuntimeError(f"page des briques sans touche à régler : {seen} {errors[:2]}")
+                press('media_transport', 'toggle', 'p')
+                s = shown('media_transport', 'toggle')
+                verdict(kept() == {'media_transport': {'toggle': ['KeyP']}} and s and s['label'] == 'P'
+                        and not s['clash'],
+                        f"un clic puis P : gardé au compte et montré ({kept()}, {s})")
+                press('media_transport', 'toggle', 'Escape')
+                verdict(kept() == {'media_transport': {'toggle': ['KeyP']}},
+                        f"Échap annule sans rien changer ({kept()})")
+                # C est l'outil Bornes de la ligne de temps, sur une page qui porte les deux briques.
+                press('media_transport', 'toggle', 'c')
+                s = shown('media_transport', 'toggle')
+                verdict(s and s['clash'] and clashes('media_transport') and clashes('media_timeline'),
+                        f"une touche prise par une autre brique est dite sur les DEUX ({s}, "
+                        f"{clashes('media_transport')}, {clashes('media_timeline')})")
+                press('media_timeline', 'boundaries', 'b')
+                verdict(not clashes('media_transport') and not clashes('media_timeline')
+                        and kept().get('media_timeline') == {'boundaries': ['KeyB']},
+                        f"une autre frappe lève le conflit ({kept()})")
+                page.click(f"{row('media_transport')} .wama-key-reset")
+                page.wait_for_timeout(900)
+                page.click(f"{row('media_timeline')} .wama-key-reset")
+                page.wait_for_timeout(900)
+                s = shown('media_transport', 'toggle')
+                verdict(kept() == {} and s and s['label'] == 'Espace',
+                        f"« Rétablir » retire le réglage ({kept()}, {s})")
+                verdict(not errors, f"aucune erreur de script ({errors[:2]})")
+            finally:
+                browser.close()
+    finally:
+        _in_plain_thread(restore, before)
+        _drop_new_sessions(sessions_before)
+    failed = [text for ok, text in verdicts if not ok]
+    detail = (f"touches d'une brique par compte ({who}) : "
+              f"{len(verdicts) - len(failed)}/{len(verdicts)} gestes")
+    return (not failed), detail + (f" — ÉCHECS : {failed}" if failed else '')
+
+
 #: Le centre tel que la page le montre : ses panneaux montrés dans l'ordre de la grille, les marques
 #: des briques (hors du volet) dans l'ordre de la page, celles restées hors d'un panneau et visibles,
 #: la portée de la barre de file, les entrées de file visibles.
@@ -2105,6 +2239,15 @@ def register_surface_scenarios():
                      "prendre le pointeur ; « Figer » le referme et le garde ; une page sans "
                      "disposition n'a pas de cadenas"),
         run=lambda ctx: check_page_controls(),
+        timeout_s=180, vram_gb=0.0,
+    )
+    register(
+        id='common.brick_keys', app='common', stage='ui',
+        description=("Touches d'une brique réglées par un compte, sur la page des briques : un "
+                     "clic puis la frappe, gardée au compte et montrée ; Échap annule ; une touche "
+                     "qu'une autre brique de la même page prend est dite sur les deux, une autre "
+                     "frappe lève le conflit ; « Rétablir » retire le réglage"),
+        run=lambda ctx: check_brick_keys(),
         timeout_s=180, vram_gb=0.0,
     )
     register(
