@@ -132,6 +132,13 @@ _ALIAS = {
     'fair noncommercial research': 'fair-noncommercial-research',
     's-lab license 1.0': 's-lab-1.0', 's-lab 1.0': 's-lab-1.0',
     'polyform noncommercial': 'polyform-noncommercial', 'python style': 'psf-2.0',
+    # Graphies lues dans les métadonnées des dépendances installées (2026-11-15, `transitives`).
+    'new bsd': 'bsd-3-clause', '3-clause bsd': 'bsd-3-clause', 'revised bsd': 'bsd-3-clause',
+    'freebsd': 'bsd-2-clause', 'apache software license 2.0': 'apache-2.0',
+    'psfl': 'psf-2.0', 'python software foundation': 'psf-2.0',
+    'lgplv3': 'lgpl-3.0', 'gnu lesser general public license v3': 'lgpl-3.0',
+    'gnu lesser general public license v3 or later': 'lgpl-3.0', 'lgpl-2.1+': 'lgpl-2.1',
+    'gnu general public license v2 or later': 'gpl-2.0',
 }
 
 
@@ -316,6 +323,37 @@ def inventaire(user=None) -> list:
     return lignes
 
 
+# ── Dépendances TRANSITIVES : lues, jamais inscrites ───────────────────────────────────────
+
+def transitives(installed=None, registry_keys=None) -> dict:
+    """Les distributions installées que le registre ne porte PAS — les dépendances des librairies
+    du registre —, lues dans les métadonnées de l'environnement (`library_index.
+    installed_distributions`) : une source DÉRIVÉE de plus, pas 500 lignes de registre (décision
+    de Fabien, 2026-11-15). Seules les EXCEPTIONS sont listées — tout ce qui n'est ni permissif ni
+    copyleft faible —, chacune avec les librairies du registre qui la tirent ; le reste est compté
+    par famille. Vaut pour l'environnement de CE processus."""
+    from wama.common.services import library_index
+    if installed is None:
+        installed = library_index.installed_distributions()
+    if registry_keys is None:
+        from wama.common.models import Library
+        registry_keys = list(Library.objects.values_list('key', flat=True))
+    registry = {library_index._normalise(k) for k in registry_keys}
+    parents = library_index.pulled_by(installed, registry)
+    families, exceptions = defaultdict(int), []
+    outside = {name: d for name, d in installed.items() if name not in registry}
+    for name, dist in sorted(outside.items()):
+        q = qualifier(dist['license'])
+        families[q['famille']] += 1
+        if q['rang'] > COPYLEFT_FAIBLE:
+            exceptions.append({'nom': dist['name'], 'version': dist['version'],
+                               'licence': dist['license'], 'q': q,
+                               'pulled_by': parents.get(name, [])})
+    exceptions.sort(key=lambda e: (-e['q']['rang'], e['nom'].lower()))
+    return {'total': len(outside), 'families': dict(families), 'exceptions': exceptions,
+            'unpulled': sum(1 for name in outside if name not in parents)}
+
+
 # ── Traversée par app (composition déclarée par les manifestes) ────────────────────────────
 
 def _requires_par_app() -> dict:
@@ -416,4 +454,5 @@ def synthese(user=None) -> dict:
             'attribution_sans_auteur': len(attribution_sans_auteur),
         },
         'attribution_sans_auteur': attribution_sans_auteur,
+        'transitives': transitives(),
     }

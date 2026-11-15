@@ -150,3 +150,51 @@ class ServiceTermsTest(SimpleTestCase):
         for key, url in written.items():
             self.assertTrue(url.startswith('https://'), key)
             self.assertEqual('llm', xs.by_key()[key].kind, key)
+
+
+class TransitiveLicencesTest(SimpleTestCase):
+    """2026-11-15 (décision de Fabien) : les dépendances des librairies du registre ne s'y
+    inscrivent pas — l'audit les LIT dans l'environnement et n'en liste que les exceptions, avec
+    la librairie du registre qui les tire."""
+
+    INSTALLED = {
+        'engine': {'name': 'Engine', 'version': '1', 'license': 'MIT', 'requires': ['helper', 'other-lib']},
+        'other-lib': {'name': 'Other_Lib', 'version': '2', 'license': 'MIT', 'requires': ['deep']},
+        'helper': {'name': 'helper', 'version': '3', 'license': 'MIT', 'requires': ['gpl-part', 'silent']},
+        'gpl-part': {'name': 'gpl-part', 'version': '4', 'license': 'GPLv3+', 'requires': []},
+        'silent': {'name': 'silent', 'version': '5', 'license': '', 'requires': []},
+        'deep': {'name': 'deep', 'version': '6', 'license': 'Some House Terms', 'requires': []},
+        'stray': {'name': 'stray', 'version': '7', 'license': 'LGPLv3', 'requires': []},
+    }
+
+    def _report(self):
+        return audit.transitives(installed=self.INSTALLED, registry_keys=['Engine', 'other_lib'])
+
+    def test_only_what_the_registry_does_not_carry_is_read(self):
+        report = self._report()
+        self.assertEqual(5, report['total'])
+        self.assertEqual({'Permissive': 1, 'Copyleft fort': 1, 'Inconnue': 1, 'À qualifier': 1,
+                          'Copyleft faible': 1}, report['families'])
+
+    def test_exceptions_are_listed_most_constraining_first_with_what_pulls_them(self):
+        listed = [(e['nom'], e['pulled_by']) for e in self._report()['exceptions']]
+        self.assertEqual([('silent', ['Engine']), ('deep', ['Other_Lib']), ('gpl-part', ['Engine'])], listed)
+
+    def test_a_dependency_is_answered_for_by_the_nearest_registry_library(self):
+        """`deep` vient par `other-lib`, elle-même au registre : c'est elle qui en répond, pas
+        `engine` qui la tire de plus loin."""
+        from wama.common.services import library_index
+        parents = library_index.pulled_by(self.INSTALLED, ['engine', 'other-lib'])
+        self.assertEqual(['Other_Lib'], parents['deep'])
+        self.assertNotIn('stray', parents)
+        self.assertEqual(1, self._report()['unpulled'])
+
+    def test_spellings_read_in_installed_metadata_are_known_licences(self):
+        expected = {'New BSD': 'bsd-3-clause', '3-Clause BSD License': 'bsd-3-clause',
+                    'LGPLv3': 'lgpl-3.0', 'GNU Lesser General Public License v3 (LGPLv3)': 'lgpl-3.0',
+                    'PSFL': 'psf-2.0', 'Python Software Foundation License': 'psf-2.0',
+                    'Apache Software License 2.0': 'apache-2.0', 'FreeBSD': 'bsd-2-clause',
+                    'GNU General Public License v2 or later (GPLv2+)': 'gpl-2.0'}
+        for text, ident in expected.items():
+            self.assertEqual(ident, audit.qualifier(text)['id'], text)
+        self.assertEqual(audit.A_QUALIFIER, audit.qualifier('NVIDIA Proprietary Software')['rang'])

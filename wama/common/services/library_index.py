@@ -440,3 +440,55 @@ def model_libraries(model, entries=None) -> list[str]:
     """Librairies semées qu'exige UN modèle, par son exécutant déclaré — le `requires` de son
     manifeste (`builtin/model.py`) et la 1ʳᵉ moitié de la jambe backends d'une app."""
     return executor_libraries(model_executor(model, entries))
+
+
+# ── Les distributions installées, et celles que tire une librairie du registre ───────────────
+
+_INSTALLED: tuple = ((), None)
+
+
+def installed_distributions() -> dict:
+    """`{clé normalisée: {name, version, license, requires}}` des distributions INSTALLÉES dans
+    cet environnement — la licence telle que la lit le manifeste `library` (`licence_courte`),
+    les dépendances par leur nom normalisé. Gardé tant que les dossiers d'installation n'ont pas
+    bougé (la même empreinte que `_distributions`)."""
+    global _INSTALLED
+    import importlib.metadata as im
+
+    from wama.common.manifests.builtin.library import licence_courte
+    stamp = tuple((p, file_stamp(p)) for p in sys.path
+                  if p and p.rstrip('\\/').endswith(('site-packages', 'dist-packages')))
+    if _INSTALLED[1] is None or _INSTALLED[0] != stamp:
+        found = {}
+        for dist in im.distributions():
+            meta = dist.metadata
+            name = meta['Name'] if meta else None
+            if not name:
+                continue
+            found[_normalise(name)] = {
+                'name': name, 'version': dist.version or '', 'license': licence_courte(meta) or '',
+                'requires': sorted({_normalise(_distribution_name(r)) for r in (dist.requires or [])
+                                    if 'extra ==' not in r}),
+            }
+        _INSTALLED = (stamp, found)
+    return _INSTALLED[1]
+
+
+def pulled_by(installed: dict, registry_keys) -> dict:
+    """`{distribution hors registre: [librairies du registre qui la tirent]}` — pour chaque
+    librairie du registre, ce que ses dépendances installent sans passer par une AUTRE librairie
+    du registre (celle-là en répond elle-même). Une distribution que rien du registre ne tire
+    n'y figure pas : elle est installée hors de la route (outillage, reliquat)."""
+    registry = {_normalise(k) for k in registry_keys}
+    parents = {}
+    for root in sorted(registry & set(installed)):
+        seen, stack = set(), list(installed[root]['requires'])
+        while stack:
+            name = stack.pop()
+            if name in seen or name in registry or name not in installed:
+                continue
+            seen.add(name)
+            stack.extend(installed[name]['requires'])
+        for name in seen:
+            parents.setdefault(name, []).append(installed[root]['name'])
+    return parents

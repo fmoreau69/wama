@@ -171,10 +171,42 @@
     {% else %}<div class="li-empty">Aucun manifeste d'app dans le corpus.</div>{% endif %}
   </div>
 
+  {# ── Dépendances transitives ─────────────────────────────────────────────── #}
+  {% with t=audit.transitives %}
+  <div class="li-section">
+    <h3>Dépendances des librairies — hors registre</h3>
+    <p>
+      {{ t.total }} distribution(s) installées ici sans ligne au registre : ce que les librairies
+      du registre tirent avec elles. Elles sont <b>lues</b> dans l'environnement, pas inscrites.
+      {% for famille, n in t.families.items %}{{ famille }}&nbsp;{{ n }}{% if not forloop.last %} · {% endif %}{% endfor %}.
+      {% if t.unpulled %}{{ t.unpulled }} ne sont tirées par aucune librairie du registre
+      (outillage, installation hors de la route).{% endif %}
+      Seules celles qui ne sont ni permissives ni à copyleft faible sont listées.
+    </p>
+    {% if t.exceptions %}
+    <div class="li-scroll">
+      <table class="li-table">
+        <thead><tr><th>Distribution</th><th>Licence lue</th><th>Tirée par</th></tr></thead>
+        <tbody>
+          {% for e in t.exceptions %}
+          <tr>
+            <td><b>{{ e.nom }}</b> <span class="li-meta">{{ e.version }}</span></td>
+            <td><span class="wama-cat-badge li-r{{ e.q.rang }}">{{ e.q.famille }}</span>
+                <code>{{ e.licence|default:'—' }}</code></td>
+            <td class="li-meta">{{ e.pulled_by|join:', '|default:'aucune librairie du registre' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}<div class="li-empty">Aucune exception.</div>{% endif %}
+  </div>
+  {% endwith %}
+
   {# ── Détail ──────────────────────────────────────────────────────────────── #}
   <div class="li-section">
     <h3>Détail — tous les éléments</h3>
-    <p>Modèles, librairies et médias. Les médias affichés se limitent à votre périmètre visible.</p>
+    <p>Modèles, services, librairies et médias. Les médias affichés se limitent à votre périmètre visible.</p>
     {% comment %}Barre de filtrage COMMUNE (mode client : toutes les lignes sont dans le DOM).
     Les options du registre se DÉRIVENT du DOM — rien à déclarer ici, et une option ne peut pas
     lister un registre absent du tableau. Remplace `#li-q` + `#li-registre` + `filtrer()`
