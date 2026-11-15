@@ -54,9 +54,9 @@
       "format": null
     },
     "identity": {
-      "author": null,
+      "author": "stabilityai",
       "description_short": "Single-image → textured 3D mesh reconstruction (LRM, ~0.5 s per object on GPU), MIT",
-      "license": null,
+      "license": "mit",
       "model_type": "vision",
       "platform_ref": "huggingface:stabilityai/TripoSR",
       "publications": [

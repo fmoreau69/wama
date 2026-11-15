@@ -36,11 +36,11 @@
       "format": "pt"
     },
     "identity": {
-      "author": null,
+      "author": "CAIC-AD",
       "description_short": "Drivable area + lanes (dashcam)",
-      "license": null,
+      "license": "mit",
       "model_type": "vision",
-      "platform_ref": null,
+      "platform_ref": "github:CAIC-AD/YOLOPv2/releases/tag/V0.0.1",
       "source": "github"
     },
     "prompts": {

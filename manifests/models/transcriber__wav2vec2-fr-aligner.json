@@ -36,9 +36,9 @@
       "format": "safetensors"
     },
     "identity": {
-      "author": null,
+      "author": "jonatasgrosman",
       "description_short": "Aligns a known text on the audio, word by word — does not transcribe.",
-      "license": null,
+      "license": "apache-2.0",
       "model_type": "speech",
       "platform_ref": "huggingface:jonatasgrosman/wav2vec2-large-xlsr-53-french",
       "source": "transcriber"

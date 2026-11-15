@@ -82,11 +82,11 @@
       "format": "pth"
     },
     "identity": {
-      "author": null,
+      "author": "S-Lab",
       "description_short": "CodeFormer — face restoration (higher-quality option, use_enhancer).",
-      "license": null,
+      "license": "s-lab-1.0",
       "model_type": "vision",
-      "platform_ref": "huggingface:sczhou/CodeFormer",
+      "platform_ref": "github:sczhou/CodeFormer/releases/tag/v0.1.0",
       "source": "avatarizer"
     },
     "prompts": {

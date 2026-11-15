@@ -61,11 +61,11 @@
       "format": "gguf"
     },
     "identity": {
-      "author": null,
+      "author": "SandLogicTechnologies",
       "base_model": "datalab-to/chandra-ocr-2",
       "base_model_relation": "quantized",
       "description_short": "Chandra-OCR-2 is a multimodal vision-language model for document understanding, text extraction, and layout analysis optimized for local inference.",
-      "license": null,
+      "license": "apache-2.0",
       "model_type": "ocr",
       "platform_ref": "huggingface:SandLogicTechnologies/chandra-ocr-2-GGUF",
       "source": "ollama"

@@ -35,9 +35,9 @@
       "format": "task"
     },
     "identity": {
-      "author": null,
+      "author": "Google",
       "description_short": "Face landmarks (478 points) — MediaPipe's “tasks” API, on the processor; the geometry the Face Analyzer measures frame by frame.",
-      "license": null,
+      "license": "apache-2.0",
       "model_type": "vision",
       "platform_ref": null,
       "source": "face_analyzer"

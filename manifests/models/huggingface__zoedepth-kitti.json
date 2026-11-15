@@ -23,9 +23,9 @@
       "format": null
     },
     "identity": {
-      "author": null,
+      "author": "Intel",
       "description_short": "Monocular depth trained on driving scenes (KITTI), native to transformers (MIT)",
-      "license": null,
+      "license": "mit",
       "model_type": "vision",
       "platform_ref": "huggingface:Intel/zoedepth-kitti",
       "publications": [

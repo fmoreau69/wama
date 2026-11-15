@@ -40,9 +40,9 @@
       "format": "pt"
     },
     "identity": {
-      "author": null,
+      "author": "mindee",
       "description_short": "Straightens pages before OCR",
-      "license": null,
+      "license": "apache-2.0",
       "model_type": "vision",
       "platform_ref": "github:mindee/doctr/releases/tag/v0.8.1",
       "source": "github"

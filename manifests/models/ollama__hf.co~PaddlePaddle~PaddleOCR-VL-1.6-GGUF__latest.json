@@ -49,11 +49,11 @@
       "format": "gguf"
     },
     "identity": {
-      "author": null,
+      "author": "PaddlePaddle",
       "base_model": "PaddlePaddle/PaddleOCR-VL-1.6",
       "base_model_relation": "quantized",
       "description_short": "Ollama LLM (1.8 GB)",
-      "license": null,
+      "license": "apache-2.0",
       "model_type": "ocr",
       "platform_ref": "huggingface:PaddlePaddle/PaddleOCR-VL-1.6-GGUF",
       "source": "ollama"

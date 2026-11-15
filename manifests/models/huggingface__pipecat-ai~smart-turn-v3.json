@@ -59,9 +59,9 @@
       "format": "onnx"
     },
     "identity": {
-      "author": null,
+      "author": "pipecat-ai",
       "description_short": "End of a speaking turn (voice conversation)",
-      "license": null,
+      "license": "bsd-2-clause",
       "model_type": "speech",
       "platform_ref": "huggingface:pipecat-ai/smart-turn-v3",
       "source": "huggingface"

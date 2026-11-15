@@ -27,9 +27,9 @@
       "format": null
     },
     "identity": {
-      "author": null,
+      "author": "justjuu",
       "description_short": "RT-DETR v2 — licence plates (transformers).",
-      "license": null,
+      "license": "apache-2.0",
       "model_type": "vision",
       "platform_ref": "huggingface:justjuu/rtdetr-v2-license-plate-detection",
       "source": "anonymizer"

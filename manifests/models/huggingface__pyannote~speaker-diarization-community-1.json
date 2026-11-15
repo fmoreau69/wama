@@ -26,9 +26,9 @@
       "format": "bin"
     },
     "identity": {
-      "author": null,
+      "author": "pyannote",
       "description_short": "A pretrained model for speech diarization that ingests mono or multi-channel audio and outputs speaker assignments.",
-      "license": null,
+      "license": "cc-by-4.0",
       "model_type": "speech",
       "platform_ref": "huggingface:pyannote/speaker-diarization-community-1",
       "publications": [

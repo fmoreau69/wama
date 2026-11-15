@@ -58,9 +58,9 @@
       "format": "nemo"
     },
     "identity": {
-      "author": null,
+      "author": "nvidia",
       "description_short": "Parakeet TDT 0.6B v3 (NVIDIA) — very fast, 25 languages, language detected",
-      "license": null,
+      "license": "cc-by-4.0",
       "model_type": "speech",
       "platform_ref": "huggingface:nvidia/parakeet-tdt-0.6b-v3",
       "publications": [
