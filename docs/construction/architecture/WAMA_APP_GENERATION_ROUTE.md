@@ -1634,6 +1634,34 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       (le cas tombe une fois sur huit) : sa preuve est la mesure des rappels et la garde V8.
       ⚠ Sous cette même charge artificielle, l'écart d'horloge de Comparer dépasse parfois son
       seuil (p95 20,6 et 23,9 ms pour 20) ; jamais vu la nuit, laissé tel quel.
+    - ✅ **2026-11-12 → 15 — marche ① : le clavier** (résolution touche → action, relâché,
+      lecture unifiée, préréglage déclaré d'une page, défauts des flèches, réglage par compte,
+      conflits, fiche d'app) — domicile : `WAMA_VOLETS §3-ter`. ⏳ Reste, sur décision de Fabien :
+      les préréglages de LOGICIEL au profil.
+    - 🔄 **2026-11-15 — marche ②, première moitié : le commun COMPLÉTÉ, par options** — ce que
+      d'autres lecteurs avaient et que le transport commun n'avait pas (table ci-dessus). Aucune
+      n'est montrée sans son option : les pages d'aujourd'hui gardent leur barre, mesuré
+      (`['start', 'skip-back', 'play', 'skip-fwd', 'rate', 'clock']`).
+      | option de l'emplacement | ce qu'elle montre | d'où elle vient |
+      |---|---|---|
+      | `step` | pas précédent / suivant (`axis.step`, touches `,` `.` dites dans l'infobulle) | cam_analyzer |
+      | `stop` | arrêt : pause et retour au début ; il REND le shuttle d'abord | cam_analyzer |
+      | `reverse` | lecture arrière, un cran de shuttle (J) | cam_analyzer |
+      | `position` | curseur de position dans la rangée ; glissé, il ne suit plus l'axe ; relâché, il le suit | contrôles natifs, cam_analyzer |
+      | `remaining` | le temps restant dans l'horloge | spec du magnéto |
+      | `volume` | muet et curseur de volume | contrôles natifs |
+      | `remember` | position gardée par élément (toutes les 2 s, au navigateur) et reprise à l'ouverture | cam_analyzer |
+      L'AXE gagne le SON (`setVolume`, `setMuted`, dits aux abonnés — `sound`) : il vaut pour tous
+      les médias suivis, chacun gardant sa part (un média arrivé muet le reste : la seconde vidéo
+      de Comparer ; un média plus bas garde son rapport) ; rien n'est posé tant que personne ne
+      règle le son ; un réglage fait sur le média lui-même (contrôles natifs) est une commande,
+      comme sa vitesse. Gardes : `AxisTest` (le son ; chaque commande avec son option, jouée en
+      V8 sur un vrai axe — elle a trouvé que l'arrêt gardait la vitesse arrière du shuttle).
+      ⚠ **Aucune page ne tire encore ces options, et rien n'est joué au navigateur** : le portage
+      d'un consommateur est le pas suivant (candidats : la page vidéo de l'anonymizer — pas,
+      position, volume —, les analyses du face_analyzer, la bande fine de l'aperçu).
+      ⏳ Reste de la marche ② : la vitesse CONTINUE (curseur logarithmique, ×32), la BANDE FINE
+      (une ligne étroite pour l'aperçu), la lecture arrière image par image.
   - ✅ **2026-10-21 — LE VOLET DEVIENT UNE ZONE DE BRIQUES, étape 1 : les surfaces** (décision de
     Fabien : *« on passe tout WAMA progressivement en briques UI »*, verrouillé par défaut pour
     tous, le volet en colonne, les réglages en deux colonnes gardés). Domicile : `WAMA_VOLETS

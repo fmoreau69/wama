@@ -269,6 +269,10 @@ body.wama-panel-arranged > .container {
 .wama-transport-clock { margin-left: auto; font-size: .8rem; color: var(--wama-edit-text); font-variant-numeric: tabular-nums; }
 .wama-transport-player-hidden { display: none; }    /* une ligne de temps montre l'onde à sa place */
 .wama-transport-goto { width: 84px; }
+/* Les curseurs en option (2026-11-15) : la position prend la place qui reste, le volume est court. */
+.wama-transport-position { flex: 1 1 120px; min-width: 80px; }
+.wama-transport-position + .wama-transport-clock { margin-left: 0; }
+.wama-transport-volume { width: 70px; flex: 0 0 auto; }
 .wama-transport-speed { min-width: 42px; }
 
 /* Ligne de temps (2026-10-21, `wama-timeline.js` — une VUE du temps, déplacée du transport, et

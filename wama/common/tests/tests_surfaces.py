@@ -1688,6 +1688,120 @@ class AxisTest(SimpleTestCase):
                          '← / → a jump, Shift six, Ctrl from the defaults, Alt given to nothing')
         self.assertEqual(5, out['others'])
 
+    def test_the_sound_of_the_axis_reaches_every_medium_and_each_keeps_its_share(self):
+        """2026-11-15 (step 2 of the 12/11 map : what other players had and the common one lacked) —
+        the volume and the mute of the AXIS go to every followed medium ; a medium that came muted
+        stays so (the second video of Compare) and one that came quieter keeps its share ; nothing
+        is set before anyone sets the sound ; a change made on the medium itself (native controls)
+        is a command, the axis' own are not."""
+        out = self._eval('''
+            var axis = window.WamaAxis.create(Object.assign({duration: 60}, opts));
+            var a = fakeMedia(60), b = fakeMedia(60), seen = [];
+            a.volume = 1; a.muted = false; b.volume = 0.5; b.muted = true;
+            axis.attach(a); axis.attach(b);
+            var untouched = [a.volume, a.muted, b.volume, b.muted];
+            axis.subscribe(function (s) { if (s.reason === 'sound') seen.push([s.volume, s.muted]); });
+            axis.setVolume(0.4);
+            var set = [a.volume, a.muted, b.volume, b.muted];
+            a.fire('volumechange');                           // the axis' own : no command
+            var own = seen.length;
+            axis.setMuted(true); var muted = [a.muted, b.muted, axis.muted()];
+            axis.setVolume(0.8); var back = [a.muted, b.muted, axis.muted()];
+            a.volume = 0.2; a.fire('volumechange');           // the user, on the medium
+            var late = fakeMedia(60); late.volume = 1; late.muted = false; axis.attach(late);
+            return {untouched: untouched, set: set, own: own, muted: muted, back: back,
+                    command: [axis.volume(), b.volume, late.volume], seen: seen.length};
+        ''')
+        self.assertEqual([1, False, 0.5, True], out['untouched'], 'nothing is set before anyone asks')
+        self.assertEqual([0.4, False, 0.2, True], out['set'], 'each medium keeps its share')
+        self.assertEqual(1, out['own'], "the axis' own change is no command")
+        self.assertEqual([True, True, True], out['muted'])
+        self.assertEqual([False, True, False], out['back'], 'a volume above zero unmutes the axis only')
+        self.assertEqual([0.2, 0.1, 0.2], out['command'],
+                         'a change on the medium is a command ; a medium attached later follows')
+
+    def test_the_transport_shows_a_command_only_with_its_option(self):
+        """Step 2 : previous / next step, stop, backward play, position slider, time left, volume
+        and mute, position kept per element — each one an OPTION of the common transport
+        (`wama-transport.js`) ; without them the bar is the one every page has today."""
+        self.engine.eval('''
+            function element(tag) {
+                var e = {tag: tag, children: [], attrs: {}, listeners: {}, className: '', textContent: '',
+                    value: '', html: '',
+                    classList: {add: function (c) { e.className += ' ' + c; }, remove: function () {},
+                                toggle: function () {}, contains: function () { return false; }},
+                    setAttribute: function (k, v) { e.attrs[k] = String(v); if (k === 'value' || k === 'max') e[k] = String(v); },
+                    getAttribute: function (k) { return k in e.attrs ? e.attrs[k] : null; },
+                    appendChild: function (c) { e.children.push(c); return c; },
+                    addEventListener: function (k, fn) { (e.listeners[k] = e.listeners[k] || []).push(fn); },
+                    querySelector: function () { return e.icon || (e.icon = element('i')); },
+                    fire: function (k) { (e.listeners[k] || []).forEach(function (fn) {
+                        fn({target: e, key: '', preventDefault: function () {}}); }); }};
+                Object.defineProperty(e, 'innerHTML', {set: function (v) { e.html = v; }, get: function () { return e.html; }});
+                return e;
+            }
+            function find(root, name) {
+                if (root.attrs && root.attrs['data-transport'] === name) return root;
+                for (var i = 0; i < (root.children || []).length; i++) {
+                    var got = find(root.children[i], name); if (got) return got;
+                }
+                return null;
+            }
+            function names(root, out) {
+                out = out || [];
+                if (root.attrs && root.attrs['data-transport']) out.push(root.attrs['data-transport']);
+                (root.children || []).forEach(function (c) { names(c, out); });
+                return out;
+            }
+            var store = {};
+            window.localStorage = {getItem: function (k) { return k in store ? store[k] : null; },
+                                   setItem: function (k, v) { store[k] = String(v); }};
+            globalThis.document = {addEventListener: function () {}, removeEventListener: function () {},
+                                   createElement: element};
+            window.document = globalThis.document;
+        ''' + _js('common/js/wama-keys.js') + _js('common/js/wama-shuttle.js') + _js('common/js/wama-transport.js'))
+        out = self._eval('''
+            var plain = element('div');
+            window.WamaTransport.mount(plain, {axis: window.WamaAxis.create(Object.assign({duration: 60}, opts)),
+                                               options: {}});
+            store['wama.transport.position.page.7'] = '12.5';
+            var axis = window.WamaAxis.create(Object.assign({duration: 60}, opts)), m = fakeMedia(60);
+            m.volume = 1; m.muted = false; axis.attach(m);
+            var host = element('div');
+            window.WamaTransport.mount(host, {axis: axis, key: 'page.7', options: {step: true, stop: true,
+                reverse: true, position: true, remaining: true, volume: true, remember: true}});
+            var r = {plain: names(plain), full: names(host), restored: axis.time()};
+            r.clock = find(host, 'clock').textContent;
+            find(host, 'step-fwd').fire('click'); r.step = Math.round((axis.time() - 12.5) * 1000) / 1000;
+            var slider = find(host, 'position'); r.max = slider.max;
+            slider.value = '30'; slider.fire('input'); r.dragged = axis.time(); slider.fire('change');
+            axis.seek(31); r.follows = slider.value;
+            find(host, 'reverse').fire('click'); r.reverse = [axis.playing(), axis.rate() < 0];
+            find(host, 'stop').fire('click'); r.stop = [axis.playing(), axis.time(), axis.rate()];
+            var volume = find(host, 'volume'); volume.value = '0.3'; volume.fire('input');
+            r.volume = [axis.volume(), m.volume];
+            find(host, 'mute').fire('click'); r.muted = [axis.muted(), m.muted, find(host, 'mute').icon.className];
+            find(host, 'mute').fire('click'); r.unmuted = [axis.muted(), find(host, 'mute').icon.className];
+            r.kept = store['wama.transport.position.page.7'];
+            return r;
+        ''')
+        self.assertEqual(['start', 'skip-back', 'play', 'skip-fwd', 'rate', 'clock'], out['plain'],
+                         'no option : the bar of today, nothing more')
+        self.assertEqual(['start', 'skip-back', 'step-back', 'reverse', 'stop', 'play', 'step-fwd',
+                          'skip-fwd', 'rate', 'position', 'clock', 'mute', 'volume'], out['full'])
+        self.assertEqual(12.5, out['restored'], 'the position kept for this element is taken back')
+        self.assertIn('−0:47', out['clock'], 'the time left')
+        self.assertEqual(0.033, out['step'])
+        self.assertEqual('60', out['max'])
+        self.assertEqual(30, out['dragged'], 'dragging the slider goes there')
+        self.assertEqual('31', out['follows'], 'released, the slider follows the axis again')
+        self.assertEqual([True, True], out['reverse'])
+        self.assertEqual([False, 0, 1], out['stop'], 'stop : paused, back at the start, shuttle given back')
+        self.assertEqual([0.3, 0.3], out['volume'])
+        self.assertEqual([True, True, 'fas fa-volume-xmark'], out['muted'])
+        self.assertEqual([False, 'fas fa-volume-high'], out['unmuted'])
+        self.assertEqual('12.5', out['kept'], 'kept at most every two seconds')
+
 
 class TransportKeysOwnershipTest(SimpleTestCase):
     """2026-10-29 (Fabien : « le transport doit être toujours actif avec J/K/L ») — the transport is

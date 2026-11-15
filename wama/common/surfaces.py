@@ -1113,7 +1113,11 @@ register_brick(UIBrick(
                 "un long fichier — qu'une surface à ligne de temps tait), et les COMMANDES du temps "
                 "(le transport commun `wama-transport.js`, aussi celui de l'aperçu et du monde "
                 "Data) : lecture / pause, début, sauts, vitesse (liste ou par pas), aller à, shuttle "
-                "J/K/L dont l'arrière silencieux. Il PILOTE l'axe, jamais une vue (`WAMA_DATA_WORLD "
+                "J/K/L dont l'arrière silencieux — et, par OPTIONS de l'emplacement (2026-11-15, ce "
+                "que d'autres lecteurs avaient) : pas précédent / suivant (`step`), arrêt (`stop`), "
+                "lecture arrière (`reverse`), curseur de position (`position`), temps restant "
+                "(`remaining`), volume et muet (`volume`), position gardée par élément "
+                "(`remember`). Il PILOTE l'axe, jamais une vue (`WAMA_DATA_WORLD "
                 "§5bis`) ; il dit si le média est périmé par une modification et le recharge quand "
                 "le process qui le produit a été rejoué.",
     script='common/js/surfaces/brick-media-transport.js',
@@ -1126,7 +1130,8 @@ register_brick(UIBrick(
                Shortcut(('Ctrl+Space',), 'lecture / pause, même pendant la frappe', 'page',
                         names=('toggle_always',)),
                Shortcut(('KeyJ', 'KeyK', 'KeyL'), 'lecture arrière / pause / lecture avant, par crans '
-                        'de vitesse', 'page', names=('reverse', 'stop', 'forward')),
+                        'de vitesse', 'page', targets=('[data-transport="reverse"]', '', ''),
+                        names=('reverse', 'stop', 'forward')),
                # Les flèches sont en TEMPS, du plus fin au plus large (défauts validés par Fabien
                # le 2026-11-12, posés le 15) ; une page garde les siennes par son préréglage
                # (`KEYS_OPTION` — la page de correction du transcriber : ←/→ un saut).
@@ -1141,7 +1146,8 @@ register_brick(UIBrick(
                Shortcut(('Alt+ArrowLeft', 'Alt+ArrowRight'), 'reculer / avancer de six sauts',
                         'page', names=('jump_back_far', 'jump_forward_far')),
                Shortcut((',', '.'), "reculer / avancer d'un pas (une image), la lecture arrêtée",
-                        'page', names=('step_back', 'step_forward')),
+                        'page', targets=('[data-transport="step-back"]', '[data-transport="step-fwd"]'),
+                        names=('step_back', 'step_forward')),
                Shortcut(('Home', 'End'), 'aller au début / à la fin', 'page',
                         targets=('[data-transport="start"]', ''), names=('start', 'end')),
                Shortcut(('Enter',), 'aller au temps tapé', 'field', option='goto'),

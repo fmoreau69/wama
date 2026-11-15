@@ -19,6 +19,17 @@
  *   speed   'select' (liste de vitesses) | 'steps' (− / valeur / +, de 0,5 à 2 par 0,25)
  *   goto    champ « aller à » (m:ss, h:mm:ss, virgule admise) — l'axe dit `goto` à ses abonnés :
  *           la ligne de temps recentre sa fenêtre, la liste choisit le segment
+ * Les commandes que d'autres lecteurs avaient et que le commun n'avait pas (2026-11-15, marche ②
+ * de la cartographie du 12/11 — `ROUTE §F3b` : « on complète le commun, par option, puis on
+ * porte ») ; aucune n'est montrée sans son option, une page d'aujourd'hui ne change pas :
+ *   step      boutons « pas précédent / suivant » (`axis.step`, la lecture arrêtée — touches , .)
+ *   stop      bouton arrêt : pause ET retour au début (`axis.stop`)
+ *   reverse   bouton lecture arrière, un cran de shuttle (J) — demande `WamaShuttle`
+ *   position  curseur de POSITION : glisser = y aller (celui des contrôles natifs d'une vidéo)
+ *   remaining l'horloge dit aussi le temps RESTANT
+ *   volume    muet et curseur de volume, pour tous les médias que l'axe suit (`axis.setVolume`)
+ *   remember  la position est GARDÉE (toutes les 2 s, au navigateur) et reprise à l'ouverture —
+ *             sous la clé que donne qui monte le transport (`cfg.key` : la page et son élément)
  * Jusqu'à ce redécoupage, l'onde fenêtrée et ses couches, le zoom, la bande de qualité, la
  * minimap, l'outil Bornes et les modes d'écriture étaient aussi des options d'ici : les premiers
  * sont la VUE `wama-timeline.js`, les derniers la brique `playback_writing`.
@@ -65,7 +76,16 @@
         var fwd = button('skip-fwd', '', 'Avancer ' + jump + ' s',
                          o.speed === 'steps' ? jump + 's <i class="fas fa-forward"></i>' : '<i class="fas fa-rotate-right"></i>');
         var clock = el('span', 'wama-transport-clock', { 'data-transport': 'clock' });
-        [toStart, back, play, fwd].forEach(function (b) { bar.appendChild(b); });
+        // Les commandes en option (marche ②) se rangent autour de la lecture, du plus large au plus
+        // fin : début, saut, pas, [arrière, arrêt] lecture, pas, saut.
+        var shuttle = global.WamaShuttle ? global.WamaShuttle.forAxis(axis) : null;
+        var stepBack = o.step ? button('step-back', 'fa-caret-left', 'Pas précédent') : null;
+        var stepFwd = o.step ? button('step-fwd', 'fa-caret-right', 'Pas suivant') : null;
+        var reverse = (o.reverse && shuttle) ? button('reverse', 'fa-play fa-flip-horizontal', 'Lecture arrière') : null;
+        var stop = o.stop ? button('stop', 'fa-stop', 'Arrêt : pause et retour au début') : null;
+        [toStart, back, stepBack, reverse, stop, play, stepFwd, fwd].forEach(function (b) {
+            if (b) bar.appendChild(b);
+        });
 
         var rate = null, speedLabelEl = null, shuttleOpt = null;
         if (o.speed === 'steps') {
@@ -91,7 +111,30 @@
             rate.appendChild(shuttleOpt);
             bar.appendChild(rate);
         }
+        // Le curseur de POSITION : dans la rangée, il prend la place qui reste.
+        var position = null, dragging = false;
+        if (o.position) {
+            position = el('input', 'form-range wama-transport-position',
+                          { type: 'range', min: '0', max: '0', step: '0.01', value: '0',
+                            'data-transport': 'position', title: 'Position — glisser pour y aller',
+                            'aria-label': 'Position' });
+            position.addEventListener('input', function () { dragging = true; axis.seek(Number(position.value) || 0); });
+            position.addEventListener('change', function () { dragging = false; });
+            bar.appendChild(position);
+        }
         bar.appendChild(clock);
+
+        var mute = null, volume = null;
+        if (o.volume) {
+            mute = button('mute', 'fa-volume-high', 'Couper / rétablir le son');
+            volume = el('input', 'form-range wama-transport-volume',
+                        { type: 'range', min: '0', max: '1', step: '0.05', value: '1',
+                          'data-transport': 'volume', title: 'Volume', 'aria-label': 'Volume' });
+            mute.addEventListener('click', function () { axis.setMuted(!axis.muted()); });
+            volume.addEventListener('input', function () { axis.setVolume(Number(volume.value)); });
+            bar.appendChild(mute);
+            bar.appendChild(volume);
+        }
 
         var gotoInp = null;
         if (o.goto) {
@@ -109,7 +152,21 @@
         }
         host.appendChild(bar);
 
-        var shuttle = global.WamaShuttle ? global.WamaShuttle.forAxis(axis) : null;
+        if (stepBack) stepBack.addEventListener('click', function () { axis.step(-1); });
+        if (stepFwd) stepFwd.addEventListener('click', function () { axis.step(1); });
+        if (reverse) reverse.addEventListener('click', function () { shuttle.reverse(); });
+        // L'arrêt REND le shuttle d'abord (son K) : sinon l'axe gardait la vitesse arrière.
+        if (stop) stop.addEventListener('click', function () { if (shuttle) shuttle.stop(); axis.stop(); });
+
+        // La position GARDÉE : reprise une fois, quand la durée est connue ; gardée toutes les 2 s.
+        var remember = (o.remember && cfg.key) ? 'wama.transport.position.' + cfg.key : null;
+        var restored = !remember, keptAt = 0;
+        function stored() {
+            try { return Number(global.localStorage.getItem(remember)); } catch (e) { return NaN; }
+        }
+        function keep(t) {
+            try { global.localStorage.setItem(remember, String(Math.round(t * 100) / 100)); } catch (e) { /* pas de stockage */ }
+        }
 
         toStart.addEventListener('click', function () { axis.seek(0); });
         back.addEventListener('click', function () { axis.jump(-jump); });
@@ -147,12 +204,32 @@
         // chaque image : réécrire le bouton remplaçait l'icône sous le pointeur entre l'appui et le
         // relâché, et le navigateur ne reconnaissait plus un clic.
         var playIcon = play.querySelector('i'), shownPlaying = null;
+        var muteIcon = mute ? mute.querySelector('i') : null, shownSound = null;
         if (axis) axis.subscribe(function (st) {
             if (st.playing !== shownPlaying) {
                 shownPlaying = st.playing;
                 playIcon.className = 'fas ' + (st.playing ? 'fa-pause' : 'fa-play');
             }
-            clock.textContent = Axis.formatTime(st.time, true) + ' / ' + (st.duration ? Axis.formatTime(st.duration) : '--:--');
+            clock.textContent = Axis.formatTime(st.time, true) + ' / ' + (st.duration ? Axis.formatTime(st.duration) : '--:--')
+                + (o.remaining && st.duration ? ' · −' + Axis.formatTime(Math.max(0, st.duration - st.time)) : '');
+            if (position) {
+                if (Number(position.max) !== st.duration) position.max = String(st.duration || 0);
+                if (!dragging) position.value = String(st.time);
+            }
+            if (mute) {
+                var sound = (st.muted || !st.volume) ? 'fa-volume-xmark' : 'fa-volume-high';
+                if (sound !== shownSound) { shownSound = sound; muteIcon.className = 'fas ' + sound; }
+                if (Number(volume.value) !== st.volume) volume.value = String(st.volume);
+            }
+            if (remember) {
+                if (!restored && st.duration > 0) {
+                    restored = true;
+                    var at = stored();
+                    if (at > 0 && at < st.duration && !st.time) axis.seek(at);
+                }
+                var now = Date.now();
+                if (restored && now - keptAt >= 2000) { keptAt = now; keep(st.time); }
+            }
             if (speedLabelEl) speedLabelEl.textContent = speedLabel(st);
             if (rate) {
                 if (!st.shuttling && RATES.indexOf(st.rate) >= 0) {

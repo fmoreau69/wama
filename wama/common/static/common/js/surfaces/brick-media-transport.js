@@ -51,10 +51,12 @@
         var Player = global.WamaAudioPlayer;
         var playerId = 'surface-' + ctx.config.pk + '-' + role;
         var showWave = options.wave !== false;
+        // Ce sous quoi le transport GARDE la position (`options.remember`) : la page et son élément.
+        var key = ((ctx.config.surface || {}).id || 'surface') + '.' + ctx.config.pk;
         body.classList.add('wama-brick-transport');
         if (options.media === false) {
             // Les commandes seules : une autre brique tient l'horloge (`video_view`).
-            global.WamaTransport.mount(body, { axis: axis, options: options });
+            global.WamaTransport.mount(body, { axis: axis, options: options, key: key });
             return {};
         }
 
@@ -99,7 +101,7 @@
         }
 
         // ── Les commandes ───────────────────────────────────────────────────────────────────
-        var transport = global.WamaTransport.mount(body, { axis: axis, options: options });
+        var transport = global.WamaTransport.mount(body, { axis: axis, options: options, key: key });
 
         var badge = document.createElement('span');
         badge.className = 'badge d-none';

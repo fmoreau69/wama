@@ -151,7 +151,7 @@
         var sync = Object.assign({}, SYNC, opts.sync || {});
 
         var s = { time: 0, duration: Number(opts.duration) || 0, playing: false, rate: 1,
-                  speed: 1, shuttling: false };
+                  speed: 1, shuttling: false, volume: 1, muted: false };
         var observers = [];
         var followers = [];
         var cadences = [];
@@ -160,7 +160,17 @@
 
         function snapshot(reason) {
             return { time: s.time, duration: s.duration, playing: s.playing, rate: s.rate,
-                     speed: s.speed, shuttling: s.shuttling, reason: reason };
+                     speed: s.speed, shuttling: s.shuttling, volume: s.volume, muted: s.muted,
+                     reason: reason };
+        }
+        /** Le SON d'un suiveur (2026-11-15) : le volume de l'axe, multiplié par celui que le média
+         *  avait en arrivant ; muet si l'axe l'est, ou si le média l'était (la seconde vidéo de
+         *  Comparer le reste). Rien n'est posé tant que personne n'a réglé le son de l'axe. */
+        var soundSet = false;
+        function soundOf(f) {
+            if (!soundSet) return;
+            f.ownSound = [clamp(s.volume * f.volume0, 0, 1), s.muted || f.muted0];
+            try { f.el.volume = f.ownSound[0]; f.el.muted = f.ownSound[1]; } catch (e) { /* média sans son */ }
         }
         /** Le shuttle rendu : la vitesse redevient celle qu'on a choisie. */
         function disengage() {
@@ -420,6 +430,25 @@
             },
             stop: function () { axis.pause(); axis.seek(0); },
 
+            /** Le SON de l'axe (2026-11-15, le curseur de volume du transport) : il vaut pour TOUS
+             *  les médias suivis — chacun garde sa part (`soundOf`). Un réglage fait sur le média
+             *  lui-même (ses contrôles natifs) est une commande, comme sa vitesse. */
+            volume: function () { return s.volume; },
+            muted: function () { return s.muted; },
+            setVolume: function (v) {
+                v = clamp(Number(v), 0, 1);
+                if (!isFinite(v)) return;
+                soundSet = true; s.volume = v;
+                if (v > 0) s.muted = false;
+                followers.forEach(soundOf);
+                notify('sound');
+            },
+            setMuted: function (m) {
+                soundSet = true; s.muted = !!m;
+                followers.forEach(soundOf);
+                notify('sound');
+            },
+
             /** Aller à `t`. `reason` dit aux abonnés POURQUOI (défaut `seek`) : `goto`, un temps
              *  nommé (« aller à ») — une vue fenêtrée le montre au centre, une liste choisit ce
              *  qui s'y trouve. L'axe ne connaît aucune vue : il le dit, elles décident. */
@@ -503,7 +532,10 @@
                           sync: Object.assign({}, sync, o.sync || {}),
                           lastSeek: 0, pausedAt: null, playedAt: null, placedTo: null,
                           drift: null, catching: 0, ownRate: null, sounding: false, here: null,
-                          starvedAt: null, dataAt: null };
+                          starvedAt: null, dataAt: null,
+                          // Le son que le média avait en arrivant : sa part du volume de l'axe.
+                          volume0: isFinite(el.volume) ? el.volume : 1, muted0: !!el.muted,
+                          ownSound: null };
                 var dropCadence = o.fps ? axis.cadence(o.fps) : null;
                 /** Le média EST-il censé jouer ? Sinon une pause qui arrive est la nôtre. */
                 function expected() { return audible() && covers(f); }
@@ -553,6 +585,17 @@
                     },
                     // Des données arrivent : un média qui attend retient encore l'axe (`starved`).
                     progress: function () { f.dataAt = now(); },
+                    // Le son réglé sur le média (ses contrôles natifs) : une commande à l'axe. Les
+                    // siens, l'axe les reconnaît à la VALEUR qu'il a posée (`soundOf`).
+                    volumechange: function () {
+                        var own = f.ownSound;
+                        if (own && Math.abs(el.volume - own[0]) < 1e-3 && !!el.muted === own[1]) return;
+                        if (!own && el.volume === f.volume0 && !!el.muted === f.muted0) return;
+                        f.volume0 = 1; f.muted0 = false;      // le geste parle pour ce média entier
+                        soundSet = true; s.volume = clamp(el.volume, 0, 1); s.muted = !!el.muted;
+                        followers.forEach(soundOf);
+                        notify('sound');
+                    },
                 };
                 Object.keys(handlers).forEach(function (k) { el.addEventListener(k, handlers[k]); });
                 f.drop = function () {
@@ -564,6 +607,7 @@
                 if (isFinite(el.duration) && el.duration > 0) cover(el.duration - f.offset);
                 if (s.playing) follow(f, null); else place(f);
                 rateToFollowers();
+                soundOf(f);
                 notify('media');
                 return function () { axis.detach(el); };
             },
