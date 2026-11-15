@@ -31571,3 +31571,21 @@ geste « toute la séquence ») ; non vu sur une vraie vidéo détectée, seulem
 `tests_surfaces` `ScoreRulesTest` / `ComposerScoreSurfaceTest` (le calage de la partition, en
 cours dans une autre session) ; budget de langue 2554 > 2553 (aucun identifiant de ce palier
 dans la liste nominative) ; la suite complète n'a pas été rejouée (base de test occupée).
+
+## §PALIER 2026-11-15 (après-midi), « DOMAINES ⑦ (b), marche 3 côté ÉCRITURE : naissance et ⚙ par le schéma du domaine » — commit local, non poussé — rien à relancer (générateur seul) — 🔚 recréation des jumelles et vérification à l'écran ; domaine à préfixe hors page ; appariement par domaine
+
+**Livré** (`views_gen`, pages à plusieurs domaines seulement) : `_birth_domain` (le domaine où naît
+un élément, par la règle de la card sur un témoin non sauvé) ; `_element_settings` et
+`_deposit_settings` passent le schéma et la mémoire de volet de ce domaine à la cascade commune ;
+`make_batch_views(schema=element_schema)` — la ⚙ d'un élément (`_iv['update_settings']`, qui lit la
+déclaration des vues de lot) et celle d'un lot ; `_SETTING_NAMES` = les noms de tous les schémas
+de l'app.
+
+**Mesuré avant / après** : dix pages à une file inchangées à l'octet (vues comprises).
+
+**Garde** : `GeneratedPageByDomainTest.test_an_element_is_born_and_set_with_the_schema_of_its_domain`
+EXÉCUTE les fonctions générées. Quatre mutations, quatre rouges.
+
+**Rouge qui n'est pas de ce lot** : budget de langue « code » mesuré 2552 pour 2553 déclaré — un
+identifiant français a disparu de l'arbre depuis 13 h 50 (quatre commits d'autres sessions) ; le
+recaler revient à qui l'a retiré.

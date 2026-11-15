@@ -1095,3 +1095,49 @@ class GeneratedPageByDomainTest(SimpleTestCase):
                 body = re.sub(r'\{\{.*?\}\}', 'null', body, flags=re.S)
                 with self.subTest(app=app):
                     ctx.eval('(function(){' + body + '\n})')
+
+    def test_an_element_is_born_and_set_with_the_schema_of_its_domain(self):
+        """The WRITE side: the generated birth functions are EXECUTED. Whatever tells the domain of
+        an element (the detected nature, or what the deposit posts — the field the detail spec
+        looks at), the common cascade receives the schema and the panel memory of THAT domain; the
+        ⚙ of an element and of a batch read the schema of the element among all the app's names."""
+        import ast
+        from unittest import mock
+
+        from wama.common.utils import user_settings
+        from wama.common.utils.app_modes import (domain_schema, domain_schema_name,
+                                                 element_domain_or_first)
+        from wama.common.utils.detail_registry import DetailRegistry
+        born = 0
+        for app, doms, _index, views in self.pages:
+            if not doms:
+                continue
+            registered = DetailRegistry.get(app)
+            model, form = registered['model'], registered['spec']['params_schema']
+            functions = {n.name: ast.get_source_segment(views, n) for n in ast.parse(views).body
+                         if isinstance(n, ast.FunctionDef)}
+            space = {model.__name__: model, '_OPTIONS_FIELD': None}
+            exec('\n\n'.join(functions[n] for n in
+                             ('_birth_domain', '_element_settings', '_deposit_settings')), space)
+            by_schema = {domain_schema_name(app, d['id']): d['id'] for d in doms}
+            for value, schema_name in sorted((form.get('map') or {}).items()):
+                expected = by_schema[schema_name]
+                for how in ({'nature': value, 'post': None}, {'nature': '', 'post': {form['field']: value}}):
+                    told = space['_birth_domain'](**how)
+                    if told != expected:      # this app does not tell the domain that way
+                        self.assertEqual(element_domain_or_first(model()), told)
+                        continue
+                    with self.subTest(app=app, domain=expected, how=sorted(how)), \
+                            mock.patch.object(user_settings, 'new_element_settings',
+                                              return_value={}) as cascade, \
+                            mock.patch.object(user_settings, 'save_panel_settings') as memory:
+                        space['_deposit_settings'](None, how['nature'], how['post'])
+                        self.assertEqual(domain_schema(app, expected), cascade.call_args.args[2])
+                        self.assertEqual(expected, cascade.call_args.kwargs['domain'])
+                        self.assertEqual(domain_schema(app, expected), memory.call_args.args[2])
+                        self.assertEqual(expected, memory.call_args.kwargs['domain'])
+                        born += 1
+            with self.subTest(app=app):
+                self.assertIn('schema=_element_schema,', views)
+                self.assertIn(f"_app_schemas('{app}')", views)
+        self.assertGreater(born, 1, 'no birth was measured on a second domain')

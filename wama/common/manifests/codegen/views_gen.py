@@ -465,25 +465,50 @@ def _nature_url(url):
     # n'est jamais écrasée (la détection prime). Un DÉPÔT garde aussi ce qu'il poste comme
     # mémoire du volet (`save_panel_settings`) : le geste du transcriber (`_deposit_settings`).
     contexte_nature = f"{{{nature_champ!r}: nature}}" if nature_champ else 'None'
+    # Une page à plusieurs domaines (`page_domains`) : l'élément NAÎT avec le schéma et la mémoire
+    # de volet de SON domaine. Son domaine est la règle de la card (`element_domain_or_first`), lue
+    # sur un témoin non sauvé qui porte ce que la spec de détail regarde (`params_schema.field`) —
+    # la nature détectée quand c'est elle, sinon ce que le dépôt poste (l'idiome de l'anonymizer et
+    # de l'imager réels). Une spec qui désigne le domaine sans champ : le premier domaine.
+    multi = bool(page_domains(body))
+    _form = ((body.get('inspector') or {}).get('detail_spec') or {}).get('params_schema')
+    spec_field = str(_form.get('field') or '') if isinstance(_form, dict) else ''
+    known_nature = 'nature' if spec_field and spec_field == nature_champ else "''"
+    posted_value = (f'(post.get({spec_field!r}) if post is not None else None)' if spec_field
+                    else 'None')
+    bloc_domaine = '' if not (multi and _noms_schema) else f'''
+
+def _birth_domain(nature='', post=None):
+    """Le domaine où NAÎT un élément — la règle de la card, sur un témoin non sauvé."""
+    from wama.common.utils.app_modes import element_domain_or_first
+    value = {posted_value} or {known_nature}
+    return element_domain_or_first({item}(**({{{spec_field!r}: value}} if value else {{}})))
+'''
+    birth = ('' if not multi else f'''
+    from wama.common.utils.app_modes import domain_schema
+    domain = _birth_domain(nature, post)
+    schema = domain_schema('{app}', domain)''')
+    birth_schema = 'schema' if multi else '_SCHEMA'
+    birth_scope = ', domain=domain' if multi else ''
     retrait_nature = f"\n    values.pop({nature_champ!r}, None)" if nature_champ else ''
-    bloc_reglages = '' if not _noms_schema else f'''
+    bloc_reglages = '' if not _noms_schema else bloc_domaine + f'''
 
 def _element_settings(user, nature='', post=None, inputs=None):
     """Les réglages d'un élément NAISSANT (dépôt, lot, résultat instantané) — la cascade COMMUNE
     `user_settings.new_element_settings` ; la nature détectée n'est jamais écrasée. `inputs` :
     les fichiers reçus par port, qui PROPOSENT leurs réglages (`Param.default_from`)."""
-    from wama.common.utils.user_settings import new_element_settings
-    values = new_element_settings(user, '{app}', _SCHEMA, {item}, post=post,
+    from wama.common.utils.user_settings import new_element_settings{birth}
+    values = new_element_settings(user, '{app}', {birth_schema}, {item}, post=post,
                                   context={contexte_nature}, options_field=_OPTIONS_FIELD,
-                                  inputs=inputs){retrait_nature}
+                                  inputs=inputs{birth_scope}){retrait_nature}
     return values
 
 
 def _deposit_settings(user, nature, post, inputs=None):
     """Un DÉPÔT : ce qu'il poste devient la mémoire du volet (`save_panel_settings`), puis
     l'élément naît par la cascade commune."""
-    from wama.common.utils.user_settings import save_panel_settings
-    save_panel_settings(user, '{app}', _SCHEMA, post)
+    from wama.common.utils.user_settings import save_panel_settings{birth}
+    save_panel_settings(user, '{app}', {birth_schema}, post{birth_scope})
     return _element_settings(user, nature, post, inputs)
 '''
     # Une app sans champ de nature n'a rien à lire (`kwargs.get('', '')` s'émettait).
@@ -502,7 +527,6 @@ def _deposit_settings(user, nature, post, inputs=None):
     # Une page à plusieurs domaines (`page_domains`) : chaque card lit le schéma de SON domaine
     # (`app_modes.element_schema`, la lecture des apps réelles) — un lot ne mêle pas les natures,
     # son premier élément dit le schéma de ses réglages communs.
-    multi = bool(page_domains(body))
     import_schema = ('from wama.common.utils.app_modes import element_schema' if multi
                      else f'from .params import {schema_symbole}')
     schema_of_item = 'element_schema(item)' if multi else schema_symbole
@@ -563,6 +587,14 @@ def _deposit_settings(user, nature, post, inputs=None):
     # Les éléments RUNNING orphelins se RÉCONCILIENT au chargement, comme sur les pages des dix
     # apps (`process_control.reconcile_queue_of`, 2026-10-30 : la vue générée ne le faisait pas).
     work_attr = f"'{link_fk}'" if is_link else 'None'
+    # Les noms de réglages : ceux du schéma de l'app — ou, quand sa page porte plusieurs domaines,
+    # ceux de TOUS ses schémas (`app_modes.app_schemas`) : la ⚙ pose les colonnes du schéma de
+    # l'élément (`element_schema`, que la fabrique appelle par élément), parmi cette union.
+    setting_names = ("_SETTING_NAMES = [p['name'] for p in _SCHEMA if p.get('name')]" if not multi else
+                     f'''from wama.common.utils.app_modes import app_schemas as _app_schemas
+from wama.common.utils.app_modes import element_schema as _element_schema
+_SETTING_NAMES = list(dict.fromkeys(p['name'] for _dom, _sch in _app_schemas('{app}')
+                                    for p in _sch if p.get('name')))''')
     index_head = f'''class IndexView(View):
     def get(self, request):
         user = _user(request)
@@ -1138,7 +1170,7 @@ card_html = make_card_view(work_model={item}, template='{app}/_generic_card.html
 _bv = make_batch_views(
     work_model={item}, batch_model={batch}, get_user=_user, task={task},
     output_fields={champs_sortie!r},
-    params_fields=_SETTING_COLUMNS, schema=_SCHEMA,
+    params_fields=_SETTING_COLUMNS, schema={'_element_schema' if multi else '_SCHEMA'},
     options_field=_OPTIONS_FIELD, extra_names=_SETTINGS_OUTSIDE,
     {form_kwargs}, items_related='{items_related}',{bv_extra}{bv_output}{bv_reset}
 )
@@ -1338,7 +1370,7 @@ except Exception:
 # jamais une liste figée à la génération (`check_redundancy` les relevait dans huit jumelles :
 # elles dérivaient au premier réglage ajouté à la source). Un réglage du schéma sans colonne va
 # au conteneur JSON `options` quand le modèle en porte un (idiome `params_storage`).
-_SETTING_NAMES = [p['name'] for p in _SCHEMA if p.get('name')]
+{setting_names}
 _ITEM_COLUMNS = {{f.name for f in {item}._meta.concrete_fields}}
 _SETTING_COLUMNS = [n for n in _SETTING_NAMES if n in _ITEM_COLUMNS]
 _SETTINGS_OUTSIDE = [n for n in _SETTING_NAMES if n not in _ITEM_COLUMNS]
