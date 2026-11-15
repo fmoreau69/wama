@@ -1661,9 +1661,19 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       ⚠ **Aucune page ne tire encore ces options, et rien n'est joué au navigateur** : le portage
       d'un consommateur est le pas suivant (candidats : la page vidéo de l'anonymizer — pas,
       position, volume —, les analyses du face_analyzer, la bande fine de l'aperçu).
-      ⏳ Reste de la marche ② : la vitesse CONTINUE (curseur logarithmique, ×32), la lecture
-      arrière image par image ; la bande fine existe en option mais l'aperçu ne la monte pas
-      encore (marche ③).
+      ✅ **2026-11-16 — la vitesse CONTINUE et le même maximum dans les deux sens** (décision de
+      Fabien : *« le même max en positif et en négatif, ça permet de naviguer rapidement dans un
+      fichier un peu long »*) : `speed: 'slider'`, un curseur logarithmique SIGNÉ de −32 à +32
+      (au milieu ±0,25 ; double-clic : ×1 ; une vitesse avant devient la vitesse choisie, une
+      vitesse arrière se dit « ◀◀ ») ; les crans du shuttle J/L vont eux aussi à ±32
+      (`WamaShuttle.DEFAULT_LEVELS`, ils s'arrêtaient à ±16). L'axe n'a pas changé : il tenait
+      déjà toute vitesse signée, muet en arrière et au-delà de ×4 (`MEDIA_MAX_RATE`). Et la
+      page de correction du transcriber tire `remember` (rouvrir une transcription reprend où
+      on s'était arrêté — décision du même jour) : premier consommateur d'une option de la
+      marche ②. Gardes : `AxisTest` (bornes égales des deux côtés et égales à celles du
+      shuttle), `tests_editor_axis`. ⚠ Rien de cela n'est joué au navigateur.
+      ⏳ Reste de la marche ② : la lecture arrière image par image ; la bande fine existe en
+      option mais l'aperçu ne la monte pas encore (marche ③).
   - ✅ **2026-10-21 — LE VOLET DEVIENT UNE ZONE DE BRIQUES, étape 1 : les surfaces** (décision de
     Fabien : *« on passe tout WAMA progressivement en briques UI »*, verrouillé par défaut pour
     tous, le volet en colonne, les réglages en deux colonnes gardés). Domicile : `WAMA_VOLETS

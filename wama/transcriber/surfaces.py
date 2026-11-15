@@ -84,6 +84,8 @@ register_surface(Surface(
                       'zoom': True, 'boundaries': 'retime'}),
            BrickSlot('transport', 'media_transport', 0, 14, 12, 2,
                      {'role': 'audio', 'wave': False, 'goto': True, 'speed': 'steps',
+                      # Rouvrir une transcription reprend où on s'était arrêté (Fabien, 16/11).
+                      'remember': True,
                       # Le préréglage de la page (décision de Fabien, 12/11) : ←/→ sautent de
                       # 5 s et Maj+←/→ de 30 s, comme l'éditeur l'a toujours fait — quels que
                       # soient les défauts du transport.

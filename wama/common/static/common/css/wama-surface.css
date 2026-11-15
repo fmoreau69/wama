@@ -274,6 +274,7 @@ body.wama-panel-arranged > .container {
 .wama-transport-position + .wama-transport-clock { margin-left: 0; }
 .wama-transport-volume { width: 70px; flex: 0 0 auto; }
 .wama-transport-speed { min-width: 42px; }
+.wama-transport-speed-slider { width: 130px; flex: 0 0 auto; }
 /* La bande fine (option `strip`) : une ligne, sans retour, boutons sans cadre. */
 .wama-transport-strip .wama-transport-bar { flex-wrap: nowrap; gap: .15rem; }
 .wama-transport-strip .wama-transport-bar .btn { border-color: transparent; padding: .05rem .35rem; }

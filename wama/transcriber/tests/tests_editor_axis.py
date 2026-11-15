@@ -58,7 +58,8 @@ class CorrectionIsADeclaredSurfaceTest(SimpleTestCase):
         self.assertEqual({'jump_back': ['ArrowLeft'], 'jump_forward': ['ArrowRight'],
                           'jump_back_far': ['Shift+ArrowLeft'], 'jump_forward_far': ['Shift+ArrowRight']},
                          transport.pop(KEYS_OPTION))
-        self.assertEqual({'role': 'audio', 'wave': False, 'goto': True, 'speed': 'steps'}, transport,
+        self.assertEqual({'role': 'audio', 'wave': False, 'goto': True, 'speed': 'steps',
+                          'remember': True}, transport,
                          'the transport carries the commands of the time, nothing else')
         self.assertTrue(found.autosave)
         self.assertEqual('Terminer la correction', found.finish)

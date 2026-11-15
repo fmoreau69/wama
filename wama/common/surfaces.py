@@ -1112,7 +1112,7 @@ register_brick(UIBrick(
                 "qu'il SUIT — l'axe est la seule horloge —, joué par le lecteur commun (son onde, pics serveur pour "
                 "un long fichier — qu'une surface à ligne de temps tait), et les COMMANDES du temps "
                 "(le transport commun `wama-transport.js`, aussi celui de l'aperçu et du monde "
-                "Data) : lecture / pause, début, sauts, vitesse (liste ou par pas), aller à, shuttle "
+                "Data) : lecture / pause, début, sauts, vitesse (liste, par pas, ou curseur continu de −32 à +32), aller à, shuttle "
                 "J/K/L dont l'arrière silencieux — et, par OPTIONS de l'emplacement (2026-11-15, ce "
                 "que d'autres lecteurs avaient) : pas précédent / suivant (`step`), arrêt (`stop`), "
                 "lecture arrière (`reverse`), curseur de position (`position`), temps restant "

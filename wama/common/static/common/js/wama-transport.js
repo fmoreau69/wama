@@ -17,6 +17,7 @@
  * Options (toutes facultatives ; sans elles, le magnéto de la partition du composer) :
  *   jump    saut des boutons et de Maj+←/→ (5 s)
  *   speed   'select' (liste de vitesses) | 'steps' (− / valeur / +, de 0,5 à 2 par 0,25)
+ *           | 'slider' (vitesse CONTINUE : curseur logarithmique signé, de −32 à +32)
  *   goto    champ « aller à » (m:ss, h:mm:ss, virgule admise) — l'axe dit `goto` à ses abonnés :
  *           la ligne de temps recentre sa fenêtre, la liste choisit le segment
  * Les commandes que d'autres lecteurs avaient et que le commun n'avait pas (2026-11-15, marche ②
@@ -41,10 +42,29 @@
 
     var RATES = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
     var SPEED_MIN = 0.5, SPEED_MAX = 2, SPEED_STEP = 0.25;
+    // La vitesse CONTINUE (`speed: 'slider'`) : un curseur logarithmique SIGNÉ, de −MAX_RATE à
+    // +MAX_RATE — le même maximum dans les deux sens (décision de Fabien, 2026-11-16), celui des
+    // crans du shuttle. Au milieu, la plus lente (±MIN_RATE) ; à droite l'avant, à gauche l'arrière.
+    var MIN_RATE = 0.25, MAX_RATE = 32, SLIDER_SPAN = 100;
 
-    /** Le libellé de la vitesse — UN pour tout WAMA : la vitesse choisie, ou le cran du shuttle. */
+    /** Position du curseur (−SPAN…SPAN) → vitesse signée, arrondie à une valeur lisible. */
+    function rateAt(p) {
+        var m = MIN_RATE * Math.pow(MAX_RATE / MIN_RATE, Math.min(SLIDER_SPAN, Math.abs(p)) / SLIDER_SPAN);
+        var grain = m < 2 ? 0.05 : (m < 8 ? 0.25 : 1);
+        m = Math.max(MIN_RATE, Math.min(MAX_RATE, Math.round(m / grain) * grain));
+        return (p < 0 ? -1 : 1) * Math.round(m * 100) / 100;
+    }
+    /** Vitesse signée → position du curseur. */
+    function positionOf(r) {
+        var m = Math.max(MIN_RATE, Math.min(MAX_RATE, Math.abs(r) || 1));
+        var p = SLIDER_SPAN * Math.log(m / MIN_RATE) / Math.log(MAX_RATE / MIN_RATE);
+        return r < 0 ? -Math.max(p, 1) : p;
+    }
+
+    /** Le libellé de la vitesse — UN pour tout WAMA : la vitesse choisie, ou le cran du shuttle
+     *  (ou une vitesse arrière posée au curseur). */
     function speedLabel(st) {
-        if (st.shuttling) return (st.rate > 0 ? '▶▶ ' + st.rate : '◀◀ ' + (-st.rate)) + '×';
+        if (st.shuttling || st.rate < 0) return (st.rate > 0 ? '▶▶ ' + st.rate : '◀◀ ' + (-st.rate)) + '×';
         return st.speed.toFixed(2).replace(/0$/, '') + '×';
     }
 
@@ -93,8 +113,28 @@
             if (b) bar.appendChild(b);
         });
 
-        var rate = null, speedLabelEl = null, shuttleOpt = null;
-        if (o.speed === 'steps') {
+        var rate = null, speedLabelEl = null, shuttleOpt = null, speedSlider = null, speedDragging = false;
+        if (o.speed === 'slider') {
+            speedSlider = el('input', 'form-range wama-transport-speed-slider',
+                             { type: 'range', min: String(-SLIDER_SPAN), max: String(SLIDER_SPAN), step: '1',
+                               value: String(positionOf(1)), 'data-transport': 'speed-slider',
+                               title: 'Vitesse — à gauche l\'arrière, à droite l\'avant (jusqu\'à ×' + MAX_RATE
+                                      + ') ; double-clic : ×1', 'aria-label': 'Vitesse' });
+            speedLabelEl = el('span', 'badge bg-secondary wama-transport-speed', { 'data-transport': 'speed-label' });
+            speedSlider.addEventListener('input', function () {
+                speedDragging = true;
+                if (shuttle) shuttle.reset();
+                axis.setRate(rateAt(Number(speedSlider.value) || 0));
+            });
+            speedSlider.addEventListener('change', function () { speedDragging = false; });
+            speedSlider.addEventListener('dblclick', function () {
+                if (shuttle) shuttle.reset();
+                axis.setRate(1);
+            });
+            bar.appendChild(el('span', 'text-body-secondary ms-2')).innerHTML = '<i class="fas fa-gauge-high"></i>';
+            bar.appendChild(speedSlider);
+            bar.appendChild(speedLabelEl);
+        } else if (o.speed === 'steps') {
             var down = button('speed-down', 'fa-minus', 'Ralentir');
             speedLabelEl = el('span', 'badge bg-secondary wama-transport-speed', { 'data-transport': 'speed-label' });
             var up = button('speed-up', 'fa-plus', 'Accélérer');
@@ -237,6 +277,10 @@
                 if (restored && now - keptAt >= 2000) { keptAt = now; keep(st.time); }
             }
             if (speedLabelEl) speedLabelEl.textContent = speedLabel(st);
+            if (speedSlider && !speedDragging) {
+                var at = String(Math.round(positionOf(st.rate)));
+                if (speedSlider.value !== at) speedSlider.value = at;
+            }
             if (rate) {
                 if (!st.shuttling && RATES.indexOf(st.rate) >= 0) {
                     rate.value = String(st.rate);
@@ -253,5 +297,6 @@
         return {};
     }
 
-    global.WamaTransport = { mount: mount, speedLabel: speedLabel, RATES: RATES };
+    global.WamaTransport = { mount: mount, speedLabel: speedLabel, RATES: RATES,
+                             MIN_RATE: MIN_RATE, MAX_RATE: MAX_RATE, rateAt: rateAt, positionOf: positionOf };
 })(window);

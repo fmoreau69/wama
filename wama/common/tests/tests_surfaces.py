@@ -1788,6 +1788,20 @@ class AxisTest(SimpleTestCase):
                                               options: {strip: true, position: true}});
             r.strip = [names(thin), thin.className.indexOf('wama-transport-strip') >= 0,
                        plain.className.indexOf('wama-transport-strip') >= 0];
+            var T = window.WamaTransport, fast = element('div');
+            var quick = window.WamaAxis.create(Object.assign({duration: 600}, opts));
+            T.mount(fast, {axis: quick, options: {speed: 'slider'}});
+            var knob = find(fast, 'speed-slider');
+            r.ends = [T.rateAt(100), T.rateAt(-100), T.rateAt(0), T.rateAt(-1), T.MAX_RATE,
+                      Math.max.apply(null, window.WamaShuttle.DEFAULT_LEVELS),
+                      Math.min.apply(null, window.WamaShuttle.DEFAULT_LEVELS)];
+            r.one = T.rateAt(Math.round(T.positionOf(1)));
+            knob.value = '100'; knob.fire('input'); r.forward = [quick.rate(), quick.speed()];
+            knob.value = '-100'; knob.fire('input'); knob.fire('change');
+            r.backward = [quick.rate(), quick.speed(), find(fast, 'speed-label').textContent];
+            quick.setRate(2); r.followed = T.rateAt(Number(knob.value));
+            knob.fire('dblclick'); r.reset = quick.rate();
+            r.fastNames = names(fast);
             return r;
         ''')
         self.assertEqual(['start', 'skip-back', 'play', 'skip-fwd', 'rate', 'clock'], out['plain'],
@@ -1808,6 +1822,16 @@ class AxisTest(SimpleTestCase):
         self.assertEqual('12.5', out['kept'], 'kept at most every two seconds')
         self.assertEqual([['play', 'rate', 'position', 'clock'], True, False], out['strip'],
                          'the thin strip : one narrow line, no start nor jump button')
+        # Continuous speed (2026-11-16) : a signed logarithmic slider, the SAME maximum both ways,
+        # and the one of the shuttle notches.
+        self.assertEqual([32, -32, 0.25, -0.25, 32, 32, -32], out['ends'])
+        self.assertEqual(1, out['one'])
+        self.assertEqual([32, 32], out['forward'], 'forward : it becomes the chosen speed')
+        self.assertEqual([-32, 32, '◀◀ 32×'], out['backward'], 'backward : a rate, said as such')
+        self.assertEqual(2, out['followed'], 'the slider follows a rate set elsewhere')
+        self.assertEqual(1, out['reset'])
+        self.assertEqual(['start', 'skip-back', 'play', 'skip-fwd', 'speed-slider', 'speed-label', 'clock'],
+                         out['fastNames'])
 
 
 class TransportKeysOwnershipTest(SimpleTestCase):

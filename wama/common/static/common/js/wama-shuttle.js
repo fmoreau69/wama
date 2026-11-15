@@ -22,8 +22,10 @@
 (function (global) {
     'use strict';
 
-    var DEFAULT_LEVELS = [-16, -8, -4, -2, -1.75, -1.5, -1.25, -1,
-                          0, 1, 1.25, 1.5, 1.75, 2, 4, 8, 16];
+    // Le même maximum dans les deux sens (décision de Fabien, 2026-11-16 : ×32, pour parcourir
+    // vite un long fichier) — celui du curseur de vitesse du transport (`WamaTransport.MAX_RATE`).
+    var DEFAULT_LEVELS = [-32, -16, -8, -4, -2, -1.75, -1.5, -1.25, -1,
+                          0, 1, 1.25, 1.5, 1.75, 2, 4, 8, 16, 32];
 
     function create(config) {
         config = config || {};
