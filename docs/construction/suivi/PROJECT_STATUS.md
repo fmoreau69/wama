@@ -31625,3 +31625,25 @@ session, à confirmer.
 
 **Non fait, nommé** : marche B ; jumelle `anonymizer_01` ; l'outil d'assistant pour ces gestes
 de page ; suite complète non rejouée.
+
+## §PALIER 2026-11-15 (soir), « DOMAINES ⑦ (b) : jumelles à deux domaines régénérées et vues ; la suite complète ne rendait plus de verdict » — commits locaux, non poussés — 🔴 relancer gunicorn (vues des jumelles régénérées) — 🔚 dépôt et ⚙ des jumelles à l'écran ; domaine à préfixe hors page ; appariement par domaine ; nœud du Studio par domaine ; dix autres jumelles
+
+**Jumelles** (hors dépôt, `.gitignore`) : `anonymizer_01` et `imager_01` régénérées par
+`app_sandbox substitute <jumelle> views|templates` — quatre « GÉNÉRÉ tient ». Gardes communes de
+page vertes (`tests_domain_page`, `tests_page_cost`, `tests_queue_page_bricks`).
+
+**Vu à l'écran** (serveur jetable, port propre, compte de test) : les quatre pages
+`?domain=<d>` répondent 200, montrent le panneau et le volet du domaine demandé, une file par
+domaine, les champs du schéma du domaine (anonymizer 20 / 1, imager 11 / 11), aucune erreur de
+script. ⏳ Non joué : le dépôt et la ⚙ (aucune card pour le compte de test ; le gunicorn en
+service garde les vues d'avant la régénération jusqu'à sa relance).
+
+**Convergence** : 114 rouges, tous dans les tests COPIÉS des deux jumelles ; aucun relevé d'avant
+la régénération n'a été pris — ce chiffre ne dit donc pas ce que la régénération a changé.
+
+**Suite complète sans verdict, cause trouvée** : le processus était tué par le noyau à 42 Go.
+Relancée avec les noms et une garde à 18 Go, elle a nommé
+`GlueInstallsItsModelTest.test_composer_full_score_model_set_on_the_card` : depuis `83e4f0bb6`,
+`composer.tasks._parts` remonte `derived_cards.origin_of`, qu'un double `MagicMock` (toujours
+« dérivé », toujours une source) fait tourner sans fin. Corrigé dans le test seul (le double est
+une card d'origine), `6e04f8e43` ; sessions sœurs prévenues.
