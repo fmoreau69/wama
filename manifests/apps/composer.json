@@ -721,6 +721,33 @@
             },
             {
               "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "db_default": {
+                  "expr": "''",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "''",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Pistes à extraire (séparation par requête), séparées par des virgules.'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "300",
+                  "imports": []
+                }
+              },
+              "name": "separation_stems"
+            },
+            {
+              "args": [],
               "class": "django.db.models.FileField",
               "kwargs": {
                 "blank": {
@@ -1112,6 +1139,7 @@
         "huggingface:ACE-Step/Ace-Step1.5",
         "huggingface:MuScriptor/muscriptor-large",
         "huggingface:aihpi/FrWhisper",
+        "huggingface:facebook/sam-audio-small",
         "huggingface:kyutai/stt-1b-en_fr-trfs",
         "huggingface:linagora/linto_stt_fr_fastconformer_pc",
         "huggingface:m-a-p/YuE2-3B",
@@ -1888,6 +1916,66 @@
           },
           {
             "advanced": false,
+            "cap_from": {
+              "capability": "stems_by_query",
+              "field": "separation_model",
+              "mode": "reads",
+              "reason": "Ce modèle rend des pistes fixes : il ne lit pas cette liste."
+            },
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "panel",
+              "item",
+              "batch"
+            ],
+            "default": "",
+            "default_from": null,
+            "display_format": "",
+            "dom_id": {
+              "batch": "batchSettingsSeparationStems",
+              "item": "settingsSeparationStems",
+              "panel": "separationStems"
+            },
+            "group": "",
+            "help": "Les instruments à extraire, séparés par des virgules (ex. « Voix, Batterie, Piano, Cordes ») — un nom par piste, une passe par piste. Vide : la liste que le modèle propose. Seuls les modèles qui séparent sur demande (SAM Audio) le lisent.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-list-check",
+            "inline": false,
+            "label": "Pistes à extraire",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "separation_stems",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "remember": null,
+            "section": "settings",
+            "show_if": null,
+            "stales": [
+              "separate"
+            ],
+            "step": null,
+            "type": "text",
+            "unit": "",
+            "write_from": null
+          },
+          {
+            "advanced": false,
             "cap_from": null,
             "chip": false,
             "chip_label": "",
@@ -2644,6 +2732,7 @@
             "generate_audio",
             "separate_stems",
             "separation_model",
+            "separation_stems",
             "extract_parts",
             "extract_rendered_parts",
             "extract_rendered_score",
@@ -2866,6 +2955,7 @@
             "seed": "seed — Vide : un tirage neuf à chaque lancement. Une graine fixée, avec les mêmes réglages et le même modèle, redonne le même résultat sur cette machine. [0–2147483647]",
             "separate_stems": "toggle — Sépare l'audio repris en pistes (voix, batterie, basse, guitare, piano, autres) : chaque piste devient une card du lot de celle-ci, avec ses propres réglages — par exemple pour écrire la partition d'un seul instrument, plus juste que celle du mélange. Les cards des pistes ne se lancent pas d'elles-mêmes.",
             "separation_model": "select — Modèle des pistes séparées (défaut : 'auto')",
+            "separation_stems": "text — Les instruments à extraire, séparés par des virgules (ex. « Voix, Batterie, Piano, Cordes ») — un nom par piste, une passe par piste. Vide : la liste que le modèle propose. Seuls les modèles qui séparent sur demande (SAM Audio) le lisent.",
             "temperature": "temperature — Le hasard du modèle. À 0, même entrée, même résultat ; plus haut, le résultat varie d'un lancement à l'autre. Un modèle distant ne garantit pas toujours le même résultat, même à 0. [0–2.0]",
             "vocals": "select — « Auto » : chanté si le prompt porte des paroles balisées ([Verse], [Chorus]…) sous la description, instrumental sinon. « Chanson » sans paroles : elles sont écrites pour vous, dans une langue que le modèle chante. Seuls certains modèles chantent ; en automatique, le tirage les retient. (choix : auto | instrumental | song) (défaut : 'auto')",
             "work_audio": "str",
@@ -2966,6 +3056,10 @@
       "kind": "model"
     },
     {
+      "key": "huggingface:facebook/sam-audio-small",
+      "kind": "model"
+    },
+    {
       "key": "huggingface:kyutai/stt-1b-en_fr-trfs",
       "kind": "model"
     },
@@ -3011,6 +3105,10 @@
     },
     {
       "key": "demucs",
+      "kind": "library"
+    },
+    {
+      "key": "einops",
       "kind": "library"
     },
     {

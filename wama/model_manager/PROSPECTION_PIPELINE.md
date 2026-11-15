@@ -4770,8 +4770,14 @@ français du vocabulaire commun lus à l'envers par `midi_score.instrument_keys`
 (`stems_by_query: False` déclaré). **Trou de la route comblé au passage** : le pilote `files` n'envoyait
 aucun jeton à un dépôt à accès contrôlé quand l'installation n'a pas d'utilisateur (ligne de commande) —
 `None` = le jeton de l'instance, la règle de `api_keys.download_token` (401 sur `config.json`).
-⏳ L'essai de bout en bout dans le Composer (workers à relancer : tâche et colonne neuves) ; la jumelle
-`composer_01` (réglage neuf, générateur) ; `large` (14,9 Go) non servi.
+⏳ L'essai de bout en bout dans le Composer (workers relancés le 2026-11-15 ; aucune card n'a encore
+demandé SAM Audio) ; `large` (14,9 Go) non servi.
+✅ /reverif du 2026-11-15 : manifeste `app` du composer réexporté (réglage, modèle, `einops` requis) ; jumelle
+`composer_01` régénérée (`substitute … params`, non versionnée) ; page servie : le réglage et sa borne
+`stems_by_query` y arrivent. ⏳ **Un second découpage fenêtré** : `stitch`/`chunk_bounds` recousent en
+fondu linéaire ce que `audio_enhancer.py` (DeepFilterNet, l.426-474) fait déjà en flux, écrit en ligne et
+sans garde — une brique commune (`common/utils/`, raccord en flux) les servirait toutes deux ; non
+ramenée (le chemin du rehausseur n'a aucun test qui le tienne).
 
 **Suite** : validation des trois propositions par Fabien (dacvae et perception_models d'abord, leurs
 manifestes résolvent le `requires` de sam_audio), puis `install_library` (requises d'abord) ;
