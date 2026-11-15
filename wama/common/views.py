@@ -765,6 +765,20 @@ def ui_bricks_view(request):
         return {'value': facet or kind,
                 'vocabulary': "facette de l'app" if facet else "manifeste de l'app"}
 
+    # Les touches que CE compte a réglées (`WAMA_VOLETS §3-ter`, 2026-11-15) : la page montre les
+    # touches résolues, et c'est ici qu'elles se règlent, brique par brique (`wama-key-settings.js`).
+    from django.urls import reverse
+
+    from .surfaces import resolve_shortcuts
+    from .utils.user_keys import key_rows, remappable_bricks, user_keymap
+    account_keys = user_keymap(request.user)
+    key_settings = None
+    if request.user.is_authenticated:
+        key_settings = {'url': reverse('common:brick_keys'),
+                        'bricks': {key: {'rows': key_rows(key, account_keys),
+                                         'keys': account_keys.get(key, {})}
+                                   for key in remappable_bricks()}}
+
     mechanism_names = {m.key: m.name for m in MECHANISMS}
     bricks = []
     for brick in sorted(BRICKS.values(), key=lambda b: b.name.lower()):
@@ -788,12 +802,15 @@ def ui_bricks_view(request):
             'mechanisms': sorted(({'key': key, 'name': mechanism_names[key]}
                                   for key in brick.mechanisms()), key=lambda m: m['name'].lower()),
             # Ses raccourcis clavier, tels qu'elle les déclare (`UIBrick.shortcuts`).
-            'shortcuts': [s.to_dict() for s in brick.shortcuts],
+            'shortcuts': [s.to_dict() for s in
+                          resolve_shortcuts(brick.shortcuts, account_keys.get(brick.key))],
+            'remappable': bool(key_settings and brick.key in key_settings['bricks']),
             'thumbnail': thumbnail(brick.key),
         })
 
     return render(request, 'common/ui_bricks.html', {
         'bricks': bricks,
+        'key_settings': key_settings,
         'surfaces_count': len(SURFACES),
         'page_count': sum(1 for b in bricks if b['page']),
         'unused_count': sum(1 for b in bricks if not b['page'] and not b['surfaces']),

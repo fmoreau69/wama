@@ -32,6 +32,9 @@
   .ub-path    { font-size: .74rem; color: var(--wama-cat-quiet); word-break: break-all; }
   /* Un mécanisme est une PIÈCE de la brique : puce discrète (tokens du thème, ROADMAP §28). */
   .ub-part    { background: var(--wama-border-subtle); }
+  /* Une touche qui se règle (compte connecté) : cliquable ; en attente de sa frappe, cernée. */
+  .wama-key-edit { cursor: pointer; }
+  .wama-key-edit:hover, .wama-key-edit.is-waiting { outline: 2px solid rgba(var(--wama-accent-rgb), .8); }
 </style>
 {% endblock %}
 
@@ -123,7 +126,7 @@
       {% comment %}Ses RACCOURCIS clavier (`UIBrick.shortcuts`, 2026-10-29) : la même déclaration que
       la liste de la brique Actions d'une surface ; la portée au survol.{% endcomment %}
       {% if b.shortcuts %}
-      <div class="ub-row"><b>Clavier</b>
+      <div class="ub-row"{% if b.remappable %} data-key-settings="{{ b.key }}"{% endif %}><b>Clavier</b>
         {% for s in b.shortcuts %}<span class="ub-chip" title="{{ s.where }}{% if s.option %} — avec l'option « {{ s.option }} »{% endif %}"><kbd>{{ s.label }}</kbd> {{ s.action }}</span>{% endfor %}
       </div>
       {% endif %}
@@ -139,4 +142,13 @@
   </div>
 
 </div>
+{% endblock %}
+
+{% block extra_js %}
+{% comment %}Régler les touches d'une brique pour SON compte (2026-11-15) : les lignes « Clavier »
+des briques qui nomment leurs actions deviennent cliquables ; sans compte, elles restent telles.{% endcomment %}
+{% if key_settings %}
+{{ key_settings|json_script:"wama-key-settings" }}
+<script src="{% static_v 'common/js/wama-key-settings.js' %}"></script>
+{% endif %}
 {% endblock %}

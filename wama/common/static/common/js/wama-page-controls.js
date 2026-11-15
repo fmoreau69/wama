@@ -45,6 +45,11 @@
         catch (e) { return { shortcuts: [] }; }
     }
     var config = serverConfig();
+    // Les touches que le COMPTE a réglées pour les briques de page (`WAMA_VOLETS §3-ter`,
+    // 2026-11-15) : données au clavier commun, comme une surface donne les siennes.
+    if (global.WamaKeys) Object.keys(config.keys || {}).forEach(function (brick) {
+        global.WamaKeys.remap(brick, config.keys[brick]);
+    });
 
     // ── La disposition ───────────────────────────────────────────────────────────────────────
     function isOpen() { return !!layoutProvider && !call(layoutProvider.frozen); }

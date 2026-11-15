@@ -34,6 +34,31 @@ def panel_layout(request, page: str):
 
 @login_required
 @require_POST
+def brick_keys(request):
+    """Les touches qu'un compte donne aux actions d'UNE brique (`WAMA_VOLETS §3-ter`, 2026-11-15) :
+    `{brick, keys: {action: [touches]}}` — la surcharge entière de la brique, vide pour tout
+    rétablir. Refusée (400) avec ce qui la rend inapplicable ; sinon rend les raccourcis de la
+    brique tels qu'ils se lisent désormais."""
+    import json
+
+    from wama.common.utils.user_keys import key_rows, save_user_keys, user_keymap
+    try:
+        payload = json.loads(request.body.decode('utf-8'))
+    except (ValueError, UnicodeDecodeError):
+        payload = None
+    if not isinstance(payload, dict):
+        return JsonResponse({'ok': False, 'problems': ['requête illisible']}, status=400)
+    brick = str(payload.get('brick') or '')
+    problems = save_user_keys(request.user, brick, payload.get('keys') or {})
+    if problems:
+        return JsonResponse({'ok': False, 'problems': problems}, status=400)
+    account_keys = user_keymap(request.user)
+    return JsonResponse({'ok': True, 'keys': account_keys.get(brick, {}),
+                         'rows': key_rows(brick, account_keys)})
+
+
+@login_required
+@require_POST
 def page_hint_seen(request):
     """La bulle du premier passage (« cette page se réorganise ») a été MONTRÉE à ce compte : elle
     ne revient plus (2026-10-29, décision de Fabien : une fois par compte, gardé au serveur)."""

@@ -1182,9 +1182,34 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
     préréglage de la visionneuse égal à celui de la page), la mesure V8 des quatre pas et du
     préréglage sur un vrai axe, `ViewerTransportKeysTest` ; au navigateur `transcriber.editor_parity`
     (→ = +5 s) et `common.preview_sync` (→ saute pendant la lecture, navigue à l'arrêt).
-    ⏳ Reste : le réglage par compte et ses pages. ⚠ À voir alors : la visionneuse lit deux tables
-    sous un même nom (navigation, magnéto) — un réglage qui donnerait ← au saut y retire aussi ←
-    de la navigation à l'arrêt.
+    ✅ **Le RÉGLAGE PAR COMPTE, première page — 2026-11-15** : troisième étage de la résolution
+    (défaut de la brique, préréglage de la page, réglage du compte). Une surcharge par brique,
+    `{action: [touches]}` — la forme du préréglage d'une page, validée par la même règle
+    (`surfaces.override_problems`, que `keymap_problems` emprunte) ; gardée en UN réglage de
+    compte (`utils/user_keys.py`, `UserAppSetting` `common` / `keys`), seul ce qui est posé étant
+    écrit. Le compte passe APRÈS la page : `merge_overrides` (une touche que le compte donne
+    quitte l'action à qui la page la donnait), et la page sert UNE table fusionnée
+    (`Surface.keymap_for`, `to_dict(account_keys)`) que le noyau donne au clavier commun comme
+    avant ; les briques de PAGE (file, inspecteur, visionneuse) reçoivent les leurs par les
+    contrôles de page (`page_controls_config` → `keys`, `wama-page-controls.js`). L'aide « ? »
+    et les infobulles disent les touches résolues pour ce compte.
+    Où cela se règle : la page des briques UI, brique par brique (décision du 12/11) — chaque
+    touche d'une action nommée y est cliquable pour un compte connecté (`wama-key-settings.js` :
+    un clic, puis la frappe, prise par une COUCHE du clavier commun ; Échap annule ; « Rétablir
+    les touches par défaut » retire le réglage de la brique). Route `common:brick_keys`.
+    Gardes : `tests_ui_bricks_page.AccountKeysTest` (gardé pour le compte seul, refus de ce qui
+    ne s'applique pas, compte après préréglage et même résolution par le clavier commun en V8,
+    le module de page joué en V8 avec le vrai clavier, une entrée périmée jamais servie) ;
+    contre-épreuves : validation neutralisée → rouge, touches non servies à la page → rouge.
+    ⚠ Limites dites : (1) le module de page n'a pas encore été joué dans un NAVIGATEUR (V8 et
+    serveur seulement) ; (2) un conflit entre DEUX briques d'une même page (une touche du
+    transport donnée aussi à la ligne de temps) n'est vu que pour un préréglage de page, pas
+    pour un réglage de compte ; (3) la visionneuse lit deux tables sous un même nom (navigation,
+    magnéto), et son registre ne nomme pas les sauts : ils ne se règlent pas encore par compte ;
+    (4) une action tue ne se rétablit que par « Rétablir » de toute la brique.
+    ⏳ Restent : sur le PROFIL, la disposition du clavier et le choix d'un préréglage de logiciel
+    (aucun préréglage de logiciel n'existe en données) ; sur la page des APPLICATIONS, le
+    préréglage d'une application.
 - ⏳ **VISION, à ne pas oublier (Fabien, 2026-11-12) — composer une page D'ÉDITION DE ZÉRO.** On a
   le catalogue des briques et des pages dont on arrange les briques ; rien ne permet de partir
   d'une page vierge, d'y tirer des briques du catalogue et de les disposer pour créer une

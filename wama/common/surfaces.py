@@ -272,6 +272,40 @@ def resolve_shortcuts(shortcuts, override) -> tuple:
     return tuple(resolved)
 
 
+def override_problems(brick: str, override) -> list:
+    """Ce qui rend inapplicable une surcharge `{action: [touches]}` des touches de `brick` — []
+    si elle est juste. LA validation, pour le préréglage d'une page (`Surface.keymap_problems`)
+    comme pour le réglage d'un compte (`utils/user_keys.py`) : une action que la brique ne nomme
+    pas, des touches qui ne sont pas une liste de noms, une touche donnée à deux actions."""
+    if not isinstance(override, dict):
+        return [f"`{KEYS_OPTION}` est une table « action → touches »"]
+    known = {name for s in BRICKS[brick].shortcuts for name in s.names} if brick in BRICKS else set()
+    problems, owner = [], {}
+    for name, keys in override.items():
+        if name not in known:
+            problems.append(f"donne des touches à « {name} », que la brique {brick} ne nomme pas")
+        if not isinstance(keys, (list, tuple)) or not all(isinstance(k, str) and k for k in keys):
+            problems.append(f"les touches de « {name} » sont une liste de noms de touches")
+            continue
+        for key in keys:
+            if owner.setdefault(key, name) != name:
+                problems.append(f"donne {key} à « {owner[key]} » et à « {name} »")
+    return problems
+
+
+def merge_overrides(lower, upper) -> dict:
+    """Deux surcharges d'une même brique en UNE, `upper` l'emportant (le réglage d'un compte sur
+    le préréglage d'une page) : une action que `upper` nomme prend ses touches de lui, et une
+    touche qu'il donne quitte l'action de `lower` qui l'avait — la règle de `resolve_shortcuts`,
+    un étage plus haut."""
+    lower, upper = lower or {}, upper or {}
+    taken = {key for keys in upper.values() for key in keys}
+    merged = {name: [k for k in keys if k not in taken]
+              for name, keys in lower.items() if name not in upper}
+    merged.update({name: list(keys) for name, keys in upper.items()})
+    return merged
+
+
 #: Le raccourci de la PAGE elle-même (2026-10-29, contrôles de page) : l'aide de la page. Déclaré
 #: comme ceux des briques — la liste de l'aide, la bulle du premier passage, le module qui l'écoute
 #: (`wama-page-controls.js`) et l'assistant le lisent d'ici, aucun ne l'écrit.
@@ -698,6 +732,14 @@ class Surface:
                 found.setdefault(slot.brick, {})[name] = list(keys)
         return found
 
+    def keymap_for(self, account_keys=None) -> dict:
+        """Le préréglage de la page, le réglage d'un COMPTE par-dessus (`{brique: {action:
+        [touches]}}`, `utils/user_keys.user_keymap`) — pour les briques de cette page."""
+        own = self.keymap()
+        bricks = dict.fromkeys(slot.brick for slot in self.slots)
+        merged = {b: merge_overrides(own.get(b), (account_keys or {}).get(b)) for b in bricks}
+        return {b: table for b, table in merged.items() if table}
+
     def keymap_problems(self) -> list:
         """Ce qui rend le préréglage inapplicable — [] s'il est juste : une action que la brique
         ne nomme pas, une touche donnée à deux actions, deux emplacements d'une même brique qui
@@ -707,32 +749,19 @@ class Surface:
             declared = (slot.options or {}).get(KEYS_OPTION)
             if declared is None:
                 continue
-            known = {name for s in BRICKS[slot.brick].shortcuts for name in s.names}
-            owner = {}
+            problems.extend(f"surface {self.id} : « {slot.id} » — {problem}"
+                            for problem in override_problems(slot.brick, declared))
             for name, keys in (declared.items() if isinstance(declared, dict) else ()):
-                if name not in known:
-                    problems.append(f"surface {self.id} : « {slot.id} » donne des touches à "
-                                    f"« {name} », que la brique {slot.brick} ne nomme pas")
-                if not isinstance(keys, (list, tuple)) or not all(
-                        isinstance(k, str) and k for k in keys):
-                    problems.append(f"surface {self.id} : « {slot.id} » — les touches de "
-                                    f"« {name} » sont une liste de noms de touches")
-                    continue
-                for key in keys:
-                    if owner.setdefault(key, name) != name:
-                        problems.append(f"surface {self.id} : « {slot.id} » donne {key} à "
-                                        f"« {owner[key]} » et à « {name} »")
-                if said.setdefault((slot.brick, name), list(keys)) != list(keys):
+                if isinstance(keys, (list, tuple)) and \
+                        said.setdefault((slot.brick, name), list(keys)) != list(keys):
                     problems.append(f"surface {self.id} : deux emplacements de {slot.brick} "
                                     f"donnent des touches différentes à « {name} »")
-            if not isinstance(declared, dict):
-                problems.append(f"surface {self.id} : « {slot.id} » — `{KEYS_OPTION}` est une "
-                                "table « action → touches »")
         return problems
 
-    def shortcuts_of(self, brick: str) -> tuple:
-        """Les raccourcis d'une brique TELS QUE CETTE PAGE les résout (son préréglage appliqué)."""
-        return resolve_shortcuts(BRICKS[brick].shortcuts, self.keymap().get(brick))
+    def shortcuts_of(self, brick: str, account_keys=None) -> tuple:
+        """Les raccourcis d'une brique TELS QUE CETTE PAGE les résout : son préréglage appliqué,
+        puis le réglage du compte (`account_keys`, `{brique: {action: [touches]}}`)."""
+        return resolve_shortcuts(BRICKS[brick].shortcuts, self.keymap_for(account_keys).get(brick))
 
     def scripts(self) -> list:
         """Les scripts à charger, dépendances d'abord, sans doublon, dans l'ordre des briques."""
@@ -742,7 +771,9 @@ class Surface:
         """Les feuilles de style que demandent ses briques, sans doublon."""
         return list(dict.fromkeys(path for b in self.bricks() for path in b.styles()))
 
-    def to_dict(self) -> dict:
+    def to_dict(self, account_keys=None) -> dict:
+        """`account_keys` : le réglage de touches du compte qui ouvre la page (au-dessus du
+        préréglage de la page) — sans lui, la page telle qu'elle se déclare."""
         return {'id': self.id, 'app': self.app, 'key': self.key, 'label': self.label,
                 'slots': [s.to_dict() for s in self.slots], 'edits': self.edits,
                 'read_only': self.read_only,
@@ -755,9 +786,10 @@ class Surface:
                 'sources_setting': self.sources_setting,
                 # Le préréglage de touches de la page, et les raccourcis qu'il RÉSOUT : l'aide et
                 # les infobulles disent les touches de cette page, pas les défauts.
-                'keys': self.keymap(),
+                'keys': self.keymap_for(account_keys),
                 'bricks': {b.key: {**b.to_dict(),
-                                   'shortcuts': [s.to_dict() for s in self.shortcuts_of(b.key)]}
+                                   'shortcuts': [s.to_dict()
+                                                 for s in self.shortcuts_of(b.key, account_keys)]}
                            for b in self.bricks()}}
 
 

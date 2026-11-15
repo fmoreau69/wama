@@ -157,6 +157,7 @@ def surface_page(request, app: str, key: str, pk: int):
     item = _readable_or_404(found, request.user, pk)
     ok, reason = found.can_open(item)
     base = f'/common/surface/{app}/{key}/{pk}/'
+    from wama.common.utils.user_keys import user_keymap
     from wama.common.utils.volet import volet
     return render(request, 'common/surface.html', {
         'surface': found,
@@ -170,7 +171,8 @@ def surface_page(request, app: str, key: str, pk: int):
         'volet': volet(tete=True, medias=False, parametres=False, actions=False,
                        arrangeable=False),
         'config': {
-            'surface': found.to_dict(),
+            # Les touches que CE compte a réglées, au-dessus du préréglage de la page.
+            'surface': found.to_dict(user_keymap(request.user)),
             'pk': pk,
             'title': f"{found.label} — #{pk}",
             'data_url': base + 'data/',

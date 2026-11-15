@@ -251,3 +251,184 @@ class BrickThumbnailTest(TestCase):
         other = page.split(f'data-id="{bare}"', 1)[1].split('wama-cat-card', 1)[0]
         self.assertIn('aucune capture', other)
         self.assertNotIn('<img class="wama-cat-thumb"', other)
+
+
+def _static(path):
+    from pathlib import Path
+
+    from django.contrib.staticfiles import finders
+    return Path(finders.find(path)).read_text(encoding='utf-8')
+
+
+class AccountKeysTest(TestCase):
+    """2026-11-15 (Fabien, 12/11 : « un utilisateur personnalise ses raccourcis, par brique, depuis
+    la page des briques UI ») — the keys an ACCOUNT gives to the actions of a brick : third stage of
+    the resolution (brick default, then the page preset, then the account). Same shape, same
+    validation, same rule as a page preset ; kept as an account setting, served to every page."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user('keys-owner', password='x')
+        self.other = get_user_model().objects.create_user('keys-other', password='x')
+        self.client.force_login(self.user)
+        load_all()
+
+    def _post(self, brick, keys):
+        import json
+        return self.client.post(reverse('common:brick_keys'),
+                                json.dumps({'brick': brick, 'keys': keys}),
+                                content_type='application/json')
+
+    def test_a_key_given_on_the_bricks_page_is_kept_for_the_account_alone(self):
+        from wama.common.utils.user_keys import user_keymap
+        response = self._post('media_transport', {'toggle': ['KeyP']})
+        self.assertEqual(200, response.status_code)
+        body = response.json()
+        self.assertEqual({'toggle': ['KeyP']}, body['keys'])
+        shown = {k['name']: k['label'] for row in body['rows'] for k in row['keys']}
+        self.assertEqual('P', shown['toggle'], 'the answer says the keys as they now read')
+        self.assertEqual({'media_transport': {'toggle': ['KeyP']}}, user_keymap(self.user))
+        self.assertEqual({}, user_keymap(self.other))
+        self.assertEqual({}, user_keymap(None))
+        # The page shows the resolved key, and hands the module what it edits.
+        page = self.client.get(reverse('common:ui_bricks_catalog')).content.decode('utf-8', 'replace')
+        self.assertIn('data-key-settings="media_transport"', page)
+        self.assertIn('id="wama-key-settings"', page)
+        self.assertIn('wama-key-settings.js', page)
+        self.assertIn('<kbd>P</kbd> lecture / pause', page)
+        # Giving nothing puts the brick back on today's defaults : the entry is REMOVED.
+        self.assertEqual(200, self._post('media_transport', {}).status_code)
+        self.assertEqual({}, user_keymap(self.user))
+
+    def test_what_cannot_apply_is_not_kept(self):
+        from wama.common.utils.user_keys import user_keymap
+        for brick, keys, said in (('media_transport', {'fly': ['KeyF']}, 'ne nomme pas'),
+                                  ('media_transport', {'toggle': ['KeyX'], 'stop': ['KeyX']}, 'KeyX'),
+                                  ('media_transport', {'toggle': 'Space'}, 'liste'),
+                                  ('no_such_brick', {'toggle': ['KeyP']}, 'aucune action')):
+            with self.subTest(keys=keys):
+                response = self._post(brick, keys)
+                self.assertEqual(400, response.status_code)
+                self.assertIn(said, ' ; '.join(response.json()['problems']))
+        self.assertEqual({}, user_keymap(self.user))
+        self.client.logout()
+        self.assertEqual(302, self._post('media_transport', {'toggle': ['KeyP']}).status_code)
+
+    def test_the_account_comes_after_the_page_preset_and_the_keyboard_resolves_alike(self):
+        """The correction page gives ← to the jump ; the account gives ← back to the axis step :
+        the jump loses it (a key given leaves the action that had it, one stage higher), and the
+        page serves ONE merged table — the one the common keyboard resolves."""
+        from py_mini_racer import MiniRacer
+
+        from wama.common.surfaces import merge_overrides
+        from wama.common.tests.tests_surfaces import BrickShortcutsTest, KeyDispatcherTest, _js
+        account = {'media_transport': {'nudge_back': ['ArrowLeft'], 'toggle': ['KeyP']}}
+        correct = SURFACES['transcriber.correct']
+        merged = correct.keymap_for(account)['media_transport']
+        self.assertEqual([], merged['jump_back'], 'the preset keeps the action, not the key')
+        self.assertEqual(['ArrowRight'], merged['jump_forward'])
+        self.assertEqual(['ArrowLeft'], merged['nudge_back'])
+        served = correct.to_dict(account)
+        self.assertEqual(merged, served['keys']['media_transport'])
+        resolved = {k: n for s in served['bricks']['media_transport']['shortcuts']
+                    for k, n in zip(s['keys'], s['names'])}
+        self.assertEqual(('nudge_back', 'jump_forward', 'toggle'),
+                         (resolved['ArrowLeft'], resolved['ArrowRight'], resolved['KeyP']))
+        self.assertNotIn('Space', resolved)
+        v8 = MiniRacer()
+        v8.eval(KeyDispatcherTest.SETUP + _js('common/js/wama-keys.js'))
+        self.assertEqual(resolved, BrickShortcutsTest._keyboard_table(v8, 'media_transport', merged))
+        # Without an account the page is the one it registers.
+        self.assertEqual(correct.keymap(), correct.keymap_for(None))
+        self.assertEqual({'a': [], 'b': ['K']}, merge_overrides({'a': ['K']}, {'b': ['K']}))
+
+    def test_the_page_module_sends_the_keystroke_as_the_registry_names_it(self):
+        """`wama-key-settings.js`, played in V8 with the real common keyboard : a click on a key,
+        then the keystroke — taken by a LAYER of the common keyboard (no brick acts meanwhile),
+        named by its place (`Shift+KeyP`) or by the character it yields (`;`), sent with what
+        the account had already set ; Escape gives up ; the row is drawn again from the answer."""
+        import json
+
+        from py_mini_racer import MiniRacer
+
+        from wama.common.utils.user_keys import key_rows
+        config = {'url': '/keys/', 'bricks': {'media_transport': {
+            'rows': key_rows('media_transport'), 'keys': {'stop': ['KeyS']}}}}
+        v8 = MiniRacer()
+        v8.eval('''
+            var listeners = {}, sent = [], toasts = [], row = {innerHTML: '',
+                getAttribute: function () { return 'media_transport'; }};
+            var source = {textContent: %s};
+            var document = {
+                addEventListener: function (k, fn) { (listeners[k] = listeners[k] || []).push(fn); },
+                removeEventListener: function () {},
+                getElementById: function (id) { return id === 'wama-key-settings' ? source : null; },
+                querySelector: function (s) { return s.indexOf('data-key-settings') >= 0 ? row : null; },
+                activeElement: null};
+            var window = {document: document}; globalThis.document = document;
+            window.WamaApp = {escapeHtml: function (t) { return String(t); }, csrfToken: function () { return 't'; },
+                toast: function (m, kind) { toasts.push(kind); },
+                csrfFetch: function (url, token, o) { sent.push(JSON.parse(o.body));
+                    var chain = {then: function () { return chain; }, catch: function () { return chain; }};
+                    return chain; }};
+            function key(name) {
+                return {classList: {add: function () {}, remove: function () {}}, textContent: '',
+                        getAttribute: function () { return name; },
+                        closest: function (s) { return s === '.wama-key-edit' ? this
+                            : (s === '[data-key-settings]' ? row : null); }};
+            }
+            function click(el) { listeners.click.forEach(function (fn) {
+                fn({target: el, stopPropagation: function () {}}); }); }
+            function press(code, k, mods) {
+                var e = Object.assign({code: code, key: k, target: {}, defaultPrevented: false,
+                    preventDefault: function () { e.defaultPrevented = true; }}, mods || {});
+                listeners.keydown.forEach(function (fn) { fn(e); });
+                return e.defaultPrevented;
+            }
+        ''' % json.dumps(json.dumps(config)))
+        v8.eval(_static('common/js/wama-keys.js'))
+        v8.eval(_static('common/js/wama-key-settings.js'))
+        out = json.loads(v8.eval('''(function () {
+            var r = {drawn: row.innerHTML.indexOf('data-name="toggle"') >= 0, idle: press('KeyP', 'p')};
+            click(key('toggle'));
+            r.modifier = press('ShiftLeft', 'Shift', {shiftKey: true});
+            r.taken = press('KeyP', 'P', {shiftKey: true});
+            click(key('jump_back')); press('Semicolon', ';');
+            click(key('stop')); r.escape = press('Escape', 'Escape');
+            r.after = press('KeyP', 'p');
+            r.sent = sent;
+            return JSON.stringify(r);
+        })()'''))
+        self.assertTrue(out['drawn'], 'each named key is drawn as a control')
+        self.assertFalse(out['idle'], 'nothing waits : the keystroke is left alone')
+        self.assertFalse(out['modifier'], 'a modifier alone is not a key')
+        self.assertTrue(out['taken'])
+        self.assertFalse(out['after'])
+        self.assertEqual([{'brick': 'media_transport', 'keys': {'stop': ['KeyS'], 'toggle': ['Shift+KeyP']}},
+                          {'brick': 'media_transport', 'keys': {'stop': ['KeyS'], 'jump_back': [';']}}],
+                         out['sent'], 'Escape sends nothing')
+        self.assertTrue(out['escape'])
+
+    def test_every_page_gets_the_keys_of_its_page_bricks_and_a_surface_gives_its_own(self):
+        from django.test import RequestFactory
+
+        from wama.common.utils.user_keys import SETTING, SETTINGS_APP, save_user_keys, user_keymap
+        from wama.common.utils.user_settings import save_user_app_settings
+        from wama.common.utils.volet import page_controls_config
+        self.assertEqual([], save_user_keys(self.user, 'queue', {'select_all': ['Ctrl+e']}))
+        self.assertEqual([], save_user_keys(self.user, 'media_transport', {'toggle': ['KeyP']}))
+        request = RequestFactory().get('/')
+        request.user = self.user
+        config = page_controls_config(request)
+        self.assertEqual({'queue': {'select_all': ['Ctrl+e']}}, config['keys'],
+                         'page bricks only : a surface merges its own with its preset')
+        queue = next(g for g in config['shortcuts'] if g['brick'] == 'queue')
+        self.assertIn('Ctrl+E', [i['label'] for i in queue['items']], 'the help says the resolved keys')
+        request.user = self.other
+        self.assertNotIn('keys', page_controls_config(request))
+        self.assertIn('global.WamaKeys.remap(brick, config.keys[brick]);',
+                      _static('common/js/wama-page-controls.js'))
+        # An entry that no longer applies (an action the brick stopped naming, a brick gone) is
+        # ignored, never served.
+        save_user_app_settings(self.user, SETTINGS_APP, {SETTING: {
+            'queue': {'select_all': ['Ctrl+e'], 'gone': ['KeyG']}, 'no_such_brick': {'x': ['KeyX']}}})
+        self.assertEqual({'queue': {'select_all': ['Ctrl+e']}}, user_keymap(self.user))

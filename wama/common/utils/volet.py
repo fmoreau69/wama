@@ -240,7 +240,14 @@ def page_controls_config(request=None) -> dict:
     (son montage est un script), sinon un sélecteur dérivé de ce qui la déclare : la marque d'une
     brique du centre (`data-wama-brick`), l'élément d'une section du volet qui la porte. Une brique
     de page à raccourcis sans l'un ni l'autre n'est pas listée (garde : `PageControlsTest`)."""
-    from wama.common.surfaces import BRICKS, LAYOUT_CONTROLS, LAYOUT_HELP, PAGE_HELP_SHORTCUT
+    from wama.common.surfaces import (BRICKS, LAYOUT_CONTROLS, LAYOUT_HELP, PAGE_HELP_SHORTCUT,
+                                      resolve_shortcuts)
+    from wama.common.utils.user_keys import user_keymap
+
+    # Les touches que le compte a réglées (`WAMA_VOLETS §3-ter`, 2026-11-15) : l'aide dit les
+    # touches RÉSOLUES, et la page les donne au clavier commun (`keys`).
+    user = getattr(request, 'user', None)
+    account_keys = user_keymap(user)
     selectors = {}
     for slot in PANEL_SLOTS:
         if slot.brick:
@@ -254,11 +261,15 @@ def page_controls_config(request=None) -> dict:
         present = 'always' if brick.mount.endswith('.js') else ', '.join(selectors.get(brick.key, []))
         if present:
             groups.append({'brick': brick.key, 'title': brick.name, 'present': present,
-                           'items': [s.to_dict() for s in brick.shortcuts]})
+                           'items': [s.to_dict() for s in resolve_shortcuts(
+                               brick.shortcuts, account_keys.get(brick.key))]})
     config = {'shortcuts': groups, 'layout_help': LAYOUT_HELP, 'layout_controls': LAYOUT_CONTROLS,
               'help_shortcut': PAGE_HELP_SHORTCUT.to_dict()}
+    # Celles des briques de PAGE seulement : une surface donne les siennes, son préréglage compris.
+    page_keys = {key: table for key, table in account_keys.items() if BRICKS[key].is_page}
+    if page_keys:
+        config['keys'] = page_keys
     # La bulle du premier passage : pour un compte qui ne l'a jamais vue.
-    user = getattr(request, 'user', None)
     if user is not None and user.is_authenticated:
         from django.urls import reverse
 
