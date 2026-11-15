@@ -30,7 +30,8 @@
  * brique, `end` nul = jusqu'à la tête de lecture — que les vues du temps dessinent), `source` (la
  * VERSION écoutée d'un média lu a changé — `{role, key}` ; 2026-10-21 : l'original, ou la sortie
  * d'un process du même type, `Surface.sources_of` — que le transport recharge et dont la ligne de
- * temps relit les pics).
+ * temps relit les pics), `frame` (l'IMAGE qu'une brique montre d'une vidéo a changé — `{i}` ;
+ * 2026-11-15, la brique des zones sur une vidéo : la liste des objets la suit).
  *
  * L'AXE PARTAGÉ (2026-10-15, `wama-axis.js`) : `ctx.axis()` rend LE temps de la surface — un
  * seul par page, créé au premier appel. Le transport le pilote, les vues s'y abonnent ; une

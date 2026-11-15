@@ -640,18 +640,47 @@ def _witness_tones(notes=(261.63, 329.63, 392.0, 523.25), seconds: float = 0.5,
     return _pcm_wav(bytes(samples), rate)
 
 
-def _witness_detections() -> bytes:
-    """Les détections de l'image témoin, au format du type commun — écrites par SON écrivain
-    (`detections.write`), jamais resérialisées ici."""
+#: La VIDÉO témoin et ses détections — PARTAGÉES, comme le canevas de l'image : un document qui
+#: ne dirait pas la cadence et la taille de la vidéo montrerait ses zones sur la mauvaise image.
+WITNESS_VIDEO_SIZE = (320, 240)
+WITNESS_VIDEO_RATE = 15
+WITNESS_VIDEO_SECONDS = 2
+#: Jusqu'à cette image, la vidéo témoin porte DEUX objets ; ensuite un seul (la liste suit l'image).
+WITNESS_VIDEO_SECOND_OBJECT_UNTIL = 15
+
+
+def witness_video_objects(index: int) -> list:
+    """Les objets de l'image `index` de la vidéo témoin : un visage qui AVANCE d'une image à
+    l'autre, et une plaque présente sur la première moitié seulement."""
+    found = [('face', (20 + 6 * index, 60, 80 + 6 * index, 130))]
+    if index < WITNESS_VIDEO_SECOND_OBJECT_UNTIL:
+        found.append(('plate', (200, 180, 290, 210)))
+    return found
+
+
+def _witness_detections(video: bool = False) -> bytes:
+    """Les détections du média témoin, au format du type commun — écrites par SON écrivain
+    (`detections.write`), jamais resérialisées ici. `video` : celles de la VIDÉO témoin
+    (2026-11-15, la page de correction d'une vidéo), image par image."""
     import os
     import tempfile
 
     from wama.common.utils import detections
-    width, height = WITNESS_IMAGE_SIZE
-    doc = detections.new_document(media='image', width=width, height=height, engine='temoin',
-                                  classes=sorted({label for label, _box in WITNESS_OBJECTS}))
-    detections.add(doc, 0, [detections.detection(box=box, label=label, conf=0.9)
-                            for label, box in WITNESS_OBJECTS])
+    if video:
+        width, height = WITNESS_VIDEO_SIZE
+        count = WITNESS_VIDEO_RATE * WITNESS_VIDEO_SECONDS
+        doc = detections.new_document(media='video', width=width, height=height,
+                                      fps=WITNESS_VIDEO_RATE, frame_count=count, engine='temoin',
+                                      classes=['face', 'plate'])
+        for index in range(count):
+            detections.add(doc, index, [detections.detection(box=box, label=label, conf=0.9)
+                                        for label, box in witness_video_objects(index)])
+    else:
+        width, height = WITNESS_IMAGE_SIZE
+        doc = detections.new_document(media='image', width=width, height=height, engine='temoin',
+                                      classes=sorted({label for label, _box in WITNESS_OBJECTS}))
+        detections.add(doc, 0, [detections.detection(box=box, label=label, conf=0.9)
+                                for label, box in WITNESS_OBJECTS])
     fd, path = tempfile.mkstemp(prefix='wama_temoin_', suffix='.json')
     os.close(fd)
     try:
@@ -661,14 +690,15 @@ def _witness_detections() -> bytes:
         Path(path).unlink(missing_ok=True)
 
 
-def _witness_video(seconds: int = 2) -> bytes:
+def _witness_video(seconds: int = WITNESS_VIDEO_SECONDS) -> bytes:
     """La VIDÉO témoin (2026-10-29, la surface d'analyse du face_analyzer) : une mire de quelques
     secondes en H.264, lisible par tout navigateur (`ffmpeg_utils.test_pattern_video`)."""
     import tempfile
 
     from wama.common.utils.ffmpeg_utils import test_pattern_video
     with tempfile.TemporaryDirectory() as folder:
-        out = test_pattern_video(os.path.join(folder, 'witness.mp4'), size='320x240', rate=15,
+        out = test_pattern_video(os.path.join(folder, 'witness.mp4'),
+                                 size='%dx%d' % WITNESS_VIDEO_SIZE, rate=WITNESS_VIDEO_RATE,
                                  seconds=seconds, faststart=True)
         with open(out, 'rb') as source:
             return source.read()
@@ -725,15 +755,20 @@ def witness_glb(animated: bool = True) -> bytes:
             + struct.pack('<I4s', len(bin_chunk), b'BIN\0') + bin_chunk)
 
 
-def witness_sample(kind: str) -> tuple:
+def witness_sample(kind: str, beside=()) -> tuple:
     """Le CONTENU témoin d'un champ fichier de surface (`Surface.witness`) — `(octets, extension)`.
+
+    `beside` : les autres contenus du même témoin. Des détections décrivent le MÉDIA qui les
+    accompagne : à côté d'une vidéo, ce sont celles de la vidéo témoin, image par image.
 
     `kind` est ce que la surface déclare : une extension (`.png`/`.jpg`/`.webp`, `.wav`, `.md`,
     `.html`, `.abc`, `.mp4`) ou un type de données (`detections`). Lisible par la brique qui le montre :
     une vignette de carré blanc ne dirait rien de la brique. Un contenu inconnu est REFUSÉ, en le
     disant : `Surface.witness_problems` l'aura déjà signalé."""
     if kind == 'detections':
-        return _witness_detections(), '.json'
+        from wama.common.app_registry import media_extensions
+        videos = {'.' + ext.lstrip('.') for ext in media_extensions().get('video', ())}
+        return _witness_detections(video=any(other in videos for other in beside)), '.json'
     writer = WITNESS_WRITERS.get(kind)
     if writer is None:
         raise ValueError(f"contenu témoin inconnu : {kind!r}")

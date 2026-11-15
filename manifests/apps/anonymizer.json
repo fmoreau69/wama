@@ -2558,6 +2558,9 @@
         "edits": "detection_corrections",
         "key": "review",
         "label": "Corriger les détections",
+        "only": {
+          "media_type": "image"
+        },
         "reads": {
           "detections": "detections_file",
           "image": "file"
@@ -2601,6 +2604,82 @@
           "file": ".png",
           "file_ext": ".png",
           "media_type": "image"
+        }
+      },
+      {
+        "_unsupported": [
+          "context.classes"
+        ],
+        "available": "wama.anonymizer.surfaces._review_available",
+        "documents": [
+          "detections"
+        ],
+        "edits": "detection_corrections",
+        "key": "review_video",
+        "label": "Corriger les détections",
+        "only": {
+          "media_type": "video"
+        },
+        "reads": {
+          "detections": "detections_file",
+          "video": "file"
+        },
+        "reruns": "blur",
+        "slots": [
+          {
+            "brick": "image_boxes",
+            "h": 12,
+            "id": "video",
+            "options": {
+              "role": "video",
+              "title": "Vidéo et zones",
+              "video": true
+            },
+            "w": 9,
+            "x": 0,
+            "y": 0,
+            "zone": "grid"
+          },
+          {
+            "brick": "media_transport",
+            "h": 2,
+            "id": "transport",
+            "options": {
+              "jump": 5,
+              "media": false
+            },
+            "w": 9,
+            "x": 0,
+            "y": 12,
+            "zone": "grid"
+          },
+          {
+            "brick": "object_list",
+            "h": 9,
+            "id": "objects",
+            "options": {},
+            "w": 3,
+            "x": 9,
+            "y": 0,
+            "zone": "grid"
+          },
+          {
+            "brick": "surface_actions",
+            "h": 5,
+            "id": "actions",
+            "options": {},
+            "w": 3,
+            "x": 9,
+            "y": 9,
+            "zone": "grid"
+          }
+        ],
+        "validate": "wama.anonymizer.surfaces.validate_corrections",
+        "witness": {
+          "detections_file": "detections",
+          "file": ".mp4",
+          "file_ext": ".mp4",
+          "media_type": "video"
         }
       }
     ],

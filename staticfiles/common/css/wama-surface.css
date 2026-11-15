@@ -213,6 +213,10 @@ body.wama-panel-arranged > .container {
 /* Image et zones */
 .wama-brick-image { overflow: hidden; background: var(--wama-edit-image); }
 .wama-brick-image canvas { display: block; outline: none; }
+/* Une VIDÉO et ses zones (2026-11-15) : la vidéo sous le canvas, placée par la vue de la brique. */
+.wama-brick-image.is-video { position: relative; }
+.wama-brick-image.is-video video { position: absolute; left: 0; top: 0; max-width: none; object-fit: fill; }
+.wama-brick-image.is-video canvas { position: absolute; left: 0; top: 0; }
 
 /* Liste des objets */
 .wama-brick-objects { display: flex; flex-direction: column; }

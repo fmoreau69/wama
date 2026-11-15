@@ -7,6 +7,9 @@
  * vérification veut savoir d'un coup d'œil (« 559 visages, 3 retirés, 12 ajoutés »).
  * Une ligne par objet : un clic le sélectionne et centre l'image dessus (événement `select`
  * du noyau) ; ✕ le retire, ↺ le rétablit.
+ *
+ * Sur une VIDÉO (2026-11-15) : la liste est celle de l'image MONTRÉE, que la brique qui la montre
+ * dit par le bus (`frame`) — pendant la lecture, relue au plus quelques fois par seconde.
  */
 (function (global) {
     'use strict';
@@ -81,6 +84,15 @@
             list.innerHTML = '';
             list.appendChild(frag);
         }
+
+        // L'image montrée change (une vidéo) : la liste la suit, sans se refaire à chaque image.
+        var FRAME_EVERY_MS = 150, pending = null, last = 0;
+        ctx.on('frame', function (p) {
+            frameIndex = (p && p.i) || 0;
+            if (pending) return;
+            var wait = Math.max(0, FRAME_EVERY_MS - (Date.now() - last));
+            pending = setTimeout(function () { pending = null; last = Date.now(); refresh(); }, wait);
+        });
 
         list.addEventListener('click', function (ev) {
             var el = ev.target.closest('.wama-object-row');

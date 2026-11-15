@@ -71,9 +71,11 @@ def mount_witness(surface, user_id: int):
 
     model = surface.model_class()
     item = model(user=get_user_model().objects.get(pk=user_id))
+    files = [value for name, value in surface.witness.items()
+             if isinstance(model._meta.get_field(name), FileField)]
     for name, value in surface.witness.items():
         if isinstance(model._meta.get_field(name), FileField):
-            content, ext = witness_sample(value)
+            content, ext = witness_sample(value, beside=[v for v in files if v is not value])
             getattr(item, name).save(f'wama_temoin_brique_{surface.key}_{name}{ext}',
                                      ContentFile(content), save=False)
         else:
@@ -1811,6 +1813,8 @@ def check_image_boxes_keys(page_hook=None):
 def _carries_medium(slot) -> bool:
     if slot.brick == 'video_view':
         return True
+    if slot.brick == 'image_boxes' and (slot.options or {}).get('video'):
+        return True                   # la brique des zones pose sa vidéo sur l'axe (2026-11-15)
     return slot.brick == 'media_transport' and (slot.options or {}).get('media') is not False
 
 
@@ -1829,6 +1833,16 @@ _AXIS_STATE_JS = """() => { const a = (window.__wamaAxes || [])[0];
             media: a.medias().map(m => ({tag: m.tagName, t: m.currentTime, paused: m.paused,
                                          ready: m.readyState})),
             legend: legend ? legend.textContent : null}; }"""
+
+
+#: L'image que montre la brique des zones d'une vidéo (dite par son étiquette), les lignes de la
+#: liste des objets et, parmi elles, les zones ajoutées à la main — lues sur la page.
+_VIDEO_ZONES_JS = """() => {
+    const label = (document.querySelector('.wama-image-tools .wama-brick-zoom') || {}).textContent || '';
+    const at = /image (\\d+)/.exec(label);
+    return {frame: at ? Number(at[1]) : -1,
+            rows: document.querySelectorAll('.wama-object-row').length,
+            manual: document.querySelectorAll('.wama-object-row.is-manual').length}; }"""
 
 
 def check_axis_follow(page_hook=None):
@@ -1973,6 +1987,41 @@ def _axis_gestures(context, token, surface, pk, verdict, reverse, page_hook=None
         s = state()
         shown = float((s['legend'] or 'nan').split()[0].replace(',', '.'))
         verdict(abs(shown - 1.0) < 0.2, f"{sid} : la légende dit l'échantillon le plus proche de 1,0 s ({s['legend']})")
+
+    # ⑥ Les zones d'une vidéo (2026-11-15, la page de correction d'une vidéo) : la brique montre
+    # celles de l'image PRÉSENTÉE, et la liste des objets la suit — lu sur la vidéo témoin, dont
+    # le document dit les objets de chaque image (`witness_video_objects`).
+    if page.locator('.wama-brick-image.is-video').count():
+        from .ui_smoke import (WITNESS_VIDEO_RATE, WITNESS_VIDEO_SECOND_OBJECT_UNTIL,
+                               witness_video_objects)
+        zones = lambda: page.evaluate(_VIDEO_ZONES_JS)
+        early, late = 3, WITNESS_VIDEO_SECOND_OBJECT_UNTIL + 6
+        for index in (early, late):
+            # Le milieu de l'image : un instant posé sur sa frontière peut montrer la voisine.
+            page.evaluate("t => window.__wamaAxes[0].seek(t)", (index + 0.5) / WITNESS_VIDEO_RATE)
+            page.wait_for_timeout(900)
+            z = zones()
+            expected = len(witness_video_objects(index))
+            verdict(z['frame'] == index and z['rows'] == expected,
+                    f"{sid} : posée sur l'image {index}, la brique montre SES zones et la liste "
+                    f"ses {expected} objet(s) (image {z['frame']}, {z['rows']} ligne(s))")
+        # Un geste d'édition arrête la lecture : la correction porte l'image arrêtée.
+        page.evaluate("() => { const a = window.__wamaAxes[0]; a.seek(0.2); a.play(); }")
+        page.wait_for_timeout(400)
+        page.locator('.wama-image-tools [data-tool="add"]').click()
+        canvas = page.locator('.wama-brick-image.is-video canvas')
+        box = canvas.bounding_box()
+        page.mouse.move(box['x'] + box['width'] * 0.3, box['y'] + box['height'] * 0.3)
+        page.mouse.down()
+        page.mouse.move(box['x'] + box['width'] * 0.45, box['y'] + box['height'] * 0.5, steps=4)
+        page.mouse.up()
+        page.wait_for_timeout(500)
+        s, z = state(), zones()
+        verdict(not s['playing'] and z['manual'] == 1,
+                f"{sid} : tracer une zone arrête la lecture, la zone ajoutée est sur l'image "
+                f"arrêtée (lecture : {s['playing']}, image {z['frame']}, {z['manual']} ajout "
+                f"montré)")
+        page.keyboard.press('Escape')
 
     shown = [e for e in errors if not any(t in e for t in IGNORED_CONSOLE)]
     verdict(not shown, f"{sid} : aucune erreur JS ({shown[:3]})")

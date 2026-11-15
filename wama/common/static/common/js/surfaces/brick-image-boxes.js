@@ -9,6 +9,13 @@
  * Rendu sur un <canvas> : une foule de 500 visages se dessine et se zoome sans créer 500
  * éléments DOM.
  *
+ * UNE VIDÉO (2026-11-15, `options.video`, le rôle lu par `options.role`) : la brique pose la vidéo
+ * sous son canvas, l'attache à l'AXE partagé de la surface (`ctx.axis()` — elle le SUIT, comme
+ * toute vidéo) et montre les zones de l'image que la vidéo PRÉSENTE (`WamaPreviewOverlay.follow`,
+ * la règle de la visionneuse : l'image montrée, jamais l'instant de l'axe). Mêmes gestes, sur
+ * l'image arrêtée : tracer, déplacer ou retirer une zone ARRÊTE la lecture, et la correction porte
+ * l'indice de cette image. Elle dit l'image montrée aux autres briques par le bus (`frame`).
+ *
  * Gestes (outil « Sélection ») : clic = sélectionner la zone la plus petite sous le pointeur ;
  * glisser dans la zone sélectionnée = la déplacer ; glisser une poignée = la redimensionner ;
  * glisser dans le vide = se déplacer dans l'image ; molette = zoom autour du pointeur.
@@ -31,12 +38,32 @@
 
     function mount(body, ctx, options) {
         var frameIndex = options.frame || 0;
+        var role = options.role || 'image';
+        var isVideo = !!options.video;
+        var axis = isVideo && ctx.axis ? ctx.axis() : null;
         body.classList.add('wama-brick-image');
+        var video = null, shown = null;
+        if (isVideo) {
+            // La vidéo est MONTRÉE sous le canvas (placée et mise à l'échelle par `draw`) : le
+            // navigateur ne rappelle l'image présentée que d'une vidéo qu'il affiche.
+            body.classList.add('is-video');
+            video = document.createElement('video');
+            video.preload = 'auto';
+            video.playsInline = true;
+            body.appendChild(video);
+        }
         var canvas = document.createElement('canvas');
         canvas.tabIndex = 0;
         body.appendChild(canvas);
         var g = canvas.getContext('2d');
         var img = new Image();
+        /** La taille de ce qui est montré, dans l'espace des ZONES : celui du document de
+         *  détections pour une vidéo (sa copie de lecture peut être d'une autre taille). */
+        function mediaSize() {
+            if (!isVideo) return [img.naturalWidth, img.naturalHeight];
+            var doc = ctx.reads().detections || {};
+            return [doc.width || video.videoWidth, doc.height || video.videoHeight];
+        }
         var view = { scale: 1, x: 0, y: 0, fitted: false };
         var tool = 'select';
         var drag = null;              // geste en cours : {kind, start, obj, box, handle}
@@ -93,11 +120,12 @@
         }
 
         function fit() {
-            if (!img.naturalWidth) return;
+            var size = mediaSize();
+            if (!size[0] || !size[1]) return;
             var w = canvas.clientWidth, h = canvas.clientHeight;
-            view.scale = Math.min(w / img.naturalWidth, h / img.naturalHeight) || 1;
-            view.x = (w - img.naturalWidth * view.scale) / 2;
-            view.y = (h - img.naturalHeight * view.scale) / 2;
+            view.scale = Math.min(w / size[0], h / size[1]) || 1;
+            view.x = (w - size[0] * view.scale) / 2;
+            view.y = (h - size[1] * view.scale) / 2;
             view.fitted = true;
             draw();
         }
@@ -142,7 +170,14 @@
         function draw() {
             var w = canvas.clientWidth, h = canvas.clientHeight;
             g.clearRect(0, 0, w, h);
-            if (img.naturalWidth) {
+            if (isVideo) {
+                // La vidéo elle-même, sous le canvas, à la place et à l'échelle de la vue.
+                var size = mediaSize();
+                video.style.left = view.x + 'px';
+                video.style.top = view.y + 'px';
+                video.style.width = size[0] * view.scale + 'px';
+                video.style.height = size[1] * view.scale + 'px';
+            } else if (img.naturalWidth) {
                 g.imageSmoothingEnabled = view.scale < 3;
                 g.drawImage(img, view.x, view.y, img.naturalWidth * view.scale,
                             img.naturalHeight * view.scale);
@@ -175,8 +210,12 @@
                 g.strokeStyle = COLORS.manual;
                 g.strokeRect(d[0], d[1], d[2], d[3]);
             }
-            zoomLabel.textContent = Math.round(view.scale * 100) + ' %';
+            zoomLabel.textContent = Math.round(view.scale * 100) + ' %' +
+                (isVideo ? ' · image ' + frameIndex : '');
         }
+
+        /** Un geste d'édition se fait sur une image ARRÊTÉE : la correction porte son indice. */
+        function hold() { if (axis && axis.playing()) axis.pause(); }
 
         function handles(box) {
             var r = screenBox(box);
@@ -226,18 +265,20 @@
             canvas.focus();
             var p = point(ev);
             if (tool === 'add' && ctx.canEdit) {
+                hold();
                 drag = { kind: 'draw', start: toImage(p), box: null };
                 return;
             }
             var hd = handleAt(p);
             var sel = byId(ctx.selected());
-            if (hd) { drag = { kind: 'resize', handle: hd, obj: sel, start: toImage(p), box: sel.box.slice() }; return; }
+            if (hd) { hold(); drag = { kind: 'resize', handle: hd, obj: sel, start: toImage(p), box: sel.box.slice() }; return; }
             var o = hit(p);
             if (o && sel && o.id === sel.id && !o.removed && ctx.canEdit) {
+                hold();
                 drag = { kind: 'move', obj: o, start: toImage(p), box: o.box.slice() };
                 return;
             }
-            if (o) { ctx.select(o.id); return; }
+            if (o) { hold(); ctx.select(o.id); return; }
             ctx.select(null);
             drag = { kind: 'pan', start: p, view: { x: view.x, y: view.y } };
         });
@@ -304,6 +345,7 @@
             // Échap ne se redonne pas.
             var act = global.WamaKeys.action(ev, 'image_boxes', BOXES_KEYS);
             if (act === 'remove' && sel && !sel.removed && ctx.canEdit) {
+                hold();
                 ctx.edit(function (v) { return D.remove(v, sel, frameIndex); });
                 if (sel.origin === 'manual') ctx.select(null);
             } else if (act === 'restore' && sel && sel.removed && ctx.canEdit) {
@@ -333,13 +375,39 @@
         });
 
         if (global.ResizeObserver) new ResizeObserver(resize).observe(body);
-        img.onload = function () { fit(); };
-        img.src = ctx.reads().image || '';
+        if (isVideo) {
+            // L'image que la vidéo PRÉSENTE dit les zones à montrer — la règle de la visionneuse
+            // (`WamaPreviewOverlay.follow`). Une image qui change emporte la sélection : `d3` y
+            // désignerait un autre objet.
+            shown = global.WamaPreviewOverlay.follow(
+                video, function () { return ctx.reads().detections; }, function () {
+                    var at = shown ? shown.index() : 0;
+                    if (at === frameIndex) return;
+                    frameIndex = at;
+                    if (ctx.selected() != null && !drag) ctx.select(null);
+                    objects = D.objects(ctx.reads().detections, ctx.value(), frameIndex);
+                    draw();
+                    ctx.emit('frame', { i: frameIndex });
+                });
+            video.addEventListener('loadedmetadata', function () { fit(); });
+            var url = ctx.source ? ctx.source(role).url : (ctx.reads()[role] || '');
+            if (url) {
+                video.src = url;
+                if (axis) {
+                    axis.pause();
+                    axis.attach(video, { fps: Number((ctx.reads().detections || {}).fps) || 0 });
+                }
+            }
+        } else {
+            img.onload = function () { fit(); };
+            img.src = ctx.reads()[role] || '';
+        }
         fillClasses();
         setTool('select');
         refresh();
         return { refresh: refresh, tools: tools,
-                 help: 'Molette : zoom · glisser : se déplacer' };
+                 help: 'Molette : zoom · glisser : se déplacer' +
+                       (isVideo ? ' · une zone se corrige sur l\u2019image arrêtée' : '') };
     }
 
     global.WamaSurface.registerBrick('image_boxes', { title: 'Image et zones', mount: mount });

@@ -507,6 +507,22 @@ class Surface:
     #: (le bouton ✎ en contour pointillé ou plein, `edit-btn`) — une fonction de l'élément. Défaut :
     #: « corrigé » dès qu'une couche de corrections n'est pas vide.
     edit_state: Optional[Callable] = None
+    #: La surface est RÉSERVÉE aux éléments dont ces champs ont ces valeurs — `{champ: valeur}`,
+    #: ou `{champ: [valeurs]}` (2026-11-15, décision de Fabien : « la page d'édition suit
+    #: simplement la nature du fichier traité », sans onglet). Une app déclare une surface par
+    #: nature (l'image, la vidéo) ; la card n'en montre qu'UNE, celle de son élément
+    #: (`concerns`, lu par `surface_button`) — une surface qui ne le concerne pas ne se propose
+    #: pas, une surface qui le concerne et ne s'ouvre pas encore reste grisée avec sa raison.
+    #: Une DONNÉE, comme `ProcessSpec.domains` : elle passe au manifeste. Vide : tout élément.
+    only: dict = field(default_factory=dict)
+
+    def concerns(self, item) -> bool:
+        """L'élément est-il de ceux auxquels la surface se réserve (`only`) ?"""
+        for name, wanted in (self.only or {}).items():
+            allowed = wanted if isinstance(wanted, (list, tuple)) else (wanted,)
+            if getattr(item, name, None) not in allowed:
+                return False
+        return True
 
     def page_settings(self) -> tuple:
         """Les réglages que la page lit et écrit : `settings`, puis `sources_setting` — déclaré
@@ -639,6 +655,8 @@ class Surface:
         une nature que la card n'a pas, un réglage à changer, un modèle à installer. Rien à dire
         d'un fichier édité encore vide : la règle commune nomme alors le process qui le produit.
         Lu à CHAQUE rendu d'une card : ni écriture, ni calcul long."""
+        if not self.concerns(item):
+            return False, "Cette page n'est pas celle de cet élément."
         if self.available is not None:
             try:
                 ok, reason = self.available(item)
@@ -941,6 +959,8 @@ def register_surface(surface: Surface) -> Surface:
     problems = surface.keymap_problems()
     if problems:
         raise ValueError(' ; '.join(problems))
+    if not isinstance(surface.only, dict) or not all(isinstance(k, str) for k in surface.only):
+        raise ValueError(f"surface {surface.id} : `only` est une table « champ → valeur(s) »")
     SURFACES[surface.id] = surface
     return surface
 
@@ -1001,10 +1021,16 @@ register_brick(UIBrick(
     key='image_boxes', name='Image et zones',
     description="Une image et ses zones (boîtes) : zoom à la molette, déplacement, tracé d'une "
                 "zone neuve, sélection, suppression, déplacement et redimensionnement d'une "
-                "zone. Écrit des CORRECTIONS (ajouts, retraits), jamais le document d'origine.",
+                "zone. Écrit des CORRECTIONS (ajouts, retraits), jamais le document d'origine. "
+                "Sur une VIDÉO (`options.video`), elle la pose sur l'axe partagé, qu'elle suit, et "
+                "montre les zones de l'image PRÉSENTÉE (la règle de la visionneuse) ; un geste "
+                "d'édition arrête la lecture et corrige cette image-là.",
     script='common/js/surfaces/brick-image-boxes.js',
-    requires=('common/js/wama-detections.js',),
-    consumes=('image', 'detections'), emits=('detection_corrections',),
+    # L'axe et le suivi de l'image présentée : des scripts de la page de base, dits ici parce que
+    # la brique en DÉPEND quand elle montre une vidéo.
+    requires=('common/js/wama-detections.js', 'common/js/wama-axis.js',
+              'common/js/wama-preview-overlay.js'),
+    consumes=('image', 'video', 'detections'), emits=('detection_corrections',),
     # « A la main » : après un clic dans l'image (`active`), jamais ailleurs.
     shortcuts=(Shortcut(('Delete', 'Backspace'), 'retirer la zone choisie',
                         names=('remove', 'remove')),
@@ -1019,7 +1045,8 @@ register_brick(UIBrick(
 register_brick(UIBrick(
     key='object_list', name='Liste des objets',
     description="Les objets de la donnée éditée, comptés par classe, détectés ou ajoutés à la "
-                "main ; un clic sélectionne l'objet dans les autres briques.",
+                "main ; un clic sélectionne l'objet dans les autres briques. Sur une vidéo, ceux "
+                "de l'image montrée.",
     script='common/js/surfaces/brick-object-list.js',
     requires=('common/js/wama-detections.js',),
     consumes=('detections',)))

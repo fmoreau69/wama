@@ -31526,3 +31526,48 @@ VERTE : l'analyse V8 ne la voit pas, une assertion directe a été ajoutée.
 **Non fait, nommé** (`ROUTE §11 #42`) : le côté écriture reste au schéma principal ; un domaine à
 préfixe de routes reste hors page ; appariement entrée ↔ modèle lu pour l'app ; aucune jumelle
 régénérée, donc rien de vu à l'écran ; suite complète non rejouée.
+
+## §PALIER 2026-11-15, « ANONYMIZER : la page d'édition suit la NATURE du média — la VIDÉO » — commit local, non poussé — 🔴 relancer gunicorn (déclaration des surfaces, tag du ✎ ; les scripts servis sont lus à chaud) — 🔚 le geste sur TOUTE la séquence (piste entière, objet cliqué suivi, sur le patron de `playback_writing` / `playhead_follow`), le clic à segmentation automatique (image comprise), puis la page du document et le domaine audio
+
+**Décisions de Fabien (2026-11-15)** : une seule page d'édition, sans onglet — « la page d'édition
+suit simplement la nature du fichier traité ; l'onglet n'intervient que dans un pipeline à éditions
+multiples sur des process différents » ; la vidéo d'abord ; le clic à segmentation automatique
+vaudra aussi pour les images ; tout s'aligne sur la complétion temps réel des pages d'édition
+(`playback_writing`, `playhead_follow`).
+
+**Livré** :
+- `Surface.only` — une surface se RÉSERVE aux éléments dont un champ a telle valeur (une donnée,
+  `{champ: valeur}`, exportée au manifeste et rendue par `surfaces_gen` sans ligne ajoutée : les
+  deux lisent les champs de la dataclass) ; `Surface.concerns`, jugé en tête de `can_open` ;
+  `surface_button` ne rend pas le ✎ d'une surface qui ne concerne pas l'élément. Une app déclare
+  une surface par nature, la card n'en montre qu'une.
+- `anonymizer.review_video` — la MÊME brique `image_boxes` (`options.video`) : elle pose sa vidéo
+  sur l'axe partagé, la suit, et montre les zones de l'image PRÉSENTÉE ; transport commun posé
+  sans média ; un geste d'édition arrête la lecture, la correction porte l'indice de l'image ;
+  `object_list` suit l'image montrée (événement `frame` du bus). `review` se réserve à l'image.
+- `WamaPreviewOverlay.follow` — la règle « l'image que la vidéo montre » sortie d'`attach` en
+  fonction commune (la visionneuse et la brique des zones la lisent) ; `WamaDetections` garde
+  l'index par image sur le document, hors de sa forme JSON.
+- Harnais : les détections témoin décrivent le média qui les accompagne (à côté d'une vidéo,
+  image par image — `witness_video_objects`) ; `common.axis_follow` compte la brique des zones
+  parmi celles qui attachent un média et gagne trois gestes (les zones de l'image posée, deux
+  fois ; tracer arrête la lecture).
+
+**Mesuré** : au navigateur, serveur jetable côté WSL — `common.axis_follow` sur six surfaces,
+46 gestes sur 47 (le seul rouge était un geste du scénario lui-même, corrigé), puis
+`anonymizer.review_video` rejouée seule : 10/10 ; `check_image_boxes_keys` 10/10 sur l'image
+(inchangée). Contre-épreuves, toutes rouges : cinq mutations en processus (tag qui ignore la
+réserve, `can_open` qui l'ignore, index par image rendu visible au JSON, image lue au temps du
+média au lieu de l'image présentée, deux surfaces réclamant la même nature) et une au navigateur
+(brique aveugle à l'image montrée : 8/10).
+
+**Non fait, nommé** : la jumelle `anonymizer_01` garde l'ancienne déclaration jusqu'à sa
+régénération (session du générateur) ; un document n'a plus de ✎ grisé « à venir » (aucune surface
+ne le concerne tant que la sienne n'existe pas) ; le document de détections d'une longue vidéo est
+servi entier à la page ; aucune ligne de temps sur la page vidéo (elle viendra avec les plages du
+geste « toute la séquence ») ; non vu sur une vraie vidéo détectée, seulement sur le témoin.
+
+**Rouges d'autrui relevés pendant la revérification** (arbre partagé, travail non commité) :
+`tests_surfaces` `ScoreRulesTest` / `ComposerScoreSurfaceTest` (le calage de la partition, en
+cours dans une autre session) ; budget de langue 2554 > 2553 (aucun identifiant de ce palier
+dans la liste nominative) ; la suite complète n'a pas été rejouée (base de test occupée).

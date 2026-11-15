@@ -230,7 +230,9 @@ body:                                   # (sous l'enveloppe commune)
   # Le gabarit importe un crochet du commun et pose un TROU DE GLU pour celui de l'app, dans le
   # module qu'il désigne (`tasks_gen._DECLARED_GLUE`) ; tant que la glu manque, la page se dit
   # indisponible (`Surface.can_open` ne lève pas). Les autres données de `Surface` (also_edits,
-  # documents, texts, context, settings, routes, sources_setting, autosave, finish) passent telles
+  # documents, texts, context, settings, routes, sources_setting, autosave, finish, et depuis le
+  # 2026-11-15 `only` — la surface RÉSERVÉE aux éléments dont un champ a telle valeur :
+  # `{"media_type": "video"}`, une page d'édition par nature) passent telles
   # quelles. ⏳ Refusés en le disant : une fonction anonyme (`_unsupported` de l'extraction : le
   # `context` de l'anonymizer, l'`edit_state` du transcriber) et les crochets lus au RENDU de la
   # page (`value`, `saved`, `edit_state`) — un trou y casserait la page au lieu de la fermer.

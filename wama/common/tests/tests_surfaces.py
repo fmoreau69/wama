@@ -80,6 +80,85 @@ class RegistryTest(SimpleTestCase):
         self.assertEqual('common/js/wama-detections.js', review.scripts()[0],
                          'a dependency loads before the bricks that need it')
 
+    def test_a_surface_reserved_to_a_nature_is_offered_to_that_nature_only(self):
+        """2026-11-15 (Fabien : « la page d'édition suit simplement la nature du fichier traité »,
+        no tab) : an app declares one surface per nature, each RESERVED to its own
+        (`Surface.only`, data) ; the card shows ONE edit button, the one of its element. Held on
+        every declaration : the reserved field exists, its values are ones the field admits, two
+        surfaces of an app never claim the same element, and the button of a surface that does
+        not concern an element is not rendered (while a concerned one stays, greyed or not)."""
+        from wama.common.surfaces import SURFACES, load_all
+        from wama.common.templatetags.wama_actions import surface_button
+        load_all()
+        reserved = [s for s in SURFACES.values() if s.only]
+        self.assertTrue(reserved, 'the contract is held on real declarations')
+        claimed = {}
+        for found in reserved:
+            model = found.model_class()
+            mine, other = {}, {}
+            for name, wanted in found.only.items():
+                field = model._meta.get_field(name)                 # an unknown field raises
+                allowed = list(wanted) if isinstance(wanted, (list, tuple)) else [wanted]
+                admitted = [value for value, _label in field.flatchoices]
+                if admitted:
+                    self.assertFalse(set(allowed) - set(admitted), f'{found.id}.{name}')
+                mine[name] = allowed[0]
+                other[name] = next((v for v in admitted if v not in allowed), '__another__')
+                for value in allowed:
+                    owner = claimed.setdefault((found.app, found.model, name, value), found.id)
+                    self.assertEqual(found.id, owner, 'one element, one edit page')
+            with self.subTest(surface=found.id):
+                concerned, stranger = model(pk=1, **mine), model(pk=1, **other)
+                self.assertTrue(found.concerns(concerned))
+                self.assertTrue(surface_button(found.app, found.key, concerned)['shown'])
+                self.assertFalse(found.concerns(stranger))
+                self.assertFalse(found.can_open(stranger)[0])
+                self.assertEqual({'shown': False}, surface_button(found.app, found.key, stranger))
+
+    def test_the_video_review_page_is_the_image_one_on_the_shared_axis(self):
+        """2026-11-15 : correcting the detections of a VIDEO is the same brick of zones, put on the
+        shared axis (it attaches its video and follows the frame PRESENTED — the rule of the
+        viewer, `WamaPreviewOverlay.follow`, written once), under the common transport posed
+        without a medium. Same edited layer, same process replayed."""
+        from wama.common.surfaces import BRICKS, surface
+        image, video = surface('anonymizer', 'review'), surface('anonymizer', 'review_video')
+        self.assertEqual((image.edits, image.reruns, image.validate),
+                         (video.edits, video.reruns, video.validate))
+        zones = next(s for s in video.slots if s.brick == 'image_boxes')
+        self.assertEqual((True, 'video'), (zones.options.get('video'), zones.options.get('role')))
+        self.assertIn(zones.options['role'], video.reads)
+        self.assertIn('video', BRICKS['image_boxes'].consumes)
+        transport = next(s for s in video.slots if s.brick == 'media_transport')
+        self.assertIs(False, transport.options.get('media'), 'the brick of zones holds the video')
+        brick = _js('common/js/surfaces/brick-image-boxes.js')
+        self.assertIn('global.WamaPreviewOverlay.follow(', brick)
+        self.assertIn('axis.attach(video', brick)
+        self.assertNotIn('requestVideoFrameCallback', brick, 'the rule lives in the overlay module')
+        self.assertIn("ctx.on('frame'", _js('common/js/surfaces/brick-object-list.js'))
+
+    def test_the_frames_index_of_a_document_is_kept_out_of_its_json_form(self):
+        """A video asks the objects of every frame shown : the index by frame is built ONCE per
+        document and kept on it, hidden — the document still serialises as it was read."""
+        from py_mini_racer import MiniRacer
+        engine = MiniRacer()
+        engine.eval('var window = this;' + _js('common/js/wama-detections.js'))
+        out = json.loads(engine.eval("""(function () {
+            var doc = {media: 'video', fps: 25, frames: [
+                {i: 0, d: [{box: [0, 0, 10, 10], label: 'face'}]},
+                {i: 7, d: [{box: [5, 5, 20, 20], label: 'plate'}, {box: [30, 30, 40, 40], label: 'face'}]}]};
+            var before = JSON.stringify(doc), D = window.WamaDetections;
+            var at7 = D.objects(doc, {removed: [{i: 7, box: [5, 5, 20, 20]}]}, 7);
+            var at0 = D.objects(doc, {added: [{i: 0, box: [1, 1, 2, 2], label: 'face'}]}, 0);
+            return JSON.stringify({same: JSON.stringify(doc) === before,
+                at7: at7.map(function (o) { return [o.id, o.label, o.removed]; }),
+                at0: at0.map(function (o) { return [o.id, o.origin]; }),
+                none: D.objects(doc, {}, 3).length});
+        })()"""))
+        self.assertTrue(out['same'])
+        self.assertEqual([['d0', 'plate', True], ['d1', 'face', False]], out['at7'])
+        self.assertEqual([['d0', 'detected'], ['a0', 'manual']], out['at0'])
+        self.assertEqual(0, out['none'])
+
     def test_a_brick_of_the_panel_follows_its_content_height(self):
         """2026-10-31 (Fabien : « avoir un scroll dans une section d'un volet qui scrolle, ce n'est
         pas une bonne idée ») : dans la colonne du volet, une brique est à la hauteur de son contenu
@@ -237,12 +316,34 @@ class ReviewSurfaceViewsTest(TestCase):
                                content_type='application/json')
         self.assertEqual(404, res.status_code)
 
-    def test_a_video_says_why_it_does_not_open_yet(self):
+    def test_a_video_opens_in_its_own_page_and_corrects_one_frame(self):
+        """2026-11-15 : the edit page follows the nature of the medium. A video is refused by the
+        page of the image (said, 409) and opens in `review_video` — the file read as a VIDEO, the
+        same layer of corrections, each one carrying the index of ITS frame, that the blur
+        applies on that frame alone."""
         type(self.media).objects.filter(pk=self.media.pk).update(media_type='video')
         self.client.force_login(self.user)
         page = self.client.get(self.base)
-        self.assertContains(page, 'la vidéo viendra')
+        self.assertContains(page, "pas celle de cet élément")
         self.assertEqual(409, self.client.get(self.base + 'data/').status_code)
+        base = f'/common/surface/anonymizer/review_video/{self.media.pk}/'
+        page = self.client.get(base)
+        self.assertEqual(200, page.status_code)
+        self.assertContains(page, 'brick-image-boxes.js')
+        self.assertContains(page, 'brick-media-transport.js')
+        data = self.client.get(base + 'data/').json()
+        self.assertTrue(data['reads']['video'].endswith('street.png'), 'the file of the card')
+        self.assertTrue(data['can_edit'])
+        value = {'added': [{'i': 12, 'box': [30, 5, 45, 18], 'label': 'face'}],
+                 'removed': [{'i': 0, 'box': [5, 5, 20, 20]}]}
+        res = self.client.post(base + 'save/', json.dumps({'value': value}),
+                               content_type='application/json')
+        self.assertEqual(200, res.status_code, res.content)
+        self.media.refresh_from_db()
+        fixed = dets.apply_corrections(dets.read(self.media.detections_file.path),
+                                       self.media.detection_corrections)
+        self.assertEqual([12], [f['i'] for f in fixed['frames']],
+                         'frame 0 lost its detection, frame 12 gained the added zone')
 
     def test_a_save_prepared_on_a_stale_state_is_refused_not_written(self):
         self.client.force_login(self.user)

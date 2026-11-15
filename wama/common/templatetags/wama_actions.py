@@ -512,7 +512,9 @@ def surface_button(app, key, item):
     from django.urls import reverse
     from wama.common.surfaces import surface
     found = surface(app, key)
-    if found is None:
+    # Une surface RÉSERVÉE à une autre nature d'élément (`Surface.only`, 2026-11-15) ne se propose
+    # pas : la card d'une app qui en déclare une par nature ne montre que la sienne.
+    if found is None or not found.concerns(item):
         return {'shown': False}
     ok, reason = found.can_open(item)
     if found.edit_state is not None:

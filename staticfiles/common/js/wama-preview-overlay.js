@@ -102,25 +102,23 @@
     });
   }
 
-  function attach(mediaEl, overlay) {
-    if (!mediaEl || !overlay || !overlay.url || mediaEl._wamaOverlay) return;
-    var holder = document.createElement('span');
-    holder.className = 'wama-preview-overlay';
-    holder.style.cssText = 'position:relative;display:inline-block;max-width:100%;line-height:0;';
-    mediaEl.parentNode.insertBefore(holder, mediaEl);
-    holder.appendChild(mediaEl);
-    var canvas = document.createElement('canvas');
-    canvas.style.cssText = 'position:absolute;left:0;top:0;pointer-events:none;';
-    holder.appendChild(canvas);
-    var state = { doc: null, raf: null, presented: null, settled: false };
-    mediaEl._wamaOverlay = state;
+  /**
+   * SUIT l'image qu'un média MONTRE (2026-11-15, sorti d'`attach` pour la page de correction des
+   * détections d'une vidéo, brique `image_boxes` — la même règle, écrite une fois) : `render()` est
+   * rappelé à chaque image présentée — dans la boucle du rendu pendant la lecture, tout de suite à
+   * l'arrêt — et `index()` rend l'indice de cette image dans le document que rend `getDoc()`
+   * (toujours 0 pour une image fixe). Rend `{index, state}`.
+   */
+  function follow(mediaEl, getDoc, render) {
+    var state = { raf: null, presented: null, settled: false };
     var video = mediaEl.tagName === 'VIDEO';
     var frames = video && typeof mediaEl.requestVideoFrameCallback === 'function';
 
     // L'image notée est-elle celle que montre un média POSÉ à `t` — son instant dans l'image qui
     // contient `t`, à la précision d'un conteneur près (2 ms) ?
     function shows(mediaTime, t) {
-      var fps = state.doc && state.doc.fps;
+      var doc = getDoc();
+      var fps = doc && doc.fps;
       if (!fps) return true;
       return mediaTime <= t + 0.002 && mediaTime > t - 1 / fps - 0.002;
     }
@@ -134,28 +132,11 @@
         // être celle du temps du média est périmée : le temps du média dit l'image.
         if (state.settled && mediaEl.paused && !mediaEl.seeking
             && !shows(state.presented, mediaEl.currentTime)) {
-          return frameAt(state.doc, mediaEl.currentTime);
+          return frameAt(getDoc(), mediaEl.currentTime);
         }
-        return presentedFrameAt(state.doc, state.presented);
+        return presentedFrameAt(getDoc(), state.presented);
       }
-      return frameAt(state.doc, mediaEl.currentTime);
-    }
-
-    function render() {
-      var w = mediaEl.clientWidth, h = mediaEl.clientHeight;
-      if (canvas.width !== w) canvas.width = w;
-      if (canvas.height !== h) canvas.height = h;
-      canvas.style.width = w + 'px';
-      canvas.style.height = h + 'px';
-      var ctx = canvas.getContext('2d');
-      ctx.clearRect(0, 0, w, h);
-      if (!state.doc) return;
-      var nw = video ? mediaEl.videoWidth : mediaEl.naturalWidth;
-      var nh = video ? mediaEl.videoHeight : mediaEl.naturalHeight;
-      // Le document est en pixels de la SOURCE (sa largeur) : l'échelle part de là.
-      var rect = contentRect(w, h, nw, nh);
-      if (state.doc.width && nw) rect.scale *= nw / state.doc.width;
-      draw(ctx, state.doc._byFrame[index()], rect, overlay);
+      return frameAt(getDoc(), mediaEl.currentTime);
     }
 
     // La boucle du rendu pendant la lecture — sur l'image présentée, ou sans rappel d'image
@@ -176,8 +157,6 @@
       mediaEl.requestVideoFrameCallback(onFrame);
     }
 
-    load(overlay.url).then(function (doc) { state.doc = doc; render(); })
-      .catch(function () { holder.title = 'Détections indisponibles'; });
     ['loadedmetadata', 'loadeddata', 'load'].concat(frames ? [] : ['seeked', 'timeupdate'])
       .forEach(function (ev) { mediaEl.addEventListener(ev, render); });
     if (frames) {
@@ -193,10 +172,48 @@
       state.settled = false;
       if (!state.raf) loop();
     });
+    return { index: index, state: state };
+  }
+
+  function attach(mediaEl, overlay) {
+    if (!mediaEl || !overlay || !overlay.url || mediaEl._wamaOverlay) return;
+    var holder = document.createElement('span');
+    holder.className = 'wama-preview-overlay';
+    holder.style.cssText = 'position:relative;display:inline-block;max-width:100%;line-height:0;';
+    mediaEl.parentNode.insertBefore(holder, mediaEl);
+    holder.appendChild(mediaEl);
+    var canvas = document.createElement('canvas');
+    canvas.style.cssText = 'position:absolute;left:0;top:0;pointer-events:none;';
+    holder.appendChild(canvas);
+    var doc = null;
+    var video = mediaEl.tagName === 'VIDEO';
+
+    function render() {
+      var w = mediaEl.clientWidth, h = mediaEl.clientHeight;
+      if (canvas.width !== w) canvas.width = w;
+      if (canvas.height !== h) canvas.height = h;
+      canvas.style.width = w + 'px';
+      canvas.style.height = h + 'px';
+      var ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, w, h);
+      if (!doc) return;
+      var nw = video ? mediaEl.videoWidth : mediaEl.naturalWidth;
+      var nh = video ? mediaEl.videoHeight : mediaEl.naturalHeight;
+      // Le document est en pixels de la SOURCE (sa largeur) : l'échelle part de là.
+      var rect = contentRect(w, h, nw, nh);
+      if (doc.width && nw) rect.scale *= nw / doc.width;
+      draw(ctx, doc._byFrame[shown.index()], rect, overlay);
+    }
+
+    var shown = follow(mediaEl, function () { return doc; }, render);
+    mediaEl._wamaOverlay = shown.state;
+    load(overlay.url).then(function (loaded) { doc = loaded; render(); })
+      .catch(function () { holder.title = 'Détections indisponibles'; });
     if (global.ResizeObserver) new global.ResizeObserver(render).observe(mediaEl);
   }
 
   global.WamaPreviewOverlay = {
-    attach: attach, frameAt: frameAt, presentedFrameAt: presentedFrameAt, contentRect: contentRect,
+    attach: attach, follow: follow, frameAt: frameAt, presentedFrameAt: presentedFrameAt,
+    contentRect: contentRect,
   };
 })(window);

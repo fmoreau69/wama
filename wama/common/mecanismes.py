@@ -482,7 +482,13 @@ MECHANISMS = (
               "et pose un trou de glu pour ceux de l'app ; une disponibilité illisible ferme la page "
               "en le disant, jamais la card (`Surface.can_open`) ; une surface à glu EN ATTENTE "
               "(`Surface.glue_pending`, lu sur le marqueur du trou) est écartée des passages qui "
-              "ouvrent les témoins, et dite (`ui_smoke_surfaces.witness_surfaces`)",
+              "ouvrent les témoins, et dite (`ui_smoke_surfaces.witness_surfaces`). 2026-11-15 : la "
+              "page d'édition suit la NATURE de l'élément — une surface se RÉSERVE aux éléments "
+              "dont un champ a telle valeur (`Surface.only`, une donnée), la card ne montre que le "
+              "✎ de la sienne (`surface_button`) ; l'anonymizer corrige ainsi les détections d'une "
+              "VIDÉO (`review_video`) par la brique des zones posée sur l'axe partagé, qui montre "
+              "les zones de l'image PRÉSENTÉE (`WamaPreviewOverlay.follow`, la règle de la "
+              "visionneuse) — scénario `common.axis_follow`",
               'wama/common/surfaces.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
               annexes=('wama/common/surface_views.py',

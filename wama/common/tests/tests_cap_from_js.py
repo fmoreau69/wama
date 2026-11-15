@@ -1320,7 +1320,7 @@ class PreviewOverlayTest(SimpleTestCase):
         """`syncVideos` recalled the compared video on the reference beyond 120 ms only : measured on
         the bench, a one-frame gap could last a whole playback, and at rest. Retired on 2026-11-05 —
         the two videos follow ONE axis (`WamaMediaPreview.compareView`), the only clock."""
-        self.assertEqual(['attach', 'contentRect', 'frameAt', 'presentedFrameAt'],
+        self.assertEqual(['attach', 'contentRect', 'follow', 'frameAt', 'presentedFrameAt'],
                          sorted(self.v8.eval('Object.keys(window.WamaPreviewOverlay)')))
 
 

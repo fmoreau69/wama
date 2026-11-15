@@ -41,9 +41,16 @@
         return { added: (value.added || []).slice(), removed: (value.removed || []).slice() };
     }
 
+    /** `{indice d'image: [détections]}` d'un document — GARDÉ sur le document (propriété cachée,
+     *  hors de sa forme JSON) : une vidéo le demande à chaque image montrée, et un document de
+     *  plusieurs milliers d'images ne se réindexe pas vingt-cinq fois par seconde (2026-11-15). */
     function framesOf(doc) {
+        if (doc && doc.__byFrame) return doc.__byFrame;
         var by = {};
         ((doc && doc.frames) || []).forEach(function (f) { by[f.i] = (by[f.i] || []).concat(f.d || []); });
+        if (doc && typeof doc === 'object') {
+            try { Object.defineProperty(doc, '__byFrame', { value: by, enumerable: false }); } catch (e) { /* figé */ }
+        }
         return by;
     }
 

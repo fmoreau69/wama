@@ -617,6 +617,21 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       `<app>:start_process` ;
     - **images d'abord** (décision) : la vidéo attend l'AXE commun de ce chantier — la surface le
       dit (« La correction s'ouvre sur une image ; la vidéo viendra avec le lecteur commun ») ;
+      ✅ *2026-11-15* : la vidéo est là, SANS onglet (décision de Fabien : « la page d'édition
+      suit simplement la nature du fichier traité ; l'onglet n'intervient que dans un pipeline à
+      éditions multiples sur des process différents »). Une surface par nature, chacune RÉSERVÉE
+      à la sienne par une donnée (`Surface.only`, `{champ: valeur}`) : `surface_button` ne rend
+      que le ✎ de la surface qui concerne l'élément. `anonymizer.review_video` pose la MÊME
+      brique `image_boxes` sur l'axe partagé (`options.video` : elle attache sa vidéo, la suit,
+      et montre les zones de l'image PRÉSENTÉE — `WamaPreviewOverlay.follow`, la règle de la
+      visionneuse sortie en fonction commune), sous le transport commun posé sans média ; un
+      geste d'édition arrête la lecture, la correction porte l'indice de l'image (`i`), que
+      `detections.apply_corrections` relisait déjà ; la liste des objets suit l'image montrée
+      (événement `frame` du bus). Éprouvé au navigateur sur la vidéo témoin, dont les détections
+      disent les objets de chaque image (`common.axis_follow`, 10 gestes ; contre-épreuve rouge).
+      ⏳ Restent : le geste sur TOUTE la séquence (une piste entière retirée ou rétablie, un objet
+      cliqué suivi et flouté — sur le patron de `playback_writing` / `playhead_follow`), le clic
+      à segmentation automatique (image comprise), la page du document, la jumelle à régénérer ;
     - **éprouvé** : 10 tests (`tests_surfaces`, dont la contre-épreuve de parité) ; smoke
       navigateur (serveur éphémère WSL) : tracé, annuler/rétablir, déplacement d'un panneau,
       disposition gardée, 0 erreur console — il a révélé que le focus clavier ne tient pas dans
