@@ -15,6 +15,10 @@
  * la règle de la visionneuse : l'image montrée, jamais l'instant de l'axe). Mêmes gestes, sur
  * l'image arrêtée : tracer, déplacer ou retirer une zone ARRÊTE la lecture, et la correction porte
  * l'indice de cette image. Elle dit l'image montrée aux autres briques par le bus (`frame`).
+ * TOUTE LA SÉQUENCE (même jour) : la portée prise par son outil (prise d'office sur une vidéo),
+ * retirer ou rétablir un objet détecté vaut pour toutes les images où il est — l'objet est demandé
+ * au serveur (`WamaDetections.editObject`, la règle de l'interpolation) ; la portée se dit aux
+ * autres briques par le bus (`scope`).
  *
  * Gestes (outil « Sélection ») : clic = sélectionner la zone la plus petite sous le pointeur ;
  * glisser dans la zone sélectionnée = la déplacer ; glisser une poignée = la redimensionner ;
@@ -78,6 +82,7 @@
             '<button type="button" class="btn btn-xs" data-tool="select" title="Sélection"><i class="fas fa-arrow-pointer"></i></button>' +
             '<button type="button" class="btn btn-xs" data-tool="add" title="Ajouter une zone"><i class="fas fa-vector-square"></i></button>' +
             '<select class="form-select form-select-sm wama-brick-class" title="Classe des zones ajoutées"></select>' +
+            (isVideo ? '<button type="button" class="btn btn-xs" data-scope="sequence" title="Toute la séquence : retirer ou rétablir un objet vaut pour toutes les images où il est (sinon : cette image seule)"><i class="fas fa-film"></i></button>' : '') +
             '<button type="button" class="btn btn-xs" data-act="fit" title="Image entière"><i class="fas fa-expand"></i></button>' +
             '<span class="wama-brick-zoom"></span>';
         var classSelect = tools.querySelector('select');
@@ -87,8 +92,23 @@
             var b = e.target.closest('button');
             if (!b) return;
             if (b.dataset.tool) setTool(b.dataset.tool);
+            if (b.dataset.scope) setSequence(!sequence);
             if (b.dataset.act === 'fit') fit();
         });
+
+        // La PORTÉE d'un retrait ou d'un rétablissement : cette image, ou tout l'objet (une vidéo).
+        var sequence = false;
+        function setSequence(on) {
+            sequence = !!on && isVideo;
+            var b = tools.querySelector('[data-scope]');
+            if (b) b.classList.toggle('active', sequence);
+            ctx.emit('scope', { sequence: sequence });
+        }
+        function said(count, kind) {
+            if (count > 1 && global.WamaApp && WamaApp.toast) {
+                WamaApp.toast((kind === 'restore' ? 'Objet rétabli sur ' : 'Objet retiré sur ') + count + ' images', 'info');
+            }
+        }
 
         function setTool(name) {
             tool = ctx.canEdit ? name : 'select';
@@ -346,10 +366,12 @@
             var act = global.WamaKeys.action(ev, 'image_boxes', BOXES_KEYS);
             if (act === 'remove' && sel && !sel.removed && ctx.canEdit) {
                 hold();
-                ctx.edit(function (v) { return D.remove(v, sel, frameIndex); });
+                D.editObject(ctx, 'detections', sel, frameIndex, 'remove', sequence)
+                    .then(function (n) { said(n, 'remove'); });
                 if (sel.origin === 'manual') ctx.select(null);
             } else if (act === 'restore' && sel && sel.removed && ctx.canEdit) {
-                ctx.edit(function (v) { return D.restore(v, sel, frameIndex); });
+                D.editObject(ctx, 'detections', sel, frameIndex, 'restore', sequence)
+                    .then(function (n) { said(n, 'restore'); });
             } else if (act === 'add') {
                 setTool('add');
             } else if (ev.key === 'Escape') {
@@ -364,6 +386,9 @@
         } });
 
         function refresh() {
+            // La portée est REDITE à chaque rafraîchissement : une brique montée après celle-ci
+            // (la liste des objets) n'a pas entendu l'annonce faite à son montage.
+            ctx.emit('scope', { sequence: sequence });
             objects = D.objects(ctx.reads().detections, ctx.value(), frameIndex);
             if (canvas.width !== Math.round(body.clientWidth * (global.devicePixelRatio || 1))) resize();
             else draw();
@@ -404,6 +429,7 @@
         }
         fillClasses();
         setTool('select');
+        setSequence(isVideo);
         refresh();
         return { refresh: refresh, tools: tools,
                  help: 'Molette : zoom · glisser : se déplacer' +

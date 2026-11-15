@@ -159,6 +159,34 @@ class RegistryTest(SimpleTestCase):
         self.assertEqual([['d0', 'detected'], ['a0', 'manual']], out['at0'])
         self.assertEqual(0, out['none'])
 
+    def test_a_gesture_on_a_whole_object_is_one_removal_per_frame(self):
+        """2026-11-15 : removing or restoring an object over the whole sequence writes the SAME
+        layer of corrections — one removal per frame of its chain (never twice), that the Python
+        rule applies frame by frame ; restoring takes them all back and leaves the others."""
+        from py_mini_racer import MiniRacer
+        doc = dets.new_document(media='video', width=200, height=100, fps=25, frame_count=4)
+        for i in range(4):
+            dets.add(doc, i, [dets.detection(box=[10 + 5 * i, 10, 40 + 5 * i, 40], label='face'),
+                              dets.detection(box=[120, 50, 160, 70], label='plate')])
+        chain = dets.object_chain(doc, 2, [20, 10, 50, 40], max_gap=0)
+        self.assertEqual([0, 1, 2, 3], [e['i'] for e in chain])
+        engine = MiniRacer()
+        engine.eval('var window = this;' + _js('common/js/wama-detections.js'))
+        out = json.loads(engine.eval("""(function (chain) {
+            var D = window.WamaDetections, kept = {removed: [{i: 0, box: [120, 50, 160, 70]}]};
+            var gone = D.removeMany(kept, chain), twice = D.removeMany(gone, chain);
+            return JSON.stringify({gone: gone, twice: twice.removed.length,
+                                   back: D.restoreMany(gone, chain), untouched: kept.removed.length});
+        })(%s)""" % json.dumps(chain)))
+        self.assertEqual(5, len(out['gone']['removed']))
+        self.assertEqual(5, out['twice'], 'a frame already removed is not removed twice')
+        self.assertEqual(1, out['untouched'], 'a gesture renders a NEW layer (the undo keeps the old)')
+        fixed = dets.apply_corrections(doc, out['gone'])
+        self.assertEqual({1: ['plate'], 2: ['plate'], 3: ['plate']},
+                         {f['i']: [d['label'] for d in f['d']] for f in fixed['frames']})
+        self.assertEqual([{'i': 0, 'box': [120, 50, 160, 70]}], out['back']['removed'],
+                         'restoring the object leaves the other removal')
+
     def test_a_brick_of_the_panel_follows_its_content_height(self):
         """2026-10-31 (Fabien : « avoir un scroll dans une section d'un volet qui scrolle, ce n'est
         pas une bonne idée ») : dans la colonne du volet, une brique est à la hauteur de son contenu
@@ -344,6 +372,18 @@ class ReviewSurfaceViewsTest(TestCase):
                                        self.media.detection_corrections)
         self.assertEqual([12], [f['i'] for f in fixed['frames']],
                          'frame 0 lost its detection, frame 12 gained the added zone')
+        # The object over the whole sequence, asked to the common route : the detector's document,
+        # whatever the corrections ; the gap is the card's interpolation setting, given by the
+        # surface in its context.
+        self.assertIn('chain_gap', data['context'])
+        chain = self.client.get(base + 'data/?only=chain&role=detections&i=0&box=5,5,20,20&gap=3').json()
+        self.assertEqual([{'i': 0, 'box': [5, 5, 20, 20], 'label': 'face'}], chain['chain'])
+        self.assertEqual([], self.client.get(
+            base + 'data/?only=chain&role=detections&i=0&box=40,5,55,20').json()['chain'])
+        self.assertEqual([], self.client.get(
+            base + 'data/?only=chain&role=video&i=0&box=5,5,20,20').json()['chain'], 'not a document')
+        self.assertEqual(400, self.client.get(
+            base + 'data/?only=chain&role=detections&i=0&box=5,5').status_code)
 
     def test_a_save_prepared_on_a_stale_state_is_refused_not_written(self):
         self.client.force_login(self.user)

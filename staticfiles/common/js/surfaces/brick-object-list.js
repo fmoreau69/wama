@@ -9,7 +9,8 @@
  * du noyau) ; ✕ le retire, ↺ le rétablit.
  *
  * Sur une VIDÉO (2026-11-15) : la liste est celle de l'image MONTRÉE, que la brique qui la montre
- * dit par le bus (`frame`) — pendant la lecture, relue au plus quelques fois par seconde.
+ * dit par le bus (`frame`) — pendant la lecture, relue au plus quelques fois par seconde. Et
+ * ✕ / ↺ valent pour l'objet sur TOUTE la séquence quand cette brique en a pris la portée (`scope`).
  */
 (function (global) {
     'use strict';
@@ -85,6 +86,11 @@
             list.appendChild(frag);
         }
 
+        // La PORTÉE prise dans la brique qui montre le média (`scope`) : ✕ et ↺ valent alors pour
+        // l'objet sur toute la séquence.
+        var sequence = false;
+        ctx.on('scope', function (p) { sequence = !!(p && p.sequence); });
+
         // L'image montrée change (une vidéo) : la liste la suit, sans se refaire à chaque image.
         var FRAME_EVERY_MS = 150, pending = null, last = 0;
         ctx.on('frame', function (p) {
@@ -100,9 +106,9 @@
             var o = objects.filter(function (x) { return x.id === el.dataset.id; })[0];
             if (!o) return;
             var act = ev.target.closest('button') && ev.target.closest('button').dataset.act;
-            if (act === 'remove') ctx.edit(function (v) { return D.remove(v, o, frameIndex); });
-            else if (act === 'restore') ctx.edit(function (v) { return D.restore(v, o, frameIndex); });
-            else ctx.select(o.id, { focus: true });
+            if (act === 'remove' || act === 'restore') {
+                D.editObject(ctx, 'detections', o, frameIndex, act, sequence);
+            } else ctx.select(o.id, { focus: true });
         });
 
         ctx.on('select', function (s) {

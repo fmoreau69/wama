@@ -439,46 +439,13 @@ def by_frame(doc: dict, *, interpolate: bool = False, max_gap: int = 0,
     ⚠ Corrigé le 2026-10-05 (card #1026) : seules les détections d'une même PISTE se reliaient.
     Or le suivi ne donne une piste qu'aux objets CONFIRMÉS — 82 détections sur 533 n'en avaient
     pas — et il en donne une NOUVELLE quand il reperd l'objet : 18 trous sur 19 subsistaient."""
-    frames = {}
-    for frame in doc.get('frames') or []:
-        frames.setdefault(int(frame['i']), []).extend(frame.get('d') or [])
+    frames = _frames_of(doc)
     fill = interpolate and max_gap > 0
     if not fill and max_extrapolation <= 0:
         return frames
     # Sans interpolation, seuls deux voisins IMMÉDIATS se relient (de quoi lire une vitesse).
-    window = max_gap if fill else 0
     seen = sorted(frames)
-    position = {index: n for n, index in enumerate(seen)}
-    claimed = set()                         # (frame, rang) déjà successeur d'une détection
-    links = []                              # (frame, dét., frame suivante, dét. suivante)
-    after, before = {}, {}                  # id(dét.) → son maillon sortant / entrant
-    for index in seen:
-        for det in frames[index]:
-            successor = None
-            # La vitesse d'ARRIVÉE (maillons déjà posés) : elle prédit où chercher la suite.
-            velocity = _edge_velocity(det, index, before, incoming=True)
-            for later in seen[position[index] + 1:]:
-                if later - index - 1 > window:
-                    break
-                # Dans la PREMIÈRE frame qui porte le même objet, le candidat le plus PROCHE.
-                matches = []
-                for rank, other in enumerate(frames[later]):
-                    if (later, rank) in claimed:
-                        continue
-                    cost = _link_cost(det, other, min_iou, later - index, velocity)
-                    if cost is not None:
-                        matches.append((cost, rank, other))
-                if matches:
-                    _cost, rank, other = min(matches, key=lambda m: m[0])
-                    successor = (later, rank, other)
-                    break
-            if successor is None:
-                continue
-            later, rank, other = successor
-            claimed.add((later, rank))
-            link = (index, det, later, other)
-            links.append(link)
-            after[id(det)], before[id(other)] = link, link
+    links, after, before = _links(frames, max_gap if fill else 0, min_iou)
     from wama_data.functions.kinematics.gap_fill import hermite_gap
     deduced = {}
     for link in links if fill else ():
@@ -522,6 +489,86 @@ def by_frame(doc: dict, *, interpolate: bool = False, max_gap: int = 0,
     for index, found in deduced.items():
         frames.setdefault(index, []).extend(found)
     return frames
+
+
+def _frames_of(doc: dict) -> dict:
+    """{indice de frame: [détections relevées]} d'un document."""
+    frames = {}
+    for frame in doc.get('frames') or []:
+        frames.setdefault(int(frame['i']), []).extend(frame.get('d') or [])
+    return frames
+
+
+def _links(frames: dict, window: int, min_iou: float) -> tuple:
+    """Les MAILLONS d'un document : `(maillons, sortant, entrant)` — chaque détection reliée à la
+    suivante du MÊME objet (`_link_cost`), au plus `window` frames manquantes entre les deux ;
+    `sortant` et `entrant` : id(dét.) → son maillon. Un maillon est (frame, dét., frame suivante,
+    dét. suivante). LA règle de « c'est le même objet » : l'interpolation des trous (`by_frame`)
+    et la chaîne d'un objet (`object_chain`) la lisent toutes les deux."""
+    seen = sorted(frames)
+    position = {index: n for n, index in enumerate(seen)}
+    claimed = set()                         # (frame, rang) déjà successeur d'une détection
+    links = []                              # (frame, dét., frame suivante, dét. suivante)
+    after, before = {}, {}                  # id(dét.) → son maillon sortant / entrant
+    for index in seen:
+        for det in frames[index]:
+            successor = None
+            # La vitesse d'ARRIVÉE (maillons déjà posés) : elle prédit où chercher la suite.
+            velocity = _edge_velocity(det, index, before, incoming=True)
+            for later in seen[position[index] + 1:]:
+                if later - index - 1 > window:
+                    break
+                # Dans la PREMIÈRE frame qui porte le même objet, le candidat le plus PROCHE.
+                matches = []
+                for rank, other in enumerate(frames[later]):
+                    if (later, rank) in claimed:
+                        continue
+                    cost = _link_cost(det, other, min_iou, later - index, velocity)
+                    if cost is not None:
+                        matches.append((cost, rank, other))
+                if matches:
+                    _cost, rank, other = min(matches, key=lambda m: m[0])
+                    successor = (later, rank, other)
+                    break
+            if successor is None:
+                continue
+            later, rank, other = successor
+            claimed.add((later, rank))
+            link = (index, det, later, other)
+            links.append(link)
+            after[id(det)], before[id(other)] = link, link
+    return links, after, before
+
+
+#: Plafond du trou qu'une chaîne d'objet franchit, quel que soit ce que la page demande.
+MAX_CHAIN_GAP = 500
+
+
+def object_chain(doc: dict, frame: int, box, *, max_gap: int = 0, min_iou: float = 0.2) -> list:
+    """L'OBJET sur toute la séquence (2026-11-15, la page de correction d'une vidéo : « un clic
+    sur un objet agit sur toute la séquence ») : `[{'i', 'box', 'label'}]`, dans l'ordre du temps —
+    la détection que `box` désigne sur `frame` (la règle d'un retrait, `_same_place`) et toutes
+    celles du MÊME objet avant et après, par les maillons que lit l'interpolation (`_links` : la
+    piste quand il y en a une, sinon une position plausible), en franchissant au plus `max_gap`
+    frames manquantes. `[]` quand la boîte ne désigne aucune détection de cette frame. Lu sur le
+    document du DÉTECTEUR : un objet déjà retiré se désigne encore (pour le rétablir)."""
+    frames = _frames_of(doc)
+    frame = int(frame)
+    probe = {'box': [float(v) for v in box]}
+    chosen = next((d for d in frames.get(frame, ()) if _same_place(d, probe)), None)
+    if chosen is None:
+        return []
+    _all, after, before = _links(frames, max(0, min(int(max_gap or 0), MAX_CHAIN_GAP)), min_iou)
+    chain = [(frame, chosen)]
+    index, det = frame, chosen
+    while id(det) in before:
+        index, det = before[id(det)][0], before[id(det)][1]
+        chain.insert(0, (index, det))
+    index, det = frame, chosen
+    while id(det) in after:
+        index, det = after[id(det)][2], after[id(det)][3]
+        chain.append((index, det))
+    return [{'i': i, 'box': list(d['box']), 'label': d.get('label', '')} for i, d in chain]
 
 
 def _prolong(det, index, velocity, direction, count, last, deduced):

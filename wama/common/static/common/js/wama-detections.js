@@ -136,8 +136,66 @@
         return add(remove(value, obj, frame), box, obj.label, frame);
     }
 
+    /** Retirer un objet sur PLUSIEURS images (`entries` : `[{i, box}]`, la chaîne d'un objet) :
+     *  un retrait par image, sauf là où un retrait le désigne déjà. */
+    function removeMany(value, entries) {
+        var c = layer(value);
+        (entries || []).forEach(function (e) {
+            var already = c.removed.some(function (r) { return r.i === e.i && iou(e.box, r.box) >= MIN_IOU; });
+            if (!already) c.removed.push({ i: e.i, box: round(e.box) });
+        });
+        return c;
+    }
+
+    /** Rétablir un objet sur plusieurs images : ôte les retraits qui le désignent, image par image. */
+    function restoreMany(value, entries) {
+        var c = layer(value);
+        var by = {};
+        (entries || []).forEach(function (e) { (by[e.i] = by[e.i] || []).push(e.box); });
+        c.removed = c.removed.filter(function (r) {
+            return !(by[r.i] || []).some(function (box) { return iou(box, r.box) >= MIN_IOU; });
+        });
+        return c;
+    }
+
+    /** L'OBJET sur toute la séquence (2026-11-15) : promesse de `[{i, box, label}]`, demandée à
+     *  la route commune de la surface (`?only=chain`, `detections.object_chain` — la règle de
+     *  « c'est le même objet » n'est écrite qu'en Python). `gap` : le trou franchi, que la surface
+     *  donne par son contexte (`chain_gap`). Un ajout à la main n'a pas de chaîne : lui seul. */
+    function chain(ctx, role, obj, frame) {
+        if (obj.origin !== 'detected') return Promise.resolve([{ i: frame, box: obj.box, label: obj.label }]);
+        var gap = Number((ctx.context() || {}).chain_gap) || 0;
+        var url = ctx.config.data_url + '?only=chain&role=' + encodeURIComponent(role) +
+            '&i=' + frame + '&box=' + obj.box.join(',') + '&gap=' + gap;
+        return fetch(url, { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (res) {
+                if (res.error) throw new Error(res.error);
+                return (res.chain && res.chain.length) ? res.chain : [{ i: frame, box: obj.box, label: obj.label }];
+            });
+    }
+
+    /** Retirer ou rétablir (`kind`) l'objet `obj` de l'image `frame` — sur cette image, ou, la
+     *  portée « toute la séquence » prise (`sequence`), sur toutes celles où il est : UN geste,
+     *  un cran d'annulation. Rend une promesse du nombre d'images touchées. Le geste commun de
+     *  la brique des zones et de la liste des objets. */
+    function editObject(ctx, role, obj, frame, kind, sequence) {
+        var one = kind === 'restore' ? restore : remove;
+        if (!sequence || obj.origin !== 'detected') {
+            ctx.edit(function (v) { return one(v, obj, frame); });
+            return Promise.resolve(1);
+        }
+        return chain(ctx, role, obj, frame).then(function (entries) {
+            ctx.edit(function (v) {
+                return kind === 'restore' ? restoreMany(v, entries) : removeMany(v, entries);
+            });
+            return entries.length;
+        });
+    }
+
     global.WamaDetections = {
         MIN_IOU: MIN_IOU, iou: iou, applyCorrections: applyCorrections, objects: objects,
         remove: remove, restore: restore, add: add, move: move,
+        removeMany: removeMany, restoreMany: restoreMany, chain: chain, editObject: editObject,
     };
 })(typeof window !== 'undefined' ? window : this);

@@ -31589,3 +31589,39 @@ EXÉCUTE les fonctions générées. Quatre mutations, quatre rouges.
 **Rouge qui n'est pas de ce lot** : budget de langue « code » mesuré 2552 pour 2553 déclaré — un
 identifiant français a disparu de l'arbre depuis 13 h 50 (quatre commits d'autres sessions) ; le
 recaler revient à qui l'a retiré.
+
+## §PALIER 2026-11-15 (suite), « ANONYMIZER : un geste sur un objet vaut pour TOUTE LA SÉQUENCE (marche A) ; suivi par clic MESURÉ sur GPU » — commit local, non poussé — 🔴 relancer gunicorn (route `?only=chain`, contexte de la surface) — 🔚 marche B : l'objet NON détecté, cliqué, suivi par le module de suivi de SAM3 dans une boucle `playhead_follow` ; puis le clic à segmentation automatique sur l'image
+
+**Livré (marche A, aucun modèle)** :
+- `detections.object_chain` — l'objet sur toute la séquence : la détection désignée sur une
+  image et toutes celles du même objet, par les maillons que lit l'interpolation (`_links`,
+  sortis de `by_frame` sans en changer le résultat) ; le trou franchi est borné.
+- La route commune `…/data/?only=chain` des surfaces (`surface_views._chain_of`) : un rôle lu en
+  document de détections, rien d'une app ; l'anonymizer donne à la page le trou franchi par son
+  contexte (`chain_gap` = le réglage d'interpolation de la card).
+- La portée « toute la séquence » : un outil de la brique des zones, pris d'office sur une vidéo,
+  dit aux autres briques par le bus (`scope`). ✕ / Suppr et ↺ / R valent alors pour l'objet
+  détecté entier (`WamaDetections.editObject`, `removeMany`, `restoreMany`) — un retrait par
+  image dans la MÊME couche de corrections, un seul cran d'annulation.
+
+**Mesuré** : `common.axis_follow` sur la page vidéo, serveur jetable WSL — 16 gestes sur 16, dont
+✕ sur toute la séquence, annuler (l'objet revient sur toutes ses images), rétablir, ↺ sur toute
+la séquence, puis la portée rendue (✕ sur la seule image montrée). Le scénario a trouvé un défaut
+du jour, réparé : la liste des objets, montée après la brique vidéo, n'entendait pas l'annonce de
+la portée (11/14). Contre-épreuves en processus : quatre mutations, voir le message du commit.
+
+**Suivi par clic, essai GPU (lecture seule, extrait de 60 images en 640×480, 15 i/s)** : le
+prédicteur vidéo de SAM3 refuse un point sans propagation préalable par texte ; son module de
+suivi (`model.tracker`, auquel on donne la dorsale du détecteur) part d'UN point et suit l'objet
+sur les 60 images, dans les deux sens — chargement 25 s, point 0,8 s, 77 ms par image, 5,5 Go de
+mémoire. `triton` est installé côté WSL (le motif « absent sous Windows » de
+`sam3_processor._ensure_video_model` ne vaut plus pour le runtime réel). Rien n'est branché.
+
+**À discuter avec Fabien (versions)** : l'annuler/rétablir d'une page d'édition est juste et tient
+en un cran par geste, mais il vit le temps de la page ; une correction ENREGISTRÉE d'un champ de
+donnée (`detection_corrections`) ne laisse aucune révision — `surface_save` n'en écrit que pour
+un fichier texte. La portée par défaut (« toute la séquence » sur une vidéo) est un choix de la
+session, à confirmer.
+
+**Non fait, nommé** : marche B ; jumelle `anonymizer_01` ; l'outil d'assistant pour ces gestes
+de page ; suite complète non rejouée.

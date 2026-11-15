@@ -1976,7 +1976,8 @@ _VIDEO_ZONES_JS = """() => {
     const at = /image (\\d+)/.exec(label);
     return {frame: at ? Number(at[1]) : -1,
             rows: document.querySelectorAll('.wama-object-row').length,
-            manual: document.querySelectorAll('.wama-object-row.is-manual').length}; }"""
+            manual: document.querySelectorAll('.wama-object-row.is-manual').length,
+            removed: document.querySelectorAll('.wama-object-row.is-removed').length}; }"""
 
 
 def check_axis_follow(page_hook=None):
@@ -2156,6 +2157,46 @@ def _axis_gestures(context, token, surface, pk, verdict, reverse, page_hook=None
                 f"arrêtée (lecture : {s['playing']}, image {z['frame']}, {z['manual']} ajout "
                 f"montré)")
         page.keyboard.press('Escape')
+
+        # ⑦ TOUTE LA SÉQUENCE (2026-11-15) : la portée prise d'office sur une vidéo, ✕ sur un objet
+        # détecté le retire de toutes les images où il est — UN geste, donc UN cran : annuler le
+        # rend partout, rétablir le reprend partout ; ↺ le rétablit sur toute la séquence.
+        def at(index):
+            page.evaluate("t => window.__wamaAxes[0].seek(t)", (index + 0.5) / WITNESS_VIDEO_RATE)
+            page.wait_for_timeout(900)
+            return zones()
+
+        def history(keys):
+            page.locator('.wama-surface-title').click()        # hors de tout champ et de l'image
+            page.keyboard.press(keys)
+            page.wait_for_timeout(500)
+
+        scope = page.locator('.wama-image-tools [data-scope="sequence"]')
+        verdict(scope.count() == 1 and 'active' in (scope.get_attribute('class') or ''),
+                f"{sid} : la portée « toute la séquence » est prise d'office sur une vidéo")
+        at(early)
+        page.locator('.wama-object-row [data-act="remove"]').first.click()
+        page.wait_for_timeout(1200)
+        here, there = zones()['removed'], at(late)['removed']
+        verdict(here == 1 and there == 1,
+                f"{sid} : ✕ sur un objet le retire sur toute la séquence (image {early} : {here} "
+                f"retiré, image {late} : {there})")
+        history('Control+z')
+        undone = (zones()['removed'], at(early)['removed'])
+        verdict(undone == (0, 0), f"{sid} : annuler rend l'objet sur toutes ses images, en un cran {undone}")
+        history('Control+Shift+z')
+        redone = (zones()['removed'], at(late)['removed'])
+        verdict(redone == (1, 1), f"{sid} : rétablir (historique) le retire de nouveau partout {redone}")
+        page.locator('.wama-object-row.is-removed [data-act="restore"]').first.click()
+        page.wait_for_timeout(1200)
+        restored = (zones()['removed'], at(early)['removed'])
+        verdict(restored == (0, 0), f"{sid} : ↺ rétablit l'objet sur toute la séquence {restored}")
+        scope.click()
+        page.wait_for_timeout(200)
+        page.locator('.wama-object-row [data-act="remove"]').first.click()
+        page.wait_for_timeout(600)
+        alone = (zones()['removed'], at(late)['removed'])
+        verdict(alone == (1, 0), f"{sid} : la portée rendue, ✕ ne retire que sur l'image montrée {alone}")
 
     shown = [e for e in errors if not any(t in e for t in IGNORED_CONSOLE)]
     verdict(not shown, f"{sid} : aucune erreur JS ({shown[:3]})")

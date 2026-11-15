@@ -612,6 +612,51 @@ class CorrectionsTest(SimpleTestCase):
         doc = self._doc()
         self.assertIs(doc, dets.apply_corrections(doc, {}))
 
+    def _two_objects(self):
+        """A face crossing the frame (tracked, then lost for two frames and tracked anew) beside a
+        plate that never moves and carries no track."""
+        doc = dets.new_document(media='video', width=400, height=200, fps=25, frame_count=12)
+        for i in (0, 1, 2, 5, 6):
+            dets.add(doc, i, [dets.detection(box=[10 + 8 * i, 20, 50 + 8 * i, 60], label='face',
+                                             track='m0:1' if i < 3 else 'm0:7')])
+        for i in range(7):
+            dets.add(doc, i, [dets.detection(box=[300, 150, 360, 170], label='plate')])
+        return doc
+
+    def test_the_chain_of_an_object_is_the_one_the_interpolation_links(self):
+        """2026-11-15 (correcting a video : a gesture on an object holds for the whole sequence) :
+        `object_chain` walks the links the interpolation reads — a track, else a plausible place —,
+        and crosses at most `max_gap` missing frames."""
+        doc = self._two_objects()
+        whole = dets.object_chain(doc, 1, [18, 20, 58, 60], max_gap=5)
+        self.assertEqual([0, 1, 2, 5, 6], [e['i'] for e in whole], 'the gap is crossed, both ways')
+        self.assertEqual({'face'}, {e['label'] for e in whole})
+        self.assertEqual([0, 1, 2], [e['i'] for e in dets.object_chain(doc, 1, [18, 20, 58, 60])],
+                         'no gap allowed : the object stops where it is lost')
+        self.assertEqual(list(range(7)),
+                         [e['i'] for e in dets.object_chain(doc, 6, [301, 151, 361, 171], max_gap=5)],
+                         'designated by a box moved a few pixels, from its last frame')
+        self.assertEqual([], dets.object_chain(doc, 3, [34, 20, 74, 60], max_gap=5),
+                         'nothing detected there on that frame')
+        self.assertEqual([], dets.object_chain(doc, 1, [200, 20, 240, 60], max_gap=5))
+
+    def test_removing_the_chain_takes_the_object_and_leaves_no_hole_to_fill(self):
+        """A removal per frame of the chain : the corrected document has lost the object on every
+        frame, so the blur has nothing left of it to interpolate — and the other object is whole."""
+        doc = self._two_objects()
+        chain = dets.object_chain(doc, 0, [10, 20, 50, 60], max_gap=5)
+        fixed = dets.apply_corrections(doc, {'removed': [{'i': e['i'], 'box': e['box']} for e in chain]})
+        frames = dets.by_frame(fixed, interpolate=True, max_gap=5)
+        self.assertEqual({'plate'}, {d['label'] for found in frames.values() for d in found})
+        self.assertEqual(list(range(7)), sorted(frames))
+
+    def test_the_links_of_the_interpolation_did_not_move(self):
+        """`_links` was taken out of `by_frame` for the chain : same links, same deduced frames."""
+        doc = self._two_objects()
+        frames = dets.by_frame(doc, interpolate=True, max_gap=5)
+        deduced = {i: [d['label'] for d in found if d.get('interpolated')] for i, found in frames.items()}
+        self.assertEqual({3: ['face'], 4: ['face']}, {i: v for i, v in deduced.items() if v})
+
 
 class AgreementTest(SimpleTestCase):
     """`boxes_at` + `support` — l'accord géométrique entre sorties (M2/M6, 2026-10-16)."""

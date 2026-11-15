@@ -4,6 +4,9 @@ n'écrit ni page, ni lecture, ni enregistrement (2026-10-10, chantier SURFACES).
   page    GET   /common/surface/<app>/<clé>/<pk>/        la page : grille des briques
   data    GET   …/data/                                  ce que les briques lisent (JSON)
                 …/data/?only=rhythm&role=<rôle>          la grille des temps d'un audio lu
+                …/data/?only=chain&role=<rôle>&i=<image>&box=x1,y1,x2,y2[&gap=<n>]
+                                                         l'OBJET d'un document de détections sur
+                                                         toute la séquence (`detections.object_chain`)
                 …/data/?only=peaks&role=<rôle>[&source=<process>][&poll=1]
                                                          les pics fins d'un média lu (état ou pics) —
                                                          de l'une de ses versions (`sources_of`)
@@ -243,6 +246,11 @@ def surface_data(request, app: str, key: str, pk: int):
         return JsonResponse({'error': reason}, status=409)
     if request.GET.get('only') == 'rhythm':
         return JsonResponse({'rhythm': _rhythm_of(found, item, request.GET.get('role') or '')})
+    if request.GET.get('only') == 'chain':
+        try:
+            return JsonResponse({'chain': _chain_of(found, item, request.GET)})
+        except (TypeError, ValueError) as error:
+            return JsonResponse({'error': f"objet illisible : {error}"}, status=400)
     if request.GET.get('only') == 'peaks':
         # Les PICS FINS d'un média lu (service commun `waveform.dense_peaks`) : mis en file s'ils
         # manquent ; un échec se retente à la 1ʳᵉ demande d'une page, pas pendant qu'elle interroge.
@@ -398,6 +406,26 @@ def _server_peaks(url: str):
         return server_peaks(url)
     except Exception:
         return None
+
+
+def _chain_of(found, item, query) -> list:
+    """L'objet que la page désigne (`i`, `box`) dans le DOCUMENT de détections lu sous `role`, sur
+    toute la séquence — `detections.object_chain`, demandé à part (`?only=chain`) par une brique
+    dont un geste vaut pour l'objet entier. `gap` : le trou franchi d'une détection à la suivante
+    (le réglage d'interpolation de l'élément, que la surface donne à la page par son contexte).
+    `[]` pour un rôle qui n'est pas un document de détections."""
+    from wama.common.utils import detections
+    role = query.get('role') or ''
+    if role not in found.documents:
+        return []
+    doc = _document(getattr(item, found.reads.get(role, ''), None))
+    if not isinstance(doc, dict) or doc.get('kind') != detections.KIND:
+        return []
+    box = [float(v) for v in (query.get('box') or '').split(',')]
+    if len(box) != 4:
+        raise ValueError('quatre coordonnées attendues')
+    return detections.object_chain(doc, int(query.get('i') or 0), box,
+                                   max_gap=int(query.get('gap') or 0))
 
 
 def _rhythm_of(found, item, role: str):

@@ -629,9 +629,24 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       `detections.apply_corrections` relisait déjà ; la liste des objets suit l'image montrée
       (événement `frame` du bus). Éprouvé au navigateur sur la vidéo témoin, dont les détections
       disent les objets de chaque image (`common.axis_follow`, 10 gestes ; contre-épreuve rouge).
-      ⏳ Restent : le geste sur TOUTE la séquence (une piste entière retirée ou rétablie, un objet
-      cliqué suivi et flouté — sur le patron de `playback_writing` / `playhead_follow`), le clic
-      à segmentation automatique (image comprise), la page du document, la jumelle à régénérer ;
+      ✅ *Même jour, marche A du geste sur TOUTE la séquence* : la portée « toute la séquence »
+      (outil de la brique, prise d'office sur une vidéo, dite aux autres briques par le bus —
+      `scope`) fait valoir ✕ / Suppr et ↺ / R pour l'objet DÉTECTÉ sur toutes les images où il
+      est. L'objet se demande à la route commune `…/data/?only=chain` (`detections.object_chain` :
+      les maillons de l'interpolation, sortis de `by_frame` en `_links` — la piste, sinon une
+      position plausible ; le trou franchi est le réglage d'interpolation de la card, donné par
+      le contexte de la surface, `chain_gap`). La couche de corrections ne change pas de forme :
+      un retrait par image, UN cran d'annulation (annuler et rétablir joués au navigateur,
+      `common.axis_follow` : 16 gestes).
+      ⏳ Restent : la marche B — un objet NON détecté, cliqué, suivi et flouté, sur le patron de
+      `playback_writing` / `playhead_follow`. Mesuré le 2026-11-15 sur GPU (extrait 640×480 de
+      60 images) : le module de suivi de SAM3 déjà installé (`model.tracker`, la dorsale du
+      détecteur) part d'UN point et suit l'objet dans les deux sens — 25 s de chargement, 0,8 s
+      pour le point, 77 ms par image, 5,5 Go ; le prédicteur vidéo complet, lui, refuse un point
+      sans propagation préalable par texte. Puis le clic à segmentation automatique (image
+      comprise), la page du document, la jumelle à régénérer. ⚠ À discuter : une correction
+      enregistrée d'un champ de DONNÉE ne laisse aucune révision (`surface_save` n'en écrit que
+      pour un fichier texte) — l'annuler/rétablir vit le temps de la page ;
     - **éprouvé** : 10 tests (`tests_surfaces`, dont la contre-épreuve de parité) ; smoke
       navigateur (serveur éphémère WSL) : tracé, annuler/rétablir, déplacement d'un panneau,
       disposition gardée, 0 erreur console — il a révélé que le focus clavier ne tient pas dans

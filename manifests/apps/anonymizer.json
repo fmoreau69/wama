@@ -2611,6 +2611,9 @@
           "context.classes"
         ],
         "available": "wama.anonymizer.surfaces._review_available",
+        "context": {
+          "chain_gap": "max_interpolation_frames"
+        },
         "documents": [
           "detections"
         ],

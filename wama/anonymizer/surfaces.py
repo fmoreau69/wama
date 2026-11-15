@@ -12,7 +12,9 @@ Floutage les surveille : enregistrer le périme, « Appliquer » le rejoue.
 `review_video` (2026-11-15) : les mêmes gestes sur une VIDÉO, image par image — la même brique
 des zones, posée sur l'axe partagé, et le transport commun (lecture, sauts, pas d'une image). Une
 correction porte l'indice de l'image où elle est faite (`i`), que le floutage relit
-(`detections.apply_corrections`).
+(`detections.apply_corrections`). Retirer ou rétablir un objet DÉTECTÉ vaut d'office pour toute
+la séquence (`detections.object_chain`, demandé par la route commune `?only=chain`) : un retrait
+par image, la même couche de corrections.
 """
 from wama.anonymizer.utils.media_utils import sane_classes
 from wama.common.surfaces import BrickSlot, Surface, register_surface
@@ -78,7 +80,10 @@ register_surface(Surface(
     edits='detection_corrections', validate=validate_corrections,
     reruns='blur', available=_review_available,
     only={'media_type': 'video'},
-    context={'classes': lambda media: sane_classes(media.classes2blur)},
+    # `chain_gap` : le trou qu'un objet franchit d'une détection à la suivante quand un geste vaut
+    # pour toute la séquence — le réglage d'interpolation de la card, celui que lit le floutage.
+    context={'classes': lambda media: sane_classes(media.classes2blur),
+             'chain_gap': 'max_interpolation_frames'},
     # Le témoin des vignettes : la mire du harnais et des détections (celles de l'image témoin,
     # posées sur sa première image).
     witness={'file': '.mp4', 'detections_file': 'detections', 'media_type': 'video',

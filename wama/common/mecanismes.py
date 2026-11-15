@@ -488,7 +488,10 @@ MECHANISMS = (
               "✎ de la sienne (`surface_button`) ; l'anonymizer corrige ainsi les détections d'une "
               "VIDÉO (`review_video`) par la brique des zones posée sur l'axe partagé, qui montre "
               "les zones de l'image PRÉSENTÉE (`WamaPreviewOverlay.follow`, la règle de la "
-              "visionneuse) — scénario `common.axis_follow`",
+              "visionneuse) — scénario `common.axis_follow` ; retirer ou rétablir un objet DÉTECTÉ "
+              "y vaut d'office pour TOUTE LA SÉQUENCE : l'objet est demandé à la route commune "
+              "`?only=chain` (`detections.object_chain`, les maillons de l'interpolation), un "
+              "retrait par image dans la même couche de corrections, UN cran d'annulation",
               'wama/common/surfaces.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
               annexes=('wama/common/surface_views.py',
