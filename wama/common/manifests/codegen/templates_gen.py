@@ -67,6 +67,44 @@ def render_index(manifest: dict) -> tuple:
         exts = retenues or exts
     accept = ','.join(exts) or '*/*'
     mark = _GEN_MARK.format(app_id=app)
+    # ── UNE FILE, OU UNE PAR DOMAINE (`ROUTE §11 #42` ⑦ b, 2026-11-15) ──────────────────────────
+    # Les pièces de la page (card d'entrée, barre, file, hôte de réglages, câblage JS) s'écrivent
+    # UNE fois, avec des jetons là où un domaine a son nom à dire : `_scoped` les pose pour la page
+    # à une file (les ids historiques, `<app>Queue`…) ou pour chaque domaine que la page partage
+    # (`views_gen.page_domains` — la vue lit la même réponse). La forme est celle des pages réelles
+    # à plusieurs domaines : un volet `data-domain` par domaine, son hôte `data-domain-settings`,
+    # ses ids, sa barre de lot (`idBase`), ses ouvreurs de ⚙ déclarés pour lui.
+    from wama.common.manifests.codegen.views_gen import page_domains
+    doms = page_domains(body)
+    (PID, V_PARAMS, V_DEFAULTS, OPENER, BATCH_VAR, BATCH_BASE, IMPORT_VAR, CARD_SCOPE,
+     PROGRESS_SCOPE, QUEUE_SCOPE) = (f'\x00{n}\x00' for n in (
+        'pid', 'params', 'defaults', 'opener', 'batch_var', 'batch_base', 'import_var',
+        'card_scope', 'progress_scope', 'queue_scope'))
+
+    def _scoped(text, dom=None):
+        """Le texte d'UN domaine — ou, sans domaine, celui de la page à une file."""
+        pid = app if dom is None else f'{app}_{dom}'
+        # Le premier domaine garde la barre de lot et l'instance d'import par défaut ; les suivants
+        # ont les leurs (règle des pages réelles : deux cards d'entrée = deux jeux d'ids).
+        own = dom is not None and dom != doms[0]['id']
+        table = {
+            PID: pid,
+            V_PARAMS: 'params_json' if dom is None else f'domain_pages.{dom}.params_json',
+            V_DEFAULTS: 'panel_defaults' if dom is None else f'domain_pages.{dom}.panel_defaults',
+            OPENER: '' if dom is None else f", {{ domain: '{dom}' }}",
+            BATCH_VAR: f'window._batchImport_{dom}' if own else 'window._batchImport',
+            BATCH_BASE: f"\n        idBase:          '{pid}Batch'," if own else '',
+            IMPORT_VAR: f'window._import_{dom}' if own else 'window._import',
+            CARD_SCOPE: ('' if dom is None else f" card_domain='{dom}' card_id='{pid}NewItem'"
+                         + (f" batch_bid='{pid}Batch'" if own else '')),
+            PROGRESS_SCOPE: '' if dom is None else f" domain='{dom}' queue_id='{pid}Queue'",
+            QUEUE_SCOPE: (f" queue_id='{pid}Queue' batches=batches_list" if dom is None else
+                          f" domain='{dom}' queue_id='{pid}Queue' batches=domain_batches.{dom}"
+                          f" collapse_prefix='{pid}BatchItems'"),
+        }
+        for token, value in table.items():
+            text = text.replace(token, value)
+        return text
     # FORME D'ENTRÉE — la MÊME lecture que la vue d'ajout (`views_gen.card_entry`, obligation des
     # ports). La card la rend elle-même (`input_slots`) : le gabarit n'émet que les ids et le câblage.
     from wama.common.manifests.codegen.views_gen import card_entry
@@ -137,7 +175,7 @@ def render_index(manifest: dict) -> tuple:
     // câble le clic, `autoSync` suit `data-status`). La brique est complète depuis le
     // 2026-08-13 et n'est pas en cause : elle DÉLÈGUE l'appel HTTP à l'app, par construction
     // (chaque app a ses routes). Ce qui manquait était ici, du côté appelant, et deux fois.
-    var q = document.getElementById('{app}Queue');
+    var q = document.getElementById('{PID}Queue');
     if (q && window.WamaCycleButton) {{
         WamaCycleButton.wire(q, {{
             start: function (id) {{ return post(urlFor(U.start, id)); }},{stop_js}
@@ -149,10 +187,10 @@ def render_index(manifest: dict) -> tuple:
     // 'panel' — seuls les params déclarant ce contexte y figurent), montré à la SÉLECTION.
     // Sans ce rendu, l'apply d'initFromSchema n'a AUCUN champ à remplir : c'était la section
     // PARAMÈTRES vide du volet (constat Fabien 31/08, hôte jamais rendu).
-    var ph = document.getElementById('{app}PanelParams');
-    var PANEL_DEFAULTS = {{{{ panel_defaults|default:'{{}}'|script_json }}}};
+    var ph = document.getElementById('{PID}PanelParams');
+    var PANEL_DEFAULTS = {{{{ {V_DEFAULTS}|default:'{{}}'|script_json }}}};
     if (ph && window.WamaParams) {{
-        WamaParams.render(ph, {{{{ params_json|script_json }}}}, {{ context: 'panel', values: PANEL_DEFAULTS }});
+        WamaParams.render(ph, {{{{ {V_PARAMS}|script_json }}}}, {{ context: 'panel', values: PANEL_DEFAULTS }});
     }}
     // Hors sélection : l'hôte montre les DÉFAUTS des prochains dépôts (mêmes valeurs que la
     // cascade serveur du dépôt) ; la sélection y applique la card, la désélection ré-applique
@@ -165,10 +203,10 @@ def render_index(manifest: dict) -> tuple:
     // ci-dessus au volet, et les seuls ports qu'il JUGE. Une entrée fournie grise les modèles qui
     // ne la prennent pas ; la ligne d'état de la card dit pourquoi. Rien à apparier : rien n'est câblé.
     var MATCH = {{{{ input_match|default:'{{}}'|script_json }}}};
-    var matchCard = document.getElementById('{app}DropZone');
+    var matchCard = document.getElementById('{PID}DropZone');
     matchCard = matchCard && matchCard.closest('.wama-new-item-card');
     if (window.WamaInputMatch && WamaInputMatch.fromCardMatch) {{
-        WamaInputMatch.fromCardMatch(matchCard, ph, MATCH, {{ statusId: '{app}MatchStatus' }});
+        WamaInputMatch.fromCardMatch(matchCard, ph, MATCH, {{ statusId: '{PID}MatchStatus' }});
     }}
 
     // Inspecteur contextuel — DÉRIVÉ de la facette `inspector` du manifeste.
@@ -177,9 +215,9 @@ def render_index(manifest: dict) -> tuple:
             queueContainer: q,
             cardSelector:  '.wama-card[data-id]',
             batchSelector: '.batch-group',
-            schema: {{{{ params_json|script_json }}}},
+            schema: {{{{ {V_PARAMS}|script_json }}}},
             panelContainer: ph,
-            hideOnInspect: ['{app}PanelDefaults'],
+            hideOnInspect: ['{PID}PanelDefaults'],
             itemLabel:  function (id) {{ return "l'élément #" + id; }},
             renderItemActions: function (host, card) {{
                 showPanelParams(true);
@@ -247,13 +285,13 @@ def render_index(manifest: dict) -> tuple:
             // porte les data-* de la brique `card_gear`) — la lecture des dix apps (2026-10-31).
             // Les NOMS sont ceux du schéma SERVI par la page, jamais une liste figée à la génération.
             var v = (card && window.WamaInspector && WamaInspector.gearValues)
-                ? WamaInspector.gearValues(card, ({{{{ params_json|script_json }}}}).map(function (p) {{ return p.name; }}))
+                ? WamaInspector.gearValues(card, ({{{{ {V_PARAMS}|script_json }}}}).map(function (p) {{ return p.name; }}))
                 : {{}};
             WamaParams.settingsModal({{
                 id: id,
                 title: 'Paramètres — élément #' + id,
                 titleIcon: 'fa-gear',
-                schema: {{{{ params_json|script_json }}}},
+                schema: {{{{ {V_PARAMS}|script_json }}}},
                 values: v,
                 saveUrl: urlFor(U.update, id),
                 csrf: CSRF,
@@ -263,7 +301,7 @@ def render_index(manifest: dict) -> tuple:
                     if (restart && U.start) {{ post(urlFor(U.start, id)); }} else {{ location.reload(); }}
                 }},
             }});
-        }});
+        }}{OPENER});
     }}
 '''
 
@@ -291,16 +329,16 @@ def render_index(manifest: dict) -> tuple:
         WamaQueueActions.onBatchSettings(function (bid) {{
             var groupe = document.querySelector('.batch-group[data-batch-id="' + bid + '"]');
             var partagees = (groupe && window.WamaInspector && WamaInspector.sharedGearValues)
-                ? WamaInspector.sharedGearValues(groupe, ({{{{ params_json|script_json }}}}).map(function (p) {{ return p.name; }}))
+                ? WamaInspector.sharedGearValues(groupe, ({{{{ {V_PARAMS}|script_json }}}}).map(function (p) {{ return p.name; }}))
                 : {{}};
             WamaParams.settingsModal({{
                 id: 'Batch' + bid,
                 title: 'Paramètres du lot #' + bid,
                 titleIcon: 'fa-layer-group',
-                schema: {{{{ params_json|script_json }}}},
+                schema: {{{{ {V_PARAMS}|script_json }}}},
                 context: 'batch',
                 values: partagees,
-                decorate: function (host) {{ WamaParams.fillFromBatch(host, groupe, {{{{ params_json|script_json }}}}); }},
+                decorate: function (host) {{ WamaParams.fillFromBatch(host, groupe, {{{{ {V_PARAMS}|script_json }}}}); }},
                 saveUrl: urlFor(U.batch_update, bid),
                 csrf: CSRF,
                 footerTplId: '{app}BatchSettingsFooterTpl',
@@ -308,7 +346,7 @@ def render_index(manifest: dict) -> tuple:
                     if (restart && U.batch_start) {{ post(urlFor(U.batch_start, bid)); }} else {{ location.reload(); }}
                 }},
             }});
-        }});
+        }}{OPENER});
     }}
 '''
 
@@ -324,7 +362,7 @@ def render_index(manifest: dict) -> tuple:
     poll_js = ''
     if route_progress and route_card_html:
         poll_js = f'''
-    var qp = document.getElementById('{app}Queue');
+    var qp = document.getElementById('{PID}Queue');
     if (qp && window.WamaApp && WamaApp.Poller) {{
         var _cardUrl = "{{% url '{app}:{route_card_html}' 0 %}}";
         var _poller = new WamaApp.Poller({{
@@ -410,7 +448,7 @@ def render_index(manifest: dict) -> tuple:
     caps = body.get('capabilities') or {}
     url_bits = url_js = ''
     if caps.get('accepts_url') or caps.get('has_url_import'):
-        url_bits = (f" show_url=True url_input_id='{app}Url' url_submit_id='{app}UrlSubmit'"
+        url_bits = (f" show_url=True url_input_id='{PID}Url' url_submit_id='{PID}UrlSubmit'"
                     " url_placeholder='https://… (page web, média distant)'")
         # L'URL est routée vers le MÊME formalisme de lot (une URL = un lot d'une ligne) :
         # c'est le choix déjà fait par l'app en place, et il évite une seconde route serveur.
@@ -418,9 +456,9 @@ def render_index(manifest: dict) -> tuple:
     // URL : même chemin que le fichier de lot (WamaApp.initUrlImport, brique commune).
     if (window.WamaApp && WamaApp.initUrlImport) {{
         WamaApp.initUrlImport({{
-            inputId:  '{app}Url',
-            buttonId: '{app}UrlSubmit',
-            onSubmit: function (u) {{ return window._import.ingestText(u + '\\n', 'url.txt'); }},
+            inputId:  '{PID}Url',
+            buttonId: '{PID}UrlSubmit',
+            onSubmit: function (u) {{ return {IMPORT_VAR}.ingestText(u + '\\n', 'url.txt'); }},
         }});
     }}
 '''
@@ -442,8 +480,8 @@ def render_index(manifest: dict) -> tuple:
         # Même brique que le port travail : un port de référence `document` n'est plus perdu.
         from wama.common.app_registry import accept_for_types
         ref_accept = accept_for_types(ident.get('input_extensions'), ref.get('types'))
-        ref_bits = (f" show_reference=True reference_zone_id='{app}RefSlot'"
-                    f" reference_input_id='{app}RefInput' reference_chip_id='{app}RefChip'"
+        ref_bits = (f" show_reference=True reference_zone_id='{PID}RefSlot'"
+                    f" reference_input_id='{PID}RefInput' reference_chip_id='{PID}RefChip'"
                     f" reference_accept='{ref_accept}'"
                     f" reference_label='{ref.get('label') or 'Référence'}'")
         # Avec le bouton « Ajouter » (formes attache et mixte), les références secondaires sont
@@ -472,11 +510,11 @@ def render_index(manifest: dict) -> tuple:
         placeholder = (p_param.get('help') or 'Décrivez ce que vous voulez obtenir…').replace("'", '’')
         # Le résultat INSTANTANÉ de la saisie poste les réglages du volet (`data-instant-params`,
         # `wama-instant.js`) : sans l'hôte nommé, la frappe ne voyait que les réglages enregistrés.
-        instant_bits = (f" instant_params_id='{app}PanelParams'"
+        instant_bits = (f" instant_params_id='{PID}PanelParams'"
                         if (body.get('capabilities') or {}).get('instant_preview') else '')
-        attach_bits = (f" prompt_input_id='{app}Prompt'"
+        attach_bits = (f" prompt_input_id='{PID}Prompt'"
                        f" prompt_placeholder='{placeholder}' prompt_rows=3{instant_bits}"
-                       f" primary_btn_id='{app}AddBtn' primary_btn_label='Ajouter à la file d’attente'"
+                       f" primary_btn_id='{PID}AddBtn' primary_btn_label='Ajouter à la file d’attente'"
                        " primary_btn_icon='fa-plus'")
         # L'URL d'un port n'est postée que si l'élément a de quoi la garder (`source_url`,
         # téléchargée au lancement) ; sinon la brique REFUSE une URL remplie, motif à l'appui.
@@ -484,7 +522,7 @@ def render_index(manifest: dict) -> tuple:
         # onglet par port de la card v4, références secondaires comprises (ids dérivés de leur
         # port), chacun posté sous le nom de son PORT — `views_gen` les reçoit sous ce nom. Le
         # relevé vivait ici ET dans le composer ; il est dans la brique.
-        url_field = (f",\n        portOptions:  {{ '{app}RefInput': {{ urlField: 'source_url' }} }}"
+        url_field = (f",\n        portOptions:  {{ '{PID}RefInput': {{ urlField: 'source_url' }} }}"
                      if refs and 'source_url' in (_cols or ()) else '')
         ports_js = "'card'" + url_field
         # ⚠ Jamais de balise de gabarit CITÉE dans un commentaire JS ci-dessous : Django la lit
@@ -496,9 +534,9 @@ def render_index(manifest: dict) -> tuple:
     WamaApp.addToQueue({{
         url:          "{{% url '{app}:{route_upload}' %}}",
         csrfToken:    CSRF,
-        button:       '{app}AddBtn',
-        prompt:       {{ inputId: '{app}Prompt', field: '{prompt_field or 'prompt'}' }},
-        paramsHostId: '{app}PanelParams',
+        button:       '{PID}AddBtn',
+        prompt:       {{ inputId: '{PID}Prompt', field: '{prompt_field or 'prompt'}' }},
+        paramsHostId: '{PID}PanelParams',
         ports:        {ports_js},
         // Plusieurs fichiers = un lot. Forme `as` : une app sans cette route reste rendue, ses cards
         // restent unitaires (une balise url sans `as` lèverait NoReverseMatch et l'index tomberait).
@@ -516,19 +554,19 @@ def render_index(manifest: dict) -> tuple:
     #     bouton « Ajouter » de la même card.
     if entry['drop_creates']:
         import_js = f'''    // Fichier ORDINAIRE (dépôt, clic, médiathèque) : le maillon qu'aucune brique ne portait.
-    window._import = WamaImport({{
+    {IMPORT_VAR} = WamaImport({{
         uploadUrl:      "{{% url '{app}:{route_upload}' %}}",
         consolidateUrl: "{{% url '{app}:{route_consolidate}' %}}",
         csrfToken:      CSRF,
-        dropZoneId:     '{app}DropZone',
-        fileInputId:    '{app}FileInput',
-        folderInputId:  '{app}FolderInput',   // dossier = le même geste (brique, 05/09)
-        batch:          window._batchImport,
+        dropZoneId:     '{PID}DropZone',
+        fileInputId:    '{PID}FileInput',
+        folderInputId:  '{PID}FolderInput',   // dossier = le même geste (brique, 05/09)
+        batch:          {BATCH_VAR},
         // Défauts de FILE postés avec chaque dépôt (hook extraFields de la brique — il
         // existait, personne ne le passait) : la cascade serveur fait alors POST > défauts,
         // exactement le geste de l'app réelle (readMainPanelOptions posté par converter.js).
         extraFields:    function (fd) {{
-            var host = document.getElementById('{app}PanelParams');
+            var host = document.getElementById('{PID}PanelParams');
             if (!host || !window.WamaParams) return;
             var v = WamaParams.read(host);
             Object.keys(v).forEach(function (k) {{
@@ -539,18 +577,80 @@ def render_index(manifest: dict) -> tuple:
 
     // Import de DOSSIER : porté par la brique (`folderInputId` + traversée du drop) depuis le
     // 05/09 — le câblage qui vivait ICI n'existait pour aucune app hors générateur.'''
-        folder_bit = f" folder_input_id='{app}FolderInput'"
+        folder_bit = f" folder_input_id='{PID}FolderInput'"
     else:
         import_js = f'''    // Fichier déposé, choisi ou désigné : JOINT au port de la card qui l'accepte (`attach:
     // 'card'`) — « Ajouter à la file » crée l'élément. Un fichier de lot va à la brique de lot.
-    window._import = WamaImport({{
+    {IMPORT_VAR} = WamaImport({{
         csrfToken:      CSRF,
-        dropZoneId:     '{app}DropZone',
-        fileInputId:    '{app}FileInput',
-        batch:          window._batchImport,
+        dropZoneId:     '{PID}DropZone',
+        fileInputId:    '{PID}FileInput',
+        batch:          {BATCH_VAR},
         attach:         'card',
     }});'''
         folder_bit = ''
+
+    piece_panel = f'''<div id="{PID}PanelDefaults" class="small text-muted mb-1">
+  <i class="fas fa-sliders"></i> Défauts des prochains dépôts</div>
+<div class="wama-params" id="{PID}PanelParams"></div>'''
+    piece_content = f'''    {{% comment %}}La barre de file porte son adresse, lue de la déclaration (`queue_context`), et
+    démarre seule (2026-11-01) : le gabarit n'écrit plus `WAMA_GLOBAL_PROGRESS_URL`.{{% endcomment %}}
+    {{% include 'common/_global_progress.html' with app='{app}'{PROGRESS_SCOPE} %}}
+
+    {{% url '{app}:{route_batch_template}' as batch_tpl_url %}}
+    {{% comment %}}Card d'entrée v4 (CARD_DESIGN §11.11 B) — DÉRIVÉE de la v3, mêmes ids, mêmes
+    contrats : onglets = PORTS déclarés (tag `input_slots`), modalités du port actif toutes
+    visibles dans la preview, bascule sur les fichiers attachés à hauteur constante. Le
+    générateur en est le SEUL consommateur : les 10 apps en place gardent l'inclusion
+    littérale de la v3 — le bac à sable sert à ça (route §10.3 marche S). ⚠ Une 1ʳᵉ v4
+    (modèle du 04/09) avait fait tomber 3 gestes nocturnes et a été débranchée le 05/09 ;
+    celle-ci ne se rebranche qu'en passant les 8 gestes de `converter_01`. `app_id` remplace
+    les littéraux de modalité ; `file_accept`/`show_media_library`/`reference_*` restent
+    émis parce que la v3 les lit (les 10 apps) et que la v4 honore les ids `reference_*`.{{% endcomment %}}
+    {{% include 'common/_new_item_card_v4.html' with app_id='{app}'{CARD_SCOPE} drop_zone_id='{PID}DropZone' file_input_id='{PID}FileInput'{folder_bit} file_accept='{accept}' formats_label='{label}' show_batch_bar=True show_media_library=True batch_template_url=batch_tpl_url collapsible=True match_status_id='{PID}MatchStatus'{url_bits}{ref_bits}{attach_bits} %}}
+    <hr class="border-secondary">
+
+    {{% comment %}}LA FILE — pièce COMMUNE (barre, conteneur, entrées, état vide), la même ligne que
+    les dix apps (2026-10-20). Le générateur en écrivait la composition — 11ᵉ copie, et la seule
+    qui se réplique : le 09/09 déjà, un correctif y avait recopié l'enrobage d'entrée que la
+    brique posait. `{PID}Queue` reste l'id du conteneur : le JS ci-dessous le lit. La card
+    générée lit `elem` (`_decorer` pose `item.elem = item`, FK directe).{{% endcomment %}}
+    {{% include 'common/_queue.html' with app='{app}'{QUEUE_SCOPE} card_template='{app}/_generic_card.html' card_class='job-card' meta_template='common/_batch_meta_chips.html' empty_text='Aucun élément dans la file.' %}}'''
+    piece_js = f'''    // Fichier de LOT : détection structurelle + aperçu AVANT création (brique commune).
+    {BATCH_VAR} = WamaBatchImport({{{BATCH_BASE}
+        batchPreviewUrl: "{{% url '{app}:{route_batch_preview}' %}}",
+        batchCreateUrl:  "{{% url '{app}:{route_batch_create}' %}}",
+        csrfToken:       CSRF,
+        afterCreate:     function () {{ location.reload(); }},
+    }});
+
+{import_js}
+{url_js}{ref_js}{attach_js}{insp_js}{params_js}{batch_js}{poll_js}'''
+    if not doms:
+        panel_html, content_html, wiring_js = (_scoped(p) for p in (piece_panel, piece_content, piece_js))
+        modes_bit = ''
+    else:
+        # Un hôte de réglages par domaine au volet, un volet de page par domaine (le premier
+        # montré avant que la pièce commune ne restaure le domaine retenu), et le câblage de
+        # chacun dans SA portée : les mêmes noms (`q`, `ph`, le poller) y vivent une fois par domaine.
+        panel_html = '\n'.join(
+            f'''<div data-domain-settings="{d['id']}">\n{_scoped(piece_panel, d['id'])}\n</div>'''
+            for d in doms)
+        panes = '\n'.join(
+            f'''<div class="tab-pane fade{' show active' if i == 0 else ''}" role="tabpanel" data-domain="{d['id']}">
+{_scoped(piece_content, d['id'])}
+</div>''' for i, d in enumerate(doms))
+        content_html = f'''    {{% comment %}}Le domaine de la page : pièce commune (`_domain_tabs.html`) — chaque domaine a
+    sa card d'entrée, sa barre et sa file, comme dans les apps réelles.{{% endcomment %}}
+    {{% include 'common/_domain_tabs.html' with app='{app}' %}}
+<div class="tab-content">
+{panes}
+</div>'''
+        wiring_js = '\n'.join(
+            f'''    // ── Domaine `{d['id']}` ──
+    (function () {{
+{_scoped(piece_js, d['id'])}    }})();''' for d in doms)
+        modes_bit = ' with_modes=True'
 
     src = f'''{{% extends '{app}/base.html' %}}
 {{% load static %}}
@@ -578,9 +678,7 @@ s'affichent pas », volet générique hors sélection) : l'hôte unique joue DEU
 sélection il montre les DÉFAUTS des prochains dépôts (mêmes valeurs que la cascade serveur,
 et `WamaImport.extraFields` les POSTE avec chaque dépôt) ; à la sélection, les valeurs de la
 card ; à la désélection, les défauts reviennent. Le libellé sert d'ancre `hideOnInspect`.{{% endcomment %}}
-<div id="{app}PanelDefaults" class="small text-muted mb-1">
-  <i class="fas fa-sliders"></i> Défauts des prochains dépôts</div>
-<div class="wama-params" id="{app}PanelParams"></div>
+{panel_html}
 {{% endblock %}}
 
 {{% block app_right_panel_actions %}}
@@ -593,29 +691,7 @@ alors que la copie-témoin l'avait : skip `converter_01.inspector_actions` mesur
 {{% block {app}_content %}}
 <div style="overflow-x:clip;">
 
-    {{% comment %}}La barre de file porte son adresse, lue de la déclaration (`queue_context`), et
-    démarre seule (2026-11-01) : le gabarit n'écrit plus `WAMA_GLOBAL_PROGRESS_URL`.{{% endcomment %}}
-    {{% include 'common/_global_progress.html' with app='{app}' %}}
-
-    {{% url '{app}:{route_batch_template}' as batch_tpl_url %}}
-    {{% comment %}}Card d'entrée v4 (CARD_DESIGN §11.11 B) — DÉRIVÉE de la v3, mêmes ids, mêmes
-    contrats : onglets = PORTS déclarés (tag `input_slots`), modalités du port actif toutes
-    visibles dans la preview, bascule sur les fichiers attachés à hauteur constante. Le
-    générateur en est le SEUL consommateur : les 10 apps en place gardent l'inclusion
-    littérale de la v3 — le bac à sable sert à ça (route §10.3 marche S). ⚠ Une 1ʳᵉ v4
-    (modèle du 04/09) avait fait tomber 3 gestes nocturnes et a été débranchée le 05/09 ;
-    celle-ci ne se rebranche qu'en passant les 8 gestes de `converter_01`. `app_id` remplace
-    les littéraux de modalité ; `file_accept`/`show_media_library`/`reference_*` restent
-    émis parce que la v3 les lit (les 10 apps) et que la v4 honore les ids `reference_*`.{{% endcomment %}}
-    {{% include 'common/_new_item_card_v4.html' with app_id='{app}' drop_zone_id='{app}DropZone' file_input_id='{app}FileInput'{folder_bit} file_accept='{accept}' formats_label='{label}' show_batch_bar=True show_media_library=True batch_template_url=batch_tpl_url collapsible=True match_status_id='{app}MatchStatus'{url_bits}{ref_bits}{attach_bits} %}}
-    <hr class="border-secondary">
-
-    {{% comment %}}LA FILE — pièce COMMUNE (barre, conteneur, entrées, état vide), la même ligne que
-    les dix apps (2026-10-20). Le générateur en écrivait la composition — 11ᵉ copie, et la seule
-    qui se réplique : le 09/09 déjà, un correctif y avait recopié l'enrobage d'entrée que la
-    brique posait. `{app}Queue` reste l'id du conteneur : le JS ci-dessous le lit. La card
-    générée lit `elem` (`_decorer` pose `item.elem = item`, FK directe).{{% endcomment %}}
-    {{% include 'common/_queue.html' with app='{app}' queue_id='{app}Queue' batches=batches_list card_template='{app}/_generic_card.html' card_class='job-card' meta_template='common/_batch_meta_chips.html' empty_text='Aucun élément dans la file.' %}}
+{content_html}
 
 </div>
 {{% endblock %}}
@@ -629,7 +705,7 @@ n'est chargé. Mesuré sur converter_01 le 2026-08-22 : 0 card créable par 5 vo
 Une app générée n'a PAS besoin d'un JS sur mesure pour importer : les cinq modalités sont
 des briques communes. On ne déclare donc ici que ce qui est propre à l'app — ses URL.{{% endcomment %}}
 {{% block app_scripts %}}
-{{% include 'common/_app_scripts.html' with with_input_match=True %}}
+{{% include 'common/_app_scripts.html' with with_input_match=True{modes_bit} %}}
 {{% comment %}}Pieds COMMUNS des modales ⚙ (élément, lot), greffés par `WamaParams.settingsModal`
 (`footerTplId`) — comme dans les dix apps (critère `settings_modal_footer`, 2026-10-30).{{% endcomment %}}
 <template id="{app}SettingsFooterTpl">{{% include 'common/_settings_modal_footer.html' with save_class='save-settings-btn' save_start_class='save-and-restart-btn' %}}</template>
@@ -638,16 +714,7 @@ des briques communes. On ne déclare donc ici que ce qui est propre à l'app —
 document.addEventListener('DOMContentLoaded', function () {{
     var CSRF = '{{{{ csrf_token }}}}';
 {routes_js}
-    // Fichier de LOT : détection structurelle + aperçu AVANT création (brique commune).
-    window._batchImport = WamaBatchImport({{
-        batchPreviewUrl: "{{% url '{app}:{route_batch_preview}' %}}",
-        batchCreateUrl:  "{{% url '{app}:{route_batch_create}' %}}",
-        csrfToken:       CSRF,
-        afterCreate:     function () {{ location.reload(); }},
-    }});
-
-{import_js}
-{url_js}{ref_js}{attach_js}{insp_js}{params_js}{batch_js}{poll_js}}});
+{wiring_js}}});
 </script>
 {{% endblock %}}
 '''

@@ -77,6 +77,25 @@ def card_entry(body: dict, fields=None) -> dict:
             'work_port': form['work'] or ''}
 
 
+def page_domains(body: dict) -> list:
+    """`[{'id', 'label', 'schema'}]` — les domaines qui PARTAGENT la page générée : plusieurs
+    domaines sans préfixe de routes (un modèle d'élément pour tous), que la spec de détail
+    désigne PAR ÉLÉMENT (`params_schema` — ce que lit `app_modes.element_domain`). `[]` : la page
+    a UNE file — un seul domaine, ou des éléments que rien ne distingue (`app_modes.domain_filters`
+    rend `{}` dans ce cas). Un domaine à préfixe a son modèle d'élément à lui : le générateur n'en
+    émet qu'un (`model_spec.item`), ce domaine reste hors de la page générée.
+
+    La vue et le gabarit lisent la MÊME réponse (`ROUTE §11 #42` ⑦ b, 2026-11-15)."""
+    shared = [d for d in ((body.get('modes') or {}).get('domains') or [])
+              if isinstance(d, dict) and d.get('id') and not d.get('route_prefix')]
+    spec = (body.get('inspector') or {}).get('detail_spec') or {}
+    if len(shared) < 2 or not spec.get('params_schema'):
+        return []
+    primary = (body.get('params') or {}).get('primary') or ''
+    return [{'id': str(d['id']), 'label': str(d.get('label') or d['id']),
+             'schema': str(d.get('params_schema') or primary)} for d in shared]
+
+
 def prompt_port_field(body: dict, fields=None) -> str:
     """Le champ où la SAISIE de la card se pose : sa cible de prompt, sinon le PORT de consigne
     lui-même, sinon `prompt` — '' si aucune n'est une colonne (`fields`, None = ne pas vérifier).
@@ -480,13 +499,41 @@ def _deposit_settings(user, nature, post, inputs=None):
     # Dérivation SCHÉMA-driven ici : mêmes chips que les filles (brique card_chips), retenus
     # quand TOUTES les filles s'accordent — la jumelle ne passait pas le slot, mère sans
     # réglages (constat Fabien 31/08 : « c'est déjà acté et en place, juste à câbler »).
-    ligne_commun = '' if not _noms_schema else f'''
+    # Une page à plusieurs domaines (`page_domains`) : chaque card lit le schéma de SON domaine
+    # (`app_modes.element_schema`, la lecture des apps réelles) — un lot ne mêle pas les natures,
+    # son premier élément dit le schéma de ses réglages communs.
+    multi = bool(page_domains(body))
+    import_schema = ('from wama.common.utils.app_modes import element_schema' if multi
+                     else f'from .params import {schema_symbole}')
+    schema_of_item = 'element_schema(item)' if multi else schema_symbole
+    ligne_commun = '' if not _noms_schema else (f'''
+            try:
+                from wama.common.utils.card_chips import common_chips_for_items as _ccfi
+                from wama.common.utils.app_modes import element_schema as _es
+                _cc = _ccfi(items, _es(items[0]) if items else [])
+            except Exception:
+                _cc = {{}}''' if multi else f'''
             try:
                 from wama.common.utils.card_chips import common_chips_for_items as _ccfi
                 from .params import {schema_symbole} as _sch_m
                 _cc = _ccfi(items, _sch_m)   # items déjà _decorer-és : valeurs aplaties
             except Exception:
-                _cc = {{}}'''
+                _cc = {{}}''')
+    # Le contexte PAR DOMAINE de la page : ses lots (`batch_common.batches_by_domain`), son schéma
+    # et les réglages retenus de son volet — lus de la déclaration à l'exécution, aucun domaine
+    # n'est écrit ici.
+    domain_context = '' if not multi else f'''
+        from wama.common.utils.app_modes import domain_schema
+        from wama.common.utils.batch_common import batches_by_domain
+        from wama.common.utils.user_settings import read_panel_settings as _rps
+        domain_batches = batches_by_domain('{app}', batches_list)
+        domain_pages = {{
+            dom: {{'params_json': json.dumps(domain_schema('{app}', dom)),
+                  'panel_defaults': json.dumps(_rps(user, '{app}', domain_schema('{app}', dom),
+                                                    domain=dom))}}
+            for dom in domain_batches}}'''
+    domain_keys = ('' if not multi else
+                     "\n            'domain_batches': domain_batches, 'domain_pages': domain_pages,")
     cle_commun = ("'common_chips': _cc," if _noms_schema else "'common_chips': {},")
     # Défauts de FILE pour le volet (index) : les réglages du volet de l'auteur, par NOM de
     # param — la brique commune `read_panel_settings`, celle des routes JSON du volet.
@@ -558,13 +605,13 @@ def _deposit_settings(user, nature, post, inputs=None):
             input_match = json.dumps(card_match(
                 '{app}', (studio_node_ports('{app}') or {{}}).get('inputs') or []))
         except Exception:
-            input_match = '{{}}'
+            input_match = '{{}}'{domain_context}
         # TROU DE GLU {mark} — contexte SPÉCIFIQUE d'app (profils, formats…) non généré :
         # le gabarit ne fournit que le contexte CONVENTIONNEL de file.
         return render(request, '{app}/index.html', {{
             'batches_list': batches_list, 'queue_count': queue_count,
             'q_sort': q_sort, 'q_filter': q_filter, 'params_json': params_json,
-            'panel_defaults': panel_defaults, 'input_match': input_match,
+            'panel_defaults': panel_defaults, 'input_match': input_match,{domain_keys}
         }})
 
 
@@ -947,8 +994,8 @@ def _decorer(item):
     # 31/08 : les chips vivaient au volet mais pas sur la card).
     try:
         from wama.common.utils.card_chips import chips_by_section
-        from .params import {schema_symbole}
-        _set_unless_property(item, 'chips', chips_by_section(item, {schema_symbole}))
+        {import_schema}
+        _set_unless_property(item, 'chips', chips_by_section(item, {schema_of_item}))
     except Exception:
         _set_unless_property(item, 'chips', {{}})
     # `gear_data` : le VOLET lit les data-* du bouton ⚙ (pas les data-param-* de la card —
@@ -957,8 +1004,8 @@ def _decorer(item):
     # valeurs de l'instance (aplaties ci-dessus) — volet PARAMÈTRES vide sinon (Fabien 31/08).
     try:
         from wama.common.utils.card_gear import gear_data
-        from .params import {schema_symbole} as _sch
-        _set_unless_property(item, 'gear_data', gear_data(item, _sch))
+        {import_schema}{'' if multi else ' as _sch'}
+        _set_unless_property(item, 'gear_data', gear_data(item, {schema_of_item if multi else '_sch'}))
     except Exception:
         _set_unless_property(item, 'gear_data', {{}})
     # Propriétés RÉELLES du fichier d'entrée (extension, poids) — sous-ligne de la section

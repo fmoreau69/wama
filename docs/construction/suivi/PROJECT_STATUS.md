@@ -31507,3 +31507,22 @@ FK directe non lue ; domaines sans lot non rendus.
 
 **Non fait, nommé** : la marche 3 (gabarit) ; les jumelles à plusieurs domaines gardent une file
 unique jusque-là ; suite complète non rejouée.
+
+## §PALIER 2026-11-15 (suite), « DOMAINES ⑦ (b), marche 3 côté LECTURE : la page GÉNÉRÉE par domaine » — commit local, non poussé — rien à relancer (le générateur seul ; aucune jumelle régénérée) — 🔚 le côté ÉCRITURE (dépôt, ⚙ d'élément et de lot par le schéma du domaine), puis recréation des jumelles et vérification à l'écran
+
+**Livré** : `views_gen.page_domains` (les domaines qui partagent la page, lu par la vue et le
+gabarit) ; la vue générée passe `domain_batches` (`batches_by_domain`) et `domain_pages`, et décore
+chaque card du schéma de son domaine (`element_schema`) ; le gabarit rend un volet `data-domain`,
+un hôte `data-domain-settings`, une card d'entrée, une barre, une file et une barre de lot par
+domaine, câblés chacun dans sa portée, ouvreurs de ⚙ déclarés pour le domaine.
+
+**Mesuré avant / après**, douze manifestes d'app : dix pages à une file inchangées à l'octet ;
+anonymizer et imager changent ; les deux gabarits se compilent, leurs scripts s'analysent (V8).
+
+**Garde** : `tests_codegen_templates.GeneratedPageByDomainTest`, sur le parc dérivé. Cinq
+mutations, cinq rouges — la première (domaines câblés dans une seule portée) est d'abord restée
+VERTE : l'analyse V8 ne la voit pas, une assertion directe a été ajoutée.
+
+**Non fait, nommé** (`ROUTE §11 #42`) : le côté écriture reste au schéma principal ; un domaine à
+préfixe de routes reste hors page ; appariement entrée ↔ modèle lu pour l'app ; aucune jumelle
+régénérée, donc rien de vu à l'écran ; suite complète non rejouée.

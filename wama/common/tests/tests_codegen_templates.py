@@ -986,3 +986,112 @@ class GeneratedInputMatchTest(SimpleTestCase):
         status = re.search(r"match_status_id='(\w+)'", index)
         self.assertIsNotNone(status, "la card ne rend pas de ligne d'état d'appariement")
         self.assertIn(f"statusId: '{status.group(1)}'", index)
+
+
+def _park_manifests():
+    """The park the generator serves: the catalogue's sources and the apps born from a manifest."""
+    import json
+    from pathlib import Path
+
+    from django.conf import settings
+
+    from wama.common import app_registry
+    manifests = {a: _manifeste(a) for a, s in sorted(app_registry.APP_CATALOG.items())
+                 if not s.get('sandbox')}
+    for draft in sorted((Path(settings.BASE_DIR) / 'manifests' / 'app_drafts').glob('*.json')):
+        manifests[f'draft:{draft.stem}'] = json.loads(draft.read_text(encoding='utf-8'))
+    return {a: m for a, m in manifests.items() if m}
+
+
+class GeneratedPageByDomainTest(SimpleTestCase):
+    """`ROUTE §11 #42` ⑦ b (2026-11-15): a generated page has ONE queue, or one PER DOMAIN when
+    several domains share its element model (`views_gen.page_domains`, read by the view and by the
+    template). The shape is the one of the real pages — a pane `data-domain`, a settings host
+    `data-domain-settings`, an entry card, a bar and a queue of its own, its ⚙ openers declared for
+    it. The park is derived, no app is named."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        from wama.common.manifests.codegen.views_gen import page_domains, render_views
+        cls.pages = []
+        for app, manifest in _park_manifests().items():
+            files, _ = render_index(manifest)
+            index = (files or {}).get('index.html')
+            if index:
+                cls.pages.append((manifest.get('key'), page_domains(manifest.get('body') or {}),
+                                  index, render_views(manifest)[0] or ''))
+
+    def test_the_park_holds_both_kinds_of_pages(self):
+        self.assertTrue([p for p in self.pages if p[1]], 'no page with several domains')
+        self.assertTrue([p for p in self.pages if not p[1]], 'no page with one queue')
+
+    def test_no_placeholder_of_the_generator_reaches_a_page(self):
+        for app, _doms, index, _views in self.pages:
+            with self.subTest(app=app):
+                self.assertNotIn('\x00', index)
+
+    def test_a_page_with_one_queue_keeps_its_ids_and_names_no_domain(self):
+        for app, doms, index, views in self.pages:
+            if doms:
+                continue
+            with self.subTest(app=app):
+                self.assertIn(f"queue_id='{app}Queue' batches=batches_list", index)
+                self.assertNotIn('data-domain', index)
+                self.assertNotIn('batches_by_domain', views)
+
+    def test_every_shared_domain_has_its_pane_its_host_its_queue_and_its_wiring(self):
+        for app, doms, index, views in self.pages:
+            markup, _, script = index.partition('{% block app_scripts %}')
+            for dom in [d['id'] for d in doms]:
+                pid = f'{app}_{dom}'
+                with self.subTest(app=app, domain=dom):
+                    self.assertEqual(1, markup.count(f'data-domain="{dom}"'))
+                    self.assertEqual(1, markup.count(f'data-domain-settings="{dom}"'))
+                    self.assertIn(f"card_domain='{dom}' card_id='{pid}NewItem'", markup)
+                    self.assertIn(f"domain='{dom}' queue_id='{pid}Queue' "
+                                  f"batches=domain_batches.{dom} ", markup)
+                    # An id the script reads is an id the markup writes — for THIS domain.
+                    read = set(re.findall(r"'(%s[A-Za-z]+)'" % re.escape(pid), script))
+                    self.assertTrue({f'{pid}Queue', f'{pid}PanelParams', f'{pid}DropZone'} <= read)
+                    for name in sorted(read - {f'{pid}Batch'}):
+                        self.assertIn(name, markup, f'{name} is read and never written')
+                    self.assertIn(f'domain_pages.{dom}.params_json|script_json', script)
+                    # Its wiring lives in a scope of its own: a shared one PARSES (`var` twice,
+                    # a function declared twice) and the last domain would win every name.
+                    opened = script.split(f'// ── Domaine `{dom}` ──\n', 1)[-1]
+                    self.assertTrue(opened.startswith('    (function () {\n'), opened[:40])
+                    # A ⚙ opener (card, batch) is declared once per domain, FOR that domain.
+                    openers = len(re.findall(r'WamaQueueActions\.on(?:Batch)?Settings\(', script))
+                    self.assertEqual(0, openers % len(doms))
+                    self.assertEqual(openers // len(doms),
+                                     script.count("}, { domain: '%s' });" % dom))
+            if doms:
+                with self.subTest(app=app):
+                    self.assertIn("{% include 'common/_domain_tabs.html' with app='" + app, markup)
+                    self.assertIn('with_modes=True', script)
+                    self.assertEqual(1, script.count('window._batchImport = WamaBatchImport('))
+                    self.assertEqual(len(doms) - 1, script.count('idBase:'))
+                    # The view: the common brick ranges the batches, each card reads ITS schema.
+                    self.assertIn(f"batches_by_domain('{app}', batches_list)", views)
+                    self.assertIn("'domain_batches': domain_batches", views)
+                    self.assertIn('element_schema(item)', views)
+
+    def test_the_script_of_every_generated_page_parses(self):
+        """Django tags neutralised, the page script is PARSED by V8 (never run): one scope per
+        domain, so the same names live once in each."""
+        try:
+            from py_mini_racer import MiniRacer
+        except ImportError:
+            self.skipTest('py_mini_racer absent')
+        ctx = MiniRacer()
+        for app, _doms, index, _views in self.pages:
+            script = index.partition('{% block app_scripts %}')[2]
+            bodies = re.findall(r'<script>(.*?)</script>', script, re.S)
+            self.assertTrue(bodies)
+            for body in bodies:
+                body = re.sub(r'\{%\s*comment\s*%\}.*?\{%\s*endcomment\s*%\}', '', body, flags=re.S)
+                body = re.sub(r'\{%.*?%\}', '', body, flags=re.S)
+                body = re.sub(r'\{\{.*?\}\}', 'null', body, flags=re.S)
+                with self.subTest(app=app):
+                    ctx.eval('(function(){' + body + '\n})')
