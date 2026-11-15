@@ -198,6 +198,17 @@ class FullScoreTest(_InputProcessCase):
         self.assertEqual(str(Path(settings.MEDIA_ROOT) / mix), str(Path(self.pulses[-1])),
                          'a card of its own reads its own pulse')
 
+    def test_the_climb_to_the_origin_is_bounded(self):
+        """2026-11-16 : a test double that makes up a new source at each access (`MagicMock`) sent
+        `origin_of` climbing until the kernel killed the suite at 42 GB, without a verdict."""
+        from wama.common.utils.derived_cards import ORIGIN_DEPTH, origin_of
+        endless = mock.MagicMock()
+        self.assertIsNotNone(origin_of(endless))
+        depth, card = 0, endless
+        while card is not origin_of(endless) and depth <= ORIGIN_DEPTH:
+            card, depth = card.derived_from, depth + 1
+        self.assertEqual(ORIGIN_DEPTH, depth, 'it stops at the bound, not before nor after')
+
     def test_without_a_cover_or_with_an_imported_score_there_is_nothing_to_read(self):
         gen = self._run(extract_parts=True)
         self.assertNotIn('parts', self._states(gen), 'no input audio')

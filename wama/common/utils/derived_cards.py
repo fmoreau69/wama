@@ -36,14 +36,22 @@ logger = logging.getLogger(__name__)
 
 
 
+#: Au-delà, ce n'est plus une lignée de cards : une piste d'une piste d'une piste… s'arrête bien
+#: avant (une séparation donne UN étage ; deux ou trois en enchaînant les gestes).
+ORIGIN_DEPTH = 16
+
+
 def origin_of(card):
     """La card d'ORIGINE d'une card dérivée — sa source, remontée jusqu'à celle qui n'en a pas ;
     la card elle-même sinon. Une piste séparée tient le TEMPS de son mélange, à l'échantillon près
     (2026-11-15) : ce qui se mesure sur le morceau entier (sa pulsation) se lit sur l'origine — une
     voix seule n'a pas de batterie, sa grille de temps flottait de 86 à 96 bpm sur « Plus d'eau »
-    quand le mélange tient 90,1 à 0,09 s près. Une chaîne qui boucle s'arrête où elle repasse."""
+    quand le mélange tient 90,1 à 0,09 s près. Une chaîne qui boucle s'arrête où elle repasse, et
+    la remontée est BORNÉE (`ORIGIN_DEPTH`) : le 2026-11-16, un faux objet de test qui fabriquait
+    une source neuve à chaque accès l'a fait tourner jusqu'à 42 Go (suite tuée sans verdict)."""
     seen = set()
-    while getattr(card, 'derived_from_id', None) and card.pk not in seen:
+    while (getattr(card, 'derived_from_id', None) and card.pk not in seen
+           and len(seen) < ORIGIN_DEPTH):
         seen.add(card.pk)
         source = card.derived_from
         if source is None:
