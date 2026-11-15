@@ -169,15 +169,17 @@ def index(request):
     from wama.common.services.process_pipeline import decorate_cards
     decorate_cards([_it.generation for _b in batches_all for _it in _b['items']], _decorate_card)
 
-    image_batches = [b for b in batches_all if b['obj'].domain != 'video']
-    video_batches = [b for b in batches_all if b['obj'].domain == 'video']
-
     def _name(b):
         first = next((i.generation for i in b['items'] if i.generation), None)
         return (first.prompt or '') if first else ''
 
-    image_batches, q_sort, q_filter = apply_queue_sort_filter(request, image_batches, name_of=_name)
-    video_batches, _vs, _vf = apply_queue_sort_filter(request, video_batches, name_of=_name)
+    # Triée et filtrée UNE fois, puis rangée par domaine par la brique commune (2026-11-15,
+    # `batches_by_domain` — la vue lisait le champ `domain` du lot, posé à sa création depuis la
+    # même règle ; mesuré sans écart sur les lots réels).
+    from wama.common.utils.batch_common import batches_by_domain
+    batches_all, q_sort, q_filter = apply_queue_sort_filter(request, batches_all, name_of=_name)
+    by_domain = batches_by_domain('imager', batches_all)
+    image_batches, video_batches = by_domain['image'], by_domain['video']
 
     # Listes à plat conservées pour les compteurs d'onglet et la barre globale.
     image_generations = [i.generation for b in image_batches for i in b['items'] if i.generation]

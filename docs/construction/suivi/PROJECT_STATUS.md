@@ -31488,3 +31488,22 @@ lisait encore ; toute création d'app DE ZÉRO tombait. `tests_codegen_templates
 n'était pas dans le périmètre rejoué ce matin-là (la garde ajoutée alors lisait la SOURCE du
 gabarit, pas son rendu). Le pied de page n'est plus écrit : celui du socle s'applique.
 Budgets de langue recalés à la mesure (code 2555 → 2553, noms de tests 1317 → 1315).
+
+## §PALIER 2026-11-15, « DOMAINES ⑦ (b), marches 1-2 : les lots d'une page PAR DOMAINE, une brique » — commit local, non poussé — 🔴 relancer gunicorn (les vues de page de l'anonymizer et de l'imager) — 🔚 marche 3 : le gabarit généré par domaine ; puis recréation des jumelles
+
+**Livré** : `batch_common.batches_by_domain(app, lignes)` — `{domaine: [lignes]}`, une clé par
+domaine déclaré dans l'ordre de la déclaration, `{}` pour une app sans domaine ; la règle est celle
+de la card (`app_modes.element_domain_or_first`) lue sur le premier élément du lot, un lot sans
+élément va au premier domaine. Adoptée par l'anonymizer (qui lisait le premier média) et l'imager
+(qui lisait le champ `domain` du lot, et triait deux listes : il trie une fois, puis range).
+
+**Mesuré avant de brancher**, lots réels en lecture seule : imager 27 lots (18 image, 9 vidéo),
+anonymizer 19 (17 / 2), aucun écart avec ce que les vues rendaient, aucun lot sans élément ;
+enhancer 8 + 6, rangés juste — il n'adopte pas, ses deux domaines ont chacun leur modèle.
+
+**Garde** : `tests_domain_declaration.ElementDomainTest` (un cas de plus, sur les déclarations de
+tout le parc, les deux formes de ligne). Trois mutations, trois rouges : tout au premier domaine ;
+FK directe non lue ; domaines sans lot non rendus.
+
+**Non fait, nommé** : la marche 3 (gabarit) ; les jumelles à plusieurs domaines gardent une file
+unique jusque-là ; suite complète non rejouée.

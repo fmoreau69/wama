@@ -687,22 +687,16 @@ def _queue_context(request, user):
         return (m.get_filename() or '').lower() if m else ''
 
     batches_list, q_sort, q_filter = apply_queue_sort_filter(request, batches_list, name_of=_name)
-    # Une file PAR DOMAINE (2026-11-02) : un lot ne mêle pas les natures (`group_key`), son
-    # premier média dit son domaine — la règle de la card (`element_domain_or_first`).
-    from wama.common.utils.app_modes import element_domain_or_first
+    # Une file PAR DOMAINE (2026-11-02) — par la brique commune depuis le 2026-11-15
+    # (`batches_by_domain` : le premier élément du lot dit son domaine, la règle de la card).
+    from wama.common.utils.batch_common import batches_by_domain
     from wama.anonymizer.params import DOCUMENT_PARAMS_JSON
-
-    def _domain_of(b):
-        first = b['items'][0].media if b['items'] and b['items'][0].media else None
-        return element_domain_or_first(first) if first is not None else 'image_video'
-
-    image_batches = [b for b in batches_list if _domain_of(b) != 'document']
-    document_batches = [b for b in batches_list if _domain_of(b) == 'document']
+    by_domain = batches_by_domain('anonymizer', batches_list)
 
     return {
-        'batches_list': image_batches,
-        'document_batches': document_batches,
-        'queue_count': sum(len(b['items']) for b in image_batches),
+        'batches_list': by_domain['image_video'],
+        'document_batches': by_domain['document'],
+        'queue_count': sum(len(b['items']) for b in by_domain['image_video']),
         'q_sort': q_sort,
         'q_filter': q_filter,
         # Schéma params (source unique modale item/batch + inspecteur). Voir params.py.

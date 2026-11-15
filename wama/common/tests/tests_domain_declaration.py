@@ -210,6 +210,37 @@ class ElementDomainTest(SimpleTestCase):
     def test_an_object_outside_the_registry_has_no_domain(self):
         self.assertIsNone(element_domain(object()))
 
+    def test_the_batches_of_a_page_are_ranged_by_the_domain_of_their_first_element(self):
+        """`batch_common.batches_by_domain` (2026-11-15, `ROUTE §11 #42` ⑦ b): one list per domain
+        the app names, in the order of its declaration, by the rule of the card — two page views
+        wrote it by hand. Both row shapes are read (a link carrying `elem`, the element itself)."""
+        from types import SimpleNamespace
+
+        from wama.common.utils.batch_common import batches_by_domain
+        several = 0
+        for app, decl in sorted(APP_MODES.items()):
+            ids = [d['id'] for d in decl.get('domains', [])]
+            rows, expected = [{'items': []}], {d: [] for d in ids}
+            expected[ids[0]].append(rows[0])
+            for surface in sorted({domain_surface(app, d) for d in ids}):
+                model = DetailRegistry.get(surface)['model']
+                form = (DetailRegistry.get(surface).get('spec') or {}).get('params_schema')
+                for (element, more), domain in _cases(app, model, form, surface_domains(app, surface)):
+                    if more:        # a property read on the class: one witness at a time
+                        continue
+                    for items in ([SimpleNamespace(elem=None), SimpleNamespace(elem=element)],
+                                  [element]):
+                        rows.append({'items': items})
+                        expected[domain].append(rows[-1])
+            several += len([d for d in ids if len(expected[d]) > (d == ids[0])]) > 1
+            with self.subTest(app=app):
+                found = batches_by_domain(app, rows)
+                self.assertEqual(ids, list(found), 'one key per declared domain, in its order')
+                self.assertEqual(expected, found)
+        self.assertGreater(several, 1, 'the fleet holds apps whose page has several queues')
+        self.assertEqual({}, batches_by_domain('wama_no_such_app', [{'items': []}]),
+                         'no domain: the queue is one')
+
 
 class TheSettingsOfAnElementAreThoseOfItsDomainTest(SimpleTestCase):
     """The inspector reads the schema of the element's domain — the audio surface of the

@@ -529,6 +529,31 @@ def attach_identities(rows):
     return rows
 
 
+def batches_by_domain(app, rows):
+    """`{domaine: [lignes de file]}` — les lots d'une page rangés PAR DOMAINE, une clé par domaine
+    que l'app déclare, dans l'ordre de sa déclaration (une liste vide pour un domaine sans lot) ;
+    `{}` pour une app sans domaine : sa file est une.
+
+    La règle est celle de la card (`app_modes.element_domain_or_first`), lue sur le PREMIER élément
+    du lot : un lot ne mêle pas les natures (`group_key` de la fabrique de manipulation). Un lot
+    sans élément va au premier domaine, comme une card que rien ne désigne. Les lignes gardent
+    l'ordre reçu : trier et filtrer la file (`apply_queue_sort_filter`) AVANT de la ranger.
+
+    Écrite le 2026-11-15 (`ROUTE §11 #42` ⑦ b) : l'anonymizer et l'imager l'écrivaient chacun dans
+    leur vue de page, sous deux formes (le premier média du lot ; le champ `domain` du lot, posé
+    à la création depuis la même règle) — rien de commun à faire lire à la page générée."""
+    from wama.common.utils.app_modes import element_domain_or_first, get_domains
+    ids = [d.get('id') for d in get_domains(app)]
+    if not ids:
+        return {}
+    out = {d: [] for d in ids}
+    for row in rows:
+        first = next((e for e in (getattr(it, 'elem', it) for it in row['items']) if e), None)
+        found = element_domain_or_first(first) if first is not None else None
+        out[found if found in out else ids[0]].append(row)
+    return out
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Modèle de LOT d'une app — DÉRIVÉ, jamais déclaré
 # ─────────────────────────────────────────────────────────────────────────────

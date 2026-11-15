@@ -2556,7 +2556,9 @@ MECHANISMS = (
               "domaine déclarée par `extension_natures`), et « Envoyer vers » retient ce domaine "
               "pour la page de l'app (2026-11-01) ; un fichier déjà reçu (URL, ligne de lot) se lit "
               "sans la porte (`domain_nature`), et une SOURCE pas encore arrivée dit sa nature par "
-              "son adresse (`surface_source_nature`, 2026-11-10)",
+              "son adresse (`surface_source_nature`, 2026-11-10) ; les lots d'une page se rangent "
+              "par domaine par `batch_common.batches_by_domain` (2026-11-15 : le premier élément "
+              "du lot dit son domaine, la règle de la card — anonymizer, imager)",
               'wama/common/utils/app_modes.py', 'docs/construction/ui/MODES_QUEUE_UX.md',
               annexes=('wama/common/static/common/js/wama-modes.js',
                        'wama/common/templates/common/_domain_tabs.html')),

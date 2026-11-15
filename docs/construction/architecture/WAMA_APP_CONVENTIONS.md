@@ -1572,7 +1572,10 @@ admises de `urls_gen.ROUTE_ALIASES`, résolues par `urls_gen.served_route`, pré
 `?domain=` quand deux domaines partagent leurs routes), l'URL du ZIP de chaque lot (dérivée par
 la card mère avec ses autres URLs de lot), les ids des trois boutons (`<queue_id>-start-all`,
 `-clear-all`, `-download-all`), l'opt-in aux actions communes de lot, l'icône de l'état vide
-(celle du domaine, sinon celle de l'app). `domain` pour une file par domaine (imager, enhancer) ;
+(celle du domaine, sinon celle de l'app). `domain` pour une file par domaine (imager, enhancer,
+anonymizer) — quand deux domaines partagent un modèle d'élément, les `batches` de chaque file
+viennent de `batch_common.batches_by_domain(app, lignes)` (2026-11-15 : une liste par domaine
+déclaré, le premier élément du lot dit le sien ; la vue de page ne l'écrit plus) ;
 le reste (`card_class`, `meta_template`, `collapse_prefix`, `batch_key`, `show_settings`,
 `confirm_duplicate`, `clear_confirm`) traverse par le contexte. **L'état vide est TOUJOURS
 rendu**, caché dès qu'une card est là, et basculé par `wama-queue.js` : aucun JS d'app ne
