@@ -27,7 +27,6 @@ Usage :
 """
 import json
 import sys
-from importlib import metadata
 from pathlib import Path
 
 from django.conf import settings
@@ -51,12 +50,11 @@ def label_venv() -> str:
 
 def inventaire() -> list[tuple[str, str]]:
     """(nom, version) des distributions installées dans CET interpréteur."""
-    vus = set()
-    for d in metadata.distributions():
-        nom = (d.metadata.get("Name") or "").strip().lower()
-        if nom and d.version:
-            vus.add((nom, d.version))
-    return sorted(vus)
+    # La lecture des distributions installées vit dans `library_index` (2026-11-15) — la même que
+    # celle de l'audit des licences.
+    from wama.common.services.library_index import installed_distributions
+    return sorted({(d['name'].strip().lower(), d['version'])
+                   for d in installed_distributions().values() if d['version']})
 
 
 def interroger_osv(paquets: list[tuple[str, str]]) -> dict[str, list[str]]:

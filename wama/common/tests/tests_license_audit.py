@@ -201,3 +201,22 @@ class TransitiveLicencesTest(SimpleTestCase):
         for text, ident in expected.items():
             self.assertEqual(ident, audit.qualifier(text)['id'], text)
         self.assertEqual(audit.A_QUALIFIER, audit.qualifier('NVIDIA Proprietary Software')['rang'])
+
+    def test_installed_distributions_are_read_by_the_rules_of_the_library_manifest(self):
+        """Clé normalisée, licence courte, et les dépendances SANS celles d'un extra."""
+        from unittest import mock
+
+        from wama.common.services import library_index
+
+        class _Dist:
+            version = '1.2'
+            metadata = {'Name': 'Some_Engine', 'License': 'MIT'}
+            requires = ['Deep.Lib>=2', 'gui-kit ; extra == "gui"', 'plain']
+
+        with mock.patch.object(library_index, '_INSTALLED', ((), None)), \
+                mock.patch('importlib.metadata.distributions', lambda: [_Dist()]), \
+                mock.patch.object(library_index, 'licence_courte', create=True), \
+                mock.patch('wama.common.manifests.builtin.library.licence_courte', lambda meta: meta['License']):
+            found = library_index.installed_distributions()
+        self.assertEqual({'some-engine': {'name': 'Some_Engine', 'version': '1.2', 'license': 'MIT',
+                                          'requires': ['deep-lib', 'plain']}}, found)

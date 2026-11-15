@@ -865,6 +865,7 @@ def external_sources_view(request):
             'user_key': s.user_key,
             'api_key_label': s.api_key_label, 'api_key_help_url': s.api_key_help_url,
             'attribution': s.attribution,
+            'terms_url': s.terms_url,
             'sonde': sondes.get(s.key),
             # Clé de l'INSTANCE (2026-10-07) : d'où elle vient ('stored' = posée sur cette page,
             # 'env' = `.env`), si elle est partagée, et — pour un admin seulement — qui l'a posée

@@ -455,7 +455,7 @@ def installed_distributions() -> dict:
     global _INSTALLED
     import importlib.metadata as im
 
-    from wama.common.manifests.builtin.library import licence_courte
+    from wama.common.manifests.builtin.library import dependency_names, licence_courte
     stamp = tuple((p, file_stamp(p)) for p in sys.path
                   if p and p.rstrip('\\/').endswith(('site-packages', 'dist-packages')))
     if _INSTALLED[1] is None or _INSTALLED[0] != stamp:
@@ -467,11 +467,17 @@ def installed_distributions() -> dict:
                 continue
             found[_normalise(name)] = {
                 'name': name, 'version': dist.version or '', 'license': licence_courte(meta) or '',
-                'requires': sorted({_normalise(_distribution_name(r)) for r in (dist.requires or [])
-                                    if 'extra ==' not in r}),
+                # La règle des dépendances d'une distribution est celle du manifeste `library`.
+                'requires': sorted({_normalise(n) for n in dependency_names(dist.requires)}),
             }
         _INSTALLED = (stamp, found)
     return _INSTALLED[1]
+
+
+def unregistered(installed: dict, registry_keys) -> dict:
+    """Les distributions installées que le registre ne porte pas (même forme qu'`installed`)."""
+    registry = {_normalise(k) for k in registry_keys}
+    return {name: dist for name, dist in installed.items() if name not in registry}
 
 
 def pulled_by(installed: dict, registry_keys) -> dict:

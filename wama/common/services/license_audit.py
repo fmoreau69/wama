@@ -339,10 +339,9 @@ def transitives(installed=None, registry_keys=None) -> dict:
     if registry_keys is None:
         from wama.common.models import Library
         registry_keys = list(Library.objects.values_list('key', flat=True))
-    registry = {library_index._normalise(k) for k in registry_keys}
-    parents = library_index.pulled_by(installed, registry)
+    parents = library_index.pulled_by(installed, registry_keys)
     families, exceptions = defaultdict(int), []
-    outside = {name: d for name, d in installed.items() if name not in registry}
+    outside = library_index.unregistered(installed, registry_keys)
     for name, dist in sorted(outside.items()):
         q = qualifier(dist['license'])
         families[q['famille']] += 1
