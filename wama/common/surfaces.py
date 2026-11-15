@@ -306,6 +306,30 @@ def merge_overrides(lower, upper) -> dict:
     return merged
 
 
+def key_conflicts(slots, account_keys=None) -> list:
+    """Les CONFLITS de touches entre les briques d'une même page : `[(touche, brique, autre
+    brique)]` — une touche de portée « page » que deux briques prennent, telles que la page les
+    résout (préréglage de l'emplacement, puis réglage du compte). `slots` : ce qui porte `brick`
+    et `options` (les emplacements d'une surface ; les briques de page d'une page d'app). Une
+    brique qui SUIT une touche ne la prend pas ; un raccourci lié à une option absente n'existe
+    pas. LA règle — celle que tient `BrickShortcutsTest` sur chaque surface déclarée, et que
+    lit le réglage d'un compte (`utils/user_keys.account_conflicts`)."""
+    owner, found = {}, []
+    for slot in slots:
+        if slot.brick not in BRICKS:
+            continue
+        options = slot.options or {}
+        override = merge_overrides(options.get(KEYS_OPTION), (account_keys or {}).get(slot.brick))
+        for shortcut in resolve_shortcuts(BRICKS[slot.brick].shortcuts, override):
+            if shortcut.scope != 'page' or shortcut.follows \
+                    or (shortcut.option and not options.get(shortcut.option)):
+                continue
+            for key in shortcut.keys:
+                if owner.setdefault(key, slot.brick) != slot.brick:
+                    found.append((key, owner[key], slot.brick))
+    return found
+
+
 #: Le raccourci de la PAGE elle-même (2026-10-29, contrôles de page) : l'aide de la page. Déclaré
 #: comme ceux des briques — la liste de l'aide, la bulle du premier passage, le module qui l'écoute
 #: (`wama-page-controls.js`) et l'assistant le lisent d'ici, aucun ne l'écrit.

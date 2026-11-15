@@ -770,14 +770,12 @@ def ui_bricks_view(request):
     from django.urls import reverse
 
     from .surfaces import resolve_shortcuts
-    from .utils.user_keys import key_rows, remappable_bricks, user_keymap
-    account_keys = user_keymap(request.user)
+    from .utils import user_keys
+    account_keys = user_keys.user_keymap(request.user)
     key_settings = None
     if request.user.is_authenticated:
         key_settings = {'url': reverse('common:brick_keys'),
-                        'bricks': {key: {'rows': key_rows(key, account_keys),
-                                         'keys': account_keys.get(key, {})}
-                                   for key in remappable_bricks()}}
+                        'bricks': user_keys.key_settings(request.user)}
 
     mechanism_names = {m.key: m.name for m in MECHANISMS}
     bricks = []

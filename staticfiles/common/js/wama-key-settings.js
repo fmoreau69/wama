@@ -37,17 +37,29 @@
         var row = document.querySelector('[data-key-settings="' + brick + '"]');
         var state = config.bricks[brick];
         if (!row || !state) return;
-        var html = '<b>Clavier</b>';
+        var html = '<b>Clavier</b>', conflicts = [];
         state.rows.forEach(function (r) {
             html += '<span class="ub-chip" title="' + esc(r.where || '') + '">';
             r.keys.forEach(function (k, i) {
+                // Une touche en CONFLIT (deux briques d'une même page la prennent) se voit, dit
+                // avec qui, et se corrige comme elle se règle : un clic, une autre frappe.
+                var clash = k.conflict ? ' is-conflict' : '';
+                if (k.conflict) conflicts.push({ label: k.label, said: k.conflict, fixable: !!k.name });
                 html += (i ? ' / ' : '') + (k.name
-                    ? '<kbd class="wama-key-edit" role="button" tabindex="0" data-name="' + esc(k.name)
-                      + '" title="Cliquer, puis frapper la touche voulue (Échap : annuler)">'
+                    ? '<kbd class="wama-key-edit' + clash + '" role="button" tabindex="0" data-name="'
+                      + esc(k.name) + '" title="' + esc(k.conflict ? 'Conflit : ' + k.conflict + ' — '
+                      : '') + 'Cliquer, puis frapper la touche voulue (Échap : annuler)">'
                       + esc(k.label) + '</kbd>'
-                    : '<kbd>' + esc(k.label) + '</kbd>');
+                    : '<kbd class="' + clash.trim() + '"' + (k.conflict ? ' title="Conflit : '
+                      + esc(k.conflict) + '"' : '') + '>' + esc(k.label) + '</kbd>');
             });
             html += ' ' + esc(r.action) + '</span>';
+        });
+        conflicts.forEach(function (c) {
+            html += '<div class="wama-key-conflict"><i class="fas fa-triangle-exclamation"></i> '
+                  + '<kbd>' + esc(c.label) + '</kbd> ' + esc(c.said) + ' — '
+                  + (c.fixable ? 'cliquez la touche pour en choisir une autre.'
+                               : 'changez la touche de l\'autre brique.') + '</div>';
         });
         // Une action que le compte a tue n'a plus de touche à cliquer : la rétablir la rend.
         if (Object.keys(state.keys || {}).length) {
@@ -67,12 +79,17 @@
                 App.toast('Touche refusée : ' + ((res.data.problems || []).join(' ; ') || 'erreur'), 'error');
                 return;
             }
-            config.bricks[brick] = { rows: res.data.rows, keys: res.data.keys };
+            // Toutes les briques reviennent : un conflit se dit sur les deux qu'il touche.
+            config.bricks = res.data.bricks;
             // Cette page elle-même lit désormais ces touches.
             global.WamaKeys.remap(brick, Object.keys(res.data.keys).length ? res.data.keys : null);
-            App.toast('Touches enregistrées pour votre compte.', 'success');
+            var clash = res.data.rows.some(function (r) {
+                return r.keys.some(function (k) { return k.conflict; }); });
+            if (clash) App.toast('Enregistré, mais une touche est en conflit avec une autre brique : '
+                                 + 'elle est signalée sur les deux.', 'warning');
+            else App.toast('Touches enregistrées pour votre compte.', 'success');
         }).catch(function () { App.toast('Enregistrement impossible.', 'error'); })
-          .then(function () { render(brick); });
+          .then(function () { Object.keys(config.bricks).forEach(render); });
     }
 
     function stop() {

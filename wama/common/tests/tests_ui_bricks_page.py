@@ -341,6 +341,38 @@ class AccountKeysTest(TestCase):
         self.assertEqual(correct.keymap(), correct.keymap_for(None))
         self.assertEqual({'a': [], 'b': ['K']}, merge_overrides({'a': ['K']}, {'b': ['K']}))
 
+    def test_a_key_two_bricks_of_one_page_take_is_said_on_both_and_fixed_by_another_key(self):
+        """Fabien, 2026-11-15 : « il faut détecter les conflits de raccourcis et permettre de les
+        corriger ». The account gives the transport the key of the timeline's tool (C) : kept —
+        the clash exists only where both bricks sit — but SAID, on both bricks, with the page ;
+        another key lifts it. The rule is the registry's (`key_conflicts`), the one every
+        registered surface is held by."""
+        from wama.common.utils.user_keys import account_conflicts, key_settings
+        self.assertEqual({}, account_conflicts({}))
+        self.assertEqual({}, account_conflicts({'media_transport': {'toggle': ['KeyP']}}))
+        body = self._post('media_transport', {'toggle': ['KeyC']}).json()
+        self.assertTrue(body['ok'], 'a clash is said, the key is kept')
+        said = {k['key']: k['conflict'] for row in body['rows'] for k in row['keys']}
+        self.assertIn(BRICKS['media_timeline'].name, said['KeyC'])
+        self.assertIn(SURFACES['transcriber.correct'].label, said['KeyC'], 'the page is named')
+        self.assertEqual('', said['KeyL'])
+        other = {k['key']: k['conflict'] for row in body['bricks']['media_timeline']['rows']
+                 for k in row['keys']}
+        self.assertIn(BRICKS['media_transport'].name, other['KeyC'], 'said on the other brick too')
+        # Either brick lifts it : here the timeline's tool takes another key.
+        fixed = self._post('media_timeline', {'boundaries': ['KeyB']})
+        self.assertEqual(200, fixed.status_code)
+        after = key_settings(self.user)
+        self.assertEqual([], [k['key'] for brick in after.values() for row in brick['rows']
+                              for k in row['keys'] if k['conflict']])
+        # Page bricks share every app page : a clash between two of them is seen too.
+        clash = account_conflicts({'queue': {'select_all': ['ArrowDown']}})
+        self.assertIn('ArrowDown', clash.get('queue', {}))
+        self.assertIn("pages d'application", clash['queue']['ArrowDown'][0])
+        module = _static('common/js/wama-key-settings.js')
+        self.assertIn('is-conflict', module)
+        self.assertIn('config.bricks = res.data.bricks;', module)
+
     def test_the_page_module_sends_the_keystroke_as_the_registry_names_it(self):
         """`wama-key-settings.js`, played in V8 with the real common keyboard : a click on a key,
         then the keystroke — taken by a LAYER of the common keyboard (no brick acts meanwhile),

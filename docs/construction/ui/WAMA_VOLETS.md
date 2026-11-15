@@ -1201,12 +1201,24 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
     ne s'applique pas, compte après préréglage et même résolution par le clavier commun en V8,
     le module de page joué en V8 avec le vrai clavier, une entrée périmée jamais servie) ;
     contre-épreuves : validation neutralisée → rouge, touches non servies à la page → rouge.
+    ✅ **Les CONFLITS détectés et corrigeables, 2026-11-15** (Fabien : « il faut détecter les
+    conflits de raccourcis et permettre de les corriger ») — la règle « une touche de portée page
+    n'a qu'une brique par page » n'était écrite que dans un test : elle est au registre
+    (`surfaces.key_conflicts`, que `BrickShortcutsTest` emprunte pour chaque surface déclarée).
+    Le réglage d'un compte y passe (`user_keys.account_conflicts`) sur chaque surface déclarée et
+    sur les briques de page ; un conflit n'est PAS refusé (il n'existe que là où les deux briques
+    sont ensemble), il est DIT : sur la page des briques, la touche est cernée sur les DEUX
+    briques, avec la brique en face et la page (« aussi prise par « Ligne de temps » sur
+    Transcriber · Correction »), et se corrige comme elle se règle — un clic, une autre frappe,
+    sur l'une ou l'autre. Garde : `AccountKeysTest` (contre-épreuve : réglage non passé à la
+    règle → rouge).
     ⚠ Limites dites : (1) le module de page n'a pas encore été joué dans un NAVIGATEUR (V8 et
-    serveur seulement) ; (2) un conflit entre DEUX briques d'une même page (une touche du
-    transport donnée aussi à la ligne de temps) n'est vu que pour un préréglage de page, pas
-    pour un réglage de compte ; (3) la visionneuse lit deux tables sous un même nom (navigation,
-    magnéto), et son registre ne nomme pas les sauts : ils ne se règlent pas encore par compte ;
-    (4) une action tue ne se rétablit que par « Rétablir » de toute la brique.
+    serveur seulement) ; (2) un conflit n'est cherché qu'entre touches de portée « page » — une
+    touche de portée « brique » (qui n'agit que le focus dans sa brique) n'y entre pas ; (3) la
+    visionneuse lit deux tables sous un même nom (navigation, magnéto), et son registre ne nomme
+    pas les sauts : ils ne se règlent pas encore par compte ; (4) une action tue ne se rétablit
+    que par « Rétablir » de toute la brique ; (5) l'aide « ? » d'une page ne signale pas encore
+    un conflit, seule la page des briques le fait.
     ⏳ Restent : sur le PROFIL, la disposition du clavier et le choix d'un préréglage de logiciel
     (aucun préréglage de logiciel n'existe en données) ; sur la page des APPLICATIONS, le
     préréglage d'une application.

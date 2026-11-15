@@ -35,6 +35,9 @@
   /* Une touche qui se règle (compte connecté) : cliquable ; en attente de sa frappe, cernée. */
   .wama-key-edit { cursor: pointer; }
   .wama-key-edit:hover, .wama-key-edit.is-waiting { outline: 2px solid rgba(var(--wama-accent-rgb), .8); }
+  /* Une touche que deux briques d'une même page prennent : cernée, et dite sous la ligne. */
+  kbd.is-conflict    { outline: 2px solid var(--wama-cat-missing); }
+  .wama-key-conflict { color: var(--wama-cat-missing); font-size: .78rem; margin-top: .25rem; }
 </style>
 {% endblock %}
 

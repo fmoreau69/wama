@@ -41,7 +41,7 @@ def brick_keys(request):
     brique tels qu'ils se lisent désormais."""
     import json
 
-    from wama.common.utils.user_keys import key_rows, save_user_keys, user_keymap
+    from wama.common.utils.user_keys import key_settings, save_user_keys
     try:
         payload = json.loads(request.body.decode('utf-8'))
     except (ValueError, UnicodeDecodeError):
@@ -52,9 +52,11 @@ def brick_keys(request):
     problems = save_user_keys(request.user, brick, payload.get('keys') or {})
     if problems:
         return JsonResponse({'ok': False, 'problems': problems}, status=400)
-    account_keys = user_keymap(request.user)
-    return JsonResponse({'ok': True, 'keys': account_keys.get(brick, {}),
-                         'rows': key_rows(brick, account_keys)})
+    # TOUTES les briques réglables : un conflit se dit sur les deux briques qu'il touche, et une
+    # touche changée ici peut en lever un ailleurs.
+    bricks = key_settings(request.user)
+    return JsonResponse({'ok': True, 'keys': bricks[brick]['keys'], 'rows': bricks[brick]['rows'],
+                         'bricks': bricks})
 
 
 @login_required

@@ -2029,28 +2029,16 @@ class BrickShortcutsTest(SimpleTestCase):
     def test_two_priority_bricks_of_a_surface_never_claim_one_key(self):
         """Counterproof inside : a fake surface putting the transport beside a brick that claims
         Space at page scope is reported."""
-        from wama.common.surfaces import (BRICKS, KEYS_OPTION, SURFACES, Shortcut, UIBrick, load_all,
-                                          resolve_shortcuts)
+        from wama.common.surfaces import (BRICKS, KEYS_OPTION, SURFACES, Shortcut, UIBrick,
+                                          key_conflicts, load_all)
         load_all()
-
-        def clashes(slots):
-            owner = {}
-            found = []
-            for slot in slots:
-                # The keys AS THE PAGE RESOLVES THEM : its preset applied (`KEYS_OPTION`).
-                declared = (resolve_shortcuts(BRICKS[slot.brick].shortcuts, slot.options.get(KEYS_OPTION))
-                            if slot.brick in BRICKS else slot.shortcuts)
-                for shortcut in declared:
-                    if shortcut.scope != 'page' or shortcut.follows                             or (shortcut.option and not slot.options.get(shortcut.option)):
-                        continue
-                    for key in shortcut.keys:
-                        if owner.setdefault(key, slot.brick) != slot.brick:
-                            found.append((key, owner[key], slot.brick))
-            return found
+        # THE rule lives in the registry since 2026-11-15 (`key_conflicts` — an account's keys
+        # are checked by it too) : the keys as the page resolves them, its preset applied.
+        clashes = key_conflicts
 
         class FakeSlot:
-            def __init__(self, brick, shortcuts=(), options=None):
-                self.brick, self.shortcuts, self.options = brick, shortcuts, options or {}
+            def __init__(self, brick, options=None):
+                self.brick, self.options = brick, options or {}
 
         for name, surface in SURFACES.items():
             with self.subTest(surface=name):
@@ -2060,8 +2048,10 @@ class BrickShortcutsTest(SimpleTestCase):
         self.assertEqual([], clashes([FakeSlot(b.key) for b in BRICKS.values() if b.is_page]))
         rival = UIBrick(key='rival', name='Rivale', description='',
                         shortcuts=(Shortcut(('Space',), 'autre chose', 'page'),))
-        self.assertEqual([('Space', 'media_transport', 'rival')],
-                         clashes([FakeSlot('media_transport'), FakeSlot('rival', rival.shortcuts)]))
+        from unittest import mock
+        with mock.patch.dict(BRICKS, {'rival': rival}):
+            self.assertEqual([('Space', 'media_transport', 'rival')],
+                             clashes([FakeSlot('media_transport'), FakeSlot('rival')]))
         # A preset that hands the transport a key of the timeline is a clash too.
         self.assertEqual([('KeyC', 'media_transport', 'media_timeline')],
                          clashes([FakeSlot('media_transport', options={KEYS_OPTION: {'toggle': ['KeyC']}}),
