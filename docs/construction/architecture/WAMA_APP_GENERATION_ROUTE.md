@@ -1651,6 +1651,7 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       | `remaining` | le temps restant dans l'horloge | spec du magnéto |
       | `volume` | muet et curseur de volume | contrôles natifs |
       | `remember` | position gardée par élément (toutes les 2 s, au navigateur) et reprise à l'ouverture | cam_analyzer |
+      | `strip` | la BANDE FINE (ajoutée le soir même) : une ligne étroite sans retour à la ligne, sans bouton de début ni de saut (leurs touches restent), boutons sans cadre ; le reste suit les options tirées | spec du magnéto (aperçu) |
       L'AXE gagne le SON (`setVolume`, `setMuted`, dits aux abonnés — `sound`) : il vaut pour tous
       les médias suivis, chacun gardant sa part (un média arrivé muet le reste : la seconde vidéo
       de Comparer ; un média plus bas garde son rapport) ; rien n'est posé tant que personne ne
@@ -1660,8 +1661,9 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       ⚠ **Aucune page ne tire encore ces options, et rien n'est joué au navigateur** : le portage
       d'un consommateur est le pas suivant (candidats : la page vidéo de l'anonymizer — pas,
       position, volume —, les analyses du face_analyzer, la bande fine de l'aperçu).
-      ⏳ Reste de la marche ② : la vitesse CONTINUE (curseur logarithmique, ×32), la BANDE FINE
-      (une ligne étroite pour l'aperçu), la lecture arrière image par image.
+      ⏳ Reste de la marche ② : la vitesse CONTINUE (curseur logarithmique, ×32), la lecture
+      arrière image par image ; la bande fine existe en option mais l'aperçu ne la monte pas
+      encore (marche ③).
   - ✅ **2026-10-21 — LE VOLET DEVIENT UNE ZONE DE BRIQUES, étape 1 : les surfaces** (décision de
     Fabien : *« on passe tout WAMA progressivement en briques UI »*, verrouillé par défaut pour
     tous, le volet en colonne, les réglages en deux colonnes gardés). Domicile : `WAMA_VOLETS

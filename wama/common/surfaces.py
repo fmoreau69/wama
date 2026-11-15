@@ -1117,7 +1117,7 @@ register_brick(UIBrick(
                 "que d'autres lecteurs avaient) : pas précédent / suivant (`step`), arrêt (`stop`), "
                 "lecture arrière (`reverse`), curseur de position (`position`), temps restant "
                 "(`remaining`), volume et muet (`volume`), position gardée par élément "
-                "(`remember`). Il PILOTE l'axe, jamais une vue (`WAMA_DATA_WORLD "
+                "(`remember`), bande fine sur une ligne (`strip`). Il PILOTE l'axe, jamais une vue (`WAMA_DATA_WORLD "
                 "§5bis`) ; il dit si le média est périmé par une modification et le recharge quand "
                 "le process qui le produit a été rejoué.",
     script='common/js/surfaces/brick-media-transport.js',

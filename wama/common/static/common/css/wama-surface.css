@@ -274,6 +274,10 @@ body.wama-panel-arranged > .container {
 .wama-transport-position + .wama-transport-clock { margin-left: 0; }
 .wama-transport-volume { width: 70px; flex: 0 0 auto; }
 .wama-transport-speed { min-width: 42px; }
+/* La bande fine (option `strip`) : une ligne, sans retour, boutons sans cadre. */
+.wama-transport-strip .wama-transport-bar { flex-wrap: nowrap; gap: .15rem; }
+.wama-transport-strip .wama-transport-bar .btn { border-color: transparent; padding: .05rem .35rem; }
+.wama-transport-strip .wama-transport-clock { font-size: .72rem; white-space: nowrap; }
 
 /* Ligne de temps (2026-10-21, `wama-timeline.js` — une VUE du temps, déplacée du transport, et
    avant lui de la page de correction du transcriber) : onde fenêtrée, bande de qualité, minimap. */

@@ -30,6 +30,8 @@
  *   volume    muet et curseur de volume, pour tous les médias que l'axe suit (`axis.setVolume`)
  *   remember  la position est GARDÉE (toutes les 2 s, au navigateur) et reprise à l'ouverture —
  *             sous la clé que donne qui monte le transport (`cfg.key` : la page et son élément)
+ *   strip     la BANDE FINE : une ligne étroite sans retour à la ligne, sans bouton de début ni
+ *             de saut (leurs touches restent) — celle qu'on glisse sous un média
  * Jusqu'à ce redécoupage, l'onde fenêtrée et ses couches, le zoom, la bande de qualité, la
  * minimap, l'outil Bornes et les modes d'écriture étaient aussi des options d'ici : les premiers
  * sont la VUE `wama-timeline.js`, les derniers la brique `playback_writing`.
@@ -83,7 +85,11 @@
         var stepFwd = o.step ? button('step-fwd', 'fa-caret-right', 'Pas suivant') : null;
         var reverse = (o.reverse && shuttle) ? button('reverse', 'fa-play fa-flip-horizontal', 'Lecture arrière') : null;
         var stop = o.stop ? button('stop', 'fa-stop', 'Arrêt : pause et retour au début') : null;
-        [toStart, back, stepBack, reverse, stop, play, stepFwd, fwd].forEach(function (b) {
+        // La BANDE FINE (`strip`) : une ligne étroite, celle qu'on glisse sous un média. Début et
+        // sauts n'y ont pas de bouton (leurs touches restent) ; le reste suit les options tirées.
+        if (o.strip) host.classList.add('wama-transport-strip');
+        (o.strip ? [stepBack, reverse, stop, play, stepFwd]
+                 : [toStart, back, stepBack, reverse, stop, play, stepFwd, fwd]).forEach(function (b) {
             if (b) bar.appendChild(b);
         });
 

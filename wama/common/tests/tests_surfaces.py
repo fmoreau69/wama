@@ -1783,6 +1783,11 @@ class AxisTest(SimpleTestCase):
             find(host, 'mute').fire('click'); r.muted = [axis.muted(), m.muted, find(host, 'mute').icon.className];
             find(host, 'mute').fire('click'); r.unmuted = [axis.muted(), find(host, 'mute').icon.className];
             r.kept = store['wama.transport.position.page.7'];
+            var thin = element('div');
+            window.WamaTransport.mount(thin, {axis: window.WamaAxis.create(Object.assign({duration: 60}, opts)),
+                                              options: {strip: true, position: true}});
+            r.strip = [names(thin), thin.className.indexOf('wama-transport-strip') >= 0,
+                       plain.className.indexOf('wama-transport-strip') >= 0];
             return r;
         ''')
         self.assertEqual(['start', 'skip-back', 'play', 'skip-fwd', 'rate', 'clock'], out['plain'],
@@ -1801,6 +1806,8 @@ class AxisTest(SimpleTestCase):
         self.assertEqual([True, True, 'fas fa-volume-xmark'], out['muted'])
         self.assertEqual([False, 'fas fa-volume-high'], out['unmuted'])
         self.assertEqual('12.5', out['kept'], 'kept at most every two seconds')
+        self.assertEqual([['play', 'rate', 'position', 'clock'], True, False], out['strip'],
+                         'the thin strip : one narrow line, no start nor jump button')
 
 
 class TransportKeysOwnershipTest(SimpleTestCase):
