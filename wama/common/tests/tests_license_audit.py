@@ -121,11 +121,14 @@ class ServiceTermsTest(SimpleTestCase):
         self.assertEqual(audit.INCONNUE, beta['q']['rang'], 'des conditions non établies sont inconnues')
         self.assertIsNone(beta['url'])
 
-    def test_a_local_model_or_one_with_its_own_licence_keeps_its_line(self):
-        models = [self._model('alpha', execution='local'), self._model('alpha', licence='apache-2.0')]
+    def test_a_local_model_keeps_its_line_and_a_served_one_never_does(self):
+        """Un modèle ouvert servi par un tiers (licence des poids connue) reste sous les
+        conditions du service : WAMA n'en détient pas les poids."""
+        models = [self._model('alpha', execution='local', licence='mit'),
+                  self._model('alpha', licence='apache-2.0')]
         lines, ranks = self._lines(models, {'alpha': 'https://alpha.example/terms'})
-        self.assertEqual(['model', 'model'], [l['registre'] for l in lines])
-        self.assertEqual([audit.INCONNUE, audit.PERMISSIVE], ranks)
+        self.assertEqual(['model', 'service'], [l['registre'] for l in lines])
+        self.assertEqual([audit.PERMISSIVE, audit.A_QUALIFIER], ranks)
 
     def test_the_model_scene_reads_the_same_rule(self):
         models = [self._model('alpha'), self._model('beta')]

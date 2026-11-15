@@ -242,10 +242,11 @@ def service_terms(source_key) -> tuple:
 
 
 def served_under_terms(model) -> bool:
-    """Un modèle SERVI par un service distant, sans licence propre : il relève des conditions du
-    service, pas d'une licence de poids."""
+    """Un modèle SERVI par un service distant relève des conditions du service — même quand la
+    licence de ses poids est connue (un modèle ouvert servi par un tiers) : WAMA n'en détient pas
+    les poids, c'est l'usage du service qu'il doit tenir."""
     from wama.model_manager.models import EXECUTION_CLOUD
-    return model.execution == EXECUTION_CLOUD and not model.license
+    return model.execution == EXECUTION_CLOUD
 
 
 def model_licence(model) -> str:
