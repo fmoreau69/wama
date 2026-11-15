@@ -177,7 +177,7 @@ AVATARIZER_MODELS = {
     },
     'codeformer': {
         'model_id': 'codeformer',
-        'platform_ref': 'huggingface:sczhou/CodeFormer',
+        'platform_ref': 'github:sczhou/CodeFormer/releases/tag/v0.1.0',   # la version d'où viennent ses fichiers (CODEFORMER_RELEASE)
         'type': 'face-restoration',
         'vram_gb': CODEFORMER_VRAM_GB,
         'description': "CodeFormer — face restoration (higher-quality option, use_enhancer).",
