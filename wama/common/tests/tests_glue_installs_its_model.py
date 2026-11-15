@@ -179,7 +179,9 @@ class GlueInstallsItsModelTest(SimpleTestCase):
     def test_composer_full_score_model_set_on_the_card(self):
         from wama.composer import tasks
         ctx, asked = _waiting_context()
-        gen = mock.MagicMock(parts_model='huggingface:org/other-transcriber')
+        # Une card d'ORIGINE (`derived_from_id=None`) : un double qui répond « vrai » à tout fait
+        # remonter `derived_cards.origin_of` sans fin, de double en double (suite tuée à 42 Go).
+        gen = mock.MagicMock(parts_model='huggingface:org/other-transcriber', derived_from_id=None)
         with mock.patch('wama.common.backends.manager.backend_for_key') as load, \
                 self.assertRaises(ServiceNotReady):
             tasks._parts(gen, ctx)
