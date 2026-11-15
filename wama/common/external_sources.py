@@ -444,6 +444,11 @@ class ExternalSource:
     lowest_reasoning_effort: tuple = ()
     #: Attribution EXIGÉE par la licence de la source. Une obligation, pas une politesse.
     attribution: str = ''
+    #: Service DISTANT : la page de ses conditions d'usage. Un modèle servi n'a pas de licence de
+    #: poids à tenir ici — le service la gère ; WAMA tient les conditions du SERVICE (décision de
+    #: Fabien, 2026-11-15), lues par l'audit des licences (`license_audit.service_terms`). N'y
+    #: écrire qu'une adresse VÉRIFIÉE sur le site du service ; '' = conditions non établies.
+    terms_url: str = ''
     #: Document portant l'intention, quand elle est écrite quelque part.
     doc: str = ''
 
@@ -625,6 +630,9 @@ SOURCES: tuple[ExternalSource, ...] = (
         # minute et par compte. Leur plafond du JOUR dépend des crédits achetés (50 sans, 1000
         # avec 10 $) : non déclaré, il s'apprend au premier refus plutôt que de bloquer à tort.
         quotas=(Quota(20, 60, models=':free'),),
+        # Lue le 2026-11-15 (« Terms of Service », mise à jour du 31/08/2026). Agrégateur : s'y
+        # ajoutent les conditions de l'hébergeur vers lequel la requête est routée.
+        terms_url='https://openrouter.ai/terms',
         doc='docs/construction/ia/WAMA_LLM.md'),
     # 2026-09-15 : l'API Anthropic (fournisseur « claude » de l'assistant) et l'ABONNEMENT Claude
     # Code — deux canaux de facturation opposés vers les mêmes modèles (cf. `claude_code.py`).
@@ -640,6 +648,8 @@ SOURCES: tuple[ExternalSource, ...] = (
         api_key_prefix='sk-ant-api',
         hosting='third_party', cost_tier='metered', protocol='anthropic',
         default_remote_type='image-text-to-text', default_model='claude-sonnet-4-6',
+        # Lue le 2026-11-15 : « Commercial Terms of Service » — elles régissent l'usage des clés d'API.
+        terms_url='https://www.anthropic.com/legal/commercial-terms',
         doc='docs/construction/ia/WAMA_LLM.md'),
     ExternalSource(
         # Libellé SANS « (abonnement) » depuis le 2026-10-10 : le coût se lit dans `cost_tier`
@@ -654,6 +664,9 @@ SOURCES: tuple[ExternalSource, ...] = (
         api_key_prefix='sk-ant-oat',
         hosting='third_party', cost_tier='subscription', protocol='claude_cli',
         default_remote_type='image-text-to-text', developer_only=True,
+        # Lue le 2026-11-15 : « Consumer Terms of Service », celles des abonnements individuels
+        # (la page nomme Claude.ai et Claude Pro, pas Claude Code).
+        terms_url='https://www.anthropic.com/legal/consumer-terms',
         # Les modèles de l'abonnement (2026-10-04, question de Fabien : « je n'ai accès qu'à un
         # seul modèle et je ne sais même pas lequel »). Ce sont les ALIAS du CLI, pas des
         # versions : `claude --help` (2.1.286, lu le jour même) — « --model : Provide an alias

@@ -27,7 +27,7 @@ def model_scene(user=None) -> dict:
     from django.urls import reverse
 
     from wama.common import external_sources as xs
-    from wama.common.services.license_audit import FAMILLES, qualifier
+    from wama.common.services.license_audit import FAMILLES, model_licence, qualifier
 
     from ..models import AIModel, ModelType, source_identity
 
@@ -41,7 +41,7 @@ def model_scene(user=None) -> dict:
     catalog_url = reverse('model_manager:index')
     nodes, sources = [], {}
     for m in rows:
-        q = qualifier(m.license)
+        q = qualifier(model_licence(m))
         tasks, mods = _declared_task_and_modalities(m.capabilities)
         src = source_identity(m.source)
         sources.setdefault(m.source, src['label'])

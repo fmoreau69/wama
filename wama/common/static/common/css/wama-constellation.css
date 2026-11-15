@@ -60,6 +60,7 @@
   --wc-registry-library: var(--wama-pres-trans);
   --wc-registry-media: var(--wama-pres-media);
   --wc-registry-app: var(--wama-pres-lab);
+  --wc-registry-service: var(--bs-orange);
   /* Types de modèles (`ModelType`) : la scène lit DIRECTEMENT le jeton du thème
      (`--wama-mm-type-<valeur>`, `model_scene.py`) — dix alias recopiés ici, sans le onzième type,
      retirés le 2026-11-08. Puis où ils tournent. */

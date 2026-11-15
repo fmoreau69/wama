@@ -18,7 +18,7 @@ from collections import Counter, defaultdict
 ITEM_LIMIT = 12
 
 #: Forme d'un satellite selon le registre d'où vient l'élément.
-SHAPES = {'model': 'octa', 'library': 'tetra', 'media': 'box'}
+SHAPES = {'model': 'octa', 'library': 'tetra', 'media': 'box', 'service': 'dodeca'}
 
 UNKNOWN = '(inconnue)'
 

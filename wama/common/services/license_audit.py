@@ -45,7 +45,12 @@ FAMILLES = {
 
 #: Les registres que l'audit recoupe, et leur nom — lu par la page des licences (sa facette) et
 #: par leur scène 3D (`license_scene`).
-REGISTRES = {'model': 'Modèles', 'library': 'Librairies', 'media': 'Médias'}
+REGISTRES = {'model': 'Modèles', 'library': 'Librairies', 'media': 'Médias', 'service': 'Services'}
+
+#: Ce qui tient lieu de licence pour un modèle SERVI par un service distant : les conditions
+#: d'usage de ce service (`external_sources.ExternalSource.terms_url`). Le service gère la
+#: licence des poids ; WAMA tient ses conditions (décision de Fabien, 2026-11-15).
+SERVICE_TERMS = 'conditions du service'
 
 #: Identifiant normalisé → (famille, exige une attribution).
 #: Table de DOMAINE (ce qu'une licence permet) : elle ne se dérive d'aucune donnée du dépôt,
@@ -95,6 +100,8 @@ _CATALOGUE = {
     'lgpl':                   (COPYLEFT_FAIBLE, True), # LGPL sans version dite (même famille que 2.1 et 3.0)
     'mit-cmu':                (PERMISSIVE, True),      # MIT-CMU (SPDX)
     'psf-2.0':                (PERMISSIVE, True),      # Python Software Foundation License (« Python style »)
+    # Conditions d'usage d'un service distant : un texte maison, à lire service par service.
+    SERVICE_TERMS:            (A_QUALIFIER, False),
 }
 
 #: Ce qu'un amont écrit quand il ne dit RIEN : une licence inconnue, pas un identifiant de plus.
@@ -218,9 +225,33 @@ def qualifier(licence: str) -> dict:
 
 # ── Inventaire des registres ──────────────────────────────────────────────────────────────
 
+def service_terms(source_key) -> tuple:
+    """`(texte de licence, adresse)` des conditions d'usage du service `source_key` — `('', None)`
+    quand le service n'en déclare pas : des conditions non établies sont une licence inconnue."""
+    from wama.common import external_sources
+    source = external_sources.by_key().get(source_key)
+    terms = source.terms_url if source else ''
+    return (SERVICE_TERMS, terms) if terms else ('', None)
+
+
+def served_under_terms(model) -> bool:
+    """Un modèle SERVI par un service distant, sans licence propre : il relève des conditions du
+    service, pas d'une licence de poids."""
+    from wama.model_manager.models import EXECUTION_CLOUD
+    return model.execution == EXECUTION_CLOUD and not model.license
+
+
+def model_licence(model) -> str:
+    """Le texte de licence qui VAUT pour une ligne du catalogue : le sien ; sinon, pour un modèle
+    servi, les conditions de son service. Une seule lecture, pour l'audit et la scène des modèles."""
+    return service_terms(model.source)[0] if served_under_terms(model) else model.license
+
+
 def _lignes_modeles():
     from wama.model_manager.models import AIModel
     for m in AIModel.objects.filter(is_proposed=False).order_by('model_key'):
+        if served_under_terms(m):
+            continue                                   # compté sous son service (`_service_lines`)
         yield {'registre': 'model', 'cle': m.model_key, 'nom': m.name,
                'licence': m.license, 'auteur': m.author,
                'url': m.platform_url, 'detail': m.get_model_type_display()}
@@ -232,6 +263,26 @@ def _lignes_librairies():
         yield {'registre': 'library', 'cle': l.key, 'nom': l.name or l.key,
                'licence': l.license, 'auteur': l.author,
                'url': l.repository or None, 'detail': l.version or ''}
+
+
+def _service_lines():
+    """UNE ligne par service distant qui sert des modèles du catalogue — pas une par modèle : ce
+    sont les conditions du service qui s'appliquent, les mêmes pour tout ce qu'il sert."""
+    from collections import Counter
+
+    from wama.common import external_sources
+    from wama.model_manager.models import AIModel
+    served = Counter(m.source for m in AIModel.objects.filter(is_proposed=False)
+                     .only('source', 'execution', 'license') if served_under_terms(m))
+    sources = external_sources.by_key()
+    for key, n in sorted(served.items()):
+        source = sources.get(key)
+        text, url = service_terms(key)
+        hosting = external_sources.CLOUD_ORIGIN_LABELS.get(source.hosting, '') if source else ''
+        count = f"{n} modèle servi" if n == 1 else f"{n} modèles servis"
+        yield {'registre': 'service', 'cle': key, 'nom': source.label if source else key,
+               'licence': text, 'auteur': '', 'url': url,
+               'detail': ' · '.join(x for x in (count, hosting) if x)}
 
 
 def _lignes_medias(user=None):
@@ -258,7 +309,7 @@ def _lignes_medias(user=None):
 def inventaire(user=None) -> list:
     """Toutes les lignes des registres, chacune qualifiée. Aucune écriture."""
     lignes = []
-    for source in (_lignes_modeles(), _lignes_librairies(), _lignes_medias(user)):
+    for source in (_lignes_modeles(), _service_lines(), _lignes_librairies(), _lignes_medias(user)):
         for ligne in source:
             ligne['q'] = qualifier(ligne['licence'])
             lignes.append(ligne)

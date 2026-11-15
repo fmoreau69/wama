@@ -81,3 +81,72 @@ class CompoundQualificationTest(SimpleTestCase):
         self.assertEqual(audit.qualifier('mpl-2.0')['rang'], audit.COPYLEFT_FAIBLE)
         self.assertEqual('apache-2.0', audit.qualifier('Apache 2.0 License')['id'])
         self.assertEqual(audit.INCONNUE, audit.qualifier('')['rang'])
+
+
+class ServiceTermsTest(SimpleTestCase):
+    """2026-11-15 (décision de Fabien) : un modèle SERVI par un service distant n'a pas de licence
+    de poids à tenir ici — le service la gère ; l'audit tient les conditions d'usage du SERVICE
+    (`ExternalSource.terms_url`), une ligne par service."""
+
+    @staticmethod
+    def _model(source, execution='cloud', licence=''):
+        from types import SimpleNamespace
+        return SimpleNamespace(source=source, execution=execution, license=licence, model_key=f'{source}:m',
+                               name='m', author='', platform_url='', get_model_type_display=lambda: 'LLM')
+
+    def _lines(self, models, terms):
+        from unittest import mock
+
+        from wama.common import external_sources as xs
+        from wama.model_manager.models import AIModel
+        sources = {key: mock.Mock(terms_url=url, label=key.title(), hosting='third_party')
+                   for key, url in terms.items()}
+        manager = mock.Mock()
+        manager.filter.return_value.only.return_value = models
+        manager.filter.return_value.order_by.return_value = models
+        with mock.patch.object(AIModel, 'objects', manager), mock.patch.object(xs, 'by_key', lambda: sources):
+            lines = list(audit._lignes_modeles()) + list(audit._service_lines())
+            for line in lines:
+                line['q'] = audit.qualifier(line['licence'])
+            return lines, [audit.qualifier(audit.model_licence(m))['rang'] for m in models]
+
+    def test_served_models_make_one_line_per_service_not_one_each(self):
+        models = [self._model('alpha'), self._model('alpha'), self._model('beta')]
+        lines, _ = self._lines(models, {'alpha': 'https://alpha.example/terms', 'beta': ''})
+        self.assertEqual([('service', 'alpha'), ('service', 'beta')], [(l['registre'], l['cle']) for l in lines])
+        alpha, beta = lines
+        self.assertEqual((audit.SERVICE_TERMS, audit.A_QUALIFIER, 'https://alpha.example/terms'),
+                         (alpha['q']['id'], alpha['q']['rang'], alpha['url']))
+        self.assertIn('2 modèles servis', alpha['detail'])
+        self.assertEqual(audit.INCONNUE, beta['q']['rang'], 'des conditions non établies sont inconnues')
+        self.assertIsNone(beta['url'])
+
+    def test_a_local_model_or_one_with_its_own_licence_keeps_its_line(self):
+        models = [self._model('alpha', execution='local'), self._model('alpha', licence='apache-2.0')]
+        lines, ranks = self._lines(models, {'alpha': 'https://alpha.example/terms'})
+        self.assertEqual(['model', 'model'], [l['registre'] for l in lines])
+        self.assertEqual([audit.INCONNUE, audit.PERMISSIVE], ranks)
+
+    def test_the_model_scene_reads_the_same_rule(self):
+        models = [self._model('alpha'), self._model('beta')]
+        _, ranks = self._lines(models, {'alpha': 'https://alpha.example/terms', 'beta': ''})
+        self.assertEqual([audit.A_QUALIFIER, audit.INCONNUE], ranks)
+
+    def test_every_service_line_has_its_registry_colour_and_shape(self):
+        from pathlib import Path
+
+        from django.conf import settings
+
+        from wama.common.services import license_scene
+        css = (Path(settings.BASE_DIR) / 'wama/common/static/common/css/wama-constellation.css').read_text('utf-8')
+        for registry in audit.REGISTRES:
+            self.assertIn(f'--wc-registry-{registry}:', css, registry)
+            self.assertIn(registry, license_scene.SHAPES, registry)
+
+    def test_terms_written_on_a_source_are_an_https_page(self):
+        from wama.common import external_sources as xs
+        written = {s.key: s.terms_url for s in xs.SOURCES if s.terms_url}
+        self.assertTrue(written)
+        for key, url in written.items():
+            self.assertTrue(url.startswith('https://'), key)
+            self.assertEqual('llm', xs.by_key()[key].kind, key)
