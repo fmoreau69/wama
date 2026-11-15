@@ -444,6 +444,33 @@ class RegistriesAccessTests(TestCase):
         from wama.common.registries import DERIVED, REGISTRIES
         return next(r.key for r in REGISTRIES.values() if r.permission == 'auth' and r.nature == DERIVED)
 
+    def test_a_registry_page_where_an_account_sets_its_own_is_read_by_every_account(self):
+        """2026-11-15 (Fabien : the keys of a brick are set on the bricks page, by every account).
+        Measured that day : the instance keeps the Registries to one role in its policy, so an
+        ordinary account was sent home from the bricks page. A registry SAYS its page is also an
+        account's (`Registry.account_page`) : every signed-in account reads it whatever the
+        policy ; the other registry pages follow the policy ; a visitor reads none."""
+        from wama.accounts.models import AppAccessPolicy
+        from wama.accounts.permissions import account_page_prefixes, can_open_page, refused_app
+        from wama.common.registries import REGISTRIES
+        policy, _ = AppAccessPolicy.objects.get_or_create(app_id='registries')
+        policy.roles.add(Group.objects.get_or_create(name=GROUP_PREFIX + 'ingenierie')[0])
+        own = [reverse(r.url_name) for r in REGISTRIES.values() if r.account_page and r.url_name]
+        self.assertEqual([reverse('common:ui_bricks_catalog')], own)
+        self.assertEqual([p.strip('/') for p in own], account_page_prefixes())
+        bricks, other = own[0], reverse('common:sources_catalog')
+        visitor = self.client.get(bricks)
+        self.assertEqual(302, visitor.status_code)
+        self.assertTrue(visitor.url.startswith(resolve_url(settings.LOGIN_URL)), visitor.url)
+        account = self._account('plain_keys', 'utilisateur')
+        self.assertIsNone(refused_app(account, bricks))
+        self.assertEqual('registries', refused_app(account, other), 'the policy still holds elsewhere')
+        self.assertTrue(can_open_page(account, 'public', bricks))
+        self.assertFalse(can_open_page(account, 'public', other))
+        self.client.force_login(account)
+        self.assertEqual(200, self.client.get(bricks).status_code)
+        self.assertNotEqual(200, self.client.get(other).status_code)
+
     def test_the_registries_are_a_gated_column_of_the_transversal_world(self):
         from wama.accounts.permissions import access_cases, app_id_for_path
         columns = {a['id']: a for a in access_cases()['apps']}

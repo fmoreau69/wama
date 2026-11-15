@@ -1450,12 +1450,13 @@ def check_brick_keys(page_hook=None):
         from django.contrib.auth import get_user_model
         return get_user_model().objects.get(pk=uid)
 
-    # La page des briques se lit sous le droit des Registres : le compte de test STANDARD ne
-    # l'ouvre pas (mesuré le 2026-11-15). Le scénario le DIT et joue alors avec le compte de test
-    # développeur — celui des jumelles, routé par la clé d'une jumelle (`_test_session_key`).
+    # La page des briques est celle où chaque compte règle ses touches (`Registry.account_page`,
+    # 2026-11-15) : le compte de test STANDARD l'ouvre. Si une instance la lui fermait, le
+    # scénario le DIRAIT et jouerait avec le compte de test développeur — celui des jumelles,
+    # routé par la clé d'une jumelle (`_test_session_key`).
     def reaches():
-        from wama.accounts.permissions import accessible
-        return accessible(account(), 'app', 'registries')
+        from wama.accounts.permissions import refused_app
+        return refused_app(account(), reverse('common:ui_bricks_catalog')) is None
 
     who = 'compte de test standard'
     if not _in_plain_thread(reaches):

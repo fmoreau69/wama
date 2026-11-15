@@ -521,6 +521,8 @@ register(Registry(
     count=lambda: len(_ui_bricks()),
     entries=lambda: {key: brick.to_dict() for key, brick in _ui_bricks().items()},
     url_name='common:ui_bricks_catalog',
+    # Chacun y règle SES touches, brique par brique (`WAMA_VOLETS §3-ter`).
+    account_page=True,
     # Les briques du code sont système ; une brique d'utilisateur (écrite dans sa jumelle) n'a
     # encore aucun lieu (§29, étape 5).
     provenance=TO_CARRY,

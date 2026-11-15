@@ -1215,12 +1215,13 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
     ✅ **Joué au NAVIGATEUR, 2026-11-15** — scénario `common.brick_keys` (7 gestes : touche
     cliquable, clic puis frappe gardée et montrée, Échap, conflit dit sur les deux briques, levé
     par une autre frappe, « Rétablir », aucune erreur de script).
-    🔴 **Ce qu'il a MESURÉ, à trancher (Fabien)** : la page des briques se lit sous le droit des
-    Registres, et un compte ORDINAIRE ne l'ouvre pas (compte de test standard, rôles communication
-    et recherche : `accessible(…, 'registries')` faux, redirigé vers l'accueil) — seul un profil
-    développeur y règle donc ses touches aujourd'hui. Le scénario le dit et joue avec le compte
-    de test développeur. ⚠ `permissions.registry_page_prefixes` dit pourtant « tout compte,
-    jamais le visiteur » : la phrase et la mesure ne s'accordent pas.
+    ✅ **Ce qu'il a MESURÉ, et tranché le jour même (Fabien : ouvrir la page des briques à tout
+    compte connecté)** : la page se lisait sous le droit des Registres, que la politique EN BASE
+    de l'instance réserve au rôle `ingenierie` — un compte ordinaire était renvoyé à l'accueil.
+    Le registre des briques déclare maintenant que sa page est aussi celle d'un compte
+    (`Registry.account_page`) : tout compte connecté la lit, le visiteur jamais ; le scénario
+    est joué par le compte de test STANDARD. Détail et ce qui reste à trancher (la page des
+    applications est fermée de la même façon) : `PROFILES_PERMISSIONS §1.5`.
     ✅ **La FICHE d'une app sur la page des applications, 2026-11-15** (décisions de Fabien :
     la file et ses domaines, puis les pages d'édition ; le préréglage de touches se montre PAR
     PAGE d'édition, pas par app — corrige « le préréglage d'une application » du 12/11 ; la

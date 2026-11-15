@@ -219,21 +219,36 @@ def registry_page_prefixes() -> list:
     ports internes), `/common/backends/`, `/common/skills/`, `/common/licenses/`, `/common/apps/`…
     se lisaient sans compte. Un registre de demain est couvert sans ligne de plus. La page d'un
     registre qui est celle d'une APP (`/media-library/`) suit l'app : `PATH_APP_MAP` passe avant."""
+    return _registry_pages()[0]
+
+
+def account_page_prefixes() -> list:
+    """Parmi elles, les pages où un compte règle ce qui est À LUI (`Registry.account_page` — la
+    page des briques, où chacun règle ses touches, 2026-11-15) : tout compte CONNECTÉ les lit,
+    quelle que soit la politique d'accès des Registres ; le visiteur jamais (`visitor_refusal`
+    les juge comme les autres pages des registres)."""
+    return _registry_pages()[1]
+
+
+def _registry_pages() -> tuple:
     global _REGISTRY_PAGES
     if _REGISTRY_PAGES is None:
         from django.urls import NoReverseMatch, reverse
         from wama.common.registries import REGISTRIES
-        pages = set()
+        pages, own = set(), set()
         for registry in REGISTRIES.values():
             if not registry.url_name:
                 continue
             try:
-                pages.add(reverse(registry.url_name).strip('/'))
+                path = reverse(registry.url_name).strip('/')
             except NoReverseMatch:
                 continue
+            pages.add(path)
+            if registry.account_page:
+                own.add(path)
         if not pages:
-            return []                  # registres pas encore chargés : rien à retenir
-        _REGISTRY_PAGES = sorted(pages)
+            return [], []              # registres pas encore chargés : rien à retenir
+        _REGISTRY_PAGES = (sorted(pages), sorted(own))
     return _REGISTRY_PAGES
 
 
@@ -330,6 +345,11 @@ def refused_app(user, path, allowed_apps=None):
     app_id = app_id_for_path(path)
     if not app_id:
         return None
+    # Une page des registres où le compte règle ce qui est à LUI : tout compte connecté la lit.
+    if app_id == 'registries':
+        p = path.strip('/')
+        if any(p == prefix or p.startswith(prefix + '/') for prefix in account_page_prefixes()):
+            return None
     allowed = (app_id in allowed_apps) if allowed_apps is not None else accessible(user, 'app', app_id)
     return None if allowed else app_id
 

@@ -174,6 +174,11 @@ class Registry:
     #: compté, pas cité. Il ne fait PAS partie du contrat d'actualisation — il le lit.
     entries: Optional[Callable[[], Dict[str, object]]] = None
     url_name: str = ''
+    #: Sa page est aussi celle où un compte règle ce qui est À LUI (2026-11-15, décision de
+    #: Fabien : les touches d'une brique se règlent sur la page des briques) : TOUT compte connecté
+    #: la lit, quelle que soit la politique d'accès des Registres ; le visiteur jamais, comme les
+    #: autres (`accounts.permissions.refused_app`).
+    account_page: bool = False
     #: 'staff' (une actualisation qui ÉCRIT) ou 'auth' (sans effet de bord partagé — ouverte aux
     #: développeurs : un compte utilisateur LIT les registres sans les actualiser, cf. `is_authorized`).
     permission: str = 'staff'
