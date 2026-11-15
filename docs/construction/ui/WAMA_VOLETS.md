@@ -1162,8 +1162,29 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
     ouverte, chaque touche du préréglage répond par son action au clavier commun de la page
     (contre-épreuve : préréglage non transmis → échec). ⚠ La jumelle `transcriber_01` n'est pas
     régénérée (sa recréation est à la session des domaines).
-    ⏳ Restent, dans l'ordre : les défauts décidés
-    (←/→ = un pas, Ctrl 1 s, Maj 5 s, Alt 30 s) ; le réglage par compte et ses pages.
+    ✅ **Les DÉFAUTS du transport, 2026-11-15** (validés le 12/11) — les flèches sont en temps, du
+    plus fin au plus large : ←/→ seules un pas de l'axe (`DEFAULT_STEP`, 1/30 s — la lecture
+    s'arrête, comme pour `,` `.`), Ctrl+←/→ 1 s, Maj+←/→ un saut (5 s, celui des boutons), Alt+←/→
+    six sauts (30 s). Quatre actions de plus à la table (`nudge_back/forward`,
+    `jump_back_short/forward_short`) ; `,` `.` gardent le pas de la cadence la plus fine (le pas
+    d'une source PRIORITAIRE reste ouvert, plus haut). Chaque page garde l'usage qui lui va PAR SON
+    PRÉRÉGLAGE, jamais par un cas dans le code (Fabien, 15/11 : « le code est identique, seul le
+    réglage est adaptatif ») :
+    la page de correction du transcriber garde ←/→ = 5 s et Maj = 30 s (le pas y reste à `,` `.`,
+    Ctrl = 1 s lui vient des défauts, Alt n'y est donné à rien) ; la VISIONNEUSE, qui n'est sur
+    aucun emplacement, donne le même préréglage au magnéto qu'elle porte
+    (`VIEWER_TRANSPORT_PRESET`, `axis.keys({preset})`) : pendant la lecture ←/→ y sautent de 5 s —
+    un pas de 1/30 s n'y servirait à rien. La règle d'une surcharge est écrite une fois au clavier
+    commun (`WamaKeys.resolve`, que `tableOf` emprunte). ⚠ Régression de la veille corrigée : le
+    test du transcriber qui compare les options du transport ne connaissait pas le préréglage
+    (`tests_editor_axis`, rouge depuis `59354ff37`, non lancé ce jour-là).
+    Gardes : `BrickShortcutsTest` (les quatre défauts, ce que garde la page de correction, le
+    préréglage de la visionneuse égal à celui de la page), la mesure V8 des quatre pas et du
+    préréglage sur un vrai axe, `ViewerTransportKeysTest` ; au navigateur `transcriber.editor_parity`
+    (→ = +5 s) et `common.preview_sync` (→ saute pendant la lecture, navigue à l'arrêt).
+    ⏳ Reste : le réglage par compte et ses pages. ⚠ À voir alors : la visionneuse lit deux tables
+    sous un même nom (navigation, magnéto) — un réglage qui donnerait ← au saut y retire aussi ←
+    de la navigation à l'arrêt.
 - ⏳ **VISION, à ne pas oublier (Fabien, 2026-11-12) — composer une page D'ÉDITION DE ZÉRO.** On a
   le catalogue des briques et des pages dont on arrange les briques ; rien ne permet de partir
   d'une page vierge, d'y tirer des briques du catalogue et de les disposer pour créer une

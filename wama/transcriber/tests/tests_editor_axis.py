@@ -52,7 +52,12 @@ class CorrectionIsADeclaredSurfaceTest(SimpleTestCase):
         for option in ('segments', 'quality', 'minimap', 'zoom'):
             self.assertTrue(timeline.get(option), option)
         self.assertEqual('retime', timeline['boundaries'])
-        transport = bricks['media_transport']
+        from wama.common.surfaces import KEYS_OPTION
+        transport = dict(bricks['media_transport'])
+        # Its key preset (2026-11-14) : the page keeps ← / → = a jump whatever the defaults.
+        self.assertEqual({'jump_back': ['ArrowLeft'], 'jump_forward': ['ArrowRight'],
+                          'jump_back_far': ['Shift+ArrowLeft'], 'jump_forward_far': ['Shift+ArrowRight']},
+                         transport.pop(KEYS_OPTION))
         self.assertEqual({'role': 'audio', 'wave': False, 'goto': True, 'speed': 'steps'}, transport,
                          'the transport carries the commands of the time, nothing else')
         self.assertTrue(found.autosave)

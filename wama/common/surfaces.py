@@ -1044,10 +1044,18 @@ register_brick(UIBrick(
                         names=('toggle_always',)),
                Shortcut(('KeyJ', 'KeyK', 'KeyL'), 'lecture arrière / pause / lecture avant, par crans '
                         'de vitesse', 'page', names=('reverse', 'stop', 'forward')),
-               Shortcut(('ArrowLeft', 'ArrowRight'), "reculer / avancer d'un saut", 'page',
+               # Les flèches sont en TEMPS, du plus fin au plus large (défauts validés par Fabien
+               # le 2026-11-12, posés le 15) ; une page garde les siennes par son préréglage
+               # (`KEYS_OPTION` — la page de correction du transcriber : ←/→ un saut).
+               Shortcut(('ArrowLeft', 'ArrowRight'), "reculer / avancer d'un pas de l'axe "
+                        "(1/30 s), la lecture arrêtée", 'page',
+                        names=('nudge_back', 'nudge_forward')),
+               Shortcut(('Ctrl+ArrowLeft', 'Ctrl+ArrowRight'), "reculer / avancer d'une seconde",
+                        'page', names=('jump_back_short', 'jump_forward_short')),
+               Shortcut(('Shift+ArrowLeft', 'Shift+ArrowRight'), "reculer / avancer d'un saut", 'page',
                         targets=('[data-transport="skip-back"]', '[data-transport="skip-fwd"]'),
                         names=('jump_back', 'jump_forward')),
-               Shortcut(('Shift+ArrowLeft', 'Shift+ArrowRight'), 'reculer / avancer de six sauts',
+               Shortcut(('Alt+ArrowLeft', 'Alt+ArrowRight'), 'reculer / avancer de six sauts',
                         'page', names=('jump_back_far', 'jump_forward_far')),
                Shortcut((',', '.'), "reculer / avancer d'un pas (une image), la lecture arrêtée",
                         'page', names=('step_back', 'step_forward')),

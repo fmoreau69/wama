@@ -1519,6 +1519,47 @@ class AxisTest(SimpleTestCase):
         self.assertEqual([True, 1], out['l'], 'J/K/L through the shuttle')
         self.assertEqual([True, 0], out['home'])
 
+    def test_the_arrows_move_in_time_from_the_finest_to_the_widest_and_a_preset_keeps_a_jump(self):
+        """2026-11-15 (defaults Fabien validated on 12/11) : ← / → alone one AXIS step (1/30 s, the
+        playback stopped), Ctrl 1 s, Shift a jump (5 s), Alt six jumps (30 s). A brick that carries
+        the transport gives it ITS defaults as data (`preset`, the viewer : ← / → keep a jump),
+        resolved by the rule of an override (`WamaKeys.resolve`)."""
+        self.engine.eval('''
+            globalThis.document = {addEventListener: function () {}, removeEventListener: function () {}};
+            window.document = globalThis.document;
+        ''' + _js('common/js/wama-keys.js'))
+        out = self._eval('''
+            var axis = window.WamaAxis.create(Object.assign({duration: 600}, opts));
+            function keysOf(o) {
+                var keys = axis.keys(o || {});
+                return function (code, mods) {
+                    axis.seek(100);
+                    keys.handle(Object.assign({code: code, key: code, target: {}}, mods || {}));
+                    return Math.round((axis.time() - 100) * 1000) / 1000;
+                };
+            }
+            var d = keysOf(), r = {};
+            r.alone = [d('ArrowRight'), d('ArrowLeft')];
+            r.ctrl = d('ArrowRight', {ctrlKey: true});
+            r.shift = d('ArrowRight', {shiftKey: true});
+            r.alt = d('ArrowLeft', {altKey: true});
+            axis.play(); d('ArrowRight'); r.stopped = !axis.playing();
+            var p = keysOf({owner: 'carrier', preset: {jump_back: ['ArrowLeft'], jump_forward: ['ArrowRight'],
+                jump_back_far: ['Shift+ArrowLeft'], jump_forward_far: ['Shift+ArrowRight']}});
+            r.preset = [p('ArrowRight'), p('ArrowRight', {shiftKey: true}), p('ArrowRight', {ctrlKey: true}),
+                        p('ArrowRight', {altKey: true})];
+            r.others = d('ArrowRight', {shiftKey: true});       // the preset is this transport's only
+            return r;
+        ''')
+        self.assertEqual([0.033, -0.033], list(out['alone']), 'one step of the axis')
+        self.assertEqual(1, out['ctrl'])
+        self.assertEqual(5, out['shift'])
+        self.assertEqual(-30, out['alt'])
+        self.assertTrue(out['stopped'], 'a step stops the playback')
+        self.assertEqual([5, 30, 1, 0], list(out['preset']),
+                         '← / → a jump, Shift six, Ctrl from the defaults, Alt given to nothing')
+        self.assertEqual(5, out['others'])
+
 
 class TransportKeysOwnershipTest(SimpleTestCase):
     """2026-10-29 (Fabien : « le transport doit être toujours actif avec J/K/L ») — the transport is
@@ -1952,15 +1993,15 @@ class BrickShortcutsTest(SimpleTestCase):
         for name, surface in SURFACES.items():
             with self.subTest(surface=name):
                 self.assertEqual([], surface.keymap_problems())
-        moved = {'jump_back': ['KeyK'], 'reverse': [], 'toggle': ['Space', 'Enter']}
+        moved = {'nudge_back': ['KeyK'], 'reverse': [], 'toggle': ['Space', 'Enter']}
         for name, brick, table in [*presets, ('moved', 'media_transport', moved)]:
             with self.subTest(preset=name, brick=brick):
                 self.assertEqual(self._keyboard_table(v8, brick, table), by_the_server(brick, table))
-        # What the moved preset says : K now jumps back (taken from the shuttle's stop), the
+        # What the moved preset says : K now steps back (taken from the shuttle's stop), the
         # backward shuttle is silenced, ← is left to nobody, Space and Enter both toggle — and the
         # labels follow, no key shown twice.
         resolved = by_the_server('media_transport', moved)
-        self.assertEqual(('jump_back', 'toggle', 'toggle'),
+        self.assertEqual(('nudge_back', 'toggle', 'toggle'),
                          (resolved['KeyK'], resolved['Space'], resolved['Enter']))
         self.assertNotIn('ArrowLeft', resolved)
         self.assertNotIn('reverse', resolved.values())
@@ -1971,11 +2012,34 @@ class BrickShortcutsTest(SimpleTestCase):
         self.assertIn('K / →', labels)
         named = [key for s in shown if s.names for key in s.keys]
         self.assertEqual(len(named), len(set(named)))
-        # TODAY the preset of the correction page says what the defaults say : nothing moves.
+        # The DEFAULTS (Fabien, 12/11, set on 2026-11-15) : arrows are in time, finest to widest —
+        # alone one axis step, Ctrl 1 s, Shift a jump, Alt six jumps.
+        self.assertEqual(
+            ('nudge_back', 'jump_back_short', 'jump_back', 'jump_back_far'),
+            tuple(by_the_server('media_transport', None)[k] for k in
+                  ('ArrowLeft', 'Ctrl+ArrowLeft', 'Shift+ArrowLeft', 'Alt+ArrowLeft')))
+        # The correction page KEEPS its keys by its preset : ← / → a jump, Shift six ; the axis
+        # step is left to `,` `.`, Ctrl (1 s) comes with the defaults, Alt is given to nothing.
         correct = SURFACES['transcriber.correct']
-        self.assertEqual(by_the_server('media_transport', None),
-                         {k: n for s in correct.shortcuts_of('media_transport')
-                          for k, n in zip(s.keys, s.names)})
+        kept = {k: n for s in correct.shortcuts_of('media_transport') for k, n in zip(s.keys, s.names)}
+        self.assertEqual(('jump_back', 'jump_forward', 'jump_back_far', 'jump_forward_far'),
+                         tuple(kept[k] for k in ('ArrowLeft', 'ArrowRight', 'Shift+ArrowLeft',
+                                                 'Shift+ArrowRight')))
+        self.assertNotIn('nudge_back', kept.values())
+        self.assertNotIn('Alt+ArrowLeft', kept)
+        self.assertEqual('jump_back_short', kept['Ctrl+ArrowLeft'])
+        # The viewer keeps a jump on ← / → while playing by the SAME rule, as data : its preset
+        # names transport actions, and the axis resolves it into this transport's defaults.
+        import re
+        viewer = _js('common/js/media-preview.js')
+        block = viewer.split('const VIEWER_TRANSPORT_PRESET = {', 1)[1].split('};', 1)[0]
+        preset = {name: re.findall(r"'([^']+)'", keys)
+                  for name, keys in re.findall(r'(\w+):\s*\[([^\]]*)\]', block)}
+        named = {n for s in BRICKS['media_transport'].shortcuts for n in s.names}
+        self.assertTrue(preset and set(preset) <= named, 'it names actions of the transport')
+        self.assertEqual((['ArrowLeft'], ['ArrowRight']), (preset['jump_back'], preset['jump_forward']))
+        self.assertIn('preset: VIEWER_TRANSPORT_PRESET', viewer)
+        self.assertIn('global.WamaKeys.resolve(TRANSPORT_KEYS, o.preset)', _js('common/js/wama-axis.js'))
         self.assertEqual(correct.keymap(), correct.to_dict()['keys'])
         # A preset that cannot apply is refused when the surface registers.
         slot = next(s for s in correct.slots if s.brick == 'media_transport')
@@ -2031,7 +2095,7 @@ class BrickShortcutsTest(SimpleTestCase):
         self.assertTrue(viewer)
         self.assertEqual({}, {k: n for k, n in viewer.items() if table.get(k) != n})
         self.assertNotIn("case 'KeyL'", axis, 'no key is tested by hand any more')
-        self.assertIn('Keys.action(e, owner, TRANSPORT_KEYS)', axis)
+        self.assertIn('Keys.action(e, owner, defaults)', axis)
         # The other bricks (timeline, writing, segments, boxes, queue, score) are held by the generic
         # guard `EveryKeyTableFollowsTheRegistryTest` : it reads a LITERAL call
         # `WamaKeys.action(e, '<brick>', TABLE)`, which the transport — read under another name,

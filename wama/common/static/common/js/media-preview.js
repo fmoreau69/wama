@@ -1464,6 +1464,14 @@
         'ArrowLeft': 'previous_file', 'ArrowRight': 'next_file',
         'ArrowUp': 'previous_card', 'ArrowDown': 'next_card',
     };
+    /** Le PRÉRÉGLAGE de la visionneuse pour les touches qu'elle passe au magnéto (décision de
+     *  Fabien, 2026-11-15) : pendant la lecture, ←/→ gardent un saut (5 s) et Maj six — un pas de
+     *  1/30 s n'y sert à rien. Une donnée, résolue par la règle d'une surcharge : la changer
+     *  ne touche aucun code. Même contenu que celui de la page de correction du transcriber. */
+    const VIEWER_TRANSPORT_PRESET = {
+        jump_back: ['ArrowLeft'], jump_forward: ['ArrowRight'],
+        jump_back_far: ['Shift+ArrowLeft'], jump_forward_far: ['Shift+ArrowRight'],
+    };
     const VIEWER_MOVES = {
         previous_file: { dir: -1, byCard: false }, next_file: { dir: 1, byCard: false },
         previous_card: { dir: -1, byCard: true }, next_card: { dir: 1, byCard: true },
@@ -1476,7 +1484,8 @@
 
     // Le MAGNÉTO de la visionneuse (2026-11-05) : les touches de l'axe de ce qu'elle montre — Espace,
     // J/K/L, Début/Fin, Ctrl+Espace —, celles d'une surface du monde Data (`WamaAxis.keys`, le même
-    // shuttle). ←/→ restent à la navigation (sur une surface, elles sautent de 5 s). Recréé quand
+    // shuttle). ←/→ restent à la navigation à l'arrêt ; pendant la lecture elles sautent de 5 s
+    // (`VIEWER_TRANSPORT_PRESET` — sur une surface, elles font un pas de l'axe). Recréé quand
     // l'axe change (une autre face, un autre élément).
     let _viewerKeys = null;
 
@@ -1492,7 +1501,8 @@
         const shuttle = window.WamaShuttle ? window.WamaShuttle.forAxis(axis) : null;
         // Sous SON nom : le préréglage qu'une page donne à son transport ne change pas les
         // touches de la visionneuse, dont l'aide montre les siennes.
-        _viewerKeys = { axis: axis, keys: axis.keys({ shuttle: shuttle, owner: 'media_viewer' }) };
+        _viewerKeys = { axis: axis, keys: axis.keys({ shuttle: shuttle, owner: 'media_viewer',
+                                                     preset: VIEWER_TRANSPORT_PRESET }) };
         return _viewerKeys.keys;
     }
 

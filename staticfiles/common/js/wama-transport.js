@@ -15,7 +15,7 @@
  * Début/Fin le clavier de l'axe, l'arrière silencieux celui de l'axe.
  *
  * Options (toutes facultatives ; sans elles, le magnéto de la partition du composer) :
- *   jump    saut des boutons et de ←/→ (5 s)
+ *   jump    saut des boutons et de Maj+←/→ (5 s)
  *   speed   'select' (liste de vitesses) | 'steps' (− / valeur / +, de 0,5 à 2 par 0,25)
  *   goto    champ « aller à » (m:ss, h:mm:ss, virgule admise) — l'axe dit `goto` à ses abonnés :
  *           la ligne de temps recentre sa fenêtre, la liste choisit le segment

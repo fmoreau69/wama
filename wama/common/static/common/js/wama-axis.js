@@ -98,8 +98,12 @@
      *  les SURCHARGE par le nom de l'action (`WamaKeys.remap`, `WAMA_VOLETS §3-ter`). */
     var TRANSPORT_KEYS = {
         'Ctrl+Space': 'toggle_always', 'Space': 'toggle',
-        'ArrowLeft': 'jump_back', 'ArrowRight': 'jump_forward',
-        'Shift+ArrowLeft': 'jump_back_far', 'Shift+ArrowRight': 'jump_forward_far',
+        // Les flèches sont en TEMPS, du plus fin au plus large (défauts validés par Fabien le
+        // 2026-11-12, posés le 15) : seules un pas de l'axe, Ctrl 1 s, Maj un saut, Alt six sauts.
+        'ArrowLeft': 'nudge_back', 'ArrowRight': 'nudge_forward',
+        'Ctrl+ArrowLeft': 'jump_back_short', 'Ctrl+ArrowRight': 'jump_forward_short',
+        'Shift+ArrowLeft': 'jump_back', 'Shift+ArrowRight': 'jump_forward',
+        'Alt+ArrowLeft': 'jump_back_far', 'Alt+ArrowRight': 'jump_forward_far',
         'Home': 'start', 'End': 'end',
         'KeyJ': 'reverse', 'KeyK': 'stop', 'KeyL': 'forward',
         ',': 'step_back', '.': 'step_forward',
@@ -579,7 +583,7 @@
                 notify('media');
             },
 
-            /** Le clavier du magnéto (`WAMA_DATA_WORLD §5`) : Espace, ←/→ (±`jump` s), Début/Fin,
+            /** Le clavier du magnéto (`WAMA_DATA_WORLD §5`) : Espace, les flèches (un pas, Ctrl 1 s, Maj ±`jump` s, Alt six), Début/Fin,
              *  et J/K/L si un shuttle est donné (`WamaShuttle.create`). Le transport est une brique
              *  PRIORITAIRE du clavier commun (`wama-keys.js`, qui décide à qui revient une frappe :
              *  jamais pendant une saisie, ni à travers une modale, ni à la place d'un contrôle
@@ -608,6 +612,12 @@
                     return !!(t && (t.tagName === 'VIDEO' || t.tagName === 'AUDIO') && t.controls);
                 }
                 var owner = o.owner || 'media_transport';
+                /** Les défauts de CE magnéto : ceux du transport, ou — `o.preset`, `{action:
+                 *  [touches]}` — ceux qu'en fait la brique qui le porte (la visionneuse garde un
+                 *  saut sur ←/→), par la règle même d'une surcharge (`WamaKeys.resolve`). Résolus
+                 *  une fois : la surcharge d'une page ou d'un compte s'y applique ensuite. */
+                var defaults = (o.preset && global.WamaKeys && global.WamaKeys.resolve)
+                    ? global.WamaKeys.resolve(TRANSPORT_KEYS, o.preset) : TRANSPORT_KEYS;
                 /** L'ACTION d'une frappe (2026-11-12) : lue à la table du magnéto par le clavier
                  *  commun (`WamaKeys.action` — défauts `TRANSPORT_KEYS`, surcharges d'une page ou
                  *  d'un compte), plus jamais à la touche. Méta n'est à personne. */
@@ -616,8 +626,11 @@
                     var Keys = global.WamaKeys;
                     // Sans le clavier commun (un banc qui ne charge que l'axe) : la touche nue.
                     if (!Keys || !Keys.action) return TRANSPORT_KEYS[e.code] || null;
-                    return Keys.action(e, owner, TRANSPORT_KEYS);
+                    return Keys.action(e, owner, defaults);
                 }
+                /** Un pas de l'AXE (`DEFAULT_STEP`), la lecture arrêtée — le même temps partout,
+                 *  quelles que soient les cadences posées (`step` suit, lui, la plus fine). */
+                function nudge(n) { axis.pause(); axis.seek(s.time + n * DEFAULT_STEP); }
                 function handle(e) {
                     if (o.enabled && !o.enabled()) return false;
                     switch (actionOf(e)) {
@@ -626,6 +639,10 @@
                         case 'toggle':
                             if (ownSpace(e.target)) return false;
                             axis.toggle(); spaceTarget = e.target; return true;
+                        case 'nudge_back': nudge(-1); return true;
+                        case 'nudge_forward': nudge(1); return true;
+                        case 'jump_back_short': axis.jump(-1); return true;
+                        case 'jump_forward_short': axis.jump(1); return true;
                         case 'jump_back': axis.jump(-jump); return true;
                         case 'jump_forward': axis.jump(jump); return true;
                         case 'jump_back_far': axis.jump(-jump * 6); return true;

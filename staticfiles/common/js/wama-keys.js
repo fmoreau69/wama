@@ -167,14 +167,22 @@
         for (var i = 0; i < resolvedTables.length; i++) {
             if (resolvedTables[i].owner === owner && resolvedTables[i].defaults === defaults) return resolvedTables[i].table;
         }
-        var table = {}, over = overrides[owner] || {};
+        var table = resolve(defaults, overrides[owner]);
+        resolvedTables.push({ owner: owner, defaults: defaults, table: table });
+        return table;
+    }
+    /** LA règle d'une surcharge (`{action: [touches]}`) sur une table `{touche: action}` : une
+     *  action surchargée prend ses touches de la surcharge (aucune : elle se tait), une touche
+     *  donnée quitte l'action qui l'avait — celle de `surfaces.resolve_shortcuts`, côté serveur. */
+    function resolve(defaults, over) {
+        var table = {};
+        over = over || {};
         Object.keys(defaults || {}).forEach(function (key) {
             if (!Object.prototype.hasOwnProperty.call(over, defaults[key])) table[key] = defaults[key];
         });
         Object.keys(over).forEach(function (name) {
             (over[name] || []).forEach(function (key) { table[key] = name; });
         });
-        resolvedTables.push({ owner: owner, defaults: defaults, table: table });
         return table;
     }
     /** L'action de la frappe `e` pour `owner`, d'après ses défauts et ses surcharges ; null.
@@ -219,6 +227,7 @@
         combo: combo,
         action: action,
         remap: remap,
+        resolve: resolve,
         /** Le contrôle `t` a-t-il été CLIQUÉ (et non atteint au clavier) ? */
         clicked: function (t) { return !!t && t === pointerFocus; },
     };
