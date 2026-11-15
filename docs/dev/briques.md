@@ -902,7 +902,7 @@ Une page d'édition DÉCLARÉE par l'app (emplacements, champs lus, champ écrit
 
 - **Domicile** : `wama/common/surfaces.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : SURFACES et BRIQUES UI — le registre (2026-10-10, ouverture du chantier SURFACES).
-- **API publique** (16) :
+- **API publique** (19) :
   - `thumbnail_path(key: str)` — Le fichier de la vignette d'une brique (qu'il existe ou non).
   - `thumbnail(key: str) -> Optional[dict]` — La vignette d'une brique — `{'url', 'taken_at'}`, ou None tant qu'aucune capture n'existe
   - `validate_text(value) -> str` — Le texte d'un champ fichier édité, assaini : une chaîne, fins de ligne `\n`, plafonnée.
@@ -910,6 +910,9 @@ Une page d'édition DÉCLARÉE par l'app (emplacements, champs lus, champ écrit
   - `key_label(key: str) -> str` — `Shift+ArrowLeft` → `Maj+←`, `KeyJ` → `J`, `Ctrl+Space` → `Ctrl+Espace`, `Ctrl+a` → `Ctrl+A`
   - `class Shortcut` — Un raccourci clavier DÉCLARÉ par une brique — la source unique de la liste que montrent la
   - `resolve_shortcuts(shortcuts, override) -> tuple` — Les raccourcis d'une brique, une SURCHARGE appliquée (`{action: [touches]}`) — la règle
+  - `override_problems(brick: str, override) -> list` — Ce qui rend inapplicable une surcharge `{action: [touches]}` des touches de `brick` — []
+  - `merge_overrides(lower, upper) -> dict` — Deux surcharges d'une même brique en UNE, `upper` l'emportant (le réglage d'un compte sur
+  - `key_conflicts(slots, account_keys=None) -> list` — Les CONFLITS de touches entre les briques d'une même page : `[(touche, brique, autre
   - `class UIBrick`
   - `class BrickSlot` — Une brique placée sur une surface : position et taille PAR DÉFAUT (l'utilisateur les
   - `class Surface`
@@ -2739,7 +2742,7 @@ Chips des cards GÉNÉRÉS du schéma params (chip=True), groupés par section v
 
 ### Clavier des briques (une touche, un propriétaire)
 
-Le module unique qui reçoit les frappes et les distribue selon la règle décidée par Fabien le 2026-10-29 : une touche déjà prise plus près du focus n'est pas redistribuée ; sous une couche ouverte (modale, panneau), seule une couche INSCRITE la reçoit (la visionneuse, le menu de card) ; une saisie ne passe que les touches déclarées (Ctrl+Espace) ; la brique qui a la main d'abord, puis les PRIORITAIRES (le transport) ; un observateur suit sans prendre. TOUTES les briques y sont inscrites depuis le même jour (aucune n'écoute plus le clavier de la page elle-même, `tests_surfaces.PageKeyListenersTest`). Les touches de chaque brique se DÉCLARENT au registre des briques (`surfaces.UIBrick.shortcuts`), d'où la liste de l'aide de la page (contrôles de page) et du catalogue. Depuis le 2026-11-12, une brique lui demande l'ACTION d'une frappe d'après sa table (`WamaKeys.action`, surchargeable par le nom de l'action : `remap`) au lieu de tester une touche — le transport, l'outil Bornes, l'écriture à la lecture ; les autres suivent — et il donne le RELÂCHÉ d'une touche à celui qui a pris son appui (`up`)
+Le module unique qui reçoit les frappes et les distribue selon la règle décidée par Fabien le 2026-10-29 : une touche déjà prise plus près du focus n'est pas redistribuée ; sous une couche ouverte (modale, panneau), seule une couche INSCRITE la reçoit (la visionneuse, le menu de card) ; une saisie ne passe que les touches déclarées (Ctrl+Espace) ; la brique qui a la main d'abord, puis les PRIORITAIRES (le transport) ; un observateur suit sans prendre. TOUTES les briques y sont inscrites depuis le même jour (aucune n'écoute plus le clavier de la page elle-même, `tests_surfaces.PageKeyListenersTest`). Les touches de chaque brique se DÉCLARENT au registre des briques (`surfaces.UIBrick.shortcuts`), d'où la liste de l'aide de la page (contrôles de page) et du catalogue. Depuis le 2026-11-12, une brique lui demande l'ACTION d'une frappe d'après sa table (`WamaKeys.action`, surchargeable par le nom de l'action : `remap`) au lieu de tester une touche — le transport, l'outil Bornes, l'écriture à la lecture ; les autres suivent — et il donne le RELÂCHÉ d'une touche à celui qui a pris son appui (`up`). Depuis le 2026-11-15 les touches se résolvent en trois étages — défaut de la brique, préréglage DÉCLARÉ d'une page (option d'emplacement `keys`), réglage d'un COMPTE (`utils/user_keys.py`, réglé sur la page des briques : `wama-key-settings.js`) — par une seule règle (`resolve_shortcuts` / `WamaKeys.resolve`), et un conflit entre deux briques d'une page se détecte (`surfaces.key_conflicts`)
 
 - **Domicile** : `wama/common/static/common/js/wama-keys.js` · **doc** : [docs/construction/ui/WAMA_VOLETS.md §3-ter](../construction/ui/WAMA_VOLETS.md)
 
@@ -2816,7 +2819,7 @@ Une page DÉCLARE les sections du volet droit qu'elle garde (retrait, jamais ajo
 
 - **Domicile** : `wama/common/utils/volet.py` · **doc** : [docs/construction/ui/WAMA_VOLETS.md §8](../construction/ui/WAMA_VOLETS.md)
 - **Module** : Déclaration du VOLET DROIT par la page — `WAMA_VOLETS.md §8 n°2`.
-- **API publique** (11) :
+- **API publique** (12) :
   - `volet(*, tete: bool=False, medias: bool=True, parametres: bool=True, actions: bool=True, arrangeable: bool=True) -> dict` — Déclaration de volet, toujours COMPLÈTE (cf. le pourquoi dans l'en-tête du module).
   - `class PanelSlot` — Une section du volet comme emplacement de la disposition commune : la COLONNE du volet
   - `centre_slots(page: str) -> tuple` — Les briques du centre de la page `page` : un jeu par domaine quand l'app en a plusieurs
@@ -2826,7 +2829,8 @@ Une page DÉCLARE les sections du volet droit qu'elle garde (retrait, jamais ajo
   - `is_arranged(layout: dict) -> bool` — Le compte a-t-il disposé ce volet ? Sinon il reste celui d'avant, sans grille.
   - `layout_config(request) -> dict | None` — Ce que `wama-panel-layout.js` lit (`base.html`) ; None sans compte ou sans page nommée.
   - `page_controls_config(request=None) -> dict` — Ce que les CONTRÔLES DE PAGE lisent (`wama-page-controls.js`, `base.html`, 2026-10-29) : les
-  - `page_interface(page: str) -> dict | None` — L'INTERFACE d'une page, telle que l'assistant la dit (`tool_api.get_page_interface`,
+  - `page_interface(page: str, user=None) -> dict | None` — L'INTERFACE d'une page, telle que l'assistant la dit (`tool_api.get_page_interface`,
+  - `app_pages(app: str) -> dict` — Les PAGES d'une app, telles qu'elle les déclare (2026-11-15, décision de Fabien pour la
   - `reset_layout(user, page: str) -> bool` — Remet la disposition de la page `page` (ou de la surface `<app>.<clé>`) à celle qu'elle
 
 ### Entrée de file (card seule OU lot)
@@ -3208,11 +3212,12 @@ Décide seul qui voit quel élément, sur DEUX axes qui se cumulent : le TIER du
 
 - **Domicile** : `wama/accounts/permissions.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : Modèle d'accès WAMA à DEUX AXES (voir PROFILES_PERMISSIONS.md) : - PROFIL DE COMPTE (tier, unique, hiérarchique) : anonymous < utilisateur < developpeur < admin. - RÔLES MÉTIER (cumulatifs, = Django Groups préfixés 'role:') : communication / recherche / …
-- **API publique** (22) :
+- **API publique** (23) :
   - `is_guest_account(user) -> bool` — Ce compte est-il un compte de SERVICE pour visiteur non connecté — le compte `anonymous`
   - `account_kind(user) -> str` — 'test' pour un compte de test (préfixe `wama_`) ou le compte système anonyme, 'person'
   - `app_group(app_id)`
   - `registry_page_prefixes() -> list` — Les chemins (sans `/` aux bords) des pages que les registres DÉCLARENT — elles se lisent
+  - `account_page_prefixes() -> list` — Parmi elles, les pages où un compte règle ce qui est À LUI (`Registry.account_page` — la
   - `app_id_for_path(path)` — app_id gardé correspondant à un chemin de requête, ou None.
   - `unguarded_routes(app_id) -> list` — Les routes MONTÉES de l'app (son espace de noms, lu à son `url_name` du catalogue) que
   - `refused_app(user, path, allowed_apps=None)` — L'app gardée que `path` désigne et que `user` (connecté) n'a PAS le droit d'ouvrir, sinon
@@ -4173,7 +4178,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
 
 - **Domicile** : `wama/tool_api.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Tool API
-- **API publique** (139) :
+- **API publique** (140) :
   - `tool_effect(effect: str, *, sub_agent: bool=True, reason: str='')` — Marque l'EFFET d'un outil sur sa fonction. `sub_agent=False` retire une LECTURE de ce qu'un
   - `effect_of(tool_name: str) -> dict | None` — L'effet déclaré d'un outil du registre, None s'il n'en déclare pas (ou n'existe pas).
   - `sub_agent_tools() -> frozenset` — Les outils qu'un sous-agent peut appeler — DÉRIVÉS des marques, jamais recopiés : les
@@ -4196,6 +4201,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `use_hand_mode(user, on: bool=True) -> dict` — Turn the HAND mode on or off — driving a 3D scene with the hands, through the webcam ("active
   - `open_page(user, page: str, domain: str='') -> dict` — Take the user to a WAMA page — an application ("emmène-moi sur l'Anonymizer", "ouvre la
   - `get_page_interface(user, page: str) -> dict` — Describe the INTERFACE of a WAMA page: the bricks it shows (what each does, and its keyboard
+  - `set_brick_keys(user, brick: str, action: str='', keys: list=None) -> dict` — Give keyboard keys to an action of a UI brick, for this user only — what a click on a key
   - `reset_page_layout(user, page: str) -> dict` — Put the layout of a page back to its default, for this user — what "Par défaut" does in the
   - `get_media_asset_url(user, asset_id: int) -> dict` — Get the file URL of a specific media library asset.
   - `inspect_user_file(user, file_path: str) -> dict` — Ask WAMA what it can do with one of the user's files: which app PORT can take it

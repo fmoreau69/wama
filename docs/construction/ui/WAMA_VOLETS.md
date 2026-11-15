@@ -1232,6 +1232,18 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
     du volet gagne une forme générique, `rowsFrom` (des lignes calculées d'une liste des
     données, `wama-inspector-autofill.js`). Garde : `tests_volet.AppPagesTest` (toute app du
     catalogue, toute surface déclarée). ⚠ Une app du Lab (hors catalogue) n'a pas de fiche.
+    ✅ **Revérification du 2026-11-15, quatre écarts ramenés** : (a) l'ASSISTANT listait les
+    touches par défaut (`volet.page_interface`) — faux sur une page qui garde les siennes par
+    préréglage (la page de correction : ←/→ un saut) et aveugle au réglage du compte ; il lit
+    désormais les touches RÉSOLUES pour le compte qui demande, et chaque raccourci dit le nom de
+    ses actions (`names`) ; (b) le geste de la page des briques n'avait pas son outil
+    (`AGENTS.md`, philosophie point 5) : `tool_api.set_brick_keys` — une action, ses touches ;
+    sans action, la brique est rétablie ; mêmes validation et signalement de conflit ; (c) le nom
+    donné à une frappe qu'on enregistre se décidait dans le module de la page : il est au
+    clavier commun (`WamaKeys.nameOf`), à côté de `action` ; (d) la carte des mécanismes
+    rattache `utils/user_keys.py` et `wama-key-settings.js` au clavier des briques. Garde :
+    `tests_volet` (l'assistant dit le préréglage de la page, règle une touche, voit le conflit,
+    rétablit).
     ⚠ Limites dites : (1) la fiche d'app n'est vérifiée qu'au serveur et en V8, pas au
     navigateur ; (2) un conflit n'est cherché qu'entre touches de portée « page » — une
     touche de portée « brique » (qui n'agit que le focus dans sa brique) n'y entre pas ; (3) la
