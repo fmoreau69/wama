@@ -944,6 +944,30 @@ class PageControlsTest(TestCase):
         self.assertIsNone(get_user_app_setting(self.account, 'transcriber', LAYOUT_SETTING))
         self.assertIn('error', reset_page_layout(self.account, 'pas une page !'))
 
+    def test_the_assistant_says_the_keys_the_page_resolves_and_sets_them_for_the_account(self):
+        """2026-11-15 (reverification) — the assistant listed the DEFAULT keys : wrong on a page
+        that keeps its own by a preset (the correction page : ← / → a jump), and blind to what
+        the account set. It reads the resolved keys now, like the page help ; and the gesture of
+        the bricks page has its tool (`set_brick_keys`), same validation, same clash report."""
+        from wama.tool_api import TOOL_REGISTRY, get_page_interface, set_brick_keys
+
+        def transport(page):
+            brick = next(b for b in get_page_interface(self.account, page)['bricks']
+                         if b['key'] == 'media_transport')
+            return {name: s['keys'] for s in brick['shortcuts'] for name in s['names']}
+
+        self.assertIn('←', transport('transcriber.correct')['jump_back'], 'the preset of the page')
+        self.assertIs(TOOL_REGISTRY['set_brick_keys'], set_brick_keys)
+        done = set_brick_keys(self.account, 'media_transport', 'toggle', ['KeyP'])
+        self.assertEqual(({'toggle': ['KeyP']}, []), (done['keys'], done['conflicts']))
+        self.assertEqual('P', transport('transcriber.correct')['toggle'])
+        clash = set_brick_keys(self.account, 'media_transport', 'toggle', ['KeyC'])
+        self.assertTrue(clash['conflicts'], 'C is the tool of the timeline on that page')
+        self.assertIn('error', set_brick_keys(self.account, 'media_transport', 'fly', ['KeyF']))
+        self.assertIn('error', set_brick_keys(self.account, 'no_such_brick', 'toggle', ['KeyP']))
+        self.assertEqual({}, set_brick_keys(self.account, 'media_transport')['keys'])
+        self.assertEqual('Espace', transport('transcriber.correct')['toggle'])
+
     def test_every_section_of_the_panel_is_a_page_brick_of_the_registry(self):
         """2026-10-29 (« finir la mise en briques, notamment de l'inspecteur ») : chaque section du
         volet porte sa brique du registre — sauf le bloc de tête, propre à chaque page — et

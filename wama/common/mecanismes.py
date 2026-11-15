@@ -2685,11 +2685,18 @@ MECHANISMS = (
               "brique lui demande l'ACTION d'une frappe d'après sa table (`WamaKeys.action`, "
               "surchargeable par le nom de l'action : `remap`) au lieu de tester une touche — le "
               "transport, l'outil Bornes, l'écriture à la lecture ; les autres suivent — et il "
-              "donne le RELÂCHÉ d'une touche à celui qui a pris son appui (`up`)",
+              "donne le RELÂCHÉ d'une touche à celui qui a pris son appui (`up`). Depuis le "
+              "2026-11-15 les touches se résolvent en trois étages — défaut de la brique, "
+              "préréglage DÉCLARÉ d'une page (option d'emplacement `keys`), réglage d'un COMPTE "
+              "(`utils/user_keys.py`, réglé sur la page des briques : `wama-key-settings.js`) — "
+              "par une seule règle (`resolve_shortcuts` / `WamaKeys.resolve`), et un conflit entre "
+              "deux briques d'une page se détecte (`surfaces.key_conflicts`)",
               'wama/common/static/common/js/wama-keys.js',
               'docs/construction/ui/WAMA_VOLETS.md §3-ter',
               symbol='WamaKeys',            # global de base.html : compté par son symbole
               annexes=('wama/common/surfaces.py',
+                       'wama/common/utils/user_keys.py',
+                       'wama/common/static/common/js/wama-key-settings.js',
                        'wama/common/tests/tests_surfaces.py',
                        'wama/common/services/ui_smoke_layout.py')),
     Mechanism('page_controls', 'Contrôles de page (disposition, aide)',

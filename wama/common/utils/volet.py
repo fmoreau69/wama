@@ -279,14 +279,18 @@ def page_controls_config(request=None) -> dict:
     return config
 
 
-def _brick_entry(brick) -> dict:
-    """Une brique telle que l'assistant la présente : son nom, ce qu'elle fait, ses raccourcis."""
+def _brick_entry(brick, shortcuts=None) -> dict:
+    """Une brique telle que l'assistant la présente : son nom, ce qu'elle fait, ses raccourcis —
+    `shortcuts` : ceux que la page RÉSOUT (préréglage, réglage du compte), sinon ses défauts."""
     return {'key': brick.key, 'name': brick.name, 'description': brick.description,
-            'shortcuts': [{'keys': s.label, 'action': s.action, 'where': s.to_dict()['where']}
-                          for s in brick.shortcuts]}
+            # `names` : le NOM de l'action de chaque touche — ce par quoi une touche se règle
+            # (`tool_api.set_brick_keys`) ; vide pour une touche que rien ne surcharge.
+            'shortcuts': [{'keys': s.label, 'action': s.action, 'where': s.to_dict()['where'],
+                           'names': list(s.names)}
+                          for s in (brick.shortcuts if shortcuts is None else shortcuts)]}
 
 
-def page_interface(page: str) -> dict | None:
+def page_interface(page: str, user=None) -> dict | None:
     """L'INTERFACE d'une page, telle que l'assistant la dit (`tool_api.get_page_interface`,
     2026-10-29) : ses briques — nom, rôle, raccourcis, lus au registre — et comment on la
     réorganise (`surfaces.LAYOUT_CONTROLS`, `LAYOUT_HELP` : les textes que la page montre). `page` :
@@ -295,7 +299,11 @@ def page_interface(page: str) -> dict | None:
     volet qui en portent une et la visionneuse ; d'une autre page : le volet et la visionneuse."""
     from wama.common.app_registry import APP_CATALOG, app_identity
     from wama.common.surfaces import (BRICKS, LAYOUT_CONTROLS, LAYOUT_HELP, PAGE_HELP_SHORTCUT,
-                                      SURFACES, load_all)
+                                      SURFACES, load_all, resolve_shortcuts)
+    from wama.common.utils.user_keys import user_keymap
+    # Les raccourcis se disent tels que la page les RÉSOUT (2026-11-15) : le préréglage d'une
+    # surface, puis le réglage de `user` — ce que montre l'aide « ? » de la page elle-même.
+    account_keys = user_keymap(user)
     page = (page or '').strip()
     if '.' in page:
         load_all()
@@ -303,14 +311,17 @@ def page_interface(page: str) -> dict | None:
         if surface is None:
             return None
         keys, kind, label = [slot.brick for slot in surface.slots], 'surface', surface.label
+        resolved = lambda k: surface.shortcuts_of(k, account_keys)                  # noqa: E731
     elif PAGE_KEY.match(page):
         keys = ([kind for kind, _h, _fit in CENTRE_BRICKS] if page in APP_CATALOG else [])
         keys += [slot.brick for slot in PANEL_SLOTS if slot.brick] + ['media_viewer']
         kind, label = 'page', app_identity(page).get('label') or page
+        resolved = lambda k: resolve_shortcuts(BRICKS[k].shortcuts, account_keys.get(k))  # noqa: E731
     else:
         return None
     return {'page': page, 'kind': kind, 'label': label,
-            'bricks': [_brick_entry(BRICKS[k]) for k in dict.fromkeys(keys) if k in BRICKS],
+            'bricks': [_brick_entry(BRICKS[k], resolved(k)) for k in dict.fromkeys(keys)
+                       if k in BRICKS],
             'layout': LAYOUT_CONTROLS, 'gestures': LAYOUT_HELP,
             'help': {'keys': PAGE_HELP_SHORTCUT.label, 'action': PAGE_HELP_SHORTCUT.action}}
 

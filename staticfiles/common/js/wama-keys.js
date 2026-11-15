@@ -162,6 +162,17 @@
         if (typeof k !== 'string' || k.length !== 1 || k === ' ') return null;
         return (e.ctrlKey || e.metaKey ? 'Ctrl+' : '') + (e.altKey ? 'Alt+' : '') + k.toLowerCase();
     }
+    /** Le NOM à donner à une frappe qu'on ENREGISTRE comme touche (le réglage d'un compte,
+     *  `wama-key-settings.js`), tel que le registre l'écrirait : le caractère produit quand ce
+     *  n'est ni une lettre ni un chiffre (`,`, `?`), sinon la position (`KeyJ`,
+     *  `Shift+ArrowLeft`) ; null pour un modificateur seul. L'inverse de `action`, ici pour que
+     *  les deux lectures d'une frappe restent ensemble. */
+    function nameOf(e) {
+        if (['Shift', 'Control', 'Alt', 'Meta', 'AltGraph'].indexOf(e.key) >= 0) return null;
+        var k = e.key;
+        if (typeof k === 'string' && k.length === 1 && k !== ' ' && !/[a-z0-9]/i.test(k)) return charCombo(e);
+        return combo(e);
+    }
     /** La table d'un propriétaire, ses surcharges appliquées : `{touche: action}`. */
     function tableOf(owner, defaults) {
         for (var i = 0; i < resolvedTables.length; i++) {
@@ -228,6 +239,7 @@
         action: action,
         remap: remap,
         resolve: resolve,
+        nameOf: nameOf,
         /** Le contrôle `t` a-t-il été CLIQUÉ (et non atteint au clavier) ? */
         clicked: function (t) { return !!t && t === pointerFocus; },
     };

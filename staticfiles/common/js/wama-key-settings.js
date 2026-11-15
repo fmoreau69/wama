@@ -23,15 +23,8 @@
     var App = global.WamaApp, esc = App.escapeHtml;
     var waiting = null;                     // {brick, name, el} : la touche qui attend sa frappe
 
-    /** Le nom d'une frappe, tel que le registre le dirait ; null pour un modificateur seul. */
-    function nameOf(e) {
-        if (['Shift', 'Control', 'Alt', 'Meta', 'AltGraph'].indexOf(e.key) >= 0) return null;
-        var k = e.key;
-        if (typeof k === 'string' && k.length === 1 && k !== ' ' && !/[a-z0-9]/i.test(k)) {
-            return (e.ctrlKey || e.metaKey ? 'Ctrl+' : '') + (e.altKey ? 'Alt+' : '') + k;
-        }
-        return global.WamaKeys.combo(e);
-    }
+    /** Le nom d'une frappe, tel que le registre le dirait : la règle du clavier commun. */
+    var nameOf = global.WamaKeys.nameOf;
 
     function render(brick) {
         var row = document.querySelector('[data-key-settings="' + brick + '"]');

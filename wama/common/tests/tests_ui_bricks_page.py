@@ -14,6 +14,7 @@ from wama.common.app_registry import app_identity, measured_adoption
 from wama.common.mecanismes import MECHANISMS
 from wama.common.surfaces import (BRICKS, SURFACES, THUMBNAILS_DIR, UIBrick, load_all,
                                   thumbnail_path)
+from wama.common.tests.tests_surfaces import _js
 
 
 class UIBricksPageTest(TestCase):
@@ -253,13 +254,6 @@ class BrickThumbnailTest(TestCase):
         self.assertNotIn('<img class="wama-cat-thumb"', other)
 
 
-def _static(path):
-    from pathlib import Path
-
-    from django.contrib.staticfiles import finders
-    return Path(finders.find(path)).read_text(encoding='utf-8')
-
-
 class AccountKeysTest(TestCase):
     """2026-11-15 (Fabien, 12/11 : « un utilisateur personnalise ses raccourcis, par brique, depuis
     la page des briques UI ») — the keys an ACCOUNT gives to the actions of a brick : third stage of
@@ -369,7 +363,7 @@ class AccountKeysTest(TestCase):
         clash = account_conflicts({'queue': {'select_all': ['ArrowDown']}})
         self.assertIn('ArrowDown', clash.get('queue', {}))
         self.assertIn("pages d'application", clash['queue']['ArrowDown'][0])
-        module = _static('common/js/wama-key-settings.js')
+        module = _js('common/js/wama-key-settings.js')
         self.assertIn('is-conflict', module)
         self.assertIn('config.bricks = res.data.bricks;', module)
 
@@ -417,8 +411,8 @@ class AccountKeysTest(TestCase):
                 return e.defaultPrevented;
             }
         ''' % json.dumps(json.dumps(config)))
-        v8.eval(_static('common/js/wama-keys.js'))
-        v8.eval(_static('common/js/wama-key-settings.js'))
+        v8.eval(_js('common/js/wama-keys.js'))
+        v8.eval(_js('common/js/wama-key-settings.js'))
         out = json.loads(v8.eval('''(function () {
             var r = {drawn: row.innerHTML.indexOf('data-name="toggle"') >= 0, idle: press('KeyP', 'p')};
             click(key('toggle'));
@@ -458,7 +452,7 @@ class AccountKeysTest(TestCase):
         request.user = self.other
         self.assertNotIn('keys', page_controls_config(request))
         self.assertIn('global.WamaKeys.remap(brick, config.keys[brick]);',
-                      _static('common/js/wama-page-controls.js'))
+                      _js('common/js/wama-page-controls.js'))
         # An entry that no longer applies (an action the brick stopped naming, a brick gone) is
         # ignored, never served.
         save_user_app_settings(self.user, SETTINGS_APP, {SETTING: {

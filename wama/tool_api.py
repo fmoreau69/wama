@@ -1440,8 +1440,50 @@ def get_page_interface(user, page: str) -> dict:
     if refusal := _signed_in_refusal(user):
         return refusal
     from wama.common.utils.volet import page_interface
-    found = page_interface(page)
+    found = page_interface(page, user)
     return found or {'error': f"Page inconnue : « {page} » (une app, 'common', ou '<app>.<clé>')."}
+
+
+@tool_effect(WRITE)
+def set_brick_keys(user, brick: str, action: str = '', keys: list = None) -> dict:
+    """
+    Give keyboard keys to an action of a UI brick, for this user only — what a click on a key
+    does on the "Briques UI" page. The setting follows the user on every page that shows the
+    brick, above the page's own preset. A key two bricks of one page both take is reported
+    (`conflicts`): it is kept, and another key on either brick lifts it.
+
+    Args:
+        brick: the brick key, as get_page_interface lists it ('media_transport', 'queue'…).
+        action: the NAME of the action ('toggle', 'jump_back'… — the `names` of a shortcut in
+                get_page_interface). Empty: put the whole brick back on its default keys.
+        keys: the key names, as the registry writes them — by place ('KeyP', 'Shift+ArrowLeft',
+              'Space') or by the character produced (',', '?'). Empty with an action: the
+              action gets no key.
+
+    Returns:
+        {"brick", "keys": {action: [keys]}, "conflicts": [str], "message"} or {"error"}.
+    """
+    # La brique COMMUNE (`common/utils/user_keys`) : la validation, la garde au compte et les
+    # conflits sont ceux de la page des briques — rien n'est redit ici.
+    if refusal := _signed_in_refusal(user, "Modification"):
+        return refusal
+    from wama.common.utils.user_keys import (account_conflicts, remappable_bricks, save_user_keys,
+                                             user_keymap)
+    if brick not in remappable_bricks():
+        return {'error': f"Brique inconnue, ou sans action nommée : « {brick} »."}
+    table = dict(user_keymap(user).get(brick, {})) if action else {}
+    if action:
+        table[action] = [keys] if isinstance(keys, str) else list(keys or [])
+    problems = save_user_keys(user, brick, table)
+    if problems:
+        return {'error': 'Touches refusées : ' + ' ; '.join(problems)}
+    kept = user_keymap(user)
+    conflicts = [f'{key} — {said}' for key, phrases in account_conflicts(kept).get(brick, {}).items()
+                 for said in phrases]
+    return {'brick': brick, 'keys': kept.get(brick, {}), 'conflicts': conflicts,
+            'message': ("Touches par défaut rétablies pour cette brique." if not action
+                        else "Touches enregistrées pour votre compte — rechargez la page pour les voir."
+                        + (" Attention : conflit signalé." if conflicts else ''))}
 
 
 @tool_effect(WRITE)
@@ -5601,6 +5643,8 @@ TOOL_REGISTRY = {
     # la disposition, lus au registre des briques — et remettre SA disposition par défaut.
     'get_page_interface':     get_page_interface,
     'reset_page_layout':      reset_page_layout,
+    # Les touches d'une brique réglées par un compte (2026-11-15) — le geste de la page des briques.
+    'set_brick_keys':         set_brick_keys,
     'list_studio_pipelines':  list_studio_pipelines,
     'run_studio_pipeline':    run_studio_pipeline,
     'get_studio_run_status':  get_studio_run_status,
@@ -5633,6 +5677,7 @@ TOOL_APP_OVERRIDE = {
     # disposition est une préférence de LECTURE) ; refus des non-identifiés dans les corps.
     'get_page_interface':  None,
     'reset_page_layout':   None,
+    'set_brick_keys':      None,
     # Ouvrir une page : transverse — le droit est celui de la PAGE, décidé dans le corps par la
     # brique de navigation (même décision que le menu).
     'open_page':           None,
