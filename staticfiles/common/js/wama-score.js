@@ -127,107 +127,60 @@
         return out;
     }
 
-    // ── Caler la partition sur l'audio : LE TEMPS DE LA PARTITION GUIDE (2026-10-16) ──────────
-    // Le tempo écrit est arrondi (#754 : `Q:1/4=88`, joué à 89,1) et l'audio ne commence pas à 0 :
-    // caler par le tempo fait dériver tout le morceau et rate l'anacrouse. On cale donc le temps
-    // ÉCRIT n sur le temps JOUÉ n + k (grille de l'audio, `common/utils/audio_rhythm.py`) — entre
-    // deux temps, au prorata. Le décalage k est celui où les hauteurs écrites sonnent le mieux.
+    // ── Caler la partition sur l'audio : par ses REPÈRES (2026-11-15) ──────────────────────────
+    // Jusqu'au 2026-11-15, la page DEVINAIT le calage (ressemblance des hauteurs sur ±16 temps) et
+    // se trompait de 6 à 16 s sur les huit partitions mesurées des cards de Fabien (pistes séparées
+    // à longue intro). Le moteur qui écrit une partition sait où tombe chaque mesure : il le NOTE
+    // dans l'en-tête (`common/utils/score_timing.py`, une ligne `% wama-sync:` — un couple
+    // « ms écrit : s d'audio » par barre), la page le LIT. Une partition fournie n'en a pas : sa
+    // première et sa dernière note se calent sur la première et la dernière attaque de l'audio
+    // (`audio_rhythm`), au prorata entre les deux.
 
-    /** Les notes d'une partition gravée, en TEMPS écrits : `[{beat, pcs}]` (classes de hauteur). */
-    function notesFromTimings(timings, msPerBeat) {
-        var out = [];
-        (timings || []).forEach(function (ev) {
-            if (ev.type !== 'event' || !(ev.midiPitches || []).length) return;
-            out.push({ beat: ev.milliseconds / msPerBeat,
-                       pcs: ev.midiPitches.map(function (p) { return ((p.pitch % 12) + 12) % 12; }) });
-        });
-        return out;
-    }
+    var SYNC_PREFIX = '% wama-sync:';
 
-    function median(values) {
-        var s = values.slice().sort(function (a, b) { return a - b; });
-        return s.length ? s[s.length >> 1] : 0;
-    }
-
-    /** Ramène une grille détectée au double ou à la moitié du tempo écrit au tempo écrit. */
-    function normalizeGrid(beats, chroma, writtenSeconds) {
-        var ibi = median(beats.slice(1).map(function (t, i) { return t - beats[i]; }));
-        var ratio = ibi / writtenSeconds;
-        if (ratio > 0 && ratio < 0.7) {                      // deux temps joués par temps écrit
-            return [0, 1].map(function (phase) {
-                return { beats: beats.filter(function (_, i) { return i % 2 === phase; }),
-                         chroma: chroma.filter(function (_, i) { return i % 2 === phase; }) };
-            });
+    /** Les repères d'une partition : `[[ms écrit, s d'audio]]` dans l'ordre, ou null. */
+    function syncOf(abc) {
+        var lines = String(abc || '').split('\n');
+        for (var i = 0; i < lines.length; i++) {
+            if (lines[i].indexOf(SYNC_PREFIX) !== 0) continue;
+            var pairs = [], re = /(-?\d+(?:\.\d+)?):(-?\d+(?:\.\d+)?)/g, m;
+            while ((m = re.exec(lines[i].slice(SYNC_PREFIX.length)))) pairs.push([Number(m[1]), Number(m[2])]);
+            return pairs.length >= 2 ? pairs : null;
         }
-        if (ratio > 1.4) {                                   // un temps joué pour deux écrits
-            var b = [], c = [];
-            beats.forEach(function (t, i) {
-                b.push(t); c.push(chroma[i]);
-                if (i + 1 < beats.length) { b.push((t + beats[i + 1]) / 2); c.push(chroma[i]); }
-            });
-            return [{ beats: b, chroma: c }];
-        }
-        return [{ beats: beats, chroma: chroma }];
+        return null;
     }
 
-    function cosine(a, b) {
-        var ab = 0, aa = 0, bb = 0;
-        for (var i = 0; i < 12; i++) { ab += a[i] * b[i]; aa += a[i] * a[i]; bb += b[i] * b[i]; }
-        return aa && bb ? ab / Math.sqrt(aa * bb) : 0;
+    /** Les repères d'une partition qui n'en porte pas : sa 1re et sa dernière note (ms écrits) sur
+     *  la 1re et la dernière attaque de l'audio (s). Une seule note, ou des attaques qui ne laissent
+     *  pas la place : la 1re seule, au tempo écrit. */
+    function anchorPairs(firstMs, lastMs, firstS, lastS) {
+        // `typeof` : `null >= 0` est VRAI en JavaScript — sans attaque mesurée, rien à caler.
+        if (typeof firstMs !== 'number' || typeof firstS !== 'number' || !(firstMs >= 0) || !(firstS >= 0)) {
+            return null;
+        }
+        if (typeof lastS === 'number' && lastMs > firstMs && lastS > firstS) {
+            return [[firstMs, firstS], [lastMs, lastS]];
+        }
+        return [[firstMs, firstS], [firstMs + 1000, firstS + 1]];
     }
 
-    /** Le calage d'une partition (`notes`, temps écrits de `writtenSeconds`) sur une grille
-     *  (`{beats, chroma}`). Rend `{shift, score, toAudio(temps écrit) → s, toScore(s) → temps
-     *  écrit}`, ou null sans grille. `maxShift` : les décalages essayés, en temps (défaut 16). */
-    function align(notes, writtenSeconds, grid, maxShift) {
-        if (!grid || !(grid.beats || []).length || !(notes || []).length || !(writtenSeconds > 0)) return null;
-        maxShift = maxShift == null ? 16 : maxShift;
-        var written = {};
-        notes.forEach(function (n) {
-            var b = Math.floor(n.beat + 1e-6);
-            var v = written[b] = written[b] || [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-            n.pcs.forEach(function (pc) { v[pc] += 1; });
-        });
-        var keys = Object.keys(written).map(Number);
-        // Décalages du plus petit au plus grand : à égalité, le plus proche gagne — une chanson se
-        // RÉPÈTE (un refrain plus loin sonne pareil), le décalage d'une section n'est pas le bon.
-        var shifts = [0];
-        for (var s = 1; s <= maxShift; s++) shifts.push(-s, s);
-        var best = null;
-        normalizeGrid(grid.beats, grid.chroma || [], writtenSeconds).forEach(function (g) {
-            shifts.forEach(function (k) {
-                var sum = 0, count = 0;
-                keys.forEach(function (b) {
-                    var c = g.chroma[b + k];
-                    if (c) { sum += cosine(written[b], c); count += 1; }
-                });
-                // Une correspondance sur peu de temps ne prouve rien : au moins la moitié des notes,
-                // et la moyenne se prend sur TOUTES — une note laissée hors de l'audio compte zéro.
-                if (count < keys.length / 2) return;
-                var score = sum / keys.length;
-                if (!best || score > best.score + 1e-9) best = { shift: k, score: score, grid: g };
-            });
-        });
-        if (!best) return null;
-        var beats = best.grid.beats, k = best.shift, n = beats.length;
-        var ibi = n > 1 ? (beats[n - 1] - beats[0]) / (n - 1) : writtenSeconds;
-        function audioAt(i) {                                // l'instant du temps joué i (réel)
-            if (i <= 0) return beats[0] + i * ibi;
-            if (i >= n - 1) return beats[n - 1] + (i - (n - 1)) * ibi;
-            var lo = Math.floor(i);
-            return beats[lo] + (i - lo) * (beats[lo + 1] - beats[lo]);
-        }
-        function playedIndex(t) {                            // le temps joué (réel) à l'instant t
-            if (t <= beats[0]) return (t - beats[0]) / ibi;
-            if (t >= beats[n - 1]) return n - 1 + (t - beats[n - 1]) / ibi;
-            var lo = 0, hi = n - 1;
-            while (hi - lo > 1) { var mid = (lo + hi) >> 1; if (beats[mid] <= t) lo = mid; else hi = mid; }
-            return lo + (t - beats[lo]) / (beats[lo + 1] - beats[lo]);
+    /** Le temps d'une partition calée par ses repères : `toAudio(ms écrit) → s`, `toScore(s) → ms
+     *  écrit`, au prorata entre deux repères, prolongés au-delà par la pente du repère extrême. */
+    function timeMap(pairs) {
+        if (!pairs || pairs.length < 2) return null;
+        var p = pairs.slice().sort(function (a, b) { return a[0] - b[0]; });
+        function through(x, from, to) {
+            var n = p.length, i = 0;
+            if (x <= p[0][from]) i = 0;
+            else if (x >= p[n - 1][from]) i = n - 2;
+            else while (i < n - 2 && p[i + 1][from] <= x) i++;
+            var a = p[i], b = p[i + 1], span = b[from] - a[from];
+            return span ? a[to] + (x - a[from]) * (b[to] - a[to]) / span : a[to];
         }
         return {
-            shift: k, score: best.score,
-            toAudio: function (beat) { return audioAt(beat + k); },
-            toScore: function (t) { return playedIndex(t) - k; },
+            pairs: p,
+            toAudio: function (ms) { return through(ms, 0, 1); },
+            toScore: function (s) { return through(s, 1, 0); },
         };
     }
 
@@ -521,9 +474,9 @@
     // posés sous les notes de la VOIX CHANTÉE par des lignes `w:` — la notation des paroles de l'ABC,
     // que la gravure place d'elle-même sous la portée. Un mot va à la note pendant laquelle il
     // commence ; plusieurs mots sur une note se lient (`~`), une note sans mot passe (`*`). Le temps
-    // d'une note est celui du tempo écrit (`Q:`), mis à l'échelle de la durée de l'audio entendu
-    // (`duration` du JSON) : le tempo écrit est une moyenne — la règle de `fit_to_duration` côté
-    // serveur, pas un calage fin.
+    // d'une note est celui que disent les REPÈRES de la partition (`syncOf`, 2026-11-15) ; sans
+    // repères, celui du tempo écrit (`Q:`) mis à l'échelle de la durée de l'audio entendu
+    // (`duration` du JSON) — la règle de `fit_to_duration` côté serveur, pas un calage fin.
 
     /** La voix CHANTÉE : la piste NOMMÉE comme une voix — `Vocal Melody` (SheetSage, YuE2), `Voix`
      *  (`midi_score`). Jamais « la seule voix » : la vue d'une seule piste (la batterie) en a une. */
@@ -590,9 +543,16 @@
         var seconds = function (whole) { return whole / tempo.unit * 60 / tempo.bpm; };
         var total = seconds(clock);
         var scale = (lyrics.duration > 0 && total > 0) ? lyrics.duration / total : 1;
+        // Une partition qui porte ses REPÈRES (2026-11-15) dit l'instant d'audio de chaque note :
+        // plus d'étirement à la durée de l'audio, faux dès qu'il y a une intro.
+        var marks = timeMap(syncOf(abc));
         var all = [];
         lines.forEach(function (l) {
-            l.notes.forEach(function (n) { n.t = seconds(n.at) * scale; n.tokens = []; all.push(n); });
+            l.notes.forEach(function (n) {
+                n.t = marks ? marks.toAudio(seconds(n.at) * 1000) : seconds(n.at) * scale;
+                n.tokens = [];
+                all.push(n);
+            });
         });
         if (!all.length) return { abc: abc, inserts: [] };
         // 2ᵉ passage : chaque mot va à la note pendant laquelle il commence.
@@ -640,7 +600,7 @@
         degree: degree, pitchText: pitchText, transposeToken: transposeToken,
         transposeAt: transposeAt, voiceOf: voiceOf, timeline: timeline,
         playingAt: playingAt, eventTime: eventTime,
-        notesFromTimings: notesFromTimings, align: align,
+        syncOf: syncOf, anchorPairs: anchorPairs, timeMap: timeMap,
         barAt: barAt, parseBar: parseBar, retime: retime, unitAt: unitAt,
         tracksOf: tracksOf, trackOnly: trackOnly, mergeTrack: mergeTrack,
         vocalVoice: vocalVoice, withLyrics: withLyrics, sourceAt: sourceAt, shownAt: shownAt,

@@ -227,6 +227,47 @@ class MidiPlayerTest(SimpleTestCase):
         self.assertEqual([a for a in song if not 192 <= a <= 207],
                          [a for a in got if not 192 <= a <= 207], 'nothing else moves')
 
+    def test_a_marked_score_plays_on_its_marks_from_where_its_audio_places_it(self):
+        """2026-11-15 : the MIDI of a score set on an audio follows its MARKS — one tempo per bar,
+        each bar lasting what the audio gives it, starting where the audio puts bar 1 (`start`, the
+        follower's offset) : switching from the audio to the MIDI moves nothing. Three bars written
+        at 60 per minute (4 s each) ; the audio plays them in 2 s, 4 s and 2 s, from 10 s."""
+        import io
+        import mido
+        song = mido.MidiFile(ticks_per_beat=480)
+        head = mido.MidiTrack([mido.MetaMessage('set_tempo', tempo=1000000, time=0)])
+        notes = mido.MidiTrack()
+        for q in range(12):
+            notes.append(mido.Message('note_on', note=60 + q, velocity=90, time=0 if q == 0 else 240))
+            notes.append(mido.Message('note_off', note=60 + q, velocity=0, time=240))
+        song.tracks += [head, notes]
+        buffer = io.BytesIO()
+        song.save(file=buffer)
+        midi = list(buffer.getvalue())
+        got = json.loads(self.v8.eval(f"""
+            var r = window.WamaMidiPlayer.retimed(new Uint8Array({midi}),
+                                                  [[0, 10], [4000, 12], [8000, 16], [12000, 18]]);
+            JSON.stringify({{start: r.start, bytes: Array.from(r.bytes)}});
+        """))
+        self.assertAlmostEqual(10.0, got['start'], places=6)
+        out = mido.MidiFile(file=io.BytesIO(bytes(got['bytes'])))
+        heard, clock, tempo = [], 0.0, 500000
+        for msg in mido.merge_tracks(out.tracks):
+            clock += msg.time and mido.tick2second(msg.time, out.ticks_per_beat, tempo)
+            if msg.type == 'set_tempo':
+                tempo = msg.tempo
+            if msg.type == 'note_on' and msg.velocity:
+                heard.append(round(got['start'] + clock, 3))
+        expected = [10.0, 10.5, 11.0, 11.5, 12.0, 13.0, 14.0, 15.0, 16.0, 16.5, 17.0, 17.5]
+        self.assertEqual(expected, heard)
+        self.assertEqual(12, sum(1 for m in out.tracks[1] if m.type == 'note_on'), 'every note kept')
+
+    def test_without_marks_the_midi_keeps_its_written_tempo_and_abcjs_says_it_cannot_follow(self):
+        got = json.loads(self.v8.eval("""JSON.stringify({
+            none: window.WamaMidiPlayer.retimed(new Uint8Array([1, 2, 3]), [[0, 1], [10, 2]]),
+            abcjs: window.WamaMidiPlayer.syncable('abcjs'), bank: window.WamaMidiPlayer.syncable('gu')})"""))
+        self.assertEqual({'none': None, 'abcjs': False, 'bank': True}, got)
+
     def test_one_reading_per_installed_bank_and_abcjs(self):
         labels = self.v8.eval(f'JSON.stringify(window.WamaMidiPlayer.choices({self.CONFIG}))')
         self.assertEqual([('gu', 'MIDI — GeneralUser GS'), ('ms', 'MIDI — MuseScore General'),

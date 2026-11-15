@@ -111,4 +111,27 @@ class SheetSage2Backend(ScoreExtractionBackend):
                                f"{(result or {}).get('abc_error') or 'raison non donnée'}")
         if progress_callback:
             progress_callback(100)
+        return with_beat_sync(abc, result)
+
+
+def with_beat_sync(abc: str, result: dict) -> str:
+    """La partition avec ses REPÈRES (`score_timing`, 2026-11-15) : SheetSage2 écrit ses mesures sur
+    les temps qu'il a décodés, DATÉS dans l'audio (`labs['beat']` : instant, position, temps par
+    mesure, valeur du temps) — chaque mesure commence sur un temps fort, à la longueur que la
+    partition lui ÉCRIT (un changement de mesure en cours de morceau compris, la 1re et la dernière
+    complétées de silence). Les mesures lues dans la partition doivent être celles que le moteur dit
+    avoir écrites (`abc_measures`), et la partition à tempo constant ; sinon aucun repère, la page
+    cale sur les attaques."""
+    from wama.common.utils.score_timing import sync_from_beats, with_sync, written_measures
+    text = ((result or {}).get('labs') or {}).get('beat') or ''
+    rows = [line.split('\t') for line in text.splitlines() if line.strip()]
+    measures = len(written_measures(abc) or ())
+    try:
+        pairs = (sync_from_beats(abc, rows)
+                 if measures and measures == int((result or {}).get('abc_measures') or 0) else None)
+    except (TypeError, ValueError):
+        pairs = None
+    if not pairs:
+        logger.info("[SheetSage2] partition sans repères (mesures ou temps non concordants)")
         return abc
+    return with_sync(abc, pairs)

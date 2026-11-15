@@ -105,6 +105,7 @@ class _InputProcessCase(TestCase):
         _Separator.built, _Separator.unloaded, _Separator.calls = 0, 0, []
         self.installed = True
         self.draws, self.asked = [], []
+        self.pulses = []                       # the audios whose played beats were asked for
         catalogue_rows()
 
     def _draw(self, source=None, requested=None, fallback=None, task=None, **domain):
@@ -139,7 +140,8 @@ class _InputProcessCase(TestCase):
                            side_effect=lambda: self.installed), \
                 mock.patch('wama.composer.utils.model_choice.stem_separation_available',
                            side_effect=lambda: self.installed), \
-                mock.patch('wama.common.utils.audio_rhythm.beat_grid', return_value=None), \
+                mock.patch('wama.common.utils.audio_rhythm.beat_grid',
+                           side_effect=lambda path: self.pulses.append(path)), \
                 mock.patch('wama.common.utils.app_metadata.process_prompt_for',
                            side_effect=lambda app, field, text, **kw: text), \
                 mock.patch('wama.common.utils.model_readiness.warn_if_weights_missing'), \
@@ -172,6 +174,29 @@ class FullScoreTest(_InputProcessCase):
         self.assertIn('\nT:cover\n', written, 'titled by its song, not by the number of the card')
         from wama.composer.function_specs import PIPELINE
         self.assertEqual([], list(PIPELINE.spec('parts').depends_on), 'an INPUT reading')
+
+    def test_a_split_track_takes_the_pulse_of_its_mix(self):
+        """2026-11-15, measured on « Plus d'eau » : a voice alone has no drums, its played beats
+        drifted from 86 to 96 per minute where the mix holds 90.1 within 0.09 s. A track keeps the
+        time of its mix to the sample : its full score is written on the beats of the mix."""
+        from django.conf import settings
+        mix = self._cover()
+        source = ComposerGeneration.objects.create(user=self.user, prompt='pop song',
+                                                   model=COVER_MODEL, melody_reference=mix)
+        voice = 'users/1/temp/voice.wav'
+        (Path(self.tmp) / voice).write_bytes(b'RIFF' + b'\0' * 64)
+        track = ComposerGeneration.objects.create(
+            user=self.user, prompt='pop song', model=COVER_MODEL, status='RUNNING',
+            extract_parts=True, melody_reference=voice, derived_from=source, derived_role='vocals')
+        gen = self._run(track)
+        self.assertEqual('SUCCESS', gen.status, gen.error_message)
+        self.assertEqual(str(Path(settings.MEDIA_ROOT) / voice),
+                         str(Path(_Transcriber.calls[0]['audio_path'])), 'the notes : of the track')
+        self.assertEqual([str(Path(settings.MEDIA_ROOT) / mix)], [str(Path(p)) for p in self.pulses],
+                         'the beats : of the mix')
+        self._run(extract_parts=True, melody_reference=mix)
+        self.assertEqual(str(Path(settings.MEDIA_ROOT) / mix), str(Path(self.pulses[-1])),
+                         'a card of its own reads its own pulse')
 
     def test_without_a_cover_or_with_an_imported_score_there_is_nothing_to_read(self):
         gen = self._run(extract_parts=True)

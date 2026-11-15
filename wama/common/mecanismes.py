@@ -3668,13 +3668,28 @@ MECHANISMS = (
               annexes=('wama/common/tests/tests_script_json.py',),
               symbol='script_json'),
     Mechanism('audio_rhythm', 'Grille des temps d\'un audio',
-              "L'instant de chaque temps joué d'un audio et les hauteurs qui y sonnent (chroma par "
-              "temps), en cache par fichier et date — de quoi caler une partition TEMPS PAR TEMPS "
-              "sur ce qui est joué plutôt que par son tempo écrit (né le 2026-10-16 : #754 écrit à "
-              "88, joué à 89,1). Ne connaît aucune partition ; le calage est `WamaScore.align`",
+              "L'instant de chaque temps joué d'un audio, sa première et sa dernière attaque, en "
+              "cache par fichier et date — la grille sur laquelle la notation d'un MIDI place ses "
+              "notes (né le 2026-10-16 : #754 écrit à 88, joué à 89,1). Leur RANG et leur tempo "
+              "(`beat_ranks`, `beat_period`, 2026-11-15 : de proche en proche et ajusté — la médiane "
+              "d'une grille arrondie à la trame donnait 89 pour 90,1 ; `robust_tempo` de MuScriptor "
+              "les lit aussi). Ne connaît aucune partition ; la chroma qui servait à DEVINER le calage "
+              "(`WamaScore.align`) est retirée avec lui",
               'wama/common/utils/audio_rhythm.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
               depends_on=('audio_decode',)),
+    Mechanism('score_timing', 'Repères d\'une partition sur son audio',
+              "Où tombe chaque mesure d'une partition dans l'audio dont elle est tirée : un couple "
+              "(instant écrit, instant d'audio) par barre, écrit DANS l'ABC (ligne `% wama-sync:` de "
+              "l'en-tête) par le moteur qui la note — `midi_score` (intro écrite en mesures de "
+              "silence), SheetSage2 (ses temps datés, chaque mesure à sa longueur écrite) — et lu par "
+              "la page (`WamaScore.syncOf`/`timeMap`) : la note colorée et la lecture MIDI "
+              "(`WamaMidiPlayer.retimed`, un tempo par mesure) tombent où l'audio la joue. Né le "
+              "2026-11-15 (cards de Fabien : le calage deviné se trompait de 6 à 16 s) ; une "
+              "partition fournie, sans repères, se cale sur la 1re et la dernière attaque",
+              'wama/common/utils/score_timing.py',
+              'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
+              depends_on=('audio_rhythm',)),
     Mechanism('midi_score', 'Notation d\'un MIDI multi-instrument (MIDI → ABC)',
               "Un MIDI à une piste par instrument → une partition ABC lisible : une voix par "
               "instrument (libellé français), clavier sur deux portées, batterie en portée de "

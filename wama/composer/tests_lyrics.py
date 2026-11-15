@@ -94,6 +94,14 @@ class LyricsUnderTheirSectionsTest(SimpleTestCase):
         self.assertEqual((4.0, 10.0), (fitted[1]['start'], fitted[1]['end']))
         self.assertEqual(SECTIONS, fit_to_duration(SECTIONS, 0))
 
+    def test_a_score_with_marks_sets_its_sections_where_the_audio_plays_them(self):
+        """2026-11-15 : stretched to the duration, a 10 s intro (written as 4 s) shifted every
+        section ; the MARKS of the score (`score_timing`) say where each bar falls in the audio."""
+        marks = [(0, 6.0), (8000, 14.0), (24000, 26.0)]
+        fitted = fit_to_duration(SECTIONS, 40.0, marks=marks)
+        self.assertEqual([(6.0, 14.0), (14.0, 23.0), (23.0, 26.0)],
+                         [(round(s['start'], 3), round(s['end'], 3)) for s in fitted])
+
 
 @skipUnless(VENDORED, 'the vendored engine is not versioned: absent from a fresh clone')
 class TheEngineReadsItsScoreTest(SimpleTestCase):
@@ -102,6 +110,20 @@ class TheEngineReadsItsScoreTest(SimpleTestCase):
         got = YuE2Backend.score_sections(NATIVE)
         self.assertEqual([('intro', 0.0, 8.0, False), ('verse', 8.0, 20.0, True), ('chorus', 20.0, 24.0, True)],
                          [(s['name'], s['start'], s['end'], s['sings']) for s in got])
+
+    def test_the_marks_of_a_score_stay_with_wama_never_go_to_the_engine(self):
+        """The marks line (`% wama-sync:`) starts like a section comment : read as one, it would
+        name the first section ; given to YuE2, it would be a line of its prompt."""
+        import tempfile
+        from pathlib import Path
+        from wama.common.utils.score_timing import with_sync
+        marked = with_sync(NATIVE, [(0, 0.5), (8000, 8.5)])
+        got = YuE2Backend.score_sections(marked)
+        self.assertEqual(['intro', 'verse', 'chorus'], [s['name'] for s in got])
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'score.abc'
+            path.write_text(marked, encoding='utf-8')
+            self.assertNotIn('wama-sync', YuE2Backend._score_abc(str(path)))
 
     def test_a_score_outside_the_dialect_is_refused(self):
         with self.assertRaises(ValueError):

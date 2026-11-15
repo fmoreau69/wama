@@ -2,8 +2,9 @@
 Un MIDI multi-pistes → une partition ABC LISIBLE (2026-10-16, la « Partition complète » du composer).
 
 Commune à tout moteur de la tâche `audio-to-midi` (`MidiExtractionBackend`) : le moteur rend des
-notes, la NOTATION est d'ici — la page d'édition grave l'ABC (abcjs) et le cale sur l'audio
-(`WamaScore.align`) comme la partition extraite. Décision de Fabien (veille du 2026-10-16, point d) :
+notes, la NOTATION est d'ici — la page d'édition grave l'ABC (abcjs) et le cale sur l'audio par
+les REPÈRES que la notation y note (`score_timing`, 2026-11-15 : l'instant de chaque barre dans
+l'audio ; l'intro écrite en mesures de silence). Décision de Fabien (veille du 2026-10-16, point d) :
 une brique à nous plutôt que MuseScore 4 — pas de binaire hôte, et le format que la page lit déjà.
 
 Ce qu'elle écrit :
@@ -367,23 +368,46 @@ def downbeat_of(markers):
 
 def played_beat_steps(beat_times, grid: int, offset: float):
     """`(secondes MIDI → pas)` sur les temps JOUÉS : une note se place entre les deux temps de
-    l'audio qui l'encadrent, au prorata, puis en pas de `grid` par temps. Au-delà des temps
-    connus, l'intervalle médian prolonge la grille."""
+    l'audio qui l'encadrent, au prorata, puis en pas de `grid` par temps. Les temps sont comptés
+    par leur RANG (`audio_rhythm.beat_ranks` : un temps manqué par le suivi ne décale plus la
+    suite d'un temps) ; au-delà des temps connus, leur intervalle (`beat_period`) prolonge la
+    grille — le tempo rendu est le sien (2026-11-15 : la médiane rendait 89 pour 90,1)."""
     import numpy as np
-    beats = np.asarray(beat_times, dtype=float)
-    ibi = float(np.median(np.diff(beats)))
-    index = np.arange(len(beats), dtype=float)
+    from .audio_rhythm import beat_period, beat_ranks
+    ranks, beats = beat_ranks(beat_times)
+    ibi = beat_period(beat_times)
+    index = ranks.astype(float)
 
     def to_steps(t: float) -> float:
         audio = t - offset
         if audio <= beats[0]:
-            position = (audio - beats[0]) / ibi
+            position = index[0] + (audio - beats[0]) / ibi
         elif audio >= beats[-1]:
-            position = len(beats) - 1 + (audio - beats[-1]) / ibi
+            position = index[-1] + (audio - beats[-1]) / ibi
         else:
             position = float(np.interp(audio, beats, index))
         return position * grid
     return to_steps, 60.0 / ibi
+
+
+def played_beat_time(beat_times, grid: int, lead: int = 0):
+    """L'inverse de `played_beat_steps` : `(pas écrit → secondes d'AUDIO)`, la grille des temps
+    joués lue à l'envers, par les mêmes rangs. `lead` : les pas de l'anacrouse ajoutés devant le
+    premier temps fort (`midi_to_abc`)."""
+    import numpy as np
+    from .audio_rhythm import beat_period, beat_ranks
+    ranks, beats = beat_ranks(beat_times)
+    ibi = beat_period(beat_times)
+    index = ranks.astype(float)
+
+    def at(step: float) -> float:
+        position = (step - lead) / grid
+        if position <= index[0]:
+            return float(beats[0] + (position - index[0]) * ibi)
+        if position >= index[-1]:
+            return float(beats[-1] + (position - index[-1]) * ibi)
+        return float(np.interp(position, index, beats))
+    return at
 
 
 def _bar_tokens(notes, bar_start: int, bar_steps: int, drum: bool) -> str:
@@ -485,17 +509,33 @@ def midi_to_abc(midi_bytes: bytes, *, title: str = '', grid: int = 4, bars_per_l
     numerator, denominator = song.meter or (4, 4)
     # `grid` pas par NOIRE écrite : la grille du MIDI lui-même, sauf sans métrique (ci-dessus).
     to_steps = lambda tick: song.quarters(tick) * grid    # noqa: E731
+    # L'instant de l'AUDIO d'un pas écrit (avant tout décalage de mesures) : de quoi noter les
+    # REPÈRES de la partition (`score_timing`, 2026-11-15). Sur la grille du MIDI, le temps du MIDI
+    # moins le décalage que le moteur a ajouté (`bar_offset`) ; sur les temps joués, ces temps-là.
+    offset = bar_offset_of(song.markers)
+    first_tempo = song.tempi[0][1] if song.tempi else 500000
+
+    def audio_of(step: float) -> float:
+        tick = step / grid * song.ticks_per_beat
+        if tick >= 0:
+            return song.seconds(tick) - offset
+        return tick * first_tempo / (song.ticks_per_beat * 1e6) - offset
     if song.meter is None and beat_times is not None and len(beat_times) >= 8:
-        on_beats, bpm = played_beat_steps(beat_times, grid, bar_offset_of(song.markers))
+        on_beats, bpm = played_beat_steps(beat_times, grid, offset)
         # La MESURE 1 sur le premier temps FORT, quand le moteur le dit (2026-10-26, #880 : la
         # partition complète commençait sur le 1er temps ENTENDU, l'anacrouse perdue) : le temps
         # joué le plus proche devient le 1er d'une mesure, ceux d'avant forment l'anacrouse.
         downbeat = downbeat_of(song.markers)
         lead = 0
         if downbeat is not None:
-            nearest = min(range(len(beat_times)), key=lambda i: abs(beat_times[i] - downbeat))
-            lead = (-nearest) % numerator * grid
+            # Par son RANG (`beat_ranks`, la numérotation que la grille suit) : un temps doublé
+            # écarté ou un temps manqué ne déplace plus la mesure 1.
+            from .audio_rhythm import beat_ranks
+            ranks, kept = beat_ranks(beat_times)
+            nearest = min(range(len(kept)), key=lambda i: abs(kept[i] - downbeat))
+            lead = (-int(ranks[nearest])) % numerator * grid
         to_steps = lambda tick: on_beats(song.seconds(tick)) + lead    # noqa: E731
+        audio_of = played_beat_time(beat_times, grid, lead)
     bar_steps = int(round(numerator * 4 / denominator * grid))
     voices = _voices_of(song, to_steps)
     if not voices:
@@ -506,6 +546,14 @@ def midi_to_abc(midi_bytes: bytes, *, title: str = '', grid: int = 4, bars_per_l
     shift = 0
     if lowest < 0:
         shift = -(lowest // bar_steps) * bar_steps
+    # L'INTRO s'écrit (2026-11-15, mesuré sur les pistes séparées de Fabien : la voix entrait à
+    # 24,5 s, la partition à son premier temps joué) : autant de mesures de silence que l'audio en
+    # tient avant la mesure 1 — la partition commence au début du morceau, à moins d'une mesure près.
+    start = audio_of(-shift)
+    bar_seconds = audio_of(-shift + bar_steps) - start
+    if bar_seconds > 0 and start >= bar_seconds:
+        shift += int(start // bar_seconds) * bar_steps
+    if shift:
         for v in voices:
             v.notes = [(s + shift, e + shift, p) for s, e, p in v.notes]
             v.attacks = [(s + shift, p, vel) for s, p, vel in v.attacks]
@@ -552,4 +600,13 @@ def midi_to_abc(midi_bytes: bytes, *, title: str = '', grid: int = 4, bars_per_l
                     lead += f'!{mark}!'
                 bars_text.append(lead + _bar_tokens(v.bars.get(b, ()), b * bar_steps, bar_steps, v.drum))
             body.append('|'.join(bars_text) + '|')
-    return '\n'.join(head + body) + '\n'
+    # Les REPÈRES : chaque barre, à son instant écrit (le tempo de CHAQUE mesure, celui que la
+    # gravure joue) et à son instant dans l'audio — la page cale dessus au lieu de deviner.
+    from .score_timing import with_sync, written_bar_ms
+    tempi, current = [], int(round(bpm))
+    for b in range(bars):
+        current = tempo_at.get(b, current)
+        tempi.append(current)
+    written = written_bar_ms(numerator * 4 / denominator, tempi)
+    pairs = [(written[b], audio_of(b * bar_steps - shift)) for b in range(bars + 1)]
+    return with_sync('\n'.join(head + body) + '\n', pairs)

@@ -27,7 +27,7 @@ sortie (« deux briques partition côte à côte ») ; la disposition se règle 
 Une partition importée en MIDI ou MusicXML (2026-11-10) s'y ouvre par sa vue ABC, le fichier
 importé jamais réécrit (`common/utils/score_source.py`, règle de toutes les surfaces).
 """
-from wama.common.surfaces import BrickSlot, Surface, register_surface
+from wama.common.surfaces import INPUT_SOURCE, BrickSlot, Surface, register_surface
 from wama.composer.models import ComposerGeneration
 
 #: Les deux sorties « partition », dans l'ordre où la page les cherche (process alternatifs).
@@ -76,6 +76,9 @@ register_surface(Surface(
     # (`lyrics` : un rôle lu, le JSON rangé par l'écoute), la règle commune `WamaScore.withLyrics`.
     slots=(BrickSlot('score', 'score_view', 0, 0, 12, 14, {
                'media': 'audio', 'title': 'Partition de référence', 'lyrics': 'lyrics_in',
+               # Tirée de l'ENTRÉE (réduite et complète) : ses REPÈRES valent sur l'audio d'entrée
+               # (`score_timing`, 2026-11-15) ; le Rendu, lui, suit son temps écrit.
+               'follows': INPUT_SOURCE,
                # La réduite (mélodie et accords), puis la COMPLÈTE (une partie par instrument) —
                # toutes deux de l'ENTRÉE.
                'versions': [

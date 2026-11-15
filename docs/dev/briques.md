@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**243 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**244 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -2414,7 +2414,8 @@ Les résultats d'un process deviennent des cards SŒURS dans le lot de la card s
 
 - **Domicile** : `wama/common/utils/derived_cards.py` · **doc** : [wama/model_manager/PROSPECTION_PIPELINE.md](../../wama/model_manager/PROSPECTION_PIPELINE.md)
 - **Module** : CARDS DÉRIVÉES — les résultats d'une card deviennent des cards sœurs, dans SON lot.
-- **API publique** (1) :
+- **API publique** (2) :
+  - `origin_of(card)` — La card d'ORIGINE d'une card dérivée — sa source, remontée jusqu'à celle qui n'en a pas ;
   - `derive_cards(source, parts, *, field, reset_fields=None)` — Range dans le lot de `source` une card par `(rôle, fichier)` de `parts` — `fichier` relatif
 
 ### Dossier de travail jetable
@@ -3432,13 +3433,16 @@ Posé par `CommonConfig.ready()` dans TOUT processus Django (gunicorn, Celery, c
 
 ### Grille des temps d'un audio
 
-L'instant de chaque temps joué d'un audio et les hauteurs qui y sonnent (chroma par temps), en cache par fichier et date — de quoi caler une partition TEMPS PAR TEMPS sur ce qui est joué plutôt que par son tempo écrit (né le 2026-10-16 : #754 écrit à 88, joué à 89,1). Ne connaît aucune partition ; le calage est `WamaScore.align`
+L'instant de chaque temps joué d'un audio, sa première et sa dernière attaque, en cache par fichier et date — la grille sur laquelle la notation d'un MIDI place ses notes (né le 2026-10-16 : #754 écrit à 88, joué à 89,1). Leur RANG et leur tempo (`beat_ranks`, `beat_period`, 2026-11-15 : de proche en proche et ajusté — la médiane d'une grille arrondie à la trame donnait 89 pour 90,1 ; `robust_tempo` de MuScriptor les lit aussi). Ne connaît aucune partition ; la chroma qui servait à DEVINER le calage (`WamaScore.align`) est retirée avec lui
 
 - **Domicile** : `wama/common/utils/audio_rhythm.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : La grille des TEMPS d'un audio — où tombe chaque temps joué, et quelles hauteurs y sonnent.
-- **API publique** (2) :
+- **API publique** (5) :
   - `beat_grid(path: str)` — `{beats, chroma, duration}` de l'audio `path` (voir l'en-tête) ; None s'il est illisible.
   - `compute_beat_grid(path: str) -> dict`
+  - `beat_ranks(beat_times)` — `(rangs, instants)` des temps joués : le RANG de chaque temps compté de proche en proche —
+  - `beat_period(beat_times) -> float` — L'intervalle (s) entre deux temps : la pente de la droite ajustée sur leurs RANGS
+  - `attacks(samples, rate: int)` — `(première, dernière)` attaque (s) de ce qui SONNE dans `samples` — les débuts de notes
 
 ### Identité de session du visiteur sans compte
 
@@ -3676,9 +3680,10 @@ Un MIDI à une piste par instrument → une partition ABC lisible : une voix par
 
 - **Domicile** : `wama/common/utils/midi_score.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Un MIDI multi-pistes → une partition ABC LISIBLE (2026-10-16, la « Partition complète » du composer).
-- **API publique** (13) :
+- **API publique** (15) :
   - `drum_sound(label: str)` — `(nom, son General MIDI)` d'un instrument de batterie que nomme `label` (`DRUM_NAMES`), ou
   - `instrument_label(name: str) -> str` — Le libellé français d'une piste nommée par le moteur (`INSTRUMENT_LABELS`).
+  - `instrument_keys(text: str) -> list` — Les clés d'instruments d'une liste TAPÉE (« Batterie, cordes, piano ») — la même table, lue
   - `class MidiPart` — Une partie du MIDI — une piste et un canal : son nom (`track_name`), batterie ou non (canal
   - `class MidiSong` — Ce qu'un fichier MIDI déclare, lu une fois (`read_midi`) : la base de temps, la carte des
   - `read_midi(source) -> MidiSong` — La LECTURE MIDI commune (2026-10-16) — un chemin ou des octets → `MidiSong`, par `mido`.
@@ -3689,6 +3694,7 @@ Un MIDI à une piste par instrument → une partition ABC lisible : une voix par
   - `mark_downbeat(midi_bytes: bytes, seconds: float) -> bytes` — Le MIDI avec son marqueur de premier temps fort (`DOWNBEAT_MARKER`, en secondes d'audio).
   - `downbeat_of(markers)` — L'instant (s) du premier temps fort que dit un marqueur `downbeat=<s>`, None sinon.
   - `played_beat_steps(beat_times, grid: int, offset: float)` — `(secondes MIDI → pas)` sur les temps JOUÉS : une note se place entre les deux temps de
+  - `played_beat_time(beat_times, grid: int, lead: int=0)` — L'inverse de `played_beat_steps` : `(pas écrit → secondes d'AUDIO)`, la grille des temps
   - `midi_to_abc(midi_bytes: bytes, *, title: str='', grid: int=4, bars_per_line: int=4, beat_times=None) -> str` — Le texte ABC d'un MIDI multi-pistes (voir l'en-tête). Lève `ValueError` sans aucune note.
 
 ### Partitions MusicXML (pages assemblées, MusicXML → ABC)
@@ -3727,6 +3733,23 @@ SEULE frontière entre les deux vocabulaires du monde Data : le référentiel (p
   - `frame_from_table(path, data_type: str, *, meta: Optional[Mapping[str, Any]]=None) -> TypedFrame` — Un fichier PLAT (CSV, TSV, TXT, XLSX…) en cadre du type DIT — l'entrée « Jeu de données »
   - `signal_from_frame(frame: TypedFrame, name: str, *, fs: Optional[float]=None, units: Optional[Mapping[str, str]]=None, comments: str='') -> Signal` — Un cadre typé redevient un flux — **toujours DÉRIVÉ, jamais acquis** (piège ④).
   - `adjoin(ref: TemporalReferential, name: str, frame: TypedFrame, *, offset: float=0.0, **kwargs) -> Signal` — Ajoute au référentiel un flux issu d'un calcul, et le rend.
+
+### Repères d'une partition sur son audio
+
+Où tombe chaque mesure d'une partition dans l'audio dont elle est tirée : un couple (instant écrit, instant d'audio) par barre, écrit DANS l'ABC (ligne `% wama-sync:` de l'en-tête) par le moteur qui la note — `midi_score` (intro écrite en mesures de silence), SheetSage2 (ses temps datés, chaque mesure à sa longueur écrite) — et lu par la page (`WamaScore.syncOf`/`timeMap`) : la note colorée et la lecture MIDI (`WamaMidiPlayer.retimed`, un tempo par mesure) tombent où l'audio la joue. Né le 2026-11-15 (cards de Fabien : le calage deviné se trompait de 6 à 16 s) ; une partition fournie, sans repères, se cale sur la 1re et la dernière attaque
+
+- **Domicile** : `wama/common/utils/score_timing.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
+- **Module** : Les REPÈRES d'une partition : où tombe chacune de ses mesures dans l'audio dont elle est tirée.
+- **API publique** (9) :
+  - `with_sync(abc: str, pairs) -> str` — `abc` avec la ligne de ses repères, posée juste avant `K:` (l'en-tête) — celle qu'il avait
+  - `without_sync(abc: str) -> str` — La partition sans ses repères — ce qu'on donne à un MOTEUR (YuE2 suit une partition) : les
+  - `sync_of(abc: str)` — Les repères `[(ms écrit, s d'audio)]` de la partition, ou None.
+  - `audio_at(pairs, ms: float) -> float` — L'instant d'audio (s) du temps écrit `ms`, par les repères `pairs` : au prorata entre deux,
+  - `bar_lines_from_beats(beats, written)` — L'instant (s) de chaque BARRE d'une partition écrite sur des temps DATÉS — `beats` :
+  - `written_measures(abc: str)` — La longueur ÉCRITE (en noires) de chaque mesure d'une partition, lue sur sa PREMIÈRE voix :
+  - `constant_tempo(abc: str)` — `(valeur du temps en ronde, temps par minute)` d'une partition à tempo CONSTANT (un seul
+  - `sync_from_beats(abc: str, beats)` — Les repères d'une partition à tempo constant écrite sur des temps DATÉS : chaque mesure à
+  - `written_bar_ms(bar_quarters: float, tempi: list) -> list` — L'instant écrit (ms) de chaque barre, mesure 1 à 0 : `tempi[b]` est le tempo (noires par
 
 ### Référentiel temporel (WAMA Data)
 

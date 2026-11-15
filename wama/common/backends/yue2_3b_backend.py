@@ -229,8 +229,10 @@ class YuE2Backend(MusicGenerationBackend):
         `[{name, start, end, sings}]`, en secondes au tempo écrit ; `sings` : la voix `Vocal` y porte
         une note. Le lecteur du moteur donne les mesures et les notes ; seule la correspondance
         entre un commentaire et ses mesures s'établit ici. Lève `ValueError` hors du dialecte."""
+        from wama.common.utils.score_timing import without_sync
         reader = cls.import_vendored("abc_tools", subdir=cls.SCORE_READER_DIR)
-        score = reader.parse_abc(abc)
+        # Ses REPÈRES retirés (`score_timing`) : une ligne `% wama-sync:` serait lue comme un nom.
+        score = reader.parse_abc(without_sync(abc))
         vocal = score.voices["Vocal"]
         seconds = lambda quarters: float(quarters * 60 / score.bpm)    # noqa: E731
         sections, name, opens, bar = [], '', True, 0
@@ -283,7 +285,9 @@ class YuE2Backend(MusicGenerationBackend):
             raise ValueError(
                 f"YuE2‑3B suit une partition ABC, MIDI ou MusicXML ; la conversion "
                 f"{suffix or 'de ce fichier'} → ABC n'est pas disponible.")
-        text = Path(score_path).read_text(encoding="utf-8", errors="replace").strip()
+        from wama.common.utils.score_timing import without_sync
+        # Les REPÈRES de la partition (`score_timing`, 2026-11-15) sont à WAMA, pas au moteur.
+        text = without_sync(Path(score_path).read_text(encoding="utf-8", errors="replace")).strip()
         if not text:
             raise ValueError("La partition ABC fournie est vide.")
         # Une partition COMPLÈTE (une partie par instrument) n'est pas au format que YuE2 suit :

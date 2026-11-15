@@ -468,8 +468,14 @@ def _parts(gen, ctx):
     if not gen.melody_reference:
         raise RuntimeError("Aucun audio à reprendre : la partition complète se lit sur l'entrée.")
     audio_abs = os.path.join(settings.MEDIA_ROOT, gen.melody_reference.name)
+    # Une PISTE séparée tient le temps de son mélange : sa pulsation se lit sur l'entrée de la card
+    # d'origine (`derived_cards.origin_of`, 2026-11-15) — une voix seule n'a pas de batterie.
+    from wama.common.utils.derived_cards import origin_of
+    origin = origin_of(gen)
+    pulse_abs = (os.path.join(settings.MEDIA_ROOT, origin.melody_reference.name)
+                 if origin is not gen and origin.melody_reference else audio_abs)
     return _full_score(gen, ctx, audio_abs, field='parts_score', nature='score',
-                       label='Partition complète')
+                       label='Partition complète', pulse_abs=pulse_abs)
 
 
 def _rendered_parts(gen, ctx):
@@ -484,7 +490,8 @@ def _rendered_parts(gen, ctx):
                        label='Partition complète jouée')
 
 
-def _full_score(gen, ctx, audio_abs: str, *, field: str, nature: str, label: str):
+def _full_score(gen, ctx, audio_abs: str, *, field: str, nature: str, label: str,
+                pulse_abs: str = ''):
     """Un audio → sa partition complète, une partie par instrument, rangée comme une sortie de la
     card (`field`) — le corps commun des deux process de partition complète (2026-10-16).
 
@@ -492,7 +499,8 @@ def _full_score(gen, ctx, audio_abs: str, *, field: str, nature: str, label: str
     la tâche `audio-to-midi` tiré par le sélecteur commun ; absent, la ROUTE l'installe et la tâche
     attend (`ctx.ensure_model`) ; DÉCHARGÉ aussitôt (la règle d'`extract_score`). Le moteur rend un
     MIDI ; la notation est la brique commune `midi_score`, qui place les notes sur les temps JOUÉS
-    du morceau (`audio_rhythm`) quand le moteur n'a pas trouvé de tempo constant."""
+    du morceau (`audio_rhythm`) quand le moteur n'a pas trouvé de tempo constant — ceux de
+    `pulse_abs` quand il est donné (le mélange d'une piste séparée), de l'audio lu sinon."""
     from wama.common.backends.manager import backend_for_key
     from wama.common.utils.audio_rhythm import beat_grid
     from wama.common.utils.midi_score import midi_to_abc
@@ -520,7 +528,7 @@ def _full_score(gen, ctx, audio_abs: str, *, field: str, nature: str, label: str
         except Exception:
             logger.warning("[composer] modèle de partition complète de #%s non déchargé", gen.pk,
                            exc_info=True)
-    grid = beat_grid(audio_abs) or {}
+    grid = beat_grid(pulse_abs or audio_abs) or {}
     # Le titre du MORCEAU, pas le numéro de la card (2026-11-13, demande de Fabien).
     text = midi_to_abc(midi, title=gen.work_title or f'#{gen.pk}', beat_times=grid.get('beats'))
     score_rel, abs_path = ctx.output_place('.abc', nature=nature, model=model_id(extractor_key))
@@ -545,9 +553,10 @@ def _extract_lyrics(gen, ctx):
     from django.conf import settings
     if not gen.melody_reference:
         raise RuntimeError("Aucun audio à reprendre : les paroles se lisent sur l'entrée.")
+    score = _name(gen.extracted_score)
     return _heard_lyrics(gen, ctx, os.path.join(settings.MEDIA_ROOT, gen.melody_reference.name),
-                         score=_name(gen.extracted_score), field='input_lyrics_timed',
-                         source_name=gen.melody_reference.name)
+                         score=score, field='input_lyrics_timed',
+                         source_name=gen.melody_reference.name, marks=_score_marks(score))
 
 
 def _rendered_lyrics(gen, ctx):
@@ -623,8 +632,22 @@ def _score_sections(gen, score: str) -> list:
         return []
 
 
+def _score_marks(score: str):
+    """Les REPÈRES de la partition `score` (`score_timing.sync_of` : l'instant d'audio de chaque
+    mesure), None sans repères ou illisible — ses sections se posent alors à la durée de l'audio."""
+    from django.conf import settings
+    from wama.common.utils.score_timing import sync_of
+    if not score:
+        return None
+    try:
+        with open(os.path.join(settings.MEDIA_ROOT, score), encoding='utf-8') as handle:
+            return sync_of(handle.read())
+    except OSError:
+        return None
+
+
 def _heard_lyrics(gen, ctx, audio_abs: str, *, score: str = '', field: str,
-                  source_name: str = '') -> dict:
+                  source_name: str = '', marks=None) -> dict:
     """Un audio → ses paroles : le corps commun des deux écoutes (entrée, sortie — « le même
     comportement », 2026-11-08). Le modèle est celui que la card désigne (`lyrics_model`) ou le
     tirage ; absent, la ROUTE l'installe et la tâche attend ; DÉCHARGÉ aussitôt (la règle
@@ -635,7 +658,11 @@ def _heard_lyrics(gen, ctx, audio_abs: str, *, score: str = '', field: str,
     aligner, …}`) par la brique commune du transcriber (`acoustic_alignment.timed_words` : les mots
     du modèle d'écoute, recalés par l'aligneur du catalogue — Qwen3-ASR ne date pas ses mots), que
     la partition pose sous ses notes ; et le champ « Paroles », en sections, s'il est VIDE — une
-    correction ne se réécrit jamais. Rien d'entendu n'est pas un échec : c'est dit."""
+    correction ne se réécrit jamais. Rien d'entendu n'est pas un échec : c'est dit.
+
+    `marks` : les REPÈRES de la partition sur CET audio (`_score_marks`) — donnés seulement quand
+    la partition en est tirée (l'entrée) ; le rendu suit le temps écrit, ses sections se posent à
+    sa durée."""
     import json
 
     from wama.common.services.acoustic_alignment import timed_words
@@ -659,7 +686,8 @@ def _heard_lyrics(gen, ctx, audio_abs: str, *, score: str = '', field: str,
     finally:
         if not MemoryManager.unload_model(key):
             logger.info("[composer] modèle d'écoute de #%s : rien à décharger (%s)", gen.pk, key)
-    lyrics = lyrics_from_segments(heard.segments, fit_to_duration(_score_sections(gen, score), duration))
+    lyrics = lyrics_from_segments(heard.segments, fit_to_duration(_score_sections(gen, score), duration,
+                                                                  marks=marks))
     out = {'models': [key], 'eta': lyrics_eta_key_size(gen), 'fields': {}}
     if not lyrics:
         ctx.console("[Composer] Aucune parole reconnue.")

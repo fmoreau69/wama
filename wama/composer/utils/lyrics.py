@@ -19,10 +19,16 @@ MIN_DISTINCT_SIGNS = 30
 _SENTENCE_END = re.compile(r'(?<=[.!?…。！？])\s+')
 
 
-def fit_to_duration(sections, duration) -> list:
-    """Les temps de la partition, recalés sur la durée RÉELLE de l'audio : son tempo est une moyenne
-    (mesuré sur 12 morceaux : 1 à 4 s d'écart à la fin). Inchangés sans durée connue."""
+def fit_to_duration(sections, duration, marks=None) -> list:
+    """Les temps de la partition, posés sur l'audio. Par ses REPÈRES quand elle en porte
+    (`score_timing`, 2026-11-15 : l'instant d'audio de chaque mesure — une intro n'y décale plus
+    rien) ; sinon recalés sur la durée RÉELLE de l'audio : son tempo est une moyenne (mesuré sur
+    12 morceaux : 1 à 4 s d'écart à la fin). Inchangés sans durée connue."""
     sections = list(sections or ())
+    if marks and sections:
+        from wama.common.utils.score_timing import audio_at
+        return [{**s, 'start': audio_at(marks, s['start'] * 1000), 'end': audio_at(marks, s['end'] * 1000)}
+                for s in sections]
     end = sections[-1]['end'] if sections else 0
     if not end or not duration:
         return sections

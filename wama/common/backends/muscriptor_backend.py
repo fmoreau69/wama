@@ -128,7 +128,7 @@ MIN_PHASE_SHARE = 0.6
 
 def robust_tempo(beats):
     """(bpm, écart RMS en s, part des temps gardés, temps gardés) des temps `beats`, ajustés APRÈS
-    re-numérotation sur la grille de leur intervalle médian, sur leur PHASE DOMINANTE.
+    re-numérotation de proche en proche (`audio_rhythm.beat_ranks`), sur leur PHASE DOMINANTE.
 
     POURQUOI (mesuré le 2026-10-16 sur cinq rendus YuE2) : `muscriptor.utils.beats.fit_tempo`
     ajuste le RANG de chaque temps contre son instant.
@@ -142,11 +142,12 @@ def robust_tempo(beats):
         un ajustement aux moindres carrés penche vers un bloc de contretemps en fin de morceau,
         garde sa phase et rejette de bons temps (vu au test : 118,3 bpm pour 120)."""
     import numpy as np
+    from wama.common.utils.audio_rhythm import beat_ranks
     beats = np.asarray(beats, dtype=float)
-    ibi = float(np.median(np.diff(beats)))
-    ranks = np.rint((beats - beats[0]) / ibi).astype(int)
-    keep = np.concatenate([[True], np.diff(ranks) > 0])
-    ranks, times = ranks[keep], beats[keep]
+    # La numérotation COMMUNE des temps (2026-11-15) : de proche en proche. Celle d'ici divisait
+    # l'écart au 1er temps par l'intervalle médian, qui dérive sur une grille arrondie à la trame
+    # (28 ou 29 trames : médiane 29, intervalle réel 28,67 — trois rangs perdus sur 300 temps).
+    ranks, times = beat_ranks(beats)
     total = len(times)
     first, second = np.triu_indices(len(times), 1)
     slope = float(np.median((times[second] - times[first]) / (ranks[second] - ranks[first])))

@@ -1025,51 +1025,38 @@ class ScoreRulesTest(SimpleTestCase):
         self.assertEqual([], at(3000), 'nothing after the end')
         self.assertEqual([], at(-1))
 
-    # The measured case (#754, 2026-10-16) : written at 88 (0.682 s a beat), played at 89.1
-    # (0.673 s), the pickup on written beat 3, the music starting at 0.8 s.
-    ALIGN_SETUP = '''
-        // A tune that REPEATS every 12 beats, like a chorus : a shift of a whole period sounds the
-        // same — the alignment must still pick the right one.
-        var melody = [0, 4, 7, 2, 5, 9, 11, 0, 7, 4, 2, 9];
-        var notes = [];
-        for (var b = 3; b < 60; b++) notes.push({beat: b, pcs: [melody[b % 12]]});
-        function grid(step, perWritten) {
-            var beats = [], chroma = [];
-            for (var i = 0; i < 80 * perWritten; i++) {
-                beats.push(0.8 + i * step);
-                var written = Math.floor(i / perWritten) + 3;      // played beat 0 = written beat 3
-                var v = [20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20];
-                v[melody[written % 12]] = 255;
-                chroma.push(v);
-            }
-            return {beats: beats, chroma: chroma};
-        }
-    '''
+    # The measured case (2026-11-15, Fabien's split voice #1636) : the voice enters at 24.57 s, the
+    # score's bar 10 there — the page reads it from the MARKS the notation wrote, no longer guesses.
+    MARKED = ('X:1\\nM:4/4\\nQ:1/4=89\\n% wama-sync: 0:0.342 2697:3.034 24270:24.570 26966:27.262'
+              '\\nK:C\\nC4|')
 
-    def _align(self, script):
-        return json.loads(self.engine.eval('(function(){' + self.ALIGN_SETUP + script + '})()'))
+    def test_a_score_is_set_on_the_audio_by_its_marks(self):
+        out = json.loads(self.engine.eval('''(function(){
+            var S = window.WamaScore, m = S.timeMap(S.syncOf("%s"));
+            return JSON.stringify({voice: m.toAudio(24270), between: m.toAudio(25618),
+                                   back: m.toScore(27.262), after: m.toAudio(29662),
+                                   before: m.toAudio(-2697)});
+        })()''' % self.MARKED))
+        self.assertAlmostEqual(24.57, out['voice'], places=3, msg='bar 10 where the voice enters')
+        self.assertAlmostEqual(25.916, out['between'], places=3, msg='between two marks, pro rata')
+        self.assertAlmostEqual(26966, out['back'], places=3)
+        self.assertAlmostEqual(27.262 + 2.692, out['after'], places=2, msg='past the last mark : its slope')
+        self.assertAlmostEqual(0.342 - 2.692, out['before'], places=2)
 
-    def test_the_written_beats_are_set_on_the_played_beats_pickup_included(self):
-        out = self._align('''
-            var a = window.WamaScore.align(notes, 0.682, grid(0.673, 1));
-            return JSON.stringify({shift: a.shift, pickup: a.toAudio(3), late: a.toAudio(53),
-                                   back: a.toScore(a.toAudio(10.5))});''')
-        self.assertEqual(-3, out['shift'], 'the pickup is anchored by the pitches that sound')
-        self.assertAlmostEqual(0.8, out['pickup'], places=3)
-        self.assertAlmostEqual(0.8 + 50 * 0.673, out['late'], places=3,
-                               msg='fifty beats on, the rounded written tempo has not drifted')
-        self.assertAlmostEqual(10.5, out['back'], places=6)
-
-    def test_a_grid_found_at_twice_the_written_tempo_is_folded_back(self):
-        out = self._align('''
-            var a = window.WamaScore.align(notes, 0.682, grid(0.3365, 2));
-            return JSON.stringify({pickup: a.toAudio(3), next: a.toAudio(4)});''')
-        self.assertAlmostEqual(0.8, out['pickup'], places=3)
-        self.assertAlmostEqual(0.8 + 0.673, out['next'], places=3)
-
-    def test_without_a_grid_or_notes_there_is_no_alignment(self):
-        self.assertIsNone(self._align('return JSON.stringify(window.WamaScore.align(notes, 0.682, null));'))
-        self.assertIsNone(self._align('return JSON.stringify(window.WamaScore.align([], 0.682, grid(0.673, 1)));'))
+    def test_a_score_without_marks_is_set_by_its_first_and_last_attacks(self):
+        out = json.loads(self.engine.eval('''(function(){
+            var S = window.WamaScore;
+            var m = S.timeMap(S.anchorPairs(500, 60500, 24.5, 84.5));
+            var one = S.timeMap(S.anchorPairs(500, 500, 24.5, 24.5));
+            return JSON.stringify({marks: S.syncOf("X:1\\nK:C\\nC4|"), first: m.toAudio(500),
+                                   last: m.toAudio(60500), one: one.toAudio(1500),
+                                   none: S.anchorPairs(500, 900, null, null)});
+        })()'''))
+        self.assertIsNone(out['marks'], 'a supplied score carries no marks')
+        self.assertAlmostEqual(24.5, out['first'], places=6)
+        self.assertAlmostEqual(84.5, out['last'], places=6)
+        self.assertAlmostEqual(25.5, out['one'], places=6, msg='one note : the first, at the written tempo')
+        self.assertIsNone(out['none'], 'no attack in the audio : nothing to set it on')
 
     def test_a_clicked_note_gives_its_time_and_its_voice(self):
         timings = json.dumps([{'type': 'bar', 'milliseconds': 0},
@@ -2509,7 +2496,8 @@ class ComposerScoreSurfaceTest(TestCase):
                          'a render is redone from its score : twenty copies of it are not kept')
 
     def test_the_beat_grid_of_the_audio_is_served_on_demand(self):
-        """A real click track at 120 per minute : the grid finds a beat every half second."""
+        """A real click track at 120 per minute : the grid finds a beat every half second, and
+        the first and last attacks a score without marks is set on (2026-11-15)."""
         import soundfile as sf
         rate = 22050
         track = np.zeros(rate * 12, dtype=np.float32)
@@ -2522,8 +2510,9 @@ class ComposerScoreSurfaceTest(TestCase):
         grid = self.client.get(self.base + 'data/?only=rhythm&role=audio').json()['rhythm']
         gaps = np.diff(grid['beats'])
         self.assertAlmostEqual(0.5, float(np.median(gaps)), delta=0.03)
-        self.assertEqual(len(grid['beats']), len(grid['chroma']))
-        self.assertTrue(all(len(c) == 12 and max(c) <= 255 for c in grid['chroma']))
+        self.assertAlmostEqual(0.5, grid['first_onset'], delta=0.05, msg='the first click')
+        self.assertAlmostEqual(11.5, grid['last_onset'], delta=0.05, msg='the last click')
+        self.assertNotIn('chroma', grid, 'nothing guesses on the pitches any more')
         self.assertIsNone(self.client.get(self.base + 'data/?only=rhythm&role=nope').json()['rhythm'])
 
     def test_an_unchanged_score_keeps_nothing(self):

@@ -35,6 +35,22 @@ import os
 logger = logging.getLogger(__name__)
 
 
+
+def origin_of(card):
+    """La card d'ORIGINE d'une card dérivée — sa source, remontée jusqu'à celle qui n'en a pas ;
+    la card elle-même sinon. Une piste séparée tient le TEMPS de son mélange, à l'échantillon près
+    (2026-11-15) : ce qui se mesure sur le morceau entier (sa pulsation) se lit sur l'origine — une
+    voix seule n'a pas de batterie, sa grille de temps flottait de 86 à 96 bpm sur « Plus d'eau »
+    quand le mélange tient 90,1 à 0,09 s près. Une chaîne qui boucle s'arrête où elle repasse."""
+    seen = set()
+    while getattr(card, 'derived_from_id', None) and card.pk not in seen:
+        seen.add(card.pk)
+        source = card.derived_from
+        if source is None:
+            break
+        card = source
+    return card
+
 def derive_cards(source, parts, *, field, reset_fields=None):
     """Range dans le lot de `source` une card par `(rôle, fichier)` de `parts` — `fichier` relatif
     à MEDIA_ROOT, posé dans le champ d'entrée `field` de la card. Rend les cards, dans l'ordre de

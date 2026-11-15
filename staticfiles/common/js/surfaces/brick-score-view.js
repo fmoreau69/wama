@@ -14,12 +14,15 @@
  *   • glisser une note vers le haut ou le bas la transpose d'un degré par cran (le glisser
  *     d'abcjs) : UN geste d'édition, `ctx.edit` — Ctrl+Z l'annule.
  *
- * LE TEMPS DE LA PARTITION GUIDE (2026-10-16, remarque de Fabien — l'anacrouse ne tombait pas où
- * on l'entend) : le temps ÉCRIT n est calé sur le temps JOUÉ n + k de l'audio (`options.media`,
- * le rôle lu ; grille servie par `data/?only=rhythm`, `common/utils/audio_rhythm.py`), au prorata
- * entre deux temps — un tempo écrit arrondi (#754 : 88 écrit, 89,1 joué) ne fait plus dériver le
- * morceau. Tant que la grille n'est pas là, ou si on décoche « Calée sur les temps joués », le
- * temps est celui du tempo écrit (`Q:`).
+ * CALÉE SUR L'AUDIO PAR SES REPÈRES (2026-11-15, mesuré sur les cards de Fabien : le calage DEVINÉ
+ * du 16/10 se trompait de 6 à 16 s dès qu'une piste séparée commençait par une longue intro) : la
+ * partition porte l'instant d'audio de chacune de ses mesures, noté par le moteur qui l'a écrite
+ * (`WamaScore.syncOf`, `common/utils/score_timing.py`) — la note colorée est celle qu'on entend, de
+ * la première à la dernière. Une partition FOURNIE n'en a pas : sa première et sa dernière note se
+ * calent sur la première et la dernière attaque de l'audio (`options.media`, le rôle lu ; servies
+ * par `data/?only=rhythm`, `common/utils/audio_rhythm.py`). Décocher « Calée… » : le tempo écrit.
+ * La LECTURE MIDI suit les mêmes repères (`WamaMidiPlayer.render`) : passer de l'audio au MIDI ne
+ * déplace rien.
  *
  * LECTURE SEULE (2026-10-16, la partition complète du composer) : `options.role` montre un rôle LU
  * en texte (`Surface.texts`) au lieu de la valeur éditée — même gravure, même axe, mêmes notes
@@ -139,7 +142,9 @@
         tools.addEventListener('mousedown', function (e) { e.stopPropagation(); });
 
         var timings = [], tl = null, lit = [], rendered = null, pending = null, tune = null;
-        var msPerBeat = 0, notes = [], grid = null, alignment = null;
+        /** `grid` : les attaques de l'audio (null : demandées, false : aucune) ; `span` : la 1re et la
+         *  dernière note écrites (ms) ; `timing` : le temps calé (`WamaScore.timeMap`), ou null. */
+        var grid = null, span = null, timing = null, timingPairs = null, midiPairs = null;
         /** Les lectures MIDI proposées (`WamaMidiPlayer.choices`), null tant qu'elles ne sont pas
          *  posées — `render` passe avant leur mise en place, en fin de brique. */
         var midiChoices = null;
@@ -379,29 +384,54 @@
 
         /** Le temps ÉCRIT (ms au tempo de la partition) qui sonne à l'instant `seconds` de l'axe. */
         function scoreMs(seconds) {
-            if (alignment && sync.checked) return alignment.toScore(seconds) * msPerBeat;
+            if (timing && sync.checked) return timing.toScore(seconds);
             return seconds * 1000;
         }
         /** L'instant de l'axe (s) où sonne le temps écrit `ms`. */
         function axisSeconds(ms) {
-            if (alignment && sync.checked) return alignment.toAudio(ms / msPerBeat);
+            if (timing && sync.checked) return timing.toAudio(ms);
             return ms / 1000;
         }
 
+        /** La version du transport dont la partition est TIRÉE (`follows` de la version, sinon de
+         *  la vue ; '' = l'audio du rôle lu) : ses repères ne valent que pour cet audio-là — la
+         *  partition de référence d'un cover vient de l'Entrée, le Rendu suit son temps écrit. */
+        function follows() {
+            var v = current();
+            return v.follows != null ? v.follows : (options.follows || '');
+        }
+        function listened() { return (ctx.source(options.media || 'audio') || {}).key || ''; }
+        function ownMidi(key) { return key.indexOf('midi:' + heading + ':') === 0; }
+
+        /** Le calage : les REPÈRES de la partition sur l'audio dont elle est tirée (et sur sa propre
+         *  lecture MIDI, qui les suit) ; sur l'audio du rôle lu, ses notes extrêmes calées sur ses
+         *  attaques ; sur un autre audio, le tempo écrit. La lecture MIDI suit les repères, ou à
+         *  défaut les attaques (`syncMidi`). */
         function realign() {
-            alignment = (grid && notes.length && msPerBeat) ? Score.align(notes, msPerBeat / 1000, grid) : null;
-            sync.disabled = !alignment;
-            if (alignment) {
-                var first = notes[0].beat;
-                syncText.textContent = ' Calée sur les temps joués';
-                syncLabel.title = 'Chaque temps écrit est calé sur un temps joué de l’audio (1re note à ' +
-                    Axis.formatTime(alignment.toAudio(first), true) + ', décalage ' + alignment.shift +
-                    ' temps). Décocher : le tempo écrit seul.';
+            var marks = Score.syncOf(wholeText());
+            var anchors = (grid && span) ? Score.anchorPairs(span[0], span[1], grid.first_onset, grid.last_onset) : null;
+            midiPairs = marks || anchors;
+            var key = listened(), how = '';
+            if (ownMidi(key)) { timingPairs = midiPairs; how = marks ? 'marks' : (anchors ? 'anchors' : ''); }
+            else if (marks && key === follows()) { timingPairs = marks; how = 'marks'; }
+            else if (key === '' && anchors) { timingPairs = anchors; how = 'anchors'; }
+            else timingPairs = null;
+            timing = Score.timeMap(timingPairs);
+            sync.disabled = !timing;
+            if (timing && span) {
+                var first = Axis.formatTime(timing.toAudio(span[0]), true);
+                syncText.textContent = how === 'marks' ? ' Calée sur ses repères' : ' Calée sur les attaques';
+                syncLabel.title = (how === 'marks'
+                    ? 'Chaque mesure tombe où l’extraction l’a entendue dans l’audio'
+                    : 'La 1re et la dernière note sur la 1re et la dernière attaque de l’audio (partition sans repères)')
+                    + ' — 1re note à ' + first + '. Décocher : le tempo écrit seul.';
             } else {
-                syncText.textContent = grid === false ? ' Tempo écrit (pas de grille de temps)'
-                    : (grid ? ' Tempo écrit (calage impossible)' : ' Temps joués : calcul…');
+                syncText.textContent = (marks && key !== follows()) ? ' Tempo écrit (un autre audio que le sien)'
+                    : (grid === false ? ' Tempo écrit (pas d’audio à suivre)'
+                       : (grid ? ' Tempo écrit (calage impossible)' : ' Attaques de l’audio : calcul…'));
                 syncLabel.title = 'Le temps suit le tempo écrit de la partition (Q:).';
             }
+            syncMidi();
         }
 
         function render() {
@@ -419,7 +449,7 @@
             var top = body.scrollTop;
             lit = [];
             timings = [];
-            notes = [];
+            span = null;
             tl = null;
             tune = null;
             if (!abc.trim() || !ABCJS) {
@@ -433,15 +463,17 @@
                 dragging: editable(), clickListener: onNote,
             })[0];
             highlight();
-            // La séquence audio d'abcjs donne aux notes leurs hauteurs MIDI — de quoi les caler sur
-            // ce qui sonne. Aucun son n'est produit.
-            try { tune.setUpAudio({}); } catch (e) { /* hauteurs absentes : tempo écrit */ }
+            // La séquence audio d'abcjs donne aux notes leurs hauteurs MIDI — de quoi distinguer une
+            // note d'un silence (la 1re et la dernière NOTE). Aucun son n'est produit.
+            try { tune.setUpAudio({}); } catch (e) { /* hauteurs absentes */ }
             try { timings = new ABCJS.TimingCallbacks(tune, {}).noteTimings || []; } catch (e) { timings = []; }
-            try { msPerBeat = 60000 / tune.getBpm(); } catch (e) { msPerBeat = 0; }
             var events = [], endMs = 0;
             timings.forEach(function (ev) {
                 endMs = Math.max(endMs, ev.milliseconds);
                 if (ev.type !== 'event') return;
+                if ((ev.midiPitches || []).length) {
+                    span = span ? [span[0], ev.milliseconds] : [ev.milliseconds, ev.milliseconds];
+                }
                 events.push({ ms: ev.milliseconds, sets: (ev.elements || []).map(function (els, i) {
                     var first = els && els[0];
                     var cls = first && first.getAttribute ? first.getAttribute('class') : '';
@@ -449,7 +481,6 @@
                 }) });
             });
             tl = Score.timeline(events, endMs);
-            notes = msPerBeat ? Score.notesFromTimings(timings, msPerBeat) : [];
             var warnings = (tune && tune.warnings) || [];
             warn.classList.toggle('d-none', !warnings.length);
             warn.textContent = warnings.length + ' avert.';
@@ -574,6 +605,10 @@
         }
 
         sync.addEventListener('change', function () { if (axis) paint(axis.time(), true); });
+        // Une AUTRE version écoutée (Entrée, Rendu, une lecture MIDI) : le calage est le sien.
+        ctx.on('source', function (p) {
+            if (p && p.role === (options.media || 'audio')) { realign(); if (axis) paint(axis.time(), false); }
+        });
         if (axis) axis.subscribe(function (snap) { paint(snap.time, snap.playing || snap.reason === 'seek'); });
         // Un rendu refait (« Appliquer ») est un autre audio : sa grille se redemande — et une
         // partition LUE (lecture seule) a pu être réécrite par son process.
@@ -602,19 +637,27 @@
             midiChoices = global.WamaMidiPlayer.choices(midiConfig);
             syncMidi();
         }
+        // ⚠ 2026-11-15 : la lecture suit le CALAGE de la vue (`timingPairs` : ses repères, ou ses
+        // notes extrêmes sur les attaques) — le MIDI tombe où tombe l'audio, la note colorée est celle
+        // qu'on entend des deux côtés. Une lecture qui ne sait pas le suivre (abcjs) n'est pas
+        // proposée pour une partition calée : elle partirait à 0 et dériverait.
         function syncMidi() {
             if (!midiChoices) return;                 // pas encore posées : la mise en place l'appelle
             var playable = !!String(shown || '').trim();
             var which = versions.length > 1 ? (current().label || '') : '';
+            var pairs = midiPairs;
             midiChoices.forEach(function (choice) {
                 var key = 'midi:' + heading + ':' + choice.key;
-                if (!playable) { ctx.removeSource(options.media, key); return; }
+                if (!playable || (pairs && !global.WamaMidiPlayer.syncable(choice.key))) {
+                    ctx.removeSource(options.media, key);
+                    return;
+                }
                 ctx.addSource(options.media, {
                     key: key,
                     label: choice.label + ' · ' + heading + (which ? ' (' + which + ')' : ''),
                     url: '',
                     render: function () {
-                        return global.WamaMidiPlayer.render(shown || text(), choice.key, midiConfig);
+                        return global.WamaMidiPlayer.render(shown || text(), choice.key, midiConfig, pairs);
                     },
                 });
             });

@@ -66,7 +66,10 @@
         var dropMedia = null;
         function drop() { if (dropMedia) { dropMedia(); dropMedia = null; } }
 
-        function load(url, serverPeaks, bust) {
+        /** `start` : l'instant de l'axe où ce média COMMENCE (une version rendue dans la page qui suit
+         *  les repères d'une partition, `WamaMidiPlayer.render`, 2026-11-15) — son suiveur est
+         *  décalé d'autant ; 0 pour un média qui commence avec l'axe. */
+        function load(url, serverPeaks, bust, start) {
             if (!url) {
                 drop();
                 if (Player) Player.destroy(playerId);
@@ -88,7 +91,7 @@
             // Le média joue et se positionne par le lecteur commun : sa lecture EXCLUSIVE, et sa
             // position reposée quand le fichier devient positionnable — l'axe ne les refait pas.
             dropMedia = axis.attach(media, {
-                offset: Number(options.offset) || 0,
+                offset: (Number(options.offset) || 0) - (Number(start) || 0),
                 play: function () { return Player.play(playerId); },
                 seek: function (t) { Player.seek(playerId, t, false); },
             });
@@ -139,13 +142,17 @@
         /** La version choisie : jouée, ou RENDUE d'abord quand elle se fait dans la page (`render`) —
          *  le rendu dit d'où vient le son (`from`), jamais une substitution muette. */
         function play(version, bust) {
-            if (version.url || !version.render) { load(version.url, version.peaks, bust); return; }
+            if (version.url || !version.render) {
+                load(version.url, version.peaks, bust, version.start);
+                return;
+            }
             playerHost.textContent = 'Rendu de « ' + (version.label || 'la version') + ' »…';
             version.render().then(function (got) {
                 version.url = got.url;
+                version.start = got.start || 0;
                 if (got.from) version.from = got.from;
                 if (ctx.source(role).key !== version.key) return;      // un autre choix entre-temps
-                load(got.url);
+                load(got.url, null, false, version.start);
                 if (got.from) ctx.status('Lecture : ' + got.from, 'ok');
             }).catch(function (e) {
                 playerHost.textContent = 'Rendu impossible : ' + e.message;

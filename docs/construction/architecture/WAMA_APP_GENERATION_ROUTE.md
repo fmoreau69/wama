@@ -893,6 +893,34 @@ manifeste** (ce que le kind `app` capte + cible de projection).
         décalage dépasse chaque fois nettement ses voisins (0,46 / 0,41 ; 0,52 / 0,45). Décocher
         « Calée sur les temps joués » rend le tempo écrit seul. ⚠ Le calage ne se juge vraiment qu'à
         l'oreille : à confirmer par Fabien.
+        🔄 **REMPLACÉ le 2026-11-15 — le calage ne se devine plus, il se LIT** (Fabien : « la 1ʳᵉ note
+        jouée n'est pas synchronisée […] et le midi ne semble pas synchronisé correctement »).
+        Mesuré sur ses cards (pistes séparées de « Plus d'eau », #1516), en lecture seule : le calage
+        deviné se trompait de **6 à 16 s** sur les huit partitions, décalage retenu au bord de sa
+        plage (±16 temps), ressemblance 0,34 à 0,48 ; la partition complète d'une voix séparée
+        commençait à la voix (24,5 s), l'intro perdue ; le MIDI partait de 0 ; le `Q:` de la complète
+        était faux (89 pour 90,1 : la médiane d'intervalles arrondis à la trame de 23 ms, 105 × 28 et
+        211 × 29 trames). Livré :
+        (a) les **REPÈRES** (`common/utils/score_timing.py`, mécanisme `score_timing`) : un couple
+        « ms écrit : s d'audio » par barre, sur une ligne `% wama-sync:` de l'en-tête ABC, écrits par
+        le moteur qui note — `midi_score` (de ses temps joués ou de la grille du MIDI) et SheetSage2
+        (ses temps DATÉS, chaque mesure à sa longueur écrite lue dans l'ABC : la 1ʳᵉ et la dernière
+        complétées de silence, `M:1/4`/`M:3/4` en cours de morceau suivis — validé sur deux sorties
+        réelles : 84 et 86 mesures, chaque mesure entre 0,99 et 1,017 fois sa durée écrite) ; lus par
+        la page (`WamaScore.syncOf`/`timeMap`) ;
+        (b) l'**intro écrite** en mesures de silence (`midi_to_abc`, à moins d'une mesure près) et la
+        **lecture MIDI sur les repères** (`WamaMidiPlayer.retimed` : un tempo par mesure ; `start` =
+        décalage du suiveur sur l'axe, `brick-media-transport`) — passer de l'audio au MIDI ne déplace
+        rien ; abcjs, qui ne lit pas un MIDI, n'est pas proposé pour une partition calée ;
+        (c) une partition FOURNIE, sans repères : sa 1ʳᵉ et sa dernière note sur la 1ʳᵉ et la dernière
+        attaque de l'audio (`WamaScore.anchorPairs`, `audio_rhythm.attacks`).
+        Au passage : le tempo des temps joués est ajusté sur leurs RANGS (`audio_rhythm.beat_ranks`,
+        de proche en proche, un temps manqué compte double — `beat_period`), lu aussi par
+        `robust_tempo` de MuScriptor ; une piste séparée prend la pulsation de son MÉLANGE
+        (`derived_cards.origin_of`) ; les paroles sous les notes lisent les repères. Retrait :
+        `WamaScore.align` et la chroma (`REMOVAL_LEDGER R237`). ⏳ Les partitions d'avant n'ont pas de
+        repères : se calent sur les attaques tant que « Partition extraite / complète » n'est pas
+        relancée.
       - **Instruments — décision de Fabien** : SheetSage2 ne sait extraire que deux mélodies
         (`Vocal`, `Ins`) et des accords, pas une partie par instrument ; et le composer lui
         demandait la MÉLODIE SEULE (`melody_only=True`, chaîne du cover de la doc du moteur), donc

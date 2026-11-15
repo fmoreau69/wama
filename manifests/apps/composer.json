@@ -2825,6 +2825,7 @@
             "h": 14,
             "id": "score",
             "options": {
+              "follows": "_input",
               "lyrics": "lyrics_in",
               "media": "audio",
               "title": "Partition de référence",

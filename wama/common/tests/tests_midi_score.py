@@ -389,3 +389,92 @@ class RobustTempoTest(SimpleTestCase):
         self.assertLess(residual, 1e-6)
         self.assertAlmostEqual(0.75, share, places=2)
         self.assertEqual(on, list(kept), 'the beats kept are the dominant phase')
+
+
+class ScoreMarksTest(SimpleTestCase):
+    """The MARKS of a score (`common/utils/score_timing.py`, 2026-11-15) : where each bar falls in
+    the audio it was taken from — written by the notation, read by the score page instead of a
+    guess (measured on Fabien's split tracks : 6 to 16 s off). And the TEMPO of the played beats :
+    their fit on their ranks, never their median (`audio_rhythm.beat_period`)."""
+
+    FRAME = 512 / 22050                                  # the frame of `audio_rhythm`'s grid
+
+    def test_a_long_intro_is_written_as_silent_bars_and_each_bar_says_where_it_falls(self):
+        """The voice of a split track starts at 24.57 s : the score starts with the song, not with
+        the voice — nine silent bars, then the voice, and every bar line is dated in the audio."""
+        from wama.common.utils.score_timing import sync_of
+        beats = [24.57 + 0.673 * i for i in range(40)]
+        abc = midi_to_abc(_midi([('voice', False, [(24.57, 25.243, 67)])], metre=False),
+                          beat_times=beats)
+        self.assertTrue(_body(abc, 'I0').startswith('z16|' * 9 + 'G4'), _body(abc, 'I0')[:80])
+        marks = sync_of(abc)
+        self.assertAlmostEqual(24.57 - 36 * 0.673, marks[0][1], places=3, msg='bar 1, before the voice')
+        self.assertAlmostEqual(24.57, marks[9][1], places=3, msg='bar 10 is where the voice enters')
+        self.assertAlmostEqual(9 * 4 * 60000 / 89, marks[9][0], delta=1, msg='at the written tempo')
+
+    def test_a_short_lead_in_adds_no_bar(self):
+        beats = [1.0 + 0.6 * i for i in range(12)]
+        abc = midi_to_abc(_midi([('voice', False, [(1.0, 1.6, 67)])], metre=False), beat_times=beats)
+        self.assertTrue(_body(abc, 'I0').startswith('G4'), 'less than a bar of silence : not written')
+
+    def test_frame_rounded_beats_give_their_true_tempo_not_their_median(self):
+        """« Plus d'eau » (#1632), measured : 105 gaps of 28 frames and 211 of 29 — the median read
+        89.15 per minute for a song at 90.1, and the full score wrote `Q:1/4=89`."""
+        from wama.common.utils.audio_rhythm import beat_period
+        gaps = [29, 29, 28] * 100
+        beats = np.cumsum([1.0] + [g * self.FRAME for g in gaps])
+        self.assertAlmostEqual(60 / (28 + 2 / 3) / self.FRAME, 60 / beat_period(beats), places=2)
+        abc = midi_to_abc(_midi([('voice', False, [(1.0, 1.6, 67)])], metre=False),
+                          beat_times=list(beats))
+        self.assertIn('Q:1/4=90', abc)
+
+    def test_a_missed_beat_moves_neither_the_tempo_nor_the_notes_after_it(self):
+        from wama.common.utils.audio_rhythm import beat_period, beat_ranks
+        beats = [0.5 * i for i in range(40) if i != 17]
+        self.assertAlmostEqual(0.5, beat_period(beats), places=6)
+        ranks, _ = beat_ranks(beats)
+        self.assertEqual(list(range(17)) + list(range(18, 40)), list(ranks))
+
+    def test_the_marks_travel_in_the_header_and_are_replaced_never_doubled(self):
+        from wama.common.utils.score_timing import sync_of, with_sync
+        abc = 'X:1\nM:4/4\nQ:1/4=60\nK:C\nC4|D4|\n'
+        once = with_sync(abc, [(0, 2.5), (4000, 6.5)])
+        self.assertIn('% wama-sync: 0:2.500 4000:6.500\nK:C', once, 'in the header, before K:')
+        twice = with_sync(once, [(0, 3.0), (4000, 7.0)])
+        self.assertEqual(1, twice.count('% wama-sync:'))
+        self.assertEqual([(0.0, 3.0), (4000.0, 7.0)], sync_of(twice))
+        self.assertIsNone(sync_of(abc))
+        self.assertEqual(abc.rstrip('\n'), with_sync(once, []).rstrip('\n'), 'no pair : no marks')
+
+    def test_dated_beats_set_each_written_bar_padded_ends_and_metre_changes_included(self):
+        """SheetSage2 dates its beats (instant, position, beats per bar, beat value) and WRITES its
+        bars — measured on 2026-11-15 on two real outputs : a first span of an eighth « padded …
+        to 4/4 with preceding rest », a last one padded behind, a 3/4 bar written `M:3/4`. Each
+        written bar starts on a downbeat, at the length the score gives it."""
+        from wama.common.utils.score_timing import (bar_lines_from_beats, sync_from_beats,
+                                                    written_measures)
+        rows = [(0.75, 1, 1, 8)]                                        # a lone eighth, first
+        rows += [(1.0 + 0.5 * i, 1 + i % 4, 4, 4) for i in range(8)]    # two 4/4 bars
+        rows += [(5.0 + 0.5 * i, 1 + i % 3, 3, 4) for i in range(3)]    # one 3/4 bar
+        rows += [(6.5 + 0.5 * i, 1 + i % 4, 4, 4) for i in range(2)]    # half a last bar
+        abc = ('X:1\nM:4/4\nL:1/8\nQ:1/4=120\nK:C\nV:1\nZ|"C"C2D2E2F2|!ff!G8|\nV:2\nZ3|\n'
+               'V:1\nM:3/4\nC6|\nM:4/4\nc8|\n')
+        self.assertEqual([4, 4, 4, 3, 4], written_measures(abc), 'read on the first voice')
+        self.assertEqual([-1.0, 1.0, 3.0, 5.0, 6.5, 8.5], bar_lines_from_beats(rows, written_measures(abc)))
+        pairs = sync_from_beats(abc, rows)
+        self.assertEqual([0, 2000, 4000, 6000, 7500, 9500], [round(ms) for ms, _ in pairs],
+                         'the 3/4 bar lasts three beats in the written time too')
+        self.assertIsNone(bar_lines_from_beats(rows, [4, 4, 4]), 'a downbeat per written bar, or no marks')
+        self.assertIsNone(sync_from_beats(abc.replace('C6|', '[Q:1/4=90]C6|'), rows),
+                          'a tempo change in the body is not dated by this rule')
+
+    def test_sheetsage_scores_carry_the_marks_of_their_dated_beats(self):
+        from wama.common.backends.sheetsage2_backend import with_beat_sync
+        from wama.common.utils.score_timing import sync_of
+        beats = ''.join(f'{1.0 + 0.5 * i}\t{1 + i % 4}\t4\t4\n' for i in range(8))
+        abc = 'X:1\nM:4/4\nQ:1/4=120\nK:C\nC4|D4|\n'
+        marked = with_beat_sync(abc, {'labs': {'beat': beats}, 'abc_measures': 2})
+        self.assertEqual([(0.0, 1.0), (2000.0, 3.0), (4000.0, 5.0)], sync_of(marked))
+        more = ''.join(f'{1.0 + 0.5 * i}\t{1 + i % 4}\t4\t4\n' for i in range(12))
+        self.assertEqual(abc, with_beat_sync(abc, {'labs': {'beat': more}, 'abc_measures': 1}),
+                         'beats that do not give the written bars : the score is left as it is')
