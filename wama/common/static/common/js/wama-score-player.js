@@ -3,9 +3,10 @@
  * jouées et la faire défiler avec elles (2026-11-15, demande de Fabien : la partition jouable dans
  * la visionneuse « comme dans la page d'édition »).
  *
- * Sorti de la brique `score_view` (`surfaces/brick-score-view.js`), qui le lit, pour que la
- * visionneuse (`media-preview.js`, face « Partition ») le lise AUSSI — une seule gravure, un seul
- * temps des notes, une seule façon de les allumer. Les règles sans DOM restent dans `wama-score.js`
+ * Sorti de la brique `score_view` (`surfaces/brick-score-view.js`), qui le lit ; la visionneuse
+ * (`media-preview.js`, face « Partition ») monte la brique elle-même depuis le 2026-11-16
+ * (`WamaSurface.view`) — une seule gravure, un seul temps des notes, une seule façon de les
+ * allumer. Les règles sans DOM restent dans `wama-score.js`
  * (`timeline`, `playingAt`, le calage `timingFor`/`timeMap`) ; ce module en est la face DOM.
  *
  *   engrave(paper, abc, abcjsOptions) -> {tune, timings, tl, span, warnings}

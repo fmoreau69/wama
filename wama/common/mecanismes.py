@@ -495,7 +495,10 @@ MECHANISMS = (
               "2026-11-16 : un objet NON détecté se DÉSIGNE d'un clic (brique `object_tracking` ; "
               "la brique des zones rend le point et dessine les zones proposées — bus `pick`, "
               "`overlay`) : suivi par la boucle `playhead_follow`, proposé, accepté en un cran ou "
-              "refusé ; et la brique « Versions » reprend une correction enregistrée",
+              "refusé ; et la brique « Versions » reprend une correction enregistrée. Même jour : "
+              "des briques se montent aussi HORS d'une page (`WamaSurface.view`, le contexte de "
+              "LECTURE de la page et son montage protégé) — la face « Partition » de la visionneuse "
+              "monte la partition et le transport de la page d'édition, plus une copie",
               'wama/common/surfaces.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
               annexes=('wama/common/surface_views.py',
@@ -504,8 +507,8 @@ MECHANISMS = (
                        'wama/common/static/common/js/wama-brick-layout.js',
                        'wama/common/static/common/js/wama-detections.js',
                        'wama/common/static/common/js/wama-score.js',
-                       # Graver, lire le temps, allumer les notes — la brique partition et la face
-                       # « Partition » de la visionneuse (2026-11-15).
+                       # Graver, lire le temps, allumer les notes — la brique partition (que la
+                       # face « Partition » de la visionneuse monte, 2026-11-16).
                        'wama/common/static/common/js/wama-score-player.js',
                        'wama/common/manifests/codegen/surfaces_gen.py',
                        'wama/common/tests/tests_surfaces.py'),

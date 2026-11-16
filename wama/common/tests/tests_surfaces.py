@@ -242,6 +242,77 @@ class RegistryTest(SimpleTestCase):
         self.assertEqual({}, kept({'heard': {'audio': 'level'}}, ''), 'nothing declared')
         self.assertEqual({}, kept({'heard': None}, 'heard'), 'nothing kept yet')
 
+    #: The least of a DOM a brick builds with, for the V8 runs below.
+    _FAKE_DOM = """var console = {error: function () { window.errors.push([].slice.call(arguments).join(' ')); }};
+        function el(tag) { return {tag: tag, children: [], dataset: {}, style: {}, textContent: '',
+            className: '', classList: {add: function () {}, toggle: function () {}, remove: function () {}},
+            appendChild: function (c) { this.children.push(c); return c; },
+            insertBefore: function (c) { this.children.push(c); return c; },
+            remove: function () {}, setAttribute: function () {}, addEventListener: function () {}}; }
+        var document = {createElement: el};
+        var window = {errors: [], WamaTransport: {mount: function () { return {}; }}};
+        var log = [];
+        window.WamaAudioPlayer = {
+            inject: function (url, id) { log.push('inject ' + url + ' ' + id); },
+            destroy: function (id) { log.push('destroy ' + id); }, setPeaks: function () {},
+            getAudio: function (id) { return {id: id}; },
+            follow: function (id, axis, offset) { log.push('follow ' + id);
+                return function () { log.push('drop ' + id); }; }};
+        var axis = {t: 4.2, on: true, pauses: 0, seeks: [], time: function () { return this.t; },
+            playing: function () { return this.on; }, pause: function () { this.pauses++; this.on = false; },
+            seek: function (t) { this.seeks.push(t); }, setDuration: function () {}};"""
+
+    def test_the_viewer_mounts_the_bricks_of_the_page_and_a_new_version_does_not_stop_the_play(self):
+        """2026-11-16, Fabien : « on unifie, on universalise, on ne laisse pas deux fonctionnements
+        parallèles ». The score face of the viewer had its own copy of what the transport does
+        (versions, MIDI render, its own <audio>) : it now mounts the bricks of the editing page
+        through the kernel (`WamaSurface.view`), on the SERVED files, in V8 — the read context of
+        the page (versions, the chosen one, the axis), a brick that throws kept to its frame, and
+        the transport changing the version heard WITHOUT pausing the axis (it paused it : in the
+        page, going from the audio to the MIDI stopped the play)."""
+        from py_mini_racer import MiniRacer
+        served = Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'js' / 'surfaces'
+        engine = MiniRacer()
+        engine.eval(self._FAKE_DOM + (served / 'wama-surface.js').read_text(encoding='utf-8')
+                    + (served / 'brick-media-transport.js').read_text(encoding='utf-8'))
+        got = json.loads(engine.eval("""(function () {
+            var S = window.WamaSurface, seen = {};
+            S.registerBrick('broken', {mount: function () { throw new Error('boom'); }});
+            S.registerBrick('probe', {mount: function (body, ctx) { seen.ctx = ctx;
+                return {tools: el('span')}; }});
+            var bodies = [el('div'), el('div'), el('div')], head = el('span'), said = [];
+            var ctx = S.view({config: {pk: 7}, axis: axis, reads: {score: 'X:1'},
+                sources: {audio: [{key: 'input', label: 'Entrée', url: '/in.wav'},
+                                  {key: 'output', label: 'Sortie', url: '/out.wav'}]},
+                chosen: {audio: 'input'}, status: function (t) { said.push(t); },
+                slots: [{brick: 'media_transport', body: bodies[0], head: head, options: {role: 'audio'}},
+                        {brick: 'broken', body: bodies[1], head: head},
+                        {brick: 'probe', body: bodies[2], head: head}]});
+            var mounted = log.slice();
+            ctx.setSource('audio', 'output');                  // the axis is playing
+            var playing = {pauses: axis.pauses, seeks: axis.seeks.slice(), log: log.slice(mounted.length)};
+            axis.on = false; log.length = 0;
+            ctx.setSource('audio', 'input');                   // the axis is stopped
+            return JSON.stringify({mounted: mounted, playing: playing,
+                    stopped: {seeks: axis.seeks, log: log.slice()},
+                    broken: bodies[1].textContent, errors: window.errors, heads: head.children.length,
+                    probe: seen.ctx === ctx, read: ctx.reads().score, heard: ctx.source('audio').key,
+                    scope: ctx.config.scope, canEdit: ctx.canEdit});
+        })()"""))
+        self.assertEqual(['inject /in.wav view-7-audio', 'follow view-7-audio'], got['mounted'],
+                         'the chosen version, on a player of its own (not the one of the page behind)')
+        self.assertEqual(0, got['playing']['pauses'], 'a new version does not stop the play')
+        self.assertEqual([], got['playing']['seeks'], 'nor moves the other medias of the axis')
+        self.assertEqual(['drop view-7-audio', 'inject /out.wav view-7-audio', 'follow view-7-audio'],
+                         got['playing']['log'])
+        self.assertEqual([4.2], got['stopped']['seeks'], 'stopped : the new one is set at the time kept')
+        self.assertIn('indisponible : boom', got['broken'])
+        self.assertTrue(any('non montée' in e for e in got['errors']))
+        self.assertTrue(got['probe'], 'the brick after the broken one is mounted')
+        self.assertEqual(2, got['heads'], 'the tools of the transport and of the probe')
+        self.assertEqual(('X:1', 'input', 'view', False),
+                         (got['read'], got['heard'], got['scope'], got['canEdit']))
+
     def test_the_blur_watches_the_corrections_not_the_detection(self):
         from wama.anonymizer.function_specs import PIPELINE
         self.assertIn('detection_corrections', PIPELINE.watched_of(PIPELINE.spec('blur')))
@@ -2380,7 +2451,9 @@ class BrickShortcutsTest(SimpleTestCase):
                 self.assertIn(said, ' ; '.join(broken.keymap_problems()))
         kernel = _js('common/js/surfaces/wama-surface.js')
         self.assertIn('global.WamaKeys.remap(brick, surface.keys[brick]);', kernel)
-        self.assertLess(kernel.index('WamaKeys.remap(brick'), kernel.index('def.mount(rec.body'),
+        # The page mounts its bricks by the common guarded mount (`mountOne`, 2026-11-16).
+        page = kernel[kernel.index('function mount(root, config)'):]
+        self.assertLess(page.index('WamaKeys.remap(brick'), page.index('mountOne(rec.slot.brick'),
                         'the preset is given before any brick mounts')
 
     @staticmethod

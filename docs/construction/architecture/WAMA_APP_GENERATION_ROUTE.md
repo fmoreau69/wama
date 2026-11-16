@@ -1850,9 +1850,20 @@ manifeste** (ce que le kind `app` capte + cible de projection).
     `?field=`). Mesuré au navigateur : Sortie 3,33 s → Partition 5,03 s en lecture → MIDI → Entrée
     7,05 → 9,03 s, 0 erreur. Même jour : le noyau des surfaces protège le montage d'une brique
     (`mountBrick`) — une brique qui lève ne laisse plus la page sans ses autres briques ni erreur.
-    ⏳ La face change sa version écoutée par son petit code (`listen`), de même nature que le
-    `load` de la brique transport, qui exige un contexte de surface : à unifier si une troisième
-    page en a besoin ; les aperçus EN LIGNE (cards, volet) montrent encore le texte.
+    ✅ **Un seul fonctionnement, même jour** (Fabien : « on unifie, on universalise, on ne laisse
+    pas deux fonctionnements parallèles ») : la face avait sa copie de l'écoute (choix « Écouter »,
+    rendu MIDI, calage, lecteur `<audio>` à part). Elle MONTE désormais les deux briques de la page
+    d'édition — `score_view` en lecture seule et `media_transport` — par le noyau des surfaces,
+    hors d'une page (`WamaSurface.view`) : même contexte de lecture que la page (`readContext` :
+    versions écoutables, version choisie, axe, bus — une seule écriture), même montage protégé
+    (`mountOne`). Le serveur sert le noyau et les scripts DÉCLARÉS des deux briques
+    (`SURFACE_SCRIPT`, `UIBrick.scripts`). La face y gagne ce que la page avait : export, clic sur
+    une note, case « Calée sur ses repères », verrou de suivi. Et la page y gagne ce que la face
+    avait : changer de version écoutée n'ARRÊTE plus la lecture (`load` du transport ne met plus
+    l'axe en pause — le nouveau média s'attache à l'axe qui tourne), le rendu MIDI se dit dans la
+    barre d'état. L'horloge passe à l'axe d'une face même avant que son média y soit posé
+    (`takeClock`/`giveClock` sur l'axe seul). ⏳ Les aperçus EN LIGNE (cards, volet) montrent
+    encore le texte.
   - ⏳ **Restes, dans l'ordre** : ② rendus par TYPE (ABC en partition — fait pour la visionneuse, ci-dessus) ; ③ les lignes de la bande des process ouvrent leur face, l'état du
     process (périmé, en échec) se lit sur elle ; ④ Studio (nœuds `StudioRun`, `output_ref`), Lab
     (passes du cam_analyzer, une face par caméra, `instance_key`), Data (Explorer). Et la face de

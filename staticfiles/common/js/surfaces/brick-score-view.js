@@ -411,8 +411,8 @@
             var marks = Score.syncOf(wholeText());
             var anchors = (grid && span) ? Score.anchorPairs(span[0], span[1], grid.first_onset, grid.last_onset) : null;
             var key = listened();
-            // La règle commune (celle de la visionneuse aussi) : les attaques sont lues sur
-            // l'audio du rôle (`''`, la grille de `data/?only=rhythm`).
+            // La règle commune (`WamaScore.timingFor`) : les attaques sont lues sur l'audio du rôle
+            // (`''`, la grille de `data/?only=rhythm`) — la visionneuse monte cette brique-ci.
             var chosen = Score.timingFor({ marks: marks, anchors: anchors, listened: key,
                                            follows: follows(), anchorsOf: '', ownMidi: ownMidi(key) });
             timingPairs = chosen.pairs;

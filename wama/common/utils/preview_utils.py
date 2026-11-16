@@ -711,9 +711,10 @@ def _process_face(app_name, pipeline, spec, instance, request, input_data):
     return None
 
 
-#: Les briques dont la face « Partition » de la visionneuse lit les scripts (2026-11-15) : la
-#: gravure et sa lecture MIDI (`score_view`), le transport commun (`media_transport`) — leurs
-#: `requires` DÉCLARÉS, jamais une liste recopiée ; ceux de la page de base en sont retirés.
+#: Les briques que la face « Partition » de la visionneuse MONTE (2026-11-16, par le noyau des
+#: surfaces, `WamaSurface.view`) : la partition (`score_view`) et le transport (`media_transport`)
+#: de la page d'édition — leurs scripts DÉCLARÉS (`UIBrick.scripts`), jamais une liste recopiée ;
+#: ceux de la page de base en sont retirés.
 SCORE_FACE_BRICKS = ('score_view', 'media_transport')
 
 
@@ -762,7 +763,7 @@ def _score_face(app_name, instance, side, data, input_data, output_data):
         follows = 'input'
     if follows not in [a['key'] for a in audios]:
         follows = ''
-    return {**data, 'score': {'abc': abc, 'audios': audios, 'follows': follows,
+    return {**data, 'score': {'abc': abc, 'pk': instance.pk, 'audios': audios, 'follows': follows,
                               'edit_url': _score_edit_url(app_name, instance, data.get('field')),
                               'scripts': _score_face_scripts(),
                               'styles': _score_face_styles(),
@@ -787,14 +788,15 @@ def _score_edit_url(app_name, instance, field) -> str:
 
 
 def _score_face_scripts() -> list:
+    """Le noyau des surfaces d'abord (les briques s'y inscrivent en se chargeant), puis chaque
+    brique, ses dépendances avant elle."""
     from wama.common.surface_views import page_scripts
-    from wama.common.surfaces import BRICKS
+    from wama.common.surfaces import BRICKS, SURFACE_SCRIPT
     from wama.common.templatetags.wama_static import static_v
     loaded, out = page_scripts(), []
-    for key in SCORE_FACE_BRICKS:
-        for path in BRICKS[key].requires:
-            if path not in loaded and static_v(path) not in out:
-                out.append(static_v(path))
+    for path in [SURFACE_SCRIPT] + [p for key in SCORE_FACE_BRICKS for p in BRICKS[key].scripts()]:
+        if path not in loaded and static_v(path) not in out:
+            out.append(static_v(path))
     return out
 
 

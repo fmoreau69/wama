@@ -689,6 +689,9 @@
 .wama-score-paper svg .wama-score-playing { fill: var(--wama-edit-playing); stroke: var(--wama-edit-playing); }
 .wama-score-face { display: flex; flex-direction: column; gap: .5rem; width: 100%; }
 .wama-score-face-tools { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+/* Les outils des briques montées (`WamaSurface.view`) : sur une largeur de visionneuse, ils passent
+   à la ligne plutôt que de déborder. */
+.wama-score-face-tools .wama-brick-tools { flex-wrap: wrap; }
 .wama-score-face-stage { background: var(--wama-paper); border-radius: .375rem; overflow: auto;
   max-height: var(--wv-stage, 65vh); }
 .wama-score-face-source { max-height: var(--wv-stage, 65vh); overflow: auto; white-space: pre; }

@@ -125,6 +125,131 @@
         return global.WamaApp.jsonOrExplain(response);
     }
 
+    /** Le BUS d'événements entre briques : un écouteur qui lève ne coupe pas les autres. */
+    function makeBus() {
+        var listeners = {};
+        return {
+            on: function (name, fn) { (listeners[name] = listeners[name] || []).push(fn); },
+            emit: function (name, payload) {
+                (listeners[name] || []).forEach(function (fn) {
+                    try { fn(payload); } catch (e) { console.error('[surface]', name, e); }
+                });
+            },
+        };
+    }
+
+    /** Le contexte de LECTURE d'une brique : ce que la page lit (`reads`, `media`), les VERSIONS
+     *  écoutables d'un média lu et celle qu'on écoute, l'axe, l'état des process, le bus. Commun à
+     *  la page d'une surface (`mount`, qui y ajoute l'édition) et aux briques montées HORS d'elle
+     *  (`view`) — une seule écriture du choix de ce qu'on écoute (2026-11-16). `hooks` : `axis()`
+     *  rend l'axe, `status(texte, sorte)` le dit, `chosen(rôle)` suit un choix de version. */
+    function readContext(config, state, bus, hooks) {
+        return {
+            config: config,
+            canEdit: false,
+            reads: function () { return state.reads; },
+            /** `{rôle: {peaks, duration}}` des médias lus que le serveur a préparés (pics d'un audio long). */
+            media: function () { return state.media; },
+            /** `{rôle: [{key, label, url, peaks?}]}` : les VERSIONS d'un média lu entre lesquelles
+             *  choisir ce qu'on écoute (l'original d'abord, `key` vide) — absent : rien à choisir. */
+            sources: function () { return state.sources; },
+            /** La version écoutée d'un rôle : l'entrée de `sources()`, sinon celle du rôle lu. */
+            source: function (role) {
+                var list = state.sources[role] || [];
+                var key = state.chosen[role] || '';
+                for (var i = 0; i < list.length; i++) if (list[i].key === key) return list[i];
+                return { key: '', url: state.reads[role] || '', peaks: state.media[role] };
+            },
+            /** Choisit la version écoutée d'un rôle ; émet `source` (`{role, key}`). */
+            setSource: function (role, key) {
+                state.chosen[role] = key || '';
+                bus.emit('source', { role: role, key: state.chosen[role] });
+                if (hooks.chosen) hooks.chosen(role);
+            },
+            /** Ajoute (ou remplace, même `key`) une VERSION écoutable d'un rôle, faite DANS la page
+             *  (2026-11-08 : la lecture MIDI de la partition, `wama-midi-player.js`). Sans `url`,
+             *  elle porte `render()` -> Promise<{url, from}> : le transport la rend à la demande.
+             *  L'original reste en tête de la liste ; émet `sources` (`{role}`). */
+            addSource: function (role, version) {
+                var list = state.sources[role] = state.sources[role] || [];
+                if (!list.length && state.reads[role]) {
+                    list.push({ key: '', label: 'Audio', url: state.reads[role], peaks: state.media[role] });
+                }
+                var at = -1;
+                for (var i = 0; i < list.length; i++) if (list[i].key === version.key) at = i;
+                if (at < 0) list.push(version); else list[at] = version;
+                bus.emit('sources', { role: role });
+            },
+            /** Retire une version que la page avait ajoutée (`addSource`) — une partition devenue
+             *  vide n'a plus rien à faire entendre (2026-11-12, #1516). Choisie, la lecture revient
+             *  à la version par défaut. */
+            removeSource: function (role, key) {
+                var list = state.sources[role] || [];
+                var kept = list.filter(function (v) { return v.key !== key; });
+                if (kept.length === list.length) return;
+                state.sources[role] = kept;
+                if (state.chosen[role] === key) {
+                    state.chosen[role] = '';
+                    bus.emit('source', { role: role, key: '' });
+                }
+                bus.emit('sources', { role: role });
+            },
+            context: function () { return state.context; },
+            /** L'axe de temps PARTAGÉ (`WamaAxis`) ; null si aucune brique chargée ne l'a demandé. */
+            axis: hooks.axis,
+            /** `{process: état}` de l'élément (`STALE`, `RUNNING`, `SUCCESS`…). */
+            processes: function () { return state.processes || {}; },
+            value: function () { return state.value; },
+            /** Hors d'une page qui édite : aucun geste d'édition. */
+            edit: function () {},
+            on: bus.on, emit: bus.emit, status: hooks.status,
+        };
+    }
+
+    /** Monte la brique `key` dans `body` ; rend ce qu'elle rend (`{}` au pire). Une brique non
+     *  chargée, ou qui LÈVE à son montage, le dit dans son cadre et dans la console, et n'emporte
+     *  pas les autres (2026-11-16) : elle arrêtait la mise en page, et l'erreur ne s'écrivait que
+     *  dans la barre d'état — la partition du composer sans transport, « aucune erreur » (un
+     *  script de brique plus récent que la liste servie par le service). */
+    function mountOne(key, body, ctx, options) {
+        var def = BRICKS[key] || {};
+        if (!def.mount) {
+            body.textContent = 'Brique « ' + key + ' » non chargée.';
+            return {};
+        }
+        try {
+            return def.mount(body, ctx, options || {}) || {};
+        } catch (e) {
+            console.error('[surface] brique « ' + key + ' » non montée', e);
+            body.textContent = 'Brique « ' + key + ' » indisponible : ' + ((e && e.message) || e);
+            return {};
+        }
+    }
+
+    /** Des briques montées HORS d'une page de surface (2026-11-16, Fabien : « on ne laisse pas deux
+     *  fonctionnements parallèles ») — la face « Partition » de la visionneuse monte la partition et
+     *  le transport de la page d'édition, plus une copie de leur lecture. Le contexte est celui de
+     *  LECTURE (`readContext`) : ni valeur éditée, ni enregistrement, ni disposition. `spec` :
+     *  `config` (`pk`, `sound_banks`…), `reads`, `sources`, `chosen` (`{rôle: clé}`), `axis` (l'axe
+     *  que tient l'hôte), `status(texte, sorte)`, `slots` = `[{brick, options, body, head}]` montés
+     *  dans l'ordre — les outils d'une brique vont dans `head`. `config.scope` vaut `view` : ce que
+     *  la brique nomme dans la page (un lecteur) ne se confond pas avec la page ouverte derrière. */
+    function view(spec) {
+        var bus = makeBus();
+        var config = Object.assign({ scope: 'view' }, spec.config || {});
+        var state = { reads: spec.reads || {}, media: spec.media || {}, sources: spec.sources || {},
+                      chosen: spec.chosen || {}, context: {}, processes: {}, value: {} };
+        var ctx = readContext(config, state, bus, {
+            axis: function () { return spec.axis || null; },
+            status: spec.status || function () {},
+        });
+        (spec.slots || []).forEach(function (slot) {
+            var brick = mountOne(slot.brick, slot.body, ctx, slot.options);
+            if (brick.tools && slot.head) slot.head.appendChild(brick.tools);
+        });
+        return ctx;
+    }
+
     function mount(root, config) {
         var App = global.WamaApp || {};
         var surface = config.surface;
@@ -134,7 +259,8 @@
         if (global.WamaKeys) Object.keys(surface.keys || {}).forEach(function (brick) {
             global.WamaKeys.remap(brick, surface.keys[brick]);
         });
-        var listeners = {};
+        var bus = makeBus();
+        var on = bus.on, emit = bus.emit;
         var statusEl = document.querySelector('.wama-surface-status');
         var state = { reads: {}, media: {}, sources: {}, chosen: {}, context: {}, value: {}, saved: '{}',
                       selected: null, token: '', settings: { schema: [], values: {} } };
@@ -146,12 +272,6 @@
         var AUTOSAVE_MS = 800;              // la pause de l'enregistrement automatique de l'éditeur
         var helps = [];
 
-        function on(name, fn) { (listeners[name] = listeners[name] || []).push(fn); }
-        function emit(name, payload) {
-            (listeners[name] || []).forEach(function (fn) {
-                try { fn(payload); } catch (e) { console.error('[surface]', name, e); }
-            });
-        }
         function status(text, kind) {
             if (!statusEl) return;
             statusEl.textContent = text || '';
@@ -190,75 +310,29 @@
             }
         }
 
-        var ctx = {
-            config: config,
-            canEdit: !!config.can_edit,
-            reads: function () { return state.reads; },
-            /** `{rôle: {peaks, duration}}` des médias lus que le serveur a préparés (pics d'un audio long). */
-            media: function () { return state.media; },
-            /** `{rôle: [{key, label, url, peaks?}]}` : les VERSIONS d'un média lu entre lesquelles
-             *  choisir ce qu'on écoute (l'original d'abord, `key` vide) — absent : rien à choisir. */
-            sources: function () { return state.sources; },
-            /** La version écoutée d'un rôle : l'entrée de `sources()`, sinon celle du rôle lu. */
-            source: function (role) {
-                var list = state.sources[role] || [];
-                var key = state.chosen[role] || '';
-                for (var i = 0; i < list.length; i++) if (list[i].key === key) return list[i];
-                return { key: '', url: state.reads[role] || '', peaks: state.media[role] };
-            },
-            /** Choisit la version écoutée d'un rôle ; émet `source` (`{role, key}`). La surface qui
-             *  le déclare (`sources_setting`) GARDE ce choix sur la card, par la route commune des
-             *  réglages : la prochaine ouverture le reprend (2026-10-22). */
-            setSource: function (role, key) {
-                state.chosen[role] = key || '';
-                emit('source', { role: role, key: state.chosen[role] });
-                if (surface.sources_setting) {
-                    var kept = {}, values = {};
-                    Object.keys(state.chosen).forEach(function (r) {
-                        if (state.chosen[r]) kept[r] = state.chosen[r];
-                    });
-                    values[surface.sources_setting] = kept;
-                    saveSettings(values);
-                }
-            },
-            /** Ajoute (ou remplace, même `key`) une VERSION écoutable d'un rôle, faite DANS la page
-             *  (2026-11-08 : la lecture MIDI de la partition, `wama-midi-player.js`). Sans `url`,
-             *  elle porte `render()` -> Promise<{url, from}> : le transport la rend à la demande.
-             *  L'original reste en tête de la liste ; émet `sources` (`{role}`). */
-            addSource: function (role, version) {
-                var list = state.sources[role] = state.sources[role] || [];
-                if (!list.length && state.reads[role]) {
-                    list.push({ key: '', label: 'Audio', url: state.reads[role], peaks: state.media[role] });
-                }
-                var at = -1;
-                for (var i = 0; i < list.length; i++) if (list[i].key === version.key) at = i;
-                if (at < 0) list.push(version); else list[at] = version;
-                emit('sources', { role: role });
-            },
-            /** Retire une version que la page avait ajoutée (`addSource`) — une partition devenue
-             *  vide n'a plus rien à faire entendre (2026-11-12, #1516). Choisie, la lecture revient
-             *  à la version par défaut. */
-            removeSource: function (role, key) {
-                var list = state.sources[role] || [];
-                var kept = list.filter(function (v) { return v.key !== key; });
-                if (kept.length === list.length) return;
-                state.sources[role] = kept;
-                if (state.chosen[role] === key) {
-                    state.chosen[role] = '';
-                    emit('source', { role: role, key: '' });
-                }
-                emit('sources', { role: role });
-            },
-            context: function () { return state.context; },
-            /** L'axe de temps PARTAGÉ de la surface (`WamaAxis`), créé au premier appel ; null si
-             *  aucune brique chargée ne l'a demandé (`requires`). */
+        var ctx = readContext(config, state, bus, {
+            /** L'axe de temps PARTAGÉ de la surface, créé au premier appel ; null si aucune brique
+             *  chargée ne l'a demandé (`requires`). */
             axis: function () {
                 if (!axis && global.WamaAxis) axis = global.WamaAxis.create();
                 return axis;
             },
-            /** `{process: état}` de l'élément (`STALE`, `RUNNING`, `SUCCESS`…). */
-            processes: function () { return state.processes || {}; },
-            value: function () { return state.value; },
+            status: status,
+            /** La surface qui le déclare (`sources_setting`) GARDE le choix de la version écoutée sur
+             *  la card, par la route commune des réglages : la prochaine ouverture le reprend
+             *  (2026-10-22). */
+            chosen: function () {
+                if (!surface.sources_setting) return;
+                var kept = {}, values = {};
+                Object.keys(state.chosen).forEach(function (r) {
+                    if (state.chosen[r]) kept[r] = state.chosen[r];
+                });
+                values[surface.sources_setting] = kept;
+                saveSettings(values);
+            },
+        });
+        ctx.canEdit = !!config.can_edit;
+        Object.assign(ctx, {
             /** UN geste d'édition = un cran d'historique : `fn(copie)` rend la nouvelle valeur.
              *  `{burst: true}` : une frappe — la rafale entière ne fait qu'un cran. */
             edit: function (fn, opts) {
@@ -310,7 +384,7 @@
                 state.selected = id;
                 emit('select', { id: id, focus: !!(opts && opts.focus) });
             },
-            on: on, emit: emit, history: history, dirty: dirty, status: status,
+            history: history, dirty: dirty,
             save: save, apply: apply, resetLayout: resetLayout,
             /** Le champ édité : '' = le principal, sinon l'un des `also_edits` de la surface. */
             target: function () { return target; },
@@ -319,7 +393,7 @@
              *  (événement `layout`). Une préférence du LECTEUR : vaut aussi en lecture seule. */
             frozen: function () { return layout.frozen(); },
             setFrozen: function (on) { layout.setFrozen(on); },
-        };
+        });
 
         function showConflict(res) {
             conflicted = true;
@@ -542,32 +616,16 @@
             on('layout', controls.layoutChanged);
         }
 
-        /** Monte une brique dans le cadre que la disposition lui a posé (ses outils dans le titre).
-         *  Une brique qui LÈVE à son montage le dit dans son cadre et dans la console, et
-         *  n'emporte pas les autres (2026-11-16) : elle arrêtait la mise en page, et l'erreur ne
-         *  s'écrivait que dans la barre d'état — la partition du composer sans transport, « aucune
-         *  erreur » (un script de brique plus récent que la liste servie par le service). */
+        /** Monte une brique dans le cadre que la disposition lui a posé (ses outils dans le titre),
+         *  par le montage protégé commun (`mountOne`). */
         function mountBrick(rec) {
-            var def = rec.def;
-            if (!def.mount) {
-                rec.body.textContent = 'Brique « ' + rec.slot.brick + ' » non chargée.';
-                rec.brick = {};
-            } else {
-                try {
-                    rec.brick = def.mount(rec.body, ctx, rec.slot.options || {}) || {};
-                } catch (e) {
-                    console.error('[surface] brique « ' + rec.slot.brick + ' » non montée', e);
-                    rec.body.textContent = 'Brique « ' + rec.slot.brick + ' » indisponible : ' +
-                        ((e && e.message) || e);
-                    rec.brick = {};
-                }
-                if (rec.brick.tools) {
-                    rec.head.appendChild(rec.brick.tools);
-                    rec.head.classList.add('has-tools');
-                    rec.hasTools = true;
-                }
-                if (rec.brick.help) helps.push(rec.brick.help);
+            rec.brick = mountOne(rec.slot.brick, rec.body, ctx, rec.slot.options);
+            if (rec.brick.tools) {
+                rec.head.appendChild(rec.brick.tools);
+                rec.head.classList.add('has-tools');
+                rec.hasTools = true;
             }
+            if (rec.brick.help) helps.push(rec.brick.help);
             mounted.push(rec);
         }
 
@@ -629,6 +687,6 @@
         return ctx;
     }
 
-    global.WamaSurface = { registerBrick: registerBrick, mount: mount, keptSources: keptSources,
+    global.WamaSurface = { registerBrick: registerBrick, mount: mount, view: view, keptSources: keptSources,
                            readAnswer: readAnswer };
 })(window);

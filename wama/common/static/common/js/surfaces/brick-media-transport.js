@@ -49,7 +49,9 @@
         var axis = ctx.axis();
         // Le lecteur COMMUN (monté par la page de base) : la brique dit ce qu'elle monte.
         var Player = global.WamaAudioPlayer;
-        var playerId = 'surface-' + ctx.config.pk + '-' + role;
+        // Monté hors d'une page (`WamaSurface.view`, la visionneuse) : un autre lecteur que celui de
+        // la page du même élément, ouverte derrière.
+        var playerId = (ctx.config.scope || 'surface') + '-' + ctx.config.pk + '-' + role;
         var showWave = options.wave !== false;
         // Ce sous quoi le transport GARDE la position (`options.remember`) : la page et son élément.
         var key = ((ctx.config.surface || {}).id || 'surface') + '.' + ctx.config.pk;
@@ -70,7 +72,10 @@
 
         /** `start` : l'instant de l'axe où ce média COMMENCE (une version rendue dans la page qui suit
          *  les repères d'une partition, `WamaMidiPlayer.render`, 2026-11-15) — son suiveur est
-         *  décalé d'autant ; 0 pour un média qui commence avec l'axe. */
+         *  décalé d'autant ; 0 pour un média qui commence avec l'axe.
+         *  La lecture CONTINUE (2026-11-16, Fabien : passer de l'audio au MIDI « sans interruption de
+         *  la lecture ») : l'ancien média est détaché, le nouveau s'attache à l'axe qui tourne et
+         *  part à son temps (`axis.attach`) — l'axe ne s'arrête plus à chaque version écoutée. */
         function load(url, serverPeaks, bust, start) {
             if (!url) {
                 drop();
@@ -80,7 +85,6 @@
             }
             if (!Player || !axis) { playerHost.textContent = 'Lecteur commun indisponible.'; return; }
             var keep = axis.time();
-            axis.pause();
             drop();
             playerHost.textContent = '';
             var full = bust ? url + (url.indexOf('?') < 0 ? '?' : '&') + 'v=' + Date.now() : url;
@@ -94,7 +98,9 @@
             // position reposée quand le fichier devient positionnable — l'axe ne les refait pas.
             // (`Player.follow`, que l'aperçu emprunte aussi pour ses sons.)
             dropMedia = Player.follow(playerId, axis, (Number(options.offset) || 0) - (Number(start) || 0));
-            if (keep) axis.seek(keep);
+            // À l'arrêt, le nouveau média se pose au temps gardé ; en lecture, l'attache l'y a fait
+            // partir (un `seek` recalerait aussi les autres médias de l'axe, pour rien).
+            if (keep && !axis.playing()) axis.seek(keep);
         }
 
         // ── Les commandes ───────────────────────────────────────────────────────────────────
@@ -145,16 +151,20 @@
                 load(version.url, version.peaks, bust, version.start);
                 return;
             }
-            playerHost.textContent = 'Rendu de « ' + (version.label || 'la version') + ' »…';
+            // Dit dans le lecteur ET à la page : une onde tue (ligne de temps, visionneuse) le cacherait.
+            var busy = 'Rendu de « ' + (version.label || 'la version') + ' »…';
+            playerHost.textContent = busy;
+            ctx.status(busy, 'busy');
             version.render().then(function (got) {
                 version.url = got.url;
                 version.start = got.start || 0;
                 if (got.from) version.from = got.from;
                 if (ctx.source(role).key !== version.key) return;      // un autre choix entre-temps
                 load(got.url, null, false, version.start);
-                if (got.from) ctx.status('Lecture : ' + got.from, 'ok');
+                ctx.status(got.from ? 'Lecture : ' + got.from : '', got.from ? 'ok' : '');
             }).catch(function (e) {
                 playerHost.textContent = 'Rendu impossible : ' + e.message;
+                ctx.status('Rendu impossible : ' + e.message, 'error');
             });
         }
         ctx.on('source', function (p) {

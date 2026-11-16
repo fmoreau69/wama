@@ -965,6 +965,10 @@ BRICKS: dict = {}
 #: par la visionneuse quand elle monte des briques hors d'une surface (la face « Partition »,
 #: `preview_utils._score_face`, 2026-11-15). Tenue égale au gabarit par `tests_pipeline_faces`.
 SURFACE_STYLESHEET = 'common/css/wama-surface.css'
+#: Le NOYAU des surfaces (le gabarit le charge avant les briques) : il monte aussi des briques HORS
+#: d'une page (`WamaSurface.view`, la face « Partition » de la visionneuse, 2026-11-16). Tenu égal
+#: au gabarit par le même test.
+SURFACE_SCRIPT = 'common/js/surfaces/wama-surface.js'
 SURFACES: dict = {}
 
 
@@ -1276,7 +1280,8 @@ register_brick(UIBrick(
     script='common/js/surfaces/brick-score-view.js',
     requires=('vendors/abcjs-6.4.4/abcjs-basic-min.js', 'common/js/wama-axis.js',
               'common/js/wama-score.js',
-              # Graver, lire le temps, allumer les notes : le module commun, celui de la visionneuse aussi.
+              # Graver, lire le temps, allumer les notes : le module commun (la visionneuse monte
+              # cette brique, `WamaSurface.view`).
               'common/js/wama-score-player.js',
               # La LECTURE MIDI de la partition (2026-11-08) : des versions de plus au transport.
               'common/js/wama-midi-player.js',

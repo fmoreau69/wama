@@ -216,14 +216,31 @@ class ProcessFacesTest(_MediaRootMixin, TestCase):
             self.assertIn(needed, scripts)
         self.assertNotIn('wama-axis.js', scripts, 'the base page has it already')
         self.assertIn('banks', reduced['sound_banks'])
+        self.assertEqual(gen.pk, reduced['pk'])
+        # 2026-11-16 (Fabien : « on ne laisse pas deux fonctionnements parallèles ») : the face
+        # MOUNTS the bricks of the editing page through the kernel — the kernel first (the bricks
+        # register into it as they load), then each brick after what it requires.
+        from wama.common.surfaces import BRICKS, SURFACE_SCRIPT
+        names = [s.split('?')[0].rsplit('/', 1)[-1] for s in reduced['scripts']]
+        kernel = SURFACE_SCRIPT.rsplit('/', 1)[-1]
+        self.assertEqual(kernel, names[0])
+        for key in ('score_view', 'media_transport'):
+            brick = BRICKS[key].script.rsplit('/', 1)[-1]
+            self.assertIn(brick, names)
+            for needed in BRICKS[key].requires:
+                needed = needed.rsplit('/', 1)[-1]
+                if needed in names:
+                    self.assertLess(names.index(needed), names.index(brick), f'{needed} before {brick}')
         # Its styles : those of the surface page (the transport declares none of its own) — the
-        # very stylesheet the surface template loads.
+        # very stylesheet and kernel the surface template loads.
         from django.conf import settings
         from wama.common.surfaces import SURFACE_STYLESHEET
         self.assertTrue(any(SURFACE_STYLESHEET.split('/')[-1] in s for s in reduced['styles']))
         template = os.path.join(settings.BASE_DIR, 'wama', 'common', 'templates', 'common', 'surface.html')
         with open(template, encoding='utf-8') as handle:
-            self.assertIn(f"static_v '{SURFACE_STYLESHEET}'", handle.read())
+            text = handle.read()
+        self.assertIn(f"static_v '{SURFACE_STYLESHEET}'", text)
+        self.assertIn(f"static_v '{SURFACE_SCRIPT}'", text)
         self.assertEqual(out, _score_face('composer', gen, 'output', out, inp, out),
                          'a face that is no score is left as it is')
 

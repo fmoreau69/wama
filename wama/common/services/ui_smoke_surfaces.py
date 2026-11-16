@@ -1758,7 +1758,10 @@ _SCORE_STATE_JS = """(slot) => {
     const a = document.activeElement;
     return {chosen: s ? (s.getAttribute('class').match(/abcjs-(p-?\\d+|n\\d+)/g) || []).join(',') : null,
             inBrick: !!(zone && a && a !== document.body && zone.contains(a)),
-            clock: (document.querySelector('.wama-transport-clock') || {}).textContent || ''};
+            // Le temps de l'AXE (`_AXIS_SPY_JS`), pas l'horloge affichée : → avance d'un pas de 1/30 s
+            // depuis le 2026-11-15, que l'affichage au dixième ne montrait pas (faux rouge du 16/11).
+            clock: (window.__wamaAxes || [])[0] ? window.__wamaAxes[0].time().toFixed(4)
+                : ((document.querySelector('.wama-transport-clock') || {}).textContent || '')};
 }"""
 
 
@@ -1805,6 +1808,7 @@ def check_score_keys(page_hook=None):
                 try:
                     context = browser.new_context(viewport={'width': 1500, 'height': 1000})
                     context.add_cookies(_cookie(token))
+                    context.add_init_script(_AXIS_SPY_JS)
                     page = context.new_page()
                     page.set_default_timeout(10000)
                     errors = []
