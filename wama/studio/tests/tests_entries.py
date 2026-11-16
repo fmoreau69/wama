@@ -569,8 +569,9 @@ class CardMatchTest(SimpleTestCase):
 
     def _match(self, meta, field={'name': 'model'}):
         from wama.common.utils import auto_model, input_match
-        with mock.patch.object(auto_model, 'catalog_field', lambda app: field), \
-                mock.patch.object(input_match, 'select_match_meta', lambda app, name: meta):
+        with mock.patch.object(auto_model, 'catalog_field', lambda app, domain=None: field), \
+                mock.patch.object(input_match, 'select_match_meta',
+                                  lambda app, name, domain=None: meta):
             return input_match.card_match('app', self.PORTS)
 
     def test_a_port_no_model_of_the_select_names_is_not_judged_by_it(self):

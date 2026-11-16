@@ -551,10 +551,20 @@ def _deposit_settings(user, nature, post, inputs=None):
         from wama.common.utils.batch_common import batches_by_domain
         from wama.common.utils.user_settings import read_panel_settings as _rps
         domain_batches = batches_by_domain('{app}', batches_list)
+
+        def _domain_match(dom):
+            # L'appariement de la card de CE domaine : le select et les modèles de SON schéma.
+            try:
+                return json.dumps(card_match(
+                    '{app}', (studio_node_ports('{app}') or {{}}).get('inputs') or [], domain=dom))
+            except Exception:
+                return '{{}}'
+
         domain_pages = {{
             dom: {{'params_json': json.dumps(domain_schema('{app}', dom)),
                   'panel_defaults': json.dumps(_rps(user, '{app}', domain_schema('{app}', dom),
-                                                    domain=dom))}}
+                                                    domain=dom)),
+                  'input_match': _domain_match(dom)}}
             for dom in domain_batches}}'''
     domain_keys = ('' if not multi else
                      "\n            'domain_batches': domain_batches, 'domain_pages': domain_pages,")

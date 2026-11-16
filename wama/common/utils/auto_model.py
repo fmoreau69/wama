@@ -150,11 +150,19 @@ def catalog_domain(app_id: str):
     return dict(field.get('options_query') or {}) if field is not None else None
 
 
-def catalog_field(app_id: str):
+def catalog_field(app_id: str, domain: str = None):
     """Le paramètre `options_source='catalog'` du schéma de l'app (le premier), ou None — le
-    domaine ET ses drapeaux d'UI (`options_cloud`…), lus au même endroit."""
+    domaine ET ses drapeaux d'UI (`options_cloud`…), lus au même endroit.
+
+    `domain` : le schéma de CE domaine de l'app (`app_modes.domain_schema`, 2026-11-15) — deux
+    domaines nomment leur select du même nom sur deux tâches (l'imager : image / vidéo)."""
     from wama.common.utils.param_schema import schema_for_app
-    for field in schema_for_app(app_id) or []:
+    if domain:
+        from wama.common.utils.app_modes import domain_schema
+        schema = domain_schema(app_id, domain)
+    else:
+        schema = schema_for_app(app_id) or []
+    for field in schema:
         if field.get('options_source') == 'catalog':
             return field
     return None

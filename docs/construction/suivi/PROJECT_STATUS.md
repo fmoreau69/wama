@@ -31647,3 +31647,29 @@ Relancée avec les noms et une garde à 18 Go, elle a nommé
 `composer.tasks._parts` remonte `derived_cards.origin_of`, qu'un double `MagicMock` (toujours
 « dérivé », toujours une source) fait tourner sans fin. Corrigé dans le test seul (le double est
 une card d'origine), `6e04f8e43` ; sessions sœurs prévenues.
+
+## §PALIER 2026-11-16, « DOMAINES ⑦ (b) : l'appariement entrée ↔ modèle lu PAR DOMAINE » — commit local, non poussé — rien à relancer pour les apps réelles (elles n'appellent pas la brique avec un domaine) ; 🔴 gunicorn pour les jumelles régénérées — 🔚 domaine à préfixe hors page générée ; nœud du Studio par domaine ; dix autres jumelles ; dépôt et ⚙ des jumelles à l'écran
+
+**Mesuré d'abord** (lecture seule) : `card_match('imager', ports)` rend les 10 entrées du schéma
+image ; le schéma vidéo nomme son select du même nom (`model`) sur une autre tâche (6 modèles).
+Le volet vidéo de la page générée était donc jugé sur les modèles d'image. L'anonymizer n'a de
+select de catalogue que sur image / vidéo ; l'enhancer en a un par domaine, de noms différents.
+
+**Livré** : `auto_model.catalog_field(app, domain=None)`, `input_match.select_match_meta(…,
+domain=None)`, `input_match.card_match(app, ports, domain=None)` — avec un domaine, le schéma lu
+est `app_modes.domain_schema` ; sans lui, rien ne change (le Studio, les apps réelles).
+`views_gen` : `domain_pages[<d>]['input_match']` ; `templates_gen` : jeton `V_MATCH`.
+
+**Avant / après** sur les douze manifestes d'app : dix pages à une file inchangées à l'octet,
+anonymizer et imager changent (`index.html`, `views.py`).
+
+**Gardes** : `SelectMatchMetaReadsTheDeclaredDomainTest.test_the_select_of_a_domain_is_read_in_the_schema_of_that_domain`
+(toutes les apps, sur leurs déclarations) et deux assertions de plus dans
+`GeneratedPageByDomainTest`. Cinq mutations, cinq rouges — la première passe en avait laissé
+trois vertes : le test ajouté en fin de fichier était tombé dans une autre classe.
+
+**Ajusté** : les doubles de `studio.tests.tests_entries.CardMatchTest` acceptent `domain`.
+
+**Rouges qui ne sont pas de ce lot** : budget de langue (code 2555 pour 2552, noms de tests 1317
+pour 1315 — la liste filtrée sur les fichiers du lot ne porte aucun nom neuf) ;
+`tests_cap_from_declared` sur `stems_by_query` du composer.

@@ -81,7 +81,7 @@ def input_match_meta(source: Optional[str] = None,
 
 
 def select_match_meta(app_id: str, field: str, extra_caps: tuple = (),
-                      inputs: bool = True) -> Dict[str, Dict[str, Any]]:
+                      inputs: bool = True, domain: str = None) -> Dict[str, Dict[str, Any]]:
     """Meta d'appariement d'un select de modèle DÉCLARÉ au schéma de l'app — son domaine est
     celui de son `options_query`, lu là où il est déclaré, jamais recopié dans la vue.
 
@@ -96,13 +96,21 @@ def select_match_meta(app_id: str, field: str, extra_caps: tuple = (),
     les compose (le describer : la consigne d'un modèle de vision, la piste son d'une vidéo).
     Les `inputs_*` du catalogue feraient alors annoncer « ⚠ Ce modèle requiert : Consigne » sous
     chaque modèle de conversation — la meta ne garde que le libellé et `extra_caps` (ses
-    `modalities`, jugées par `WamaInputMatch.modalitySlot`), et pas d'« auto » d'intersection."""
+    `modalities`, jugées par `WamaInputMatch.modalitySlot`), et pas d'« auto » d'intersection.
+
+    `domain` : le select est lu au schéma de CE domaine (`app_modes.domain_schema`, 2026-11-15) —
+    sans lui, le premier schéma qui porte ce nom répond, et le volet vidéo de l'imager recevait
+    les modèles d'image (mesuré : 10 pour 6)."""
     from wama.common.utils.param_schema import declared_param_schemas
     try:
-        declared = declared_param_schemas(app_id) or {}
+        if domain:
+            from wama.common.utils.app_modes import domain_schema
+            schemas = [domain_schema(app_id, domain)]
+        else:
+            schemas = list(((declared_param_schemas(app_id) or {}).get('schemas') or {}).values())
     except Exception:
         return {}
-    param = next((p for params in (declared.get('schemas') or {}).values() for p in params
+    param = next((p for params in schemas for p in params
                   if isinstance(p, dict) and p.get('name') == field), None)
     if not param or param.get('options_source') != 'catalog' or not param.get('options_query'):
         return {}
@@ -116,7 +124,7 @@ def select_match_meta(app_id: str, field: str, extra_caps: tuple = (),
     return meta
 
 
-def card_match(app_id: str, ports) -> Dict[str, Any]:
+def card_match(app_id: str, ports, domain: str = None) -> Dict[str, Any]:
     """L'appariement de la CARD d'une app rendue À CÔTÉ de son volet généré — `{field, meta,
     labels, ports}`, ou `{}` s'il n'y a rien à apparier (2026-10-21, modale d'une card d'entrée du
     Studio : `STUDIO_VISION §Entrées du Studio`).
@@ -128,15 +136,17 @@ def card_match(app_id: str, ports) -> Dict[str, Any]:
     le fichier du describer et sa cascade) : le juger ici griserait TOUS les modèles du select
     (mesuré le 2026-10-21). Les entrées de la meta sont bornées à ces ports — la ligne d'état ne
     parle que de ce que la card fournit.
-    `ports` (argument) : la forme de `studio_node_ports()['inputs']`. Fail-safe {}."""
+    `ports` (argument) : la forme de `studio_node_ports()['inputs']`. Fail-safe {}.
+    `domain` : l'appariement de la card de CE domaine — le select et les modèles de son schéma
+    (2026-11-15, page générée par domaine) ; sans lui, ceux du schéma principal de l'app."""
     from wama.common.utils.auto_model import catalog_field
     try:
-        field = catalog_field(app_id)
+        field = catalog_field(app_id, domain)
     except Exception:
         return {}
     if not field:
         return {}
-    meta = select_match_meta(app_id, field.get('name'))
+    meta = select_match_meta(app_id, field.get('name'), domain=domain)
     named = {t for entry in meta.values()
              for t in (entry.get('inputs_required') or []) + (entry.get('inputs_optional') or [])}
     judged = [p.get('id') for p in ports or []

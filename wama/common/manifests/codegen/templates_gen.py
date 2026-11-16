@@ -76,9 +76,9 @@ def render_index(manifest: dict) -> tuple:
     # ses ids, sa barre de lot (`idBase`), ses ouvreurs de ⚙ déclarés pour lui.
     from wama.common.manifests.codegen.views_gen import page_domains
     doms = page_domains(body)
-    (PID, V_PARAMS, V_DEFAULTS, OPENER, BATCH_VAR, BATCH_BASE, IMPORT_VAR, CARD_SCOPE,
+    (PID, V_PARAMS, V_DEFAULTS, V_MATCH, OPENER, BATCH_VAR, BATCH_BASE, IMPORT_VAR, CARD_SCOPE,
      PROGRESS_SCOPE, QUEUE_SCOPE) = (f'\x00{n}\x00' for n in (
-        'pid', 'params', 'defaults', 'opener', 'batch_var', 'batch_base', 'import_var',
+        'pid', 'params', 'defaults', 'match', 'opener', 'batch_var', 'batch_base', 'import_var',
         'card_scope', 'progress_scope', 'queue_scope'))
 
     def _scoped(text, dom=None):
@@ -91,6 +91,7 @@ def render_index(manifest: dict) -> tuple:
             PID: pid,
             V_PARAMS: 'params_json' if dom is None else f'domain_pages.{dom}.params_json',
             V_DEFAULTS: 'panel_defaults' if dom is None else f'domain_pages.{dom}.panel_defaults',
+            V_MATCH: 'input_match' if dom is None else f'domain_pages.{dom}.input_match',
             OPENER: '' if dom is None else f", {{ domain: '{dom}' }}",
             BATCH_VAR: f'window._batchImport_{dom}' if own else 'window._batchImport',
             BATCH_BASE: f"\n        idBase:          '{pid}Batch'," if own else '',
@@ -202,7 +203,7 @@ def render_index(manifest: dict) -> tuple:
     // aussi (`WamaInputMatch.fromCardMatch`, 2026-11-09) — le select de modèle du schéma, rendu
     // ci-dessus au volet, et les seuls ports qu'il JUGE. Une entrée fournie grise les modèles qui
     // ne la prennent pas ; la ligne d'état de la card dit pourquoi. Rien à apparier : rien n'est câblé.
-    var MATCH = {{{{ input_match|default:'{{}}'|script_json }}}};
+    var MATCH = {{{{ {V_MATCH}|default:'{{}}'|script_json }}}};
     var matchCard = document.getElementById('{PID}DropZone');
     matchCard = matchCard && matchCard.closest('.wama-new-item-card');
     if (window.WamaInputMatch && WamaInputMatch.fromCardMatch) {{

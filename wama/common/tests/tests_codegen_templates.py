@@ -1057,6 +1057,8 @@ class GeneratedPageByDomainTest(SimpleTestCase):
                     for name in sorted(read - {f'{pid}Batch'}):
                         self.assertIn(name, markup, f'{name} is read and never written')
                     self.assertIn(f'domain_pages.{dom}.params_json|script_json', script)
+                    # The input ↔ model matching of its card is the one read for THIS domain.
+                    self.assertIn(f"var MATCH = {{{{ domain_pages.{dom}.input_match|default:", script)
                     # Its wiring lives in a scope of its own: a shared one PARSES (`var` twice,
                     # a function declared twice) and the last domain would win every name.
                     opened = script.split(f'// ── Domaine `{dom}` ──\n', 1)[-1]
@@ -1076,6 +1078,9 @@ class GeneratedPageByDomainTest(SimpleTestCase):
                     self.assertIn(f"batches_by_domain('{app}', batches_list)", views)
                     self.assertIn("'domain_batches': domain_batches", views)
                     self.assertIn('element_schema(item)', views)
+                    self.assertIn("'input_match': _domain_match(dom)", views)
+                    self.assertIn(".get('inputs') or [], domain=dom))", views)
+                    self.assertNotIn('{{ input_match|', script)
 
     def test_the_script_of_every_generated_page_parses(self):
         """Django tags neutralised, the page script is PARSED by V8 (never run): one scope per

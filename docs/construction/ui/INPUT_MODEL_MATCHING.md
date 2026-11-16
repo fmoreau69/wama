@@ -229,6 +229,14 @@ transmettait qu'un. Convention « port = argument du même nom de l'outil » et 
   `card_match` + `fromCardMatch`. Les porter alignerait sources et jumelles sur UNE lecture ; non
   mesuré : ce que `card_match` ne sait pas dire (les modalités du describer, deux selects sur une
   card) — à mesurer avant d'écrire (`ROUTE §11 #41`).
+  ✅ *Le 2026-11-16 — l'appariement PAR DOMAINE* : `card_match(app, ports, domain=)` lit le select
+  et les modèles du schéma de CE domaine (`app_modes.domain_schema`), `select_match_meta` et
+  `auto_model.catalog_field` prennent le même `domain`. Sans lui, deux domaines qui nomment leur
+  select du même nom sur deux tâches recevaient la méta du premier schéma (l'imager : le volet
+  vidéo jugé sur les modèles d'image). Un domaine sans select de catalogue (le document de
+  l'anonymizer) n'apparie rien. Garde `tests_input_match_modality`
+  (`SelectMatchMetaReadsTheDeclaredDomainTest`, sur les déclarations de toutes les apps) ; la page
+  générée par domaine est gardée par `tests_codegen_templates.GeneratedPageByDomainTest`.
 
 ~~⚠ **Un seul point du dépôt dit encore le contraire** : `INPUT_TYPES['prompt'].port == 'travail'`.
 C'est le vocabulaire qui est en retard sur ses deux consommateurs, pas l'inverse.~~

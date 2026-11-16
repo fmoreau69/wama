@@ -131,6 +131,41 @@ class SelectMatchMetaReadsTheDeclaredDomainTest(SimpleTestCase):
 
     def test_a_field_without_a_catalogue_domain_has_no_meta(self):
         self.assertEqual({}, self._meta('plain')[0])
+
+    def test_the_select_of_a_domain_is_read_in_the_schema_of_that_domain(self):
+        """Park-wide, on the declarations: with a domain, the matching is the one of the select
+        THAT domain's schema carries — two domains may name theirs alike on two tasks, and the
+        first schema found answered for both."""
+        from wama.common.utils import input_match
+        from wama.common.utils.app_modes import APP_MODES, domain_schema, get_domains
+        from wama.common.utils.auto_model import catalog_field
+
+        asked = []
+
+        def fake_meta(**kw):
+            asked.append(kw['query'])
+            return {'a:x': {'label': 'X', 'inputs_required': ['port'], 'inputs_optional': []}}
+
+        seen, apart = 0, 0
+        with mock.patch.object(input_match, 'input_match_meta', fake_meta):
+            for app in sorted(APP_MODES):
+                queries = []
+                for dom in [d['id'] for d in get_domains(app)]:
+                    own = [p for p in domain_schema(app, dom) if p.get('options_source') == 'catalog']
+                    with self.subTest(app=app, domain=dom):
+                        self.assertEqual(own[0] if own else None, catalog_field(app, dom))
+                        del asked[:]
+                        match = input_match.card_match(app, [{'id': 'port'}], domain=dom)
+                        if not own or not own[0].get('options_query'):
+                            self.assertEqual({}, match)
+                            continue
+                        self.assertEqual([own[0]['options_query']], asked)
+                        self.assertEqual(own[0]['name'], match['field'])
+                        queries.append(own[0]['options_query'])
+                        seen += 1
+                apart += len(queries) > 1 and len({repr(q) for q in queries}) > 1
+        self.assertGreater(seen, 1)
+        self.assertGreater(apart, 0, 'no app has two domains on two catalogue queries')
         self.assertEqual({}, self._meta('absent')[0])
 
     def test_the_endpoint_keys_only_reach_the_catalogue(self):
