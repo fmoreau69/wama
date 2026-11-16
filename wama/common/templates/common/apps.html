@@ -474,6 +474,53 @@ n'écrit aucun JS, et un autre catalogue héritera du mécanisme avec les deux m
             </tbody>
         </table>
     </div>
+
+    {% comment %}L'USAGE réel des outils (2026-11-16, `WAMA_HARNESS §9` chantier 3) : lu dans les fils
+    persistés par `tool_trace.usage`. Les comptes seuls — les messages d'erreur restent au relevé
+    détaillé (`manage.py tool_usage`, opération « Outils de l'assistant » de la page Exploitation).{% endcomment %}
+    {% with usage=api_coverage.usage %}
+    <div class="mt-3" data-tool-usage>
+        <p class="small text-body-secondary mb-2">
+            Usage réel, lu dans les fils de l'assistant ({{ usage.days }} derniers jours) :
+            <strong class="text-body-emphasis" data-tool-usage-total>{{ usage.calls }} appels, {{ usage.failures }} en échec</strong>
+            — {{ usage.never_called|length }} outils jamais appelés. Le détail des erreurs : opération « Outils de l'assistant ».
+        </p>
+        <div class="row g-3">
+            <div class="col-12 col-lg-4">
+                <table class="table table-sm summary-table align-middle">
+                    <thead><tr><th>Famille</th><th class="text-center">Appels</th><th class="text-center">Échecs</th></tr></thead>
+                    <tbody>
+                        {% for row in usage.family_rows %}
+                        <tr data-tool-usage-family="{{ row.label }}">
+                            <td>{{ row.label }} <small class="text-body-secondary">{{ row.tools }} outil{{ row.tools|pluralize }}</small></td>
+                            <td class="text-center">{{ row.calls }}</td>
+                            <td class="text-center">{% if row.failures %}<span class="check-fail">{{ row.failures }}</span>{% else %}<i class="fas fa-check check-ok"></i>{% endif %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="col-12 col-lg-8">
+                <table class="table table-sm table-hover summary-table align-middle">
+                    <thead><tr><th>Outil en échec</th><th>Famille</th><th class="text-center">Échecs / appels</th><th class="text-center">Durée médiane</th><th>Dernier appel</th></tr></thead>
+                    <tbody>
+                        {% for row in usage.failing %}
+                        <tr data-tool-usage-failing="{{ row.tool }}">
+                            <td><code>{{ row.tool }}</code></td>
+                            <td><small>{{ row.family_label }}</small></td>
+                            <td class="text-center"><span class="check-fail">{{ row.failures }}</span> / {{ row.calls }}</td>
+                            <td class="text-center">{% if row.median_seconds is not None %}{{ row.median_seconds }} s{% else %}<small class="text-body-secondary">non mesurée</small>{% endif %}</td>
+                            <td><small>{{ row.last }}</small></td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="5" class="text-body-secondary">Aucun outil en échec sur la période.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endwith %}
     {% endif %}
 
     {% comment %}2ᵉ grille — FONCTIONNELLE (WAMA_VERIFICATION §2, câblée le 2026-09-01).

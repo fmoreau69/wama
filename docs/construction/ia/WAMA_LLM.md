@@ -3002,6 +3002,39 @@ Fabien. Mesuré d'abord :
    gestionnaire avec la table des préréglages, que le curseur commun (`quality_intent`) a
    remplacée dans le schéma (`quality_preset` n'y est plus qu'une trace, `converter/params.py:80-84`).
 
+8. **L'AUTO-DIAGNOSTIC : la trace des outils devient une mesure** (même jour, demande de Fabien :
+   « améliorer l'auto-diagnostic de WAMA […] qu'il sache débuguer lui-même sous la supervision de
+   Claude […] voir là où ça bloque […] un suivi de tout ça, notamment les capacités de dev de
+   l'assistant »). C'est le chantier 3 de `WAMA_HARNESS §9` (écart 6), tracé et jamais fait :
+   `common/services/tool_trace.py` donne à chaque étape son verdict et sa durée, et le lit
+   (`manage.py tool_usage`, opération « Outils de l'assistant » de la page Exploitation,
+   bloc sous la grille de `/apps/`).
+
+   **Premier relevé**, sur les fils réels (lecture seule, 2026-09-28 → 2026-11-16) : 217 tours
+   à outils, 473 appels, **60 en échec**. Les outils de développement portent l'essentiel de
+   l'usage (135 appels sur 301 les trente derniers jours) et 27 des 60 échecs. 125 outils
+   déclarés n'ont jamais été appelés. Les échecs relevés, avec ce que dit l'erreur :
+
+   | outil | échecs / appels | ce que dit l'erreur |
+   |---|---|---|
+   | `dev_run_role` | 11 / 42 | `args` passé en chaîne au lieu d'un objet (2) ; valeur refusée pour `task` (2) |
+   | `ask_claude_code` | 6 / 14 | « une modification se fait en tâche de fond : appelle `dev_claude_code` avec write=true » (3) ; pas de réponse en 60 ou 120 s (2) |
+   | `dev_search_code` | 4 / 7 | « `glob` porte sur le nom du fichier, `path` sur le dossier » — le modèle passe `**/*.py` |
+   | `search_web` | 4 / 13 | DuckDuckGo répond par un défi anti-robot |
+   | `install_model` | 4 / 13 | emplacement non déclaré, clé inconnue, taille indéterminable |
+   | `dev_db_query` | 3 / 3 | table inconnue (`wama.Model`, `wama.ModelItem`) ; forme `app.Model` attendue |
+   | `read_web_page` | 3 / 13 | sites de l'université injoignables (réseau) |
+   | `dev_read_log` | 2 / 3 | « journal introuvable dans logs/ : 'gunicorn.log' » |
+   | `remember_fact` | 2 / 4 | `kind` inconnu (`context`, `procedure`) — l'erreur liste les valeurs |
+   | `add_to_transcriber` | 2 / 5 | moteur hors schéma — l'erreur liste les valeurs |
+   | `add_to_composer` | 2 / 2 | `prompt` exigé ; une adresse YouTube refusée (traitée le 16/11 : `_receive`) |
+
+   ⏳ **Ce que le relevé demande, et qui reste à faire** : pour chaque ligne, lire l'outil et
+   décider si l'erreur dit la voie (la valeur attendue, la liste des choix, l'outil à prendre) ou
+   si l'outil doit accepter ce que le modèle envoie (`dev_search_code` et son `glob`). Les deux
+   lignes « réseau » (`search_web`, `read_web_page`) ne relèvent pas de l'assistant. Puis
+   rejouer : le relevé, filtré sur les jours suivants, dit si l'échec a disparu.
+
 ⏳ Restes relevés dans ce fil, non traités : `add_to_composer` exige `prompt` pour séparer des
 pistes ; `dev_search_code` refuse un `glob` en `**/*.py` (4 appels sur 7) ; une erreur d'outil ne
 dit pas la voie à prendre ; la parité des PROCESS (chaque process déclaré lançable sans argument

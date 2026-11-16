@@ -69,6 +69,10 @@ class WebThreadTellsTheEndOfItsTasksTest(TestCase):
         last = conversation.turns.order_by('-pk').first()
         self.assertEqual('assistant', last.role)
         self.assertEqual('get_describer_status', last.tool_steps[0]['tool'])
+        # Played by WAMA, not by the model — and measured like any step (`tool_trace.step`).
+        played = last.tool_steps[0]
+        self.assertEqual((True, True), (played['ok'], played['automatic']))
+        self.assertIsInstance(played['seconds'], float)
 
     def test_an_end_told_by_wama_is_marked_as_a_notice_not_as_the_model_in_use(self):
         """2026-11-12: « notification WAMA » stayed under the input as the model being talked to.

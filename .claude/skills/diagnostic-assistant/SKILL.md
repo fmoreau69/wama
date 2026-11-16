@@ -13,6 +13,16 @@ description: Diagnostiquer une réponse FAUSSE de l'assistant WAMA (web, API ou 
 Ce que l'assistant *raconte* et ce qu'il a *exécuté* sont deux choses, et seule la seconde est
 mesurable — elle est persistée. *Diagnostiquer le récit, c'est déboguer une fiction.*
 
+## 0. D'abord le relevé : où l'assistant bute-t-il en général ?
+
+`manage.py tool_usage [--days N] [--family development]` (ou l'opération « Outils de l'assistant »
+de la page Exploitation, que l'assistant lance lui-même par `dev_run_operation`) agrège les fils :
+par outil, appels, échecs, durée médiane et les erreurs les plus fréquentes (`tool_trace.usage`,
+2026-11-16). Un symptôme rapporté se situe d'abord là : un outil qui échoue souvent, toujours avec
+la même erreur, est un défaut de l'OUTIL (son erreur ne dit pas la voie, ou il refuse ce que le
+modèle envoie), pas du fil. Après un correctif, le même relevé sur les jours suivants dit si
+l'échec a disparu. Chaque étape porte son verdict (`ok`) et sa durée (`seconds`) depuis ce jour.
+
 ## 1. Lire le fil, pas le message collé
 
 Les tours vivent en base (`Conversation` / `ConversationTurn`, `common/services/conversation_store.py`),

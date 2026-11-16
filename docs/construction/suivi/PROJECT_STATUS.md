@@ -31869,3 +31869,14 @@ faite, en attente de ses décisions : une PASSE = une ligne du process (`process
 « Compléter » / « Remplacer » offerts par le moteur commun à tout process qui déclare accepter
 plusieurs passes (`ProcessSpec`), la combinaison déclarée par le TYPE de sa sortie (`detections` →
 `detections.merge`) ; le floutage lit l'union et passe périmé ; corrections et versions intactes.
+
+## §PALIER 2026-11-16 (nuit, suite), « ASSISTANT : l'AUTO-DIAGNOSTIC — la trace des outils devient une mesure (`WAMA_HARNESS §9` chantier 3) » — commit local, non poussé — 🔴 relancer gunicorn, workers, passerelle et serveurs MCP (le verdict et la durée ne s'écrivent qu'au code relancé) — 🔚 corriger les outils que le relevé désigne (`WAMA_LLM` « fil web n° 46 », point 8), puis rejouer le relevé
+
+Demande de Fabien : améliorer l'auto-diagnostic, qu'il débogue lui-même sous la supervision de Claude, avec un suivi des capacités de développement de l'assistant.
+
+- `common/services/tool_trace.py` : UN constructeur d'étape (`step` : verdict `ok`, durée `seconds`) pour les six écrivains (boucle, compétence chargée par la boucle, relances de fin de tâche, familles suivies), UNE règle d'échec (`result_error`, lue aussi par `_refusals_notice` et `tool_api.items_of_step`), et le lecteur `usage` (par outil : appels, échecs, médiane, erreurs les plus fréquentes, sous-agents compris, noms inconnus dits).
+- Lecteurs : `manage.py tool_usage` ; l'opération « Outils de l’assistant » de la page Exploitation, que l'assistant lance par `dev_run_operation` ; le bloc sous la grille de `/apps/` (comptes seuls, jamais un message d'erreur).
+- Premier relevé (fils réels, lecture seule) : 473 appels depuis le 2026-09-28, 60 en échec, dont 27 sur les outils de développement — `dev_run_role` 11/42, `dev_search_code` 4/7, `dev_db_query` 3/3, `ask_claude_code` 6/14 ; 125 outils jamais appelés.
+- Skill `/diagnostic-assistant` : son §0 part du relevé.
+
+Vérifié : sous WSL, 288 tests du périmètre puis 104 (contrat d'élément, passerelle) ; après correctif, 45 rejoués verts. Contre-épreuve : verdict écrit à l'aveugle, champ ignoré, sous-agents non parcourus, bloc retiré — 4 rouges. Page rendue sur la base réelle (200 ; 301 appels, 40 échecs sur 30 jours). `check_docs` 0 cassée sur 4153. ⚠ `tests_identifier_language` rouge de 1 (code 2552 > 2551) : `taches` dans `wama/common/manifests/codegen/tasks_gen.py`, d'une autre session — relevé par comparaison à HEAD fichier par fichier, aucun dans mes fichiers. ⚠ `WAMA_MECANISMES.md` et `docs/dev/briques.md` restent à régénérer (`doc_facts`), co-éditées. La suite complète n'a pas tourné.

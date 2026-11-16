@@ -101,19 +101,23 @@ def dev_origin_conversation(note, surface: str):
 def status_step(note, user) -> dict:
     """Le geste « statut », RÉELLEMENT joué : c'est l'étape que l'échange enregistre au fil. Une
     tâche de développement passe par le relais MCP — une surface n'importe jamais `dev_tools`."""
+    import time
+
+    from wama.common.services.tool_trace import step
     from wama.common.utils.notifications import DEV_JOB_APP
+    started = time.monotonic()
     if note.app == DEV_JOB_APP:
         from wama.common.services import mcp_client
         args = {'job_id': note.object_id}
-        return {'tool': 'dev_job_status', 'args': args,
-                'result': mcp_client.call_dev_tool(user, 'dev_job_status', args)}
+        return step('dev_job_status', args, mcp_client.call_dev_tool(user, 'dev_job_status', args),
+                    started=started, automatic=True)
     from wama.common.services import job_families
     tracked = job_families.get(note.app)
     if tracked is not None:
         return tracked.status_step(user, note.object_id)
     from wama.tool_api import execute_tool
     tool = f'get_{note.app}_status'
-    return {'tool': tool, 'args': {}, 'result': execute_tool(tool, {}, user)}
+    return step(tool, {}, execute_tool(tool, {}, user), started=started, automatic=True)
 
 
 def declared_output_urls(note) -> list:
@@ -401,9 +405,13 @@ def _tell_batch(conversation, note, batch, turn):
     title = batch_end_title(state)
     if already_told(conversation, note, title=title, since=turn.created_at):
         return None
+    import time
+
+    from wama.common.services.tool_trace import step as trace_step
     args = {'app': family, 'batch_id': batch_id}
-    step = {'tool': BATCH_END_TOOL, 'args': args,
-            'result': execute_tool(BATCH_END_TOOL, args, note.recipient)}
+    started = time.monotonic()
+    step = trace_step(BATCH_END_TOOL, args, execute_tool(BATCH_END_TOOL, args, note.recipient),
+                      started=started, automatic=True)
     response = batch_end_text(state, step)
     record(conversation, note, response, step, title=title)
     return conversation, response, step

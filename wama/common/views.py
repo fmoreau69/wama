@@ -402,6 +402,11 @@ def conformity_refresh(request):
     })
 
 
+#: La fenêtre de l'usage des outils montré sous la grille des apps (jours) : assez pour voir un
+#: outil qui bute, assez court pour qu'un défaut corrigé en sorte.
+TOOL_USAGE_DAYS = 30
+
+
 def apps_catalog_view(request):
     """Render the WAMA application catalog page."""
     from .app_registry import APP_CATALOG, get_conformity_summary
@@ -506,6 +511,19 @@ def apps_catalog_view(request):
             page = row['page'].rpartition(':')[2]
             row['label'] = (app_identity(page).get('label') if page else '') or row['page'] or 'WAMA'
             row['total'] = len(row['with_tool']) + len(row['without_tool'])
+        # L'USAGE réel de ces outils, lu dans les fils (`tool_trace.usage`, `WAMA_HARNESS §9`
+        # chantier 3) : la vue inverse — ce que l'assistant fait, et où il bute. Les comptes
+        # seuls : un message d'erreur peut citer le fichier d'un autre compte, il reste au relevé
+        # détaillé (`manage.py tool_usage`, opération « Outils de l'assistant »).
+        from .services.tool_trace import FAMILIES, usage
+        tool_usage = usage(days=TOOL_USAGE_DAYS)
+        family_label = lambda key: (FAMILIES.get(key) or app_identity(key).get('label') or key)
+        tool_usage['family_rows'] = sorted(
+            ({'label': family_label(key), **total} for key, total in tool_usage['families'].items()),
+            key=lambda row: -row['calls'])
+        tool_usage['failing'] = [{**row, 'family_label': family_label(row['family'])}
+                                 for row in tool_usage['tools'] if row['failures']]
+        api_coverage['usage'] = tool_usage
 
     # Horodatage de la dernière MESURE (le plus récent des measured_at par app) —
     # affiché à côté du bouton « Re-mesurer » de la grille.

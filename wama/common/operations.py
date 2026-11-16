@@ -48,6 +48,12 @@ OPERATIONS = {
         'description': "Le relevé des identifiants français du code, contre ses budgets.",
         'argv': ['check_identifier_language'],
     },
+    'tool_usage': {
+        'label': 'Outils de l’assistant', 'icon': 'fa-stethoscope',
+        'description': "Ce que les fils disent des outils de l'assistant : appels, échecs, durées, "
+                       "et ce que disent les erreurs qui l'arrêtent — l'auto-diagnostic.",
+        'argv': ['tool_usage'],
+    },
     'tests': {
         'label': 'Tests ciblés', 'icon': 'fa-vial',
         'description': "Un module ou une classe de tests, par le lanceur de WAMA — jamais la suite entière.",

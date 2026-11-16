@@ -1473,6 +1473,17 @@ MECHANISMS = (
               "Posture et domaine de l'assistant (science, design, dev) + rappel du "
               "contexte de laboratoire, déclarés par domaine — distinct de l'enrichissement",
               'wama/common/utils/assistant_skills.py', 'docs/construction/suivi/ROADMAP.md §19.7'),
+    Mechanism('tool_trace', "La trace des outils de l'assistant, devenue une mesure",
+              "Chaque étape d'outil porte son verdict (`ok`) et sa durée (`seconds`), écrits par "
+              "UN constructeur (`step`) pour tous ses écrivains — la boucle, les relances de fin "
+              "de tâche, les familles suivies — sous UNE règle d'échec (`result_error`, celle des "
+              "refus du tour). Le lecteur (`usage`) agrège par outil : appels, échecs, durée "
+              "médiane, erreurs les plus fréquentes, sous-agents compris ; lu par "
+              "`manage.py tool_usage` (opération « Outils de l'assistant ») et par la page des "
+              "apps (comptes seuls). L'AUTO-DIAGNOSTIC de l'assistant (2026-11-16, "
+              "`WAMA_HARNESS §9` chantier 3)",
+              'wama/common/services/tool_trace.py', 'docs/construction/ia/WAMA_HARNESS.md',
+              annexes=('wama/common/management/commands/tool_usage.py',)),
     Mechanism('claude_code', "Claude Code sur abonnement",
               "Délègue une tâche de développement au CLI Claude Code en headless — "
               "lecture seule par défaut, environnement construit sans la clé API. Pour un "

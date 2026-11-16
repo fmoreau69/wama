@@ -37,6 +37,8 @@ import time
 
 from django.conf import settings
 
+from wama.common.services import tool_trace
+
 logger = logging.getLogger(__name__)
 
 
@@ -2165,8 +2167,7 @@ def _refusals_notice(tool_steps: list) -> str:
     sur la DONNÉE (le résultat des outils), jamais sur le sens du texte."""
     last_error, succeeded = {}, set()
     for step in tool_steps or []:
-        result = step.get('result')
-        error = result.get('error') if isinstance(result, dict) else None
+        error = tool_trace.result_error(step.get('result'))
         if error:
             last_error[step['tool']] = str(error)
         else:
@@ -2218,11 +2219,12 @@ def _load_dev_competence(user, message: str, domain, tool_steps: list, messages:
         return
     from wama.tool_api import execute_tool
     args = {'domaine': dev, 'question': message or ''}
+    started = time.monotonic()
     result = execute_tool('charger_competence', args, user, model_call=True)
     if 'error' in result:
         return
-    tool_steps.append({'tool': 'charger_competence', 'args': args, 'result': result,
-                       'automatic': True})
+    tool_steps.append(tool_trace.step('charger_competence', args, result, started=started,
+                                      automatic=True))
     if on_event is not None:
         on_event({'type': 'step', 'step': tool_steps[-1]})
     messages.append(_tool_result_message('charger_competence', result, limit=TOOL_RESULT_CHARS,
@@ -2878,6 +2880,7 @@ def run_assistant_turn(user, message: str, provider: str = None,
         logger.info(f"[ai_chat] tool_call: {tool_name}({tool_args})")
 
         sub_agents = None
+        started = time.monotonic()      # la durée de l'étape (`tool_trace.step`, chantier 3)
         if allowed_tools is not None and tool_name not in allowed_tools:
             # Un tour BORNÉ ne passe pas la porte avec un outil qu'on ne lui a pas annoncé : le refus
             # entre à la trace comme tout refus (`_refusals_notice`), et le modèle continue.
@@ -2933,7 +2936,9 @@ def run_assistant_turn(user, message: str, provider: str = None,
         # (La BASCULE EN COURS DE TOUR vers un modèle de niveau dev, 22/09, est levée avec le
         # bridage le 2026-10-12 — cf. `resolve_turn_model`. Le fil se souvient toujours de la
         # compétence dev chargée : c'est une CONSIGNE, plus un changement de modèle.)
-        tool_steps.append({'tool': tool_name, 'args': tool_args, 'result': tool_result})
+        # L'étape porte son VERDICT et sa DURÉE (`WAMA_HARNESS §9` chantier 3, 2026-11-16) : l'échec
+        # se lit dans un champ, et la trace devient une mesure (`tool_trace.usage`).
+        tool_steps.append(tool_trace.step(tool_name, tool_args, tool_result, started=started))
         if sub_agents is not None:
             tool_steps[-1]['sub_agents'] = sub_agents
         if on_event is not None:

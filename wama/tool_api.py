@@ -6480,9 +6480,10 @@ def items_of_step(tool_name, args, result) -> list:
     Un suivi (`get_*_status`), une erreur, un outil transverse : aucun élément.
     Sert à retrouver D'OÙ vient une tâche — le fil d'un canal où elle a été demandée (2026-10-06).
     """
+    from wama.common.services.tool_trace import result_error
     family = tool_family(tool_name)
     role = tool_role(tool_name)
-    if not isinstance(result, dict) or 'error' in result:
+    if not isinstance(result, dict) or result_error(result):    # LA règle d'échec d'une étape
         return []
     from wama.common.services import job_families
     tracked = job_families.for_tool(tool_name)

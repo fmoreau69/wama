@@ -751,6 +751,25 @@ class TheCoverageIsShownTest(TestCase):
         complete = sum(not missing for missing in triads.values())
         self.assertIn('data-api-coverage-common', html)
         self.assertIn(f'{complete} apps sur {len(triads)}', html)
+        # Beside what the API covers, what the assistant really DOES with it (`tool_trace.usage`).
+        self.assertIn('data-tool-usage-total', html)
         self.client.force_login(_account('grid_user'))
-        self.assertNotIn('data-api-coverage-total',
-                         self.client.get(reverse('common:apps_catalog')).content.decode())
+        page = self.client.get(reverse('common:apps_catalog')).content.decode()
+        self.assertNotIn('data-api-coverage-total', page)
+        self.assertNotIn('data-tool-usage', page)
+
+    def test_the_usage_shows_counts_never_an_error_message(self):
+        """An error message may name another account's file : the page shows counts, the
+        detailed reading (`manage.py tool_usage`) keeps the messages."""
+        from django.urls import reverse
+
+        from wama.common.models import Conversation, ConversationTurn
+        from wama.common.services.tool_trace import step
+        owner = _account('usage_owner')
+        thread = Conversation.objects.create(user=owner, surface='web', thread_key='u')
+        ConversationTurn.objects.create(conversation=thread, role='assistant', content='',
+                                        tool_steps=[step('read_doc', {}, {'error': 'SECRET-PATH'})])
+        self.client.force_login(_account('usage_dev', 'developpeur'))
+        html = self.client.get(reverse('common:apps_catalog')).content.decode()
+        self.assertIn('data-tool-usage-failing="read_doc"', html)
+        self.assertNotIn('SECRET-PATH', html)

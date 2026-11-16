@@ -216,6 +216,30 @@ class TurnEventsTest(TestCase):
         self.assertEqual('Vos fichiers.', ''.join(e['text'] for e in events if e['type'] == 'delta'))
         self.assertEqual('Vos fichiers.', result['response'])
 
+    def test_each_step_carries_its_verdict_and_its_duration(self):
+        """`WAMA_HARNESS §9` chantier 3 : the failure is read in a FIELD, never by reading the body
+        of each tool again ; the duration is measured, never invented."""
+        replies = iter(['{"tool": "list_user_files", "args": {}}',
+                        '{"tool": "get_my_profile", "args": {}}', 'Fait.'])
+        results = {'list_user_files': {'files': []}, 'get_my_profile': {'error': 'refusé'}}
+
+        def fake_llm(messages, llm_model, provider, user=None, think=None, on_delta=None,
+                     **_settings):
+            return next(replies), dict(USAGE)
+
+        with mock.patch.object(assistant_engine, '_llm_call', side_effect=fake_llm), \
+             mock.patch('wama.tool_api.execute_tool',
+                        side_effect=lambda name, args, user, **_kw: results[name]):
+            result = assistant_engine.run_assistant_turn(
+                self.user, 'mon profil ?', provider='wama-dev-ai', model='m', history=[])
+
+        steps = result['tool_steps']
+        self.assertEqual([('list_user_files', True), ('get_my_profile', False)],
+                         [(s['tool'], s['ok']) for s in steps])
+        for s in steps:
+            self.assertIsInstance(s['seconds'], float)
+            self.assertGreaterEqual(s['seconds'], 0)
+
     def test_a_remote_turn_streams_through_the_same_gate(self):
         """Le portier n'est plus réservé au local : un fournisseur distant qui diffuse voit son
         appel d'outil filtré de la même façon."""

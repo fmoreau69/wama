@@ -52,10 +52,14 @@ class JobFamily:
     def status_step(self, user, pk) -> dict:
         """Le geste « statut » de l'élément, RÉELLEMENT joué — l'étape qu'une fin racontée
         enregistre au fil (`job_follow_ups.status_step`)."""
+        import time
+
+        from wama.common.services.tool_trace import step
         from wama.tool_api import execute_tool
         args = {self.status_arg: int(pk)}
-        return {'tool': self.status_tool, 'args': args,
-                'result': execute_tool(self.status_tool, args, user)}
+        started = time.monotonic()
+        return step(self.status_tool, args, execute_tool(self.status_tool, args, user),
+                    started=started, automatic=True)
 
 
 def line(family: str, pk, *, label: str, status, progress, preview_url: str = '', **extra) -> dict:

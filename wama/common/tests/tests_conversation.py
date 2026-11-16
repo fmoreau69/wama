@@ -33,6 +33,76 @@ def _double_moteur(compteur=None):
     return _repondre
 
 
+class ToolUsageTest(TestCase):
+    """The persisted trace made a MEASURE (`tool_trace.usage`, `WAMA_HARNESS §9` chantier 3) :
+    per tool, calls, failures read in the step's field, durations where measured, sub-agents'
+    steps included, a name no registry declares said as such."""
+
+    @classmethod
+    def setUpTestData(cls):
+        import time
+
+        from wama.common.models import ConversationTurn
+        from wama.common.services.tool_trace import step
+        user = User.objects.create(username='tool_usage')
+        thread = Conversation.objects.create(user=user, surface='web', thread_key='t')
+        written_before = {'tool': 'dev_search_code', 'args': {}, 'result': {'error': 'motif refusé'}}
+        cls.turn = ConversationTurn.objects.create(
+            conversation=thread, role='assistant', content='', tool_steps=[
+                step('search_docs', {}, {'results': []}, started=time.monotonic()),
+                step('dev_search_code', {'glob': '**/*.py'}, {'error': 'motif refusé'}),
+                written_before,
+                {'tool': 'list_registries', 'args': {}, 'result': {}, 'ok': False},
+                step('delegate', {}, {'reports': []},
+                     sub_agents=[{'steps': [step('read_doc', {}, {'error': 'inconnu'})]}]),
+            ])
+        ConversationTurn.objects.create(conversation=thread, role='user', content='q')
+        ConversationTurn.objects.create(conversation=thread, role='assistant', content='',
+                                        tool_steps=[step('invented_tool', {}, {})])
+
+    def _rows(self, **kwargs):
+        from wama.common.services.tool_trace import usage
+        report = usage(**kwargs)
+        return report, {row['tool']: row for row in report['tools']}
+
+    def test_calls_and_failures_per_tool_the_failure_read_in_its_field(self):
+        report, rows = self._rows()
+        self.assertEqual((2, 7, 4), (report['turns'], report['calls'], report['failures']))
+        self.assertEqual((2, 2, [('motif refusé', 2)]),
+                         (rows['dev_search_code']['calls'], rows['dev_search_code']['failures'],
+                          rows['dev_search_code']['errors']))
+        # The field wins over the body : a step marked failed is failed.
+        self.assertEqual(1, rows['list_registries']['failures'])
+        self.assertEqual(0, rows['search_docs']['failures'])
+
+    def test_durations_only_where_measured_and_sub_agents_counted(self):
+        _report, rows = self._rows()
+        self.assertEqual(1, rows['search_docs']['timed'])
+        self.assertIsNotNone(rows['search_docs']['median_seconds'])
+        self.assertIsNone(rows['dev_search_code']['median_seconds'])
+        self.assertEqual((1, 1), (rows['read_doc']['sub_agent'], rows['read_doc']['failures']))
+
+    def test_families_say_development_delegation_and_unknown(self):
+        report, rows = self._rows()
+        self.assertEqual(('development', 'delegation', 'unknown', 'transverse'),
+                         (rows['dev_search_code']['family'], rows['delegate']['family'],
+                          rows['invented_tool']['family'], rows['search_docs']['family']))
+        self.assertIn('list_user_files', report['never_called'])
+        self.assertNotIn('search_docs', report['never_called'])
+        self.assertNotIn('invented_tool', report['never_called'])
+
+    def test_a_window_leaves_the_older_turns_out(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from wama.common.models import ConversationTurn
+        ConversationTurn.objects.filter(pk=self.turn.pk).update(
+            created_at=timezone.now() - timedelta(days=60))
+        report, rows = self._rows(days=30)
+        self.assertEqual((1, ['invented_tool']), (report['turns'], list(rows)))
+
+
 class StoreConversationTests(TestCase):
 
     def setUp(self):
