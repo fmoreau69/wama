@@ -1047,6 +1047,8 @@ class GeneratedPageByDomainTest(SimpleTestCase):
                 pid = f'{app}_{dom}'
                 with self.subTest(app=app, domain=dom):
                     self.assertEqual(1, markup.count(f'data-domain="{dom}"'))
+                    # Its pane is NAMED: a gesture shows the domain of a card by the id of its pane.
+                    self.assertIn(f'id="{pid}Tab" role="tabpanel" data-domain="{dom}"', markup)
                     self.assertEqual(1, markup.count(f'data-domain-settings="{dom}"'))
                     self.assertIn(f"card_domain='{dom}' card_id='{pid}NewItem'", markup)
                     self.assertIn(f"domain='{dom}' queue_id='{pid}Queue' "

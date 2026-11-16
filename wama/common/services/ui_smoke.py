@@ -1911,6 +1911,17 @@ def check_app_tree_drop(app: str, url_path: str):
                         # Deux formes d'onglets, toutes deux déclarées : Bootstrap (imager :
                         # `[data-bs-target]`) et la brique commune des domaines (`WamaModes`,
                         # enhancer : `.wm-domain[data-domain]`, qui lit le `data-domain` du pane).
+                        # Depuis le 2026-11-12 le domaine se choisit par un LIEN sous le titre
+                        # (`_page_domain.html`, une adresse par domaine) : on le suit — les deux
+                        # formes d'onglets ne restent que pour une page servie d'avant.
+                        if card['domain'] and page.evaluate(
+                                "(d) => { const n = document.querySelector('[data-wama-page-domain]');"
+                                " return !!n && n.dataset.wamaPageDomain !== d; }", card['domain']):
+                            page.locator('.wama-page-domain-link:has([data-domain-count="%s"])'
+                                         % card['domain']).first.click()
+                            page.wait_for_load_state('networkidle')
+                            page.wait_for_timeout(800)
+                            return
                         if card['tab'] and not page.evaluate(
                                 "(id) => document.getElementById(id).classList.contains('active')", card['tab']):
                             trigger = (f'.wm-domain[data-domain="{card["domain"]}"], ' if card['domain'] else '') \
@@ -1921,6 +1932,7 @@ def check_app_tree_drop(app: str, url_path: str):
                     def gesture(label, tile, dragged, expect):
                         label = f"{card['id']} · {label}" if len(cards) > 1 else label
                         page.wait_for_load_state('networkidle')
+                        show_card(card)       # avant l'observateur : changer de domaine change de page
                         # Observateur armé sur un DRAPEAU, pas sur l'existence de la liste : un
                         # import serveur RECHARGE la page, et la remise à zéro recréait la liste
                         # sur la page neuve — l'observateur n'y était plus jamais posé.
@@ -1930,7 +1942,6 @@ def check_app_tree_drop(app: str, url_path: str):
                               if (n.nodeType === 1 && /toast/i.test(n.className || ''))
                                 window.__wamaToasts.push((n.textContent || '').trim().slice(0, 120)); })))
                               .observe(document.body, {childList: true, subtree: true}); } }""")
-                        show_card(card)
                         _deplier_autour(page, f'#{card["id"]} [data-port-pane]')
                         page.locator(f'#{card["id"]} [data-port-tab="{tile["pane"]}"]').click()
                         page.wait_for_timeout(250)

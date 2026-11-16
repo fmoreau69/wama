@@ -31732,3 +31732,28 @@ Décision de Fabien : la grille dans `/apps/`, sans page neuve. Détail : `WAMA_
 - `7b80e34e2` — le push était refusé par gitleaks sur la docstring de `set_brick_keys` (noms de touches) : exception ciblée sur la ligne, 54 commits rejoués sans fuite.
 
 Vérifié : `tests_tool_api_coverage` 45 verts ; contre-épreuve rouge (critère neutralisé, restriction aux développeurs retirée : 7 échecs) ; `check_docs` 0 cassée sur 4144. ⚠ `tests_identifier_language` rouge de 2 dans l'arbre (2554 > 2552) : deux variables `indices` dans `anonymizer/tests_task.py` et `tests_playhead_follow.py`, d'une autre session — aucune sur mes lignes (relevé par lignes ajoutées depuis `31a4115cb`). La page n'a pas été vue sur le service (gunicorn non relancé). `.claude/skills/conformite/SKILL.md` et `WAMA_MECANISMES.md` régénérées dans l'arbre, non commitées (co-éditées).
+
+## §PALIER 2026-11-16 (suite), « DOMAINES ⑦ (b) : les GESTES des jumelles à deux domaines joués, comparés au relevé d'avant » — commit local, non poussé — rien à relancer (gabarits lus à chaud, instruments nocturnes) — 🔚 domaine à préfixe hors page générée ; nœud du Studio par domaine ; recréation des douze jumelles
+
+**Joué** : les 48 scénarios nocturnes d'`anonymizer_01` et d'`imager_01` (sans GPU), gunicorn relancé.
+Premier passage : 32 verts, 8 passés, 8 échecs. Relevé d'avant la régénération (rapport du 15/11,
+8 h 39) : six de ces échecs existaient déjà — `imager_01.add` (501, création non générée),
+`anonymizer_01.processing` et `.batch_processing` (process `detect` non généré), `imager_01.preview`,
+`imager_01.attach_lot`, `anonymizer_01.tree_drop` (« Aucun fichier fourni » sur le chemin d'arbre,
+5 dépôts réussis pour 3 avant). Deux étaient verts avant : des RÉGRESSIONS de la page par domaine.
+
+**Ramené** :
+- `imager_01.tree_drop` — le volet de domaine généré n'avait pas d'`id` (les pages réelles en ont un),
+  et le geste montrait le domaine d'une card par des onglets que les pages n'ont plus depuis le
+  12/11. `templates_gen` nomme le volet (`<app>_<domaine>Tab`) ; `ui_smoke.check_app_tree_drop` suit
+  le LIEN du domaine sous le titre (`_page_domain.html`), les deux formes d'onglets restant pour une
+  page servie d'avant.
+- `imager_01.panel_reflect` — le volet droit porte un hôte de réglages par domaine, aux mêmes noms de
+  champs ; `ui_smoke_panel.JS_PANEL` lisait le dernier du document, celui du domaine masqué. Il ne lit
+  plus un hôte `[data-domain-settings]` masqué.
+
+**Rejoué après** : `panel_reflect` vert sur les deux jumelles et sur anonymizer, imager, enhancer ;
+`tree_drop` vert sur `imager_01`, imager, anonymizer, enhancer, converter.
+
+**Garde** : `GeneratedPageByDomainTest` exige le volet nommé ; mutation (l'`id` retiré) rouge. Avant /
+après : dix pages à une file inchangées à l'octet.

@@ -32,6 +32,11 @@ JS_PANEL = """() => {
     if (!host) return null;
     const out = {};
     host.querySelectorAll('[data-param]').forEach(el => {
+        // Les réglages d'un AUTRE domaine de la page (`[data-domain-settings]` masqué par
+        // `WamaModes.showDomain`) ne sont pas montrés : deux domaines nomment leurs champs pareil,
+        // le dernier du document écrasait celui qu'on regarde (imager_01, 2026-11-16).
+        const scope = el.closest('[data-domain-settings]');
+        if (scope && scope.style.display === 'none') return;
         const name = el.getAttribute('data-param');
         if (el.type === 'radio') { if (el.checked) out[name] = el.value; return; }
         out[name] = el.type === 'checkbox' ? String(el.checked) : String(el.value);

@@ -638,7 +638,7 @@ def render_index(manifest: dict) -> tuple:
             f'''<div data-domain-settings="{d['id']}">\n{_scoped(piece_panel, d['id'])}\n</div>'''
             for d in doms)
         panes = '\n'.join(
-            f'''<div class="tab-pane fade{' show active' if i == 0 else ''}" role="tabpanel" data-domain="{d['id']}">
+            f'''<div class="tab-pane fade{' show active' if i == 0 else ''}" id="{app}_{d['id']}Tab" role="tabpanel" data-domain="{d['id']}">
 {_scoped(piece_content, d['id'])}
 </div>''' for i, d in enumerate(doms))
         content_html = f'''    {{% comment %}}Le domaine de la page : pièce commune (`_domain_tabs.html`) — chaque domaine a
