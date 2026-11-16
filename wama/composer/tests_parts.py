@@ -439,6 +439,46 @@ class StemSeparationTest(_InputProcessCase):
         original, _ = sf.read(str(Path(self.tmp) / gen.melody_reference.name), always_2d=True)
         self.assertLess(float(np.abs(same.T - original).max()), 1e-6)
 
+    def test_chosen_stems_are_remixed_from_a_right_click_on_them(self):
+        """2026-11-16, Fabien : « sélection multiple des pistes à refusionner et le clic droit ». The
+        common route (`api_process_on_selection`) reads what the step DECLARES it takes from a
+        selection (`ProcessSpec.from_selection`) : the chosen stems stay, the others go
+        (`remix_without`, written by the ⚙'s writer), then the ▶ of the step on the ORIGIN card.
+        Refused, and said : cards from two songs, a card that is no stem, every stem chosen, and
+        a step that does not start from a selection."""
+        from django.urls import reverse
+        from wama.common.utils import process_views
+        gen = self._run(separate_stems=True, melody_reference=self._cover())
+        stems = self._stems(gen)
+        self.client.force_login(self.user)
+        url = lambda process: reverse('common:api_process_on_selection', args=['composer', process])
+        started = []
+        with mock.patch.object(process_views, 'start_one_process',
+                               side_effect=lambda model, pk, process, **kw: started.append((pk, process))
+                               or (ComposerGeneration.objects.get(pk=pk), mock.Mock(id='t1'), None)):
+            res = self.client.post(url('remix'), {'ids': [stems['vocals'].pk]})
+            self.assertEqual(200, res.status_code, res.content)
+            self.assertEqual([(gen.pk, 'remix')], started, 'the step of the ORIGIN card')
+            gen.refresh_from_db()
+            self.assertEqual((True, 'Batterie'), (gen.remix_stems, gen.remix_without))
+            refused = {
+                'all stems': self.client.post(url('remix'), {'ids': [c.pk for c in stems.values()]}),
+                'not derived': self.client.post(url('remix'), {'ids': [gen.pk]}),
+                'not from a selection': self.client.post(url('separate'), {'ids': [stems['drums'].pk]}),
+            }
+            self.assertEqual(1, len(started), 'nothing started when refused')
+        for case, res in refused.items():
+            with self.subTest(case=case):
+                self.assertEqual(400, res.status_code)
+                self.assertTrue(res.json()['error'])
+        self.assertIn("morceau d'origine", refused['all stems'].json()['error'])
+        with self.assertRaisesRegex(ValueError, 'Pas une piste'):
+            tasks.remix_from_selection(gen, ['vocals', 'remix'])
+        # The right click offers it : the queue declares the step, with its route.
+        from wama.common.templatetags.wama_actions import _selection_processes
+        offered = json.loads(_selection_processes('composer'))
+        self.assertEqual([('remix', url('remix'))], [(p['key'], p['url']) for p in offered])
+
     def test_a_stem_the_card_does_not_have_is_said_never_silently_ignored(self):
         from wama.composer.tasks import remix_gains
         stems = {'vocals': 'v.wav', 'drums': 'd.wav'}

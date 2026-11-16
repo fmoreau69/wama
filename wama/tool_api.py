@@ -4585,6 +4585,47 @@ def update_item_settings(user, app: str, pk: int, settings: dict = None) -> dict
                        'settings': {k: payload[k] for k in settings if k in payload}}
 
 
+@tool_effect(WRITE)
+def start_process_on_items(user, app: str, process: str, item_ids=None) -> dict:
+    """
+    Run a step of the ORIGIN card from a SELECTION of the cards derived from it — the right-click
+    gesture on several cards of a batch (e.g. the separated stems of a song: « Refusion des
+    pistes » keeps the chosen stems and removes the others).
+
+    The chosen cards must all come from the same card; the step says what it takes from them.
+    `get_item_detail` on the origin card names its steps; a step that cannot start from a
+    selection is refused with the list of those that can.
+
+    Args:
+        app:      app id the cards belong to.
+        process:  key of the step of the origin card (e.g. `remix`).
+        item_ids: ids of the chosen derived cards.
+
+    Returns:
+        {"task_id", "status": "started", "app", "origin_id", "process"} or {"error"}
+    """
+    if refusal := _refus_app(user, app):
+        return refusal
+    if isinstance(item_ids, (int, str)):
+        item_ids = [item_ids]
+    try:
+        ids = [int(pk) for pk in (item_ids or ())]
+    except (TypeError, ValueError):
+        return {'error': "item_ids : une liste d'identifiants de cards."}
+    if not ids:
+        return {'error': "item_ids : indiquer les cards choisies."}
+    try:
+        status_code, payload = _route_view(user, 'common:api_process_on_selection', [app, process],
+                                           data={'ids': ids}, json_body=True)
+    except Exception as e:
+        logger.warning(f"[tool_api] start_process_on_items {app}/{process} : {e}")
+        return {'error': f"{process} impossible pour {app} : {e}"}
+    if failure := _verdict(status_code, payload, f"« {process} » sur la sélection"):
+        return failure
+    return {'task_id': payload.get('task_id'), 'status': 'started', 'app': app,
+            'origin_id': payload.get('id'), 'process': process}
+
+
 # Les gestes d'un LOT (2026-11-02, demande de Fabien : « dans la foulée ») : ce que la fabrique
 # `batch_views.make_batch_views` donne à la card mère d'un lot — ▶, ⚙ (régler, promouvoir,
 # réaligner), ⧉, 🗑, l'état et le ZIP. Les huit vues sont retenues avec la déclaration de
@@ -5549,6 +5590,7 @@ TOOL_REGISTRY = {
     'duplicate_item':   duplicate_item,
     'stop_item':        stop_item,
     'update_item_settings': update_item_settings,
+    'start_process_on_items': start_process_on_items,
     'clear_my_queue':   clear_my_queue,
     # Les gestes d'un LOT (2026-11-02) : ceux de la card mère, par la vue que le bouton poste.
     'launch_batch':          launch_batch,
@@ -7152,6 +7194,9 @@ ROUTE_TOOLS = {
     'common:api_operations_jobs': 'dev_list_jobs',
     # The domain of an app page (2026-11-12) : `open_page(page, domain=…)` keeps it for the account.
     'common:api_page_domain': 'open_page',
+    # A step of the origin card from a selection of its derived cards (2026-11-16) : the tool posts
+    # the route's view.
+    'common:api_process_on_selection': 'start_process_on_items',
     # Sorting of 2026-11-16 : routes an existing tool already did, body against body — each line
     # names what both sides call.
     'common:api_notifications_list': 'list_my_notifications',     # `notification_list`

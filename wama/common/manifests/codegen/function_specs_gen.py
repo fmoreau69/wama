@@ -218,6 +218,10 @@ def render_function_specs(manifest: dict) -> tuple:
             args.append(f"checks={tuple(s['checks'])!r}")
         if s.get('writes'):
             args.append(f"writes={tuple(s['writes'])!r}")
+        # Ce que le process prend d'une SÉLECTION de cards dérivées (2026-11-16) : un chemin déclaré,
+        # comme l'ETA — il suit le module de tâches généré.
+        if s.get('from_selection'):
+            args.append(f"from_selection={generated_task_path(manifest, s['from_selection'])!r}")
         lines.append(f"    ProcessSpec({', '.join(args)}),")
     model_kw = ', model_of=_requested_model' if model_field else ''
     lines += [f"), label={(pipeline.get('name') or app_key)!r},",

@@ -738,6 +738,33 @@
             });
         }
 
+        // UN PROCESS DE LA CARD D'ORIGINE SUR UNE SÉLECTION DE SES CARDS DÉRIVÉES (2026-11-16,
+        // demande de Fabien : sélectionner les pistes séparées à refusionner, clic droit). Les
+        // process offerts sont DÉCLARÉS (`ProcessSpec.from_selection`, attribut posé par
+        // `queue_dnd_attrs`) ; des cards d'un MÊME lot — celui où vivent les cards dérivées. Le
+        // serveur juge le reste (toutes tirées d'une même card) et dit pourquoi il refuse.
+        var memeLot = cibles.length > 1 && lotDe(cibles[0])
+            && cibles.every(function (c) { return lotDe(c) === lotDe(cibles[0]); });
+        if (d.selectionProcesses && memeLot && !estLot && !selectionRecue) {
+            var offerts = [];
+            try { offerts = JSON.parse(d.selectionProcesses) || []; } catch (e) { offerts = []; }
+            offerts.forEach(function (p) {
+                entrees.push({
+                    icone: 'fas ' + (p.icon || 'fa-play'), libelle: p.label + ' (' + cibles.length + ')',
+                    agir: function () {
+                        var fd = new FormData();
+                        cibles.forEach(function (c) { fd.append('ids', c.dataset.id); });
+                        fetch(p.url, { method: 'POST', headers: { 'X-CSRFToken': csrf() }, body: fd })
+                            .then(function (r) { return r.json().catch(function () { return { error: 'HTTP ' + r.status }; }); })
+                            .then(function (res) {
+                                if (res && res.success) { location.reload(); return; }
+                                dire('« ' + p.label + ' » impossible — ' + ((res && res.error) || 'refusé'), 'error');
+                            });
+                    },
+                });
+            });
+        }
+
         // PARTAGER — la premiere des « sorties complementaires » (arbitrage Fabien 2026-09-08 :
         // « les sorties manquantes vont dans les "..." »). L'entree n'apparait que si la card
         // porte ses coordonnees (`data-preview-url` → surface + pk, present sur les 10 gabarits

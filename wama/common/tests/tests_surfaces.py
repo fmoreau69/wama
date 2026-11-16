@@ -250,7 +250,8 @@ class RegistryTest(SimpleTestCase):
             insertBefore: function (c) { this.children.push(c); return c; },
             remove: function () {}, setAttribute: function () {}, addEventListener: function () {}}; }
         var document = {createElement: el};
-        var window = {errors: [], WamaTransport: {mount: function () { return {}; }}};
+        var window = {errors: [], WamaTransport: {mount: function (host, cfg) {
+            window.transportKeys = cfg.keys; return {}; }}};
         var log = [];
         window.WamaAudioPlayer = {
             inject: function (url, id) { log.push('inject ' + url + ' ' + id); },
@@ -284,7 +285,7 @@ class RegistryTest(SimpleTestCase):
             var ctx = S.view({config: {pk: 7}, axis: axis, reads: {score: 'X:1'},
                 sources: {audio: [{key: 'input', label: 'Entrée', url: '/in.wav'},
                                   {key: 'output', label: 'Sortie', url: '/out.wav'}]},
-                chosen: {audio: 'input'}, status: function (t) { said.push(t); },
+                chosen: {audio: 'input'}, status: function (t) { said.push(t); }, hostKeys: true,
                 slots: [{brick: 'media_transport', body: bodies[0], head: head, options: {role: 'audio'}},
                         {brick: 'broken', body: bodies[1], head: head},
                         {brick: 'probe', body: bodies[2], head: head}]});
@@ -297,7 +298,7 @@ class RegistryTest(SimpleTestCase):
                     stopped: {seeks: axis.seeks, log: log.slice()},
                     broken: bodies[1].textContent, errors: window.errors, heads: head.children.length,
                     probe: seen.ctx === ctx, read: ctx.reads().score, heard: ctx.source('audio').key,
-                    scope: ctx.config.scope, canEdit: ctx.canEdit});
+                    scope: ctx.config.scope, canEdit: ctx.canEdit, keys: window.transportKeys});
         })()"""))
         self.assertEqual(['inject /in.wav view-7-audio', 'follow view-7-audio'], got['mounted'],
                          'the chosen version, on a player of its own (not the one of the page behind)')
@@ -312,6 +313,7 @@ class RegistryTest(SimpleTestCase):
         self.assertEqual(2, got['heads'], 'the tools of the transport and of the probe')
         self.assertEqual(('X:1', 'input', 'view', False),
                          (got['read'], got['heard'], got['scope'], got['canEdit']))
+        self.assertIs(False, got['keys'], 'the viewer gives the keys of time : the transport adds none')
 
     def test_the_blur_watches_the_corrections_not_the_detection(self):
         from wama.anonymizer.function_specs import PIPELINE

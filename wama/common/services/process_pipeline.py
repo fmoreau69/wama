@@ -236,6 +236,14 @@ class ProcessSpec:
                   qui le refait s'y trouve (le bouton du réglage) —, SANS qu'un changement le périme :
                   ce n'est pas ce qu'il lit (2026-11-08, décision de Fabien : « la modale d'écrire les
                   paroles devrait contenir le champ paroles et le bouton de génération »).
+      from_selection  chemin `module:attribut` (forme d'`eta`) vers `(élément, rôles) -> {réglage:
+                  valeur}` : le process se lance AUSSI depuis une SÉLECTION de cards DÉRIVÉES de
+                  l'élément (`derived_cards` : ses pistes séparées), clic droit sur ces cards
+                  (2026-11-16, demande de Fabien : « sélectionner les pistes à refusionner »). La
+                  fonction dit ce que le process prend des `rôles` choisis (`derived_role`), en
+                  RÉGLAGES de l'élément — écrits par l'écrivain de sa ⚙, puis le ▶ de l'étape
+                  (`process_views.start_on_selection`) ; elle lève `ValueError` pour refuser une
+                  sélection, en le disant. Le menu de card et l'assistant le lisent d'ici.
       pipeline    la clé du pipeline ENREGISTRÉ qu'un MÉTA-PROCESS référence (un nœud `pipeline`
                   ajouté par la card, ROUTE §10.6 3.2bis, 2026-11-11) — '' pour un process qui est
                   une fonction. Jamais déclaré en code : seul `extended` le pose.
@@ -263,6 +271,7 @@ class ProcessSpec:
     checks: tuple = ()
     writes: tuple = ()
     required_by: object = None
+    from_selection: object = None
     pipeline: str = ''
 
 
@@ -315,7 +324,7 @@ def declared_stales(app: str) -> dict:
 #: Ce que la déclaration d'un process AJOUTÉ par une card ne peut pas porter (`AppPipeline.extended`) :
 #: des champs de l'élément — la card n'en a pas pour lui — et des chemins de code.
 _NOT_ADDABLE = ('watched', 'outputs', 'toggle', 'upstream_switch', 'card_model', 'eta', 'result',
-                'result_format', 'writes')
+                'result_format', 'writes', 'from_selection')
 
 
 class AppPipeline:
@@ -573,7 +582,11 @@ class AppPipeline:
                              # 2026-10-22 : écrit seulement quand il est posé (ajout pur).
                              **({'checks': list(spec.checks)} if spec.checks else {}),
                              # 2026-11-08 : écrit seulement quand il est posé (ajout pur).
-                             **({'writes': list(spec.writes)} if spec.writes else {})}}
+                             **({'writes': list(spec.writes)} if spec.writes else {}),
+                             # 2026-11-16 : écrit seulement quand il est posé (ajout pur).
+                             **({'from_selection': spec.from_selection}
+                                if isinstance(spec.from_selection, str) and spec.from_selection
+                                else {})}}
                  for spec in self.specs]
         links = [{'from': upstream, 'to': spec.key, 'to_port': None}
                  for spec in self.specs for upstream in spec.depends_on]

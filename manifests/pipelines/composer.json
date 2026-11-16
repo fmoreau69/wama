@@ -97,6 +97,7 @@
         "process": {
           "degree": "optional",
           "eta": "composer.tasks:remix_eta",
+          "from_selection": "composer.tasks:remix_from_selection",
           "gpu": false,
           "label": "Refusion des pistes",
           "outputs": [

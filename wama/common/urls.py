@@ -186,6 +186,10 @@ urlpatterns = [
     # Les valeurs PROPRES des filles (tirées de leur fichier, réglées à la main) — 2026-11-05.
     path('api/batch/<str:surface>/<int:pk>/own-settings/', views.api_batch_own_settings,
          name='api_batch_own_settings'),
+    # Un process de la card d'ORIGINE lancé depuis une SÉLECTION de ses cards dérivées (2026-11-16,
+    # la refusion des pistes choisies) : une route pour toutes les surfaces.
+    path('api/selection/<str:surface>/<str:process>/', views.api_process_on_selection,
+         name='api_process_on_selection'),
     # RECHERCHE DE LA FILE PAR CONTENU (2026-10-19, `WAMA_MEMORY §7sexies`) : les cards d'une file,
     # celles dont une image répond à la requête — la barre de file commune l'appelle.
     path('api/queue/content-search/', vector_views.api_queue_content_search,

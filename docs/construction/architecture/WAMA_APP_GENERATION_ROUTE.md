@@ -1878,7 +1878,10 @@ manifeste** (ce que le kind `app` capte + cible de projection).
     l'axe en pause — le nouveau média s'attache à l'axe qui tourne), le rendu MIDI se dit dans la
     barre d'état. L'horloge passe à l'axe d'une face même avant que son média y soit posé
     (`takeClock`/`giveClock` sur l'axe seul). ⏳ Les aperçus EN LIGNE (cards, volet) montrent
-    encore le texte.
+    encore le texte — **décision de Fabien, 2026-11-16** : une GRAVURE FIXE des premières mesures,
+    sans lecture ; un double-clic ouvre la visionneuse, qui joue (aller plus loin plus tard). Même
+    jour : la partition complète (MuScriptor) ne change pas de mesure en cours de morceau — limite
+    ACCEPTÉE pour l'instant (les changements de tempo, eux, suivent les repères).
   - ⏳ **Restes, dans l'ordre** : ② rendus par TYPE (ABC en partition — fait pour la visionneuse, ci-dessus) ; ③ les lignes de la bande des process ouvrent leur face, l'état du
     process (périmé, en échec) se lit sur elle ; ④ Studio (nœuds `StudioRun`, `output_ref`), Lab
     (passes du cam_analyzer, une face par caméra, `instance_key`), Data (Explorer). Et la face de

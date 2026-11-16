@@ -1092,8 +1092,11 @@ class WhatTheCardShowsTest(TestCase):
                 starved = [s.key for s in pipeline.specs if pipeline.starved(s, item, None)]
                 if starved:
                     found[(app, toggle)] = starved
+        # 2026-11-16 : the remix reads the stems' index, a LINK from the separation — no stems, no
+        # remix.
         self.assertEqual({('composer', 'generate_audio'): ['output', 'rendered_score', 'rendered_parts',
-                                                            'rendered_lyrics']}, found)
+                                                            'rendered_lyrics'],
+                          ('composer', 'separate_stems'): ['remix']}, found)
 
     def test_a_cut_step_that_transforms_a_card_entry_starves_nothing(self):
         """The precision itself, on a fictitious pipeline : the upstream TAKES the `work_file` it

@@ -4785,10 +4785,25 @@ commune `common/utils/stem_mix.py` — mélange = original + Σ (gain − 1) · 
 EXACT, une piste à 0 retranchée, seuls ses défauts touchent le reste ; lecture stéréo
 (`audio_decode.decode_stereo`). Composer : process optionnel `remix` après `separate`, « Refusion des
 pistes » + « Pistes à retirer » (aussi dans la ⚙ du LOT), sortie `remix_audio` + une card du lot (rôle
-`remix`, sa copie). ⏳ Le second accès (sélection de cards de pistes + clic droit « Refusionner ») : le
-menu commun n'a pas d'action déclarable sur une sélection. ⏳ Le MIXAGE EN TEMPS RÉEL (gains continus
-dans la page, la même formule) : une brique WebAudio calée à l'échantillon — des lecteurs `<audio>`
-suivis à ±20 ms par l'axe ne s'annulent pas en soustraction. La séparation reste à la demande (coût GPU).
+`remix`, sa copie). ✅ **Le second accès, même jour** : sélectionner des cards de pistes, clic droit,
+« Refusion des pistes (N) » — les pistes choisies restent, les autres partent. Générique : un process
+DÉCLARE ce qu'il prend d'une sélection de cards dérivées de sa card (`ProcessSpec.from_selection`,
+ici `composer.tasks:remix_from_selection`), la route commune `common:api_process_on_selection`
+l'exécute (`process_views.start_on_selection` : réglages écrits par l'écrivain de la ⚙, puis le ▶ de
+l'étape), le menu commun l'offre (`queue_dnd_attrs` → `data-selection-processes`), l'assistant par
+`start_process_on_items` ; exporté au manifeste et rendu par le générateur (trou de glu). Refusé en le
+disant : cards de deux morceaux, card qui n'est pas une piste, toutes les pistes choisies. Joué au
+navigateur (POST intercepté) : l'entrée offerte sur deux pistes, leurs deux ids postés.
+⏳ Le MIXAGE EN TEMPS RÉEL (gains continus, la même formule) — **décision de Fabien, 2026-11-16 : dans
+la PAGE D'ÉDITION** de la card d'origine (la card porte les process, le temps réel vit dans les pages
+d'édition), les réglages gardés sur la page et versés dans la refusion, « Appliquer » fait le fichier :
+une brique WebAudio calée à l'échantillon — des lecteurs `<audio>` suivis à ±20 ms par l'axe ne
+s'annulent pas en soustraction ; la mémoire des pistes décodées (six pistes de 4 min : quelques centaines
+de Mo) se mesure avant de choisir comment les charger. La séparation reste à la demande (coût GPU).
+⏳ **BS-RoFormer SW** (six pistes, meilleur que Demucs en guitare et piano) : intégrable comme second
+modèle du même contrat (`separate_sources`), Demucs restant le défaut ; coût : `audio-separator` sans
+ses dépendances et ses poids par la route ; **bloqué par la licence de ses poids** (CC-BY-NC-SA ou MIT
+selon la source) — décision de Fabien.
 ⏳ La jumelle `composer_01` ne reçoit pas le process (sa liste de fonctions est figée à sa création).
 
 **Suite** : validation des trois propositions par Fabien (dacvae et perception_models d'abord, leurs

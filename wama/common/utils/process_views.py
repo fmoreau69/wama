@@ -84,6 +84,62 @@ def start_one_process(work_model, pk, process, *, user, task_for,
     return item, task, None
 
 
+def selection_specs(pipeline) -> list:
+    """Les process de `pipeline` qui se lancent depuis une SÉLECTION de cards dérivées
+    (`ProcessSpec.from_selection`), dans l'ordre du graphe — ce que le menu de card offre."""
+    return [s for s in (pipeline.ordered() if pipeline else ()) if s.from_selection]
+
+
+def start_on_selection(work_model, ids, process, *, user):
+    """Le process `process` de la card d'ORIGINE, lancé depuis une SÉLECTION de ses cards DÉRIVÉES
+    (2026-11-16, demande de Fabien : sélectionner les pistes séparées à refusionner, clic droit).
+    Le process DÉCLARE ce qu'il prend de la sélection (`ProcessSpec.from_selection` :
+    `(origine, rôles) -> {réglage: valeur}`) ; ces réglages s'écrivent par l'écrivain DÉCLARÉ de
+    l'app (celui de sa ⚙, `write_element_settings`), puis le ▶ de l'étape est celui de la bande
+    (`start_one_process`). Rend `(origine, tâche, None)` ou `(None, None, (statut, message))`.
+
+    Refusé : des cards qui ne sont pas toutes dérivées d'une MÊME card ; un process qui ne se
+    lance pas depuis une sélection ; une sélection que l'app refuse (`ValueError`, dite) ; la card
+    d'origine en cours (409, AVANT d'écrire ses réglages). Une card que `user` ne peut pas
+    modifier LÈVE `Http404` (`editable_or_404`), comme le ▶."""
+    from wama.common.catalog.function_catalog import resolve_impl
+    from wama.common.services.process_pipeline import pipeline_of
+    from wama.common.utils.batch_views import write_element_settings
+    from wama.common.utils.item_views import declaration_for
+    from wama.common.utils.scoping import editable_or_404
+
+    cards = [editable_or_404(work_model, user, pk=pk) for pk in dict.fromkeys(ids or ())]
+    if not cards:
+        return None, None, (400, "aucune card choisie")
+    sources = {getattr(card, 'derived_from_id', None) for card in cards}
+    if (None in sources or len(sources) != 1
+            or not all(getattr(card, 'derived_role', '') for card in cards)):
+        return None, None, (400, "ces cards ne sont pas toutes tirées d'une même card "
+                                 "(les pistes séparées d'un même morceau, par exemple)")
+    origin = editable_or_404(work_model, user, pk=sources.pop())
+    pipeline = pipeline_of(origin)
+    spec = next((s for s in selection_specs(pipeline) if s.key == process), None)
+    if spec is None:
+        offered = ', '.join(f'{s.key} (« {s.label or s.key} »)' for s in selection_specs(pipeline))
+        return None, None, (400, f"« {process} » ne se lance pas depuis une sélection"
+                                 + (f" — process proposés : {offered}" if offered else ''))
+    if getattr(origin, 'status', None) == 'RUNNING':
+        return None, None, (409, 'Traitement déjà en cours sur la card d’origine')
+    declaration = declaration_for(work_model)
+    if declaration is None:
+        return None, None, (400, f"{work_model.__name__} : aucun lancement déclaré")
+    try:
+        chosen = (resolve_impl(spec.from_selection) if isinstance(spec.from_selection, str)
+                  else spec.from_selection)
+        write_element_settings(origin, chosen(origin, [card.derived_role for card in cards]))
+    except (ValueError, LookupError) as error:
+        return None, None, (400, str(error))
+    return start_one_process(work_model, origin.pk, process, user=user,
+                             task_for=declaration.task_of,
+                             reset_on_start=declaration.reset_on_start,
+                             reset_for_process=process_reset_for(work_model))
+
+
 def make_process_start_view(*, work_model, task_for, get_user=request_user,
                             reset_on_start=None, reset_for_process=None):
     """La vue `start_process(request, pk, process)` d'une app à pipeline.

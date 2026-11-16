@@ -2115,6 +2115,7 @@
                 sources: audios.length ? { audio: audios } : {},
                 chosen: listened ? { audio: listened } : {},
                 axis: axis,
+                hostKeys: true,                 // la visionneuse donne les touches du temps à l'axe
                 status: function (text) { status.textContent = text || ''; },
                 slots: [
                     { brick: 'media_transport', body: transportHost, head: listenTools,

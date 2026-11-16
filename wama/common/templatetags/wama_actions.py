@@ -190,6 +190,10 @@ def queue_dnd_attrs(app, domain=None):
     if tool:
         paires += [('data-schedule-url', reverse('common:schedule_create')),
                    ('data-schedule-tool', tool)]
+    # Les process qui se lancent depuis une SÉLECTION de cards dérivées (`ProcessSpec.from_selection`,
+    # 2026-11-16, la refusion des pistes choisies) : le clic droit sur N cards d'un lot les offre,
+    # libellé et icône ceux de leur face, la route commune qui les lance.
+    paires.append(('data-selection-processes', _selection_processes(app)))
     presents = [(k, v) for k, v in paires if v]
     if not presents:
         return ''
@@ -197,6 +201,22 @@ def queue_dnd_attrs(app, domain=None):
     if domain:
         presents.append(('data-dnd-domain', domain))
     return format_html_join(' ', '{}="{}"', presents)
+
+
+def _selection_processes(app) -> str:
+    """`[{key, label, icon, url}]` en JSON des process de l'app qui se lancent depuis une sélection
+    de cards dérivées ; '' quand elle n'en déclare aucun (l'attribut n'est pas émis)."""
+    import json
+    from django.urls import reverse
+    from wama.common.services.process_pipeline import app_pipeline
+    from wama.common.utils.preview_utils import FACE_ICON_DEFAULT, FACE_ICONS
+    from wama.common.utils.process_views import selection_specs
+    pipeline = app_pipeline(app)
+    offered = [{'key': s.key, 'label': s.label or s.key,
+                'icon': FACE_ICONS.get(pipeline.output_type(s), FACE_ICON_DEFAULT),
+                'url': reverse('common:api_process_on_selection', args=[app, s.key])}
+               for s in selection_specs(pipeline)]
+    return json.dumps(offered, ensure_ascii=False) if offered else ''
 
 
 @register.simple_tag

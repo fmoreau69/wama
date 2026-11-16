@@ -232,6 +232,8 @@ _DECLARED_GLUE = {
     'eta': ('item', '`ProcessSpec.eta`', 'wama.common.services.process_runs.process_eta'),
     'result': ('item', '`ProcessSpec.result`',
                'wama.common.services.process_pipeline.AppPipeline.declared_result'),
+    'from_selection': ('item, roles', '`ProcessSpec.from_selection`',
+                       'wama.common.utils.process_views.start_on_selection'),
     # Les crochets d'une SURFACE (facette `surfaces`, 2026-11-10) : un chemin pointé comme les
     # autres — le trou se pose dans le module qu'il désigne (`surfaces.py` le plus souvent).
     'available': ('item', '`Surface.available`', 'wama.common.surfaces.Surface.can_open'),
@@ -305,7 +307,7 @@ def declared_glue(manifest: dict, steps: list, modules=None) -> list:
     proc = (manifest.get('body') or {}).get('processing') or {}
     modules = {f'{app_id}.{m}' for m in (modules or _task_modules(manifest))}
     declared = [((proc.get('ingest') or {}).get('derive'), 'derive')]
-    declared += [(s.get(role), role) for s in steps for role in ('eta', 'result')]
+    declared += [(s.get(role), role) for s in steps for role in ('eta', 'result', 'from_selection')]
     declared += [(s.get(role), role) for s in declared_surfaces(manifest) if isinstance(s, dict)
                  for role in SURFACE_HOOKS]
     out = []

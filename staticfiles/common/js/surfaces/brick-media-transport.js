@@ -104,7 +104,10 @@
         }
 
         // ── Les commandes ───────────────────────────────────────────────────────────────────
-        var transport = global.WamaTransport.mount(body, { axis: axis, options: options, key: key });
+        // Un hôte qui donne déjà les touches du temps à l'axe (la visionneuse, `WamaSurface.view`) :
+        // les nôtres ne s'inscrivent pas à la page, une frappe ne joue pas deux fois.
+        var transport = global.WamaTransport.mount(body, { axis: axis, options: options, key: key,
+                                                           keys: !ctx.config.host_keys });
 
         var badge = document.createElement('span');
         badge.className = 'badge d-none';

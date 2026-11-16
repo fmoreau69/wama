@@ -264,6 +264,32 @@ class FunctionSpecsReadTheDeclaredTaskTest(_Rendered):
                         self.assertNotIn('domains=', line)
         self.assertTrue(measured, 'no manifest reserves a process to a domain: nothing measured')
 
+    def test_what_a_process_takes_from_a_selection_is_rendered_and_has_its_glue(self):
+        """2026-11-16 (the remix of chosen stems) : `process.from_selection` of the manifest is
+        rendered on the line of ITS process, and the function it names gets its glue hole in the
+        generated task module — a twin would otherwise offer a right click that points nowhere."""
+        from wama.common.manifests.codegen.function_specs_gen import render_function_specs
+        from wama.common.manifests.codegen.pipeline_decl import declared_pipeline, process_specs
+        from wama.common.manifests.codegen.tasks_gen import declared_glue, split_declared_path
+        measured = 0
+        for app, manifest in self.manifests.items():
+            pipeline, _ = declared_pipeline(app)
+            specs = process_specs(pipeline) if pipeline else []
+            chosen = [s for s in specs if s['from_selection']]
+            if not chosen:
+                continue
+            source, _ = render_function_specs(manifest)
+            glue = dict(declared_glue(manifest, specs))
+            for spec in chosen:
+                with self.subTest(app=app, process=spec['key']):
+                    measured += 1
+                    line = next(l for l in source.splitlines()
+                                if l.strip().startswith(f"ProcessSpec({spec['key']!r}"))
+                    self.assertIn('from_selection=', line)
+                    self.assertEqual('from_selection',
+                                     glue.get(split_declared_path(spec['from_selection'])[1]))
+        self.assertTrue(measured, 'no manifest takes a process from a selection: nothing measured')
+
     def test_the_reader_pipeline_is_carried_by_its_declared_task(self):
         from wama.common.manifests.codegen.function_specs_gen import render_function_specs
         source, _ = render_function_specs(self.manifests['reader'])

@@ -233,10 +233,12 @@
      *  `config` (`pk`, `sound_banks`…), `reads`, `sources`, `chosen` (`{rôle: clé}`), `axis` (l'axe
      *  que tient l'hôte), `status(texte, sorte)`, `slots` = `[{brick, options, body, head}]` montés
      *  dans l'ordre — les outils d'une brique vont dans `head`. `config.scope` vaut `view` : ce que
-     *  la brique nomme dans la page (un lecteur) ne se confond pas avec la page ouverte derrière. */
+     *  la brique nomme dans la page (un lecteur) ne se confond pas avec la page ouverte derrière.
+     *  `hostKeys` : l'hôte DONNE déjà les touches du temps à l'axe (la visionneuse) — le transport
+     *  n'inscrit pas les siennes à la page (`config.host_keys`, option `keys: false` du transport). */
     function view(spec) {
         var bus = makeBus();
-        var config = Object.assign({ scope: 'view' }, spec.config || {});
+        var config = Object.assign({ scope: 'view', host_keys: !!spec.hostKeys }, spec.config || {});
         var state = { reads: spec.reads || {}, media: spec.media || {}, sources: spec.sources || {},
                       chosen: spec.chosen || {}, context: {}, processes: {}, value: {} };
         var ctx = readContext(config, state, bus, {

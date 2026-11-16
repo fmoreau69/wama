@@ -2846,6 +2846,34 @@ def api_envoyer_vers(request, surface: str, pk: int):
 
 @login_required
 @require_POST
+def api_process_on_selection(request, surface: str, process: str):
+    """LANCER UN PROCESS DEPUIS UNE SÉLECTION (2026-11-16, demande de Fabien : sélectionner les
+    pistes séparées à refusionner, clic droit) — POST `ids` (JSON ou champ répété) : des cards
+    DÉRIVÉES d'une même card ; le process `process` de cette card d'origine se lance sur ce qu'il
+    DÉCLARE prendre de la sélection (`ProcessSpec.from_selection`, `process_views.start_on_selection`).
+    Même réponse que le ▶ d'une étape ; l'outil `start_process_on_items` de l'assistant appelle
+    cette vue."""
+    from wama.common.utils.preview_registry import PreviewRegistry
+    from wama.common.utils.process_views import start_on_selection
+    from wama.common.utils.queue_manipulation import ids_from_request
+
+    work_model = PreviewRegistry.get_model(surface)
+    if work_model is None:
+        return JsonResponse({'error': f"surface inconnue : {surface}"}, status=404)
+    try:
+        ids = [int(pk) for pk in ids_from_request(request)]
+    except (TypeError, ValueError):
+        return JsonResponse({'error': 'identifiants illisibles'}, status=400)
+    origin, task, refused = start_on_selection(work_model, ids, process, user=request.user)
+    if refused:
+        status, message = refused
+        return JsonResponse({'error': message}, status=status)
+    return JsonResponse({'success': True, 'id': origin.pk, 'task_id': task.id,
+                         'status': 'RUNNING', 'process': process})
+
+
+@login_required
+@require_POST
 def api_batch_label(request, surface: str, pk: int):
     """NOMMER UN LOT — POST `label` (vide = effacer le nom, le lot reprend son titre dérivé).
 

@@ -341,7 +341,9 @@ PIPELINE = register_app_pipeline(_APP, (
     ProcessSpec('remix', label='Refusion des pistes', depends_on=('separate',),
                 watched=('melody_reference', 'source_url'),
                 degree=OPTIONAL, toggle='remix_stems', applies=_remix_applies,
-                outputs=('remix_audio',), eta='composer.tasks:remix_eta'),
+                outputs=('remix_audio',), eta='composer.tasks:remix_eta',
+                # Clic droit sur des pistes choisies (2026-11-16) : elles restent, les autres partent.
+                from_selection='composer.tasks:remix_from_selection'),
     # La partition EXTRAITE ne dépend que de l'audio (remarque d'ae, 2026-10-03) : changer le
     # modèle de RENDU ne la périme pas — s'il cesse de suivre une partition, c'est `applies` qui
     # écarte le process, pas la péremption. `source_url` remplit l'audio au lancement.

@@ -485,6 +485,31 @@ def remix_gains(stems, without: str) -> dict:
     return {key: 0.0 if key in removed else 1.0 for key in stems}
 
 
+def remix_from_selection(gen, roles) -> dict:
+    """La refusion depuis une SÉLECTION de pistes (`ProcessSpec.from_selection`, 2026-11-16, demande
+    de Fabien : sélectionner les pistes à refusionner, clic droit) : les pistes CHOISIES restent, les
+    autres se retirent (`remix_without`, le vocabulaire commun). Une card choisie qui n'est pas une
+    piste de la séparation (une refusion déjà faite) est refusée en le disant."""
+    import json
+    from django.conf import settings
+    from wama.common.utils.midi_score import instrument_label
+    stems = []
+    if gen.stems_index:
+        with open(os.path.join(settings.MEDIA_ROOT, gen.stems_index.name), encoding='utf-8') as handle:
+            stems = [s['stem'] for s in json.load(handle).get('stems', ())]
+    if not stems:
+        raise ValueError("Rien à refusionner : lancer d'abord « Pistes séparées ».")
+    odd = [role for role in roles if role not in stems]
+    if odd:
+        raise ValueError(f"Pas une piste séparée : {', '.join(odd)} — choisir parmi "
+                         f"{', '.join(instrument_label(s) for s in stems)}.")
+    if set(stems) <= set(roles):
+        # Rien à retirer : ce serait le morceau d'origine — et un réglage vide ne s'écrit pas.
+        raise ValueError("Toutes les pistes sont choisies : la refusion rendrait le morceau d'origine.")
+    return {'remix_stems': True,
+            'remix_without': ', '.join(instrument_label(s) for s in stems if s not in roles)}
+
+
 def _remix(gen, ctx):
     """GLU du process `remix` (2026-11-16, demande de Fabien) : l'audio de l'ENTRÉE moins les pistes
     retirées (`remix_without`), par la brique commune `stem_mix` — l'original sert de base, ce
