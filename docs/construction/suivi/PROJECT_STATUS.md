@@ -31818,3 +31818,13 @@ l'anonymizer, les neuf autres vertes.
 **Non fait, nommé** : la page du document, l'audio ; les zones proposées restent des boîtes ;
 l'outil d'assistant pour ces gestes de page ; jumelle `anonymizer_01` ; suite complète non
 rejouée par cette session.
+
+## §PALIER 2026-11-16 (soir), « ASSISTANT : les 162 routes sans outil TRIÉES » — commit local, non poussé — 🔴 relancer gunicorn (bloc « Outils de l'assistant » de `/apps/`) — 🔚 décision de Fabien sur les 19 routes propres à l'écran et sur le Lab (56), puis étendre les 6 outils
+
+Détail et listes : `WAMA_LLM.md` « 2026-11-16 — fil web n° 46 », point 6.
+
+- Budget `ROUTES_WITHOUT_TOOL_BUDGET` 162 → 152 : dix routes qu'un outil faisait déjà (même brique des deux côtés, lue) ont leur ligne dans `tool_api.ROUTE_TOOLS` — notifications, ajout au RAG, registres, re-mesure de la conformité, recherche de fichiers, médiathèque (résultat, fichier), Studio (lancer, suivre).
+- Les 152 restantes : 6 outils à étendre, 71 gestes sans outil, 56 routes du Lab (cam_analyzer, face_analyzer : aucun outil), 19 propres à l'écran.
+- Relevé : `filemanager:api_search` garde une liste de dossiers écrite à la main à côté de la brique commune `user_files.find_user_files`.
+
+Vérifié : `tests_tool_api_coverage` + `tests_identifier_language` 54 verts ; `check_docs` 0 cassée sur 4149. Aucun outil neuf, aucune garde neuve. Les quatre routes des apps (imager ×2, avatarizer, converter) restent rouges au critère `tool_routes`.

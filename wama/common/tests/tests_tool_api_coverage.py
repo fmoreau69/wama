@@ -71,7 +71,9 @@ from wama.tool_api import ROUTE_TOOLS, action_routes  # noqa: E402
 #: Measured on 2026-11-08 when this guard was written : 208 (221 action routes, 13 mapped ; the
 #: twins' routes folded onto their source's). Some of them are already done by an existing tool and
 #: only lack their line here — map them first. 208 → 162 on 2026-11-09 : the whole model manager.
-ROUTES_WITHOUT_TOOL_BUDGET = 162
+#: 162 → 152 on 2026-11-16 : the sorting (`WAMA_LLM.md` « fil web n° 46 », point 6) — ten routes an
+#: existing tool already did ; the 152 left are sorted there (to extend, to write, the screen's own).
+ROUTES_WITHOUT_TOOL_BUDGET = 152
 
 
 def factory_gestures(path: str, function: str) -> set:

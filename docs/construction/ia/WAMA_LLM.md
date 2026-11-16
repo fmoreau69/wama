@@ -2921,11 +2921,62 @@ Fabien. Mesuré d'abord :
    jour même : trois apps rouges sur ce critère — imager (2 routes : résolutions), avatarizer
    (galerie d'avatars), converter (préréglages).
 
+6. **Le TRI des 162 routes sans outil** (même jour, demande de Fabien). Chaque route lue, son
+   corps confronté à celui de l'outil candidat. Budget **162 → 152**.
+
+   **Dix avaient déjà leur outil** (même brique des deux côtés), il leur manquait la ligne dans
+   `ROUTE_TOOLS` : la liste et le suivi des notifications (`list_my_notifications`), l'ajout au
+   RAG (`add_item_to_rag`, `add_file_to_rag` par chemin), l'état des registres
+   (`list_registries`), « Re-mesurer » la conformité (`dev_run_operation`), la recherche de
+   fichiers (`find_user_files`), ranger un résultat ou un fichier en médiathèque
+   (`add_item_to_media_library`, `add_to_media_library`), lancer et suivre un pipeline du Studio
+   (`run_studio_pipeline`, `get_studio_run_status`).
+
+   **Les 152 qui restent**, en quatre familles :
+
+   | famille | routes | ce que c'est |
+   |---|---|---|
+   | outil à ÉTENDRE | 6 | l'outil existe et fait moins que la route |
+   | outil à ÉCRIRE | 71 | un geste que la page offre, sans outil |
+   | Lab | 56 | cam_analyzer (48) et face_analyzer (8) n'ont aucun outil — ni triade, ni session |
+   | propre à l'écran | 19 | ⏳ décision de Fabien : les sortir de la mesure, ou non |
+
+   *À étendre (6)* — `media_library:api_list` et `api_system_list` (`list_media_assets` ne lit
+   que les assets du compte : ni ceux qu'on lui partage, ni ceux du système — voix, galerie
+   d'avatars) ; `filemanager:api_tree` et `api_children` (`list_user_files` connaît six
+   dossiers, l'arbre tous) ; `filemanager:api_import` (les créateurs prennent un fichier, pas un
+   dossier entier) ; `studio:api_pipelines` (lister oui, enregistrer non).
+
+   *À écrire (71), par geste* — common (42) : partage, transfert, accès à une card reçue,
+   demande de promotion (7) ; fichiers libérés (6) ; « Envoyer vers » d'une card ou d'un lot
+   (5) ; ranger une card reçue (3) ; RAG — retirer, préférences — et valider un souvenir (3) ;
+   notifications — marquer lue, tout lire (2) ; nommer un lot, lire ses valeurs propres (2) ;
+   résultat existant et résultat de référence (2) ; actualiser un registre et son suivi (2) ;
+   enrichir un prompt, écrire des paroles (2) ; état de la machine pour tout compte (2) ; voix
+   offertes, propriétés d'un média, recherche par le contenu d'une file, console, abonnement,
+   accord d'arrêt-relance (6). Gestionnaire de fichiers (11) : supprimer, vider, créer un
+   dossier, déplacer, renommer, informations (6) ; dossiers connectés (5). Médiathèque (9) :
+   modifier et supprimer un asset (2), mots-clés de prompt (4), banques externes (3). Studio
+   (5) : nœuds, pipelines déclarés, détail d'un pipeline, ZIP d'un run. Apps (4) : résolutions
+   de l'imager (2), galerie de l'avatarizer, préréglages du converter.
+
+   *Propre à l'écran (19)* — ce qui n'a pas de sens hors d'une page : sélecteur de dossier du
+   serveur, retours et suivis de connexion à un nuage, envoi d'octets par le navigateur, aperçu
+   (gestionnaire de fichiers, 7) ; catalogue et modes lus par le JS, verrou doux d'une modale
+   ouverte, menu de l'arbre (common, 4) ; card d'entrée rendue, contexte d'un nœud, nœuds
+   indisponibles, compte d'un lot (Studio, 4) ; compteurs, estimation avant ajout, clés des
+   banques — une clé ne passe pas par une conversation (médiathèque, 4).
+
+   Relevé au passage : `filemanager:api_search` garde SA liste de dossiers écrite à la main
+   (`filemanager/views.py:491-517`, ni jumelles ni dossiers connectés) à côté de la brique
+   commune que lit l'outil (`common/services/user_files.find_user_files`) — deux périmètres pour
+   une recherche ; `api_remount_shares` dit dans sa docstring qu'aucune adresse ne l'ouvre plus.
+
 ⏳ Restes relevés dans ce fil, non traités : `add_to_composer` exige `prompt` pour séparer des
 pistes ; `dev_search_code` refuse un `glob` en `**/*.py` (4 appels sur 7) ; une erreur d'outil ne
 dit pas la voie à prendre ; la parité des PROCESS (chaque process déclaré lançable sans argument
-étranger) ; le TRI des 162 routes d'action sans outil (déjà faites par un outil et sans ligne,
-pas un geste, à faire) ; la ligne « outils » de la fiche d'app et un registre des outils ; une
+étranger) ; les 152 routes triées au point 6 (étendre 6 outils, en écrire, décider du Lab et de
+ce qui est propre à l'écran) ; la ligne « outils » de la fiche d'app et un registre des outils ; une
 vidéo de l'échange par l'assistant.
 
 ### 2026-11-07→08 — ACE-Step intégré par l'assistant : ce que la donnée doit porter

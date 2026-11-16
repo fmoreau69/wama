@@ -7137,6 +7137,18 @@ ROUTE_TOOLS = {
     'common:api_operations_jobs': 'dev_list_jobs',
     # The domain of an app page (2026-11-12) : `open_page(page, domain=…)` keeps it for the account.
     'common:api_page_domain': 'open_page',
+    # Sorting of 2026-11-16 : routes an existing tool already did, body against body — each line
+    # names what both sides call.
+    'common:api_notifications_list': 'list_my_notifications',     # `notification_list`
+    'common:api_notifications_recent': 'list_my_notifications',   # the bell's poller of that list
+    'common:rag_ajouter': 'add_item_to_rag',     # `memory.index` ; by path : `add_file_to_rag`
+    'common:registres_etat': 'list_registries',                   # `registries.overview`
+    'common:conformity_refresh': 'dev_run_operation',   # `conformity` : `measure_and_write_conformity`
+    'filemanager:api_search': 'find_user_files',  # the tool reads the tree's declared scope
+    'media_library:api_export_item': 'add_item_to_media_library',  # `export_item_to_library`
+    'media_library:api_upload': 'add_to_media_library',            # `add_file_to_library`
+    'studio:api_run': 'run_studio_pipeline',                       # `launch.launch_graph`
+    'studio:api_run_status': 'get_studio_run_status',
     'model_manager:api_models_db': 'list_ai_models',
     'model_manager:api_prospect_ollama': 'prospect_models',
     'model_manager:api_prospect_install': 'install_model',
