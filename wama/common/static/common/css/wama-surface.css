@@ -358,10 +358,9 @@ body.wama-panel-arranged > .container {
 .wama-brick-settings .meta-ro { font-size: .74rem; color: var(--wama-text-muted); margin-top: .3rem; }
 .wama-brick-settings .meta-ro div { padding: .12rem 0; }
 
-/* Partition — gravée sur PAPIER blanc (les notes d'abcjs sont noires) ; la note jouée se colore */
+/* Partition — gravée sur PAPIER blanc (les notes d'abcjs sont noires) ; le papier et la note jouée
+   sont dans `media-preview.css` (2026-11-15) : la visionneuse grave la même partition. */
 .wama-brick-score { background: var(--wama-paper); }
-.wama-score-paper { padding: .4rem .6rem 1.5rem; color: var(--wama-edit-paper-text); }
-.wama-score-paper svg .wama-score-playing { fill: var(--wama-edit-playing); stroke: var(--wama-edit-playing); }
 .wama-score-fit { display: flex; align-items: center; gap: .25rem; font-size: .72rem; color: var(--wama-edit-brick-text);
   margin: 0; cursor: pointer; }
 

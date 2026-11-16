@@ -181,6 +181,52 @@ class ProcessFacesTest(_MediaRootMixin, TestCase):
         gen = ComposerGeneration(user=self.user, prompt='p', planned_score='composer/output/gone.abc')
         self.assertEqual({}, self._faces('composer', gen))
 
+    def test_a_score_face_is_engraved_and_played_on_the_audio_it_is_taken_from(self):
+        """2026-11-15, Fabien : « on bascule sur la partition, la lecture se poursuit […] montrant
+        le défilement de la partition avec les notes jouées comme dans la page d'édition ». The
+        viewer is told what it needs : the text, the audios of the item and the one the score is
+        TAKEN from (a process without upstream reads the input, one after the render the output),
+        the page that edits it, and the scripts the bricks declare."""
+        from wama.common.utils.preview_utils import INPUT_FACE, _score_face
+        from wama.composer.models import ComposerGeneration
+        cover = self._file('composer/input/cover.wav')
+        song = self._file('composer/output/song.wav')
+        abc = b'X:1\nM:4/4\nQ:1/4=60\n% wama-sync: 0:2.000 4000:6.000\nK:C\nC4|\n'
+        gen = ComposerGeneration.objects.create(
+            user=self.user, prompt='p', melody_reference=cover, audio_output=song,
+            extracted_score=self._file('composer/output/reduced.abc', abc),
+            parts_score=self._file('composer/output/full.abc', abc),
+            rendered_score=self._file('composer/output/played.abc', abc))
+        inp, out = self._face_of(cover), self._face_of(song)
+        faces = self._faces('composer', gen, inp, out)
+        reduced = _score_face('composer', gen, 'extract_score', faces['extract_score'][1], inp, out)['score']
+        self.assertIn('wama-sync', reduced['abc'], 'its marks travel with it')
+        self.assertEqual([('input', INPUT_FACE), ('output', 'Sortie')],
+                         [(a['key'], a['label']) for a in reduced['audios']])
+        self.assertEqual('input', reduced['follows'], 'taken from the input : the cover')
+        self.assertEqual(f'/common/surface/composer/score/{gen.pk}/', reduced['edit_url'])
+        full = _score_face('composer', gen, 'parts', faces['parts'][1], inp, out)['score']
+        self.assertTrue(full['edit_url'].endswith('?field=parts_score'), 'opened on that score')
+        played = _score_face('composer', gen, 'rendered_score', faces['rendered_score'][1], inp, out)['score']
+        self.assertEqual('output', played['follows'], 'taken from the render : the output')
+        self.assertEqual('', played['edit_url'], 'a score the page only reads has no editing')
+        scripts = ' '.join(reduced['scripts'])
+        for needed in ('abcjs-basic-min.js', 'wama-score.js', 'wama-score-player.js',
+                       'wama-midi-player.js', 'wama-transport.js'):
+            self.assertIn(needed, scripts)
+        self.assertNotIn('wama-axis.js', scripts, 'the base page has it already')
+        self.assertIn('banks', reduced['sound_banks'])
+        # Its styles : those of the surface page (the transport declares none of its own) — the
+        # very stylesheet the surface template loads.
+        from django.conf import settings
+        from wama.common.surfaces import SURFACE_STYLESHEET
+        self.assertTrue(any(SURFACE_STYLESHEET.split('/')[-1] in s for s in reduced['styles']))
+        template = os.path.join(settings.BASE_DIR, 'wama', 'common', 'templates', 'common', 'surface.html')
+        with open(template, encoding='utf-8') as handle:
+            self.assertIn(f"static_v '{SURFACE_STYLESHEET}'", handle.read())
+        self.assertEqual(out, _score_face('composer', gen, 'output', out, inp, out),
+                         'a face that is no score is left as it is')
+
     def test_the_voice_of_the_avatarizer_is_a_face_between_the_avatar_and_the_video(self):
         from wama.avatarizer.models import AvatarJob
         avatar = self._file('avatarizer/input/face.png')

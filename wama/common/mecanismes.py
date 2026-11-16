@@ -500,6 +500,9 @@ MECHANISMS = (
                        'wama/common/static/common/js/wama-brick-layout.js',
                        'wama/common/static/common/js/wama-detections.js',
                        'wama/common/static/common/js/wama-score.js',
+                       # Graver, lire le temps, allumer les notes — la brique partition et la face
+                       # « Partition » de la visionneuse (2026-11-15).
+                       'wama/common/static/common/js/wama-score-player.js',
                        'wama/common/manifests/codegen/surfaces_gen.py',
                        'wama/common/tests/tests_surfaces.py'),
               depends_on=('media_axis',)),

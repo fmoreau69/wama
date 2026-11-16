@@ -181,7 +181,7 @@ class MidiPlayerTest(SimpleTestCase):
         """V8 parses without running (`(function(){…})`) : the core, the transport and the score
         brick that carry the MIDI versions."""
         for name in ('surfaces/wama-surface.js', 'surfaces/brick-media-transport.js',
-                     'surfaces/brick-score-view.js'):
+                     'surfaces/brick-score-view.js', 'wama-score-player.js', 'media-preview.js'):
             with self.subTest(script=name):
                 self.v8.eval('(function(){' + (JS / name).read_text(encoding='utf-8') + '\n})')
 

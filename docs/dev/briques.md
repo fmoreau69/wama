@@ -3708,7 +3708,7 @@ Un MIDI à une piste par instrument → une partition ABC lisible : une voix par
   - `downbeat_of(markers)` — L'instant (s) du premier temps fort que dit un marqueur `downbeat=<s>`, None sinon.
   - `played_beat_steps(beat_times, grid: int, offset: float)` — `(secondes MIDI → pas)` sur les temps JOUÉS : une note se place entre les deux temps de
   - `played_beat_time(beat_times, grid: int, lead: int=0)` — L'inverse de `played_beat_steps` : `(pas écrit → secondes d'AUDIO)`, la grille des temps
-  - `midi_to_abc(midi_bytes: bytes, *, title: str='', grid: int=4, bars_per_line: int=4, beat_times=None) -> str` — Le texte ABC d'un MIDI multi-pistes (voir l'en-tête). Lève `ValueError` sans aucune note.
+  - `midi_to_abc(midi_bytes: bytes, *, title: str='', grid: int=4, bars_per_line: int=4, beat_times=None, marks: bool=True) -> str` — Le texte ABC d'un MIDI multi-pistes (voir l'en-tête). Lève `ValueError` sans aucune note.
 
 ### Partitions MusicXML (pages assemblées, MusicXML → ABC)
 

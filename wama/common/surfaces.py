@@ -959,6 +959,12 @@ def _clean_stacks(raw, declared: set) -> dict:
 
 
 BRICKS: dict = {}
+
+#: La feuille de style de TOUTE page de surface (le gabarit `common/surface.html` la charge) : la
+#: disposition, et les styles des briques qui ne déclarent pas la leur (le transport). Lue aussi
+#: par la visionneuse quand elle monte des briques hors d'une surface (la face « Partition »,
+#: `preview_utils._score_face`, 2026-11-15). Tenue égale au gabarit par `tests_pipeline_faces`.
+SURFACE_STYLESHEET = 'common/css/wama-surface.css'
 SURFACES: dict = {}
 
 
@@ -1257,6 +1263,8 @@ register_brick(UIBrick(
     script='common/js/surfaces/brick-score-view.js',
     requires=('vendors/abcjs-6.4.4/abcjs-basic-min.js', 'common/js/wama-axis.js',
               'common/js/wama-score.js',
+              # Graver, lire le temps, allumer les notes : le module commun, celui de la visionneuse aussi.
+              'common/js/wama-score-player.js',
               # La LECTURE MIDI de la partition (2026-11-08) : des versions de plus au transport.
               'common/js/wama-midi-player.js',
               # Suivre la lecture (2026-11-12) : le verrou de la liste des segments, mis en commun.

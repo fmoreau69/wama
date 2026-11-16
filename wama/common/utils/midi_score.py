@@ -493,8 +493,12 @@ def _voices_of(song: MidiSong, to_steps) -> list:
 
 
 def midi_to_abc(midi_bytes: bytes, *, title: str = '', grid: int = 4, bars_per_line: int = 4,
-                beat_times=None) -> str:
+                beat_times=None, marks: bool = True) -> str:
     """Le texte ABC d'un MIDI multi-pistes (voir l'en-tête). Lève `ValueError` sans aucune note.
+
+    `marks` : écrire les REPÈRES de la partition (`score_timing`) — l'instant d'AUDIO de chaque
+    mesure. Vrai pour un MIDI tiré d'un audio (un moteur `audio-to-midi`) ; faux pour un MIDI
+    FOURNI (`score_source.abc_view`) : son temps ne renvoie à aucun audio.
 
     DEUX GRILLES (2026-10-16, mesuré sur cinq rendus YuE2) :
       • le MIDI porte une MÉTRIQUE (le moteur a trouvé un tempo constant et ses temps forts, #754) :
@@ -609,4 +613,4 @@ def midi_to_abc(midi_bytes: bytes, *, title: str = '', grid: int = 4, bars_per_l
         tempi.append(current)
     written = written_bar_ms(numerator * 4 / denominator, tempi)
     pairs = [(written[b], audio_of(b * bar_steps - shift)) for b in range(bars + 1)]
-    return with_sync('\n'.join(head + body) + '\n', pairs)
+    return with_sync('\n'.join(head + body) + '\n', pairs if marks else [])

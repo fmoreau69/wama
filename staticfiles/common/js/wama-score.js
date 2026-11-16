@@ -164,6 +164,22 @@
         return [[firstMs, firstS], [firstMs + 1000, firstS + 1]];
     }
 
+    /** Le CALAGE à appliquer selon ce qu'on écoute — la règle de la brique partition ET de la
+     *  visionneuse (2026-11-15) : `{pairs, how, midi}`. Les REPÈRES (`marks`) valent sur l'audio
+     *  dont la partition est tirée (`listened === follows`) et sur sa propre lecture MIDI
+     *  (`ownMidi`) ; les notes extrêmes calées sur les attaques (`anchors`) valent sur l'audio dont
+     *  ces attaques sont lues (`listened === anchorsOf`) ; sur tout autre audio, rien : le tempo
+     *  écrit. `midi` : ce que la lecture MIDI suit — les repères, sinon les attaques. */
+    function timingFor(o) {
+        o = o || {};
+        var midi = o.marks || o.anchors || null;
+        var how = function (pairs) { return !pairs ? '' : (pairs === o.marks ? 'marks' : 'anchors'); };
+        if (o.ownMidi) return { pairs: midi, how: how(midi), midi: midi };
+        if (o.marks && o.listened === o.follows) return { pairs: o.marks, how: 'marks', midi: midi };
+        if (o.anchors && o.listened === o.anchorsOf) return { pairs: o.anchors, how: 'anchors', midi: midi };
+        return { pairs: null, how: '', midi: midi };
+    }
+
     /** Le temps d'une partition calée par ses repères : `toAudio(ms écrit) → s`, `toScore(s) → ms
      *  écrit`, au prorata entre deux repères, prolongés au-delà par la pente du repère extrême. */
     function timeMap(pairs) {
@@ -600,7 +616,7 @@
         degree: degree, pitchText: pitchText, transposeToken: transposeToken,
         transposeAt: transposeAt, voiceOf: voiceOf, timeline: timeline,
         playingAt: playingAt, eventTime: eventTime,
-        syncOf: syncOf, anchorPairs: anchorPairs, timeMap: timeMap,
+        syncOf: syncOf, anchorPairs: anchorPairs, timeMap: timeMap, timingFor: timingFor,
         barAt: barAt, parseBar: parseBar, retime: retime, unitAt: unitAt,
         tracksOf: tracksOf, trackOnly: trackOnly, mergeTrack: mergeTrack,
         vocalVoice: vocalVoice, withLyrics: withLyrics, sourceAt: sourceAt, shownAt: shownAt,

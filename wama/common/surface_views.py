@@ -179,6 +179,9 @@ def surface_page(request, app: str, key: str, pk: int):
             'pk': pk,
             'title': f"{found.label} — #{pk}",
             'data_url': base + 'data/',
+            # Le champ à éditer d'emblée (`?field=`, un `also_edits` : la visionneuse ouvre la page
+            # sur la partition qu'elle montre, 2026-11-15) — validé par la surface, sinon le principal.
+            'field': _requested_field(found, item, request.GET.get('field') or ''),
             'save_url': base + 'save/',
             'run_url': _url(f'{app}:start_process', pk, found.reruns) if found.reruns else '',
             'revisions_url': base + 'revisions/',
@@ -202,6 +205,17 @@ def surface_page(request, app: str, key: str, pk: int):
         'scripts': [s for s in found.scripts() if s not in page_scripts()],
         'styles': found.styles(),
     })
+
+
+def _requested_field(found, item, requested: str) -> str:
+    """Le champ demandé par l'adresse s'il est l'un des `also_edits` de la surface, '' sinon —
+    jamais un champ que la page nommerait (`Surface.target`)."""
+    if not requested:
+        return ''
+    try:
+        return found.target(item, requested)
+    except ValueError:
+        return ''
 
 
 def _sound_banks() -> dict:

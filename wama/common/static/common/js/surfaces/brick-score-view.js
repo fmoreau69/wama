@@ -58,7 +58,6 @@
     'use strict';
 
     var RENDER_DELAY_MS = 250;
-    var PLAYING = 'wama-score-playing';
     /** Le PAS des gestes rythmiques (2026-10-22, Fabien : « forcer une rythmique précise ») : le
      *  dénominateur de la figure (4 = la noire) ; '' = automatique, le défaut. */
     var STEPS = [['', 'Pas : auto'], ['1', 'Pas : ronde'], ['2', 'Pas : blanche'], ['4', 'Pas : noire'],
@@ -137,11 +136,12 @@
             on: 'Suivi de lecture ACTIVÉ — la partition suit la note jouée, même en édition (Alt+L)',
             off: 'Suivre la lecture, même avec une note choisie (Alt+L)' });
         follow.button.dataset.score = 'follow';
+        var lights = global.WamaScorePlayer.lighter(body, function () { return follow.locked() || !selection; });
         tools.appendChild(follow.button);
         // Les outils vivent dans la poignée de la brique : un clic ne doit pas la déplacer.
         tools.addEventListener('mousedown', function (e) { e.stopPropagation(); });
 
-        var timings = [], tl = null, lit = [], rendered = null, pending = null, tune = null;
+        var timings = [], tl = null, rendered = null, pending = null, tune = null;
         /** `grid` : les attaques de l'audio (null : demandées, false : aucune) ; `span` : la 1re et la
          *  dernière note écrites (ms) ; `timing` : le temps calé (`WamaScore.timeMap`), ou null. */
         var grid = null, span = null, timing = null, timingPairs = null, midiPairs = null;
@@ -410,12 +410,14 @@
         function realign() {
             var marks = Score.syncOf(wholeText());
             var anchors = (grid && span) ? Score.anchorPairs(span[0], span[1], grid.first_onset, grid.last_onset) : null;
-            midiPairs = marks || anchors;
-            var key = listened(), how = '';
-            if (ownMidi(key)) { timingPairs = midiPairs; how = marks ? 'marks' : (anchors ? 'anchors' : ''); }
-            else if (marks && key === follows()) { timingPairs = marks; how = 'marks'; }
-            else if (key === '' && anchors) { timingPairs = anchors; how = 'anchors'; }
-            else timingPairs = null;
+            var key = listened();
+            // La règle commune (celle de la visionneuse aussi) : les attaques sont lues sur
+            // l'audio du rôle (`''`, la grille de `data/?only=rhythm`).
+            var chosen = Score.timingFor({ marks: marks, anchors: anchors, listened: key,
+                                           follows: follows(), anchorsOf: '', ownMidi: ownMidi(key) });
+            timingPairs = chosen.pairs;
+            midiPairs = chosen.midi;
+            var how = chosen.how;
             timing = Score.timeMap(timingPairs);
             sync.disabled = !timing;
             if (timing && span) {
@@ -447,7 +449,7 @@
             syncMidi();
             inserts = placed.inserts;
             var top = body.scrollTop;
-            lit = [];
+            lights.reset();
             timings = [];
             span = null;
             tl = null;
@@ -458,30 +460,16 @@
                 realign();
                 return;
             }
-            tune = ABCJS.renderAbc(paper, abc, {
-                add_classes: true, responsive: 'resize', selectTypes: ['note'],
-                dragging: editable(), clickListener: onNote,
-            })[0];
+            // La gravure, son temps et ses notes : le module commun (`WamaScorePlayer`), celui de la
+            // visionneuse aussi.
+            var engraved = global.WamaScorePlayer.engrave(paper, abc,
+                { dragging: editable(), clickListener: onNote });
+            tune = engraved.tune;
+            timings = engraved.timings;
+            tl = engraved.tl;
+            span = engraved.span;
             highlight();
-            // La séquence audio d'abcjs donne aux notes leurs hauteurs MIDI — de quoi distinguer une
-            // note d'un silence (la 1re et la dernière NOTE). Aucun son n'est produit.
-            try { tune.setUpAudio({}); } catch (e) { /* hauteurs absentes */ }
-            try { timings = new ABCJS.TimingCallbacks(tune, {}).noteTimings || []; } catch (e) { timings = []; }
-            var events = [], endMs = 0;
-            timings.forEach(function (ev) {
-                endMs = Math.max(endMs, ev.milliseconds);
-                if (ev.type !== 'event') return;
-                if ((ev.midiPitches || []).length) {
-                    span = span ? [span[0], ev.milliseconds] : [ev.milliseconds, ev.milliseconds];
-                }
-                events.push({ ms: ev.milliseconds, sets: (ev.elements || []).map(function (els, i) {
-                    var first = els && els[0];
-                    var cls = first && first.getAttribute ? first.getAttribute('class') : '';
-                    return { voice: /abcjs-v\d/.test(cls || '') ? Score.voiceOf(cls) : i, ref: els || [] };
-                }) });
-            });
-            tl = Score.timeline(events, endMs);
-            var warnings = (tune && tune.warnings) || [];
+            var warnings = engraved.warnings;
             warn.classList.toggle('d-none', !warnings.length);
             warn.textContent = warnings.length + ' avert.';
             warn.title = warnings.map(function (w) { return String(w).replace(/<[^>]*>/g, ''); }).join('\n');
@@ -504,24 +492,16 @@
             pending = setTimeout(render, RENDER_DELAY_MS);
         }
 
-        function paint(seconds, following) {
-            var now = tl ? Score.playingAt(tl, scoreMs(seconds)) : [];
-            var keep = new Set(now);
-            lit.forEach(function (els) {
-                if (!keep.has(els)) els.forEach(function (el) { el.classList && el.classList.remove(PLAYING); });
-            });
-            now.forEach(function (els) { els.forEach(function (el) { el.classList && el.classList.add(PLAYING); }); });
-            var changed = now.length !== lit.length || now.some(function (els, i) { return els !== lit[i]; });
-            lit = now;
-            if (following && changed && now.length && now[0][0]
-                && (follow.locked() || !selection)) {
-                global.WamaFollow.into(body, now[0][0]);
-            }
-        }
+        /** Les notes jouées (le module commun) : le défilement suit, sauf quand une note est CHOISIE
+         *  pour l'éditer — à moins que le verrou « suivre la lecture » soit mis. */
+        function paint(seconds, following) { lights.paint(tl, scoreMs(seconds), following); }
         // ⚠ La brique ne faisait défiler QU'ELLE-MÊME (`body.scrollTop`, « jamais la page ») : sous un
         // transport épinglé, la partition est assez haute pour tout contenir et c'est la PAGE qui
         // défile — rien ne bougeait (#1516). `WamaFollow.into` défile le cadre ou la page.
-        follow.onLock = function () { if (lit.length && lit[0][0]) global.WamaFollow.into(body, lit[0][0]); };
+        follow.onLock = function () {
+            var lit = lights.lit();
+            if (lit.length && lit[0][0]) global.WamaFollow.into(body, lit[0][0]);
+        };
 
         function onNote(abcelem, tuneNumber, classes, analysis, drag) {
             if (!abcelem || abcelem.startChar == null) return;

@@ -539,13 +539,25 @@
             on('layout', controls.layoutChanged);
         }
 
-        /** Monte une brique dans le cadre que la disposition lui a posé (ses outils dans le titre). */
+        /** Monte une brique dans le cadre que la disposition lui a posé (ses outils dans le titre).
+         *  Une brique qui LÈVE à son montage le dit dans son cadre et dans la console, et
+         *  n'emporte pas les autres (2026-11-16) : elle arrêtait la mise en page, et l'erreur ne
+         *  s'écrivait que dans la barre d'état — la partition du composer sans transport, « aucune
+         *  erreur » (un script de brique plus récent que la liste servie par le service). */
         function mountBrick(rec) {
             var def = rec.def;
             if (!def.mount) {
                 rec.body.textContent = 'Brique « ' + rec.slot.brick + ' » non chargée.';
+                rec.brick = {};
             } else {
-                rec.brick = def.mount(rec.body, ctx, rec.slot.options || {}) || {};
+                try {
+                    rec.brick = def.mount(rec.body, ctx, rec.slot.options || {}) || {};
+                } catch (e) {
+                    console.error('[surface] brique « ' + rec.slot.brick + ' » non montée', e);
+                    rec.body.textContent = 'Brique « ' + rec.slot.brick + ' » indisponible : ' +
+                        ((e && e.message) || e);
+                    rec.brick = {};
+                }
                 if (rec.brick.tools) {
                     rec.head.appendChild(rec.brick.tools);
                     rec.head.classList.add('has-tools');
@@ -580,7 +592,10 @@
         }
 
         status('Chargement…', 'busy');
-        fetch(config.data_url, { credentials: 'same-origin' }).then(readAnswer)
+        // Le champ demandé par l'adresse (`config.field`, un `also_edits` validé par le serveur —
+        // la visionneuse ouvre la page sur la partition qu'elle montre, 2026-11-15).
+        fetch(config.data_url + (config.field ? '?field=' + encodeURIComponent(config.field) : ''),
+              { credentials: 'same-origin' }).then(readAnswer)
             .then(function (data) {
                 if (data.error) throw new Error(data.error);
                 state.reads = data.reads || {};

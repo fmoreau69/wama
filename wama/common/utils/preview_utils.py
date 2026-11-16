@@ -705,8 +705,111 @@ def _process_face(app_name, pipeline, spec, instance, request, input_data):
             continue
         if data_type in OVERLAY_TYPES:
             return _overlay_face(app_name, instance, request, input_data, url, data_type, label)
-        return _media_face(url, request)
+        # Le CHAMP qui porte la face (2026-11-15) : la page qui l'édite s'ouvre sur lui
+        # (`_score_face`, bouton « Éditer » de la visionneuse).
+        return {**_media_face(url, request), 'field': field}
     return None
+
+
+#: Les briques dont la face « Partition » de la visionneuse lit les scripts (2026-11-15) : la
+#: gravure et sa lecture MIDI (`score_view`), le transport commun (`media_transport`) — leurs
+#: `requires` DÉCLARÉS, jamais une liste recopiée ; ceux de la page de base en sont retirés.
+SCORE_FACE_BRICKS = ('score_view', 'media_transport')
+
+
+def _score_face(app_name, instance, side, data, input_data, output_data):
+    """Une face qui MONTRE une PARTITION (2026-11-15, demande de Fabien : la lire dans la visionneuse
+    comme dans la page d'édition — la gravure, les notes jouées, l'audio ou le MIDI sans coupure) :
+    `data['score'] = {abc, audios, follows, edit_url, scripts, sound_banks}`. Inchangée pour tout
+    autre fichier, et quand la partition ne se lit pas.
+
+      • `abc` : son texte (la VUE ABC d'un MIDI ou d'un MusicXML, `score_source.abc_view`) ;
+      • `audios` : les audios de l'élément entre lesquels l'écouter (Entrée, Sortie) ; `follows` :
+        celui dont elle est TIRÉE — un process sans amont lit l'entrée, un process en aval d'un
+        autre lit la sortie (le pipeline le déclare, `ProcessSpec.depends_on`) ; ses repères
+        (`score_timing`) ne valent que sur lui ;
+      • `edit_url` : la page de l'app qui édite ce champ (`Surface.fields` / `also_edits`) quand elle
+        s'ouvre sur l'élément (`can_open`) ;
+      • `scripts`, `sound_banks` : ce que la face charge à la demande, la lecture MIDI commune."""
+    from wama.common.app_registry import category_of_path
+    path = _local_media_path(data.get('url') or '')
+    if not path or category_of_path(path) != 'score':
+        return data
+    from wama.common.utils.score_source import abc_view, shown_as_abc
+    try:
+        if shown_as_abc(path):
+            abc = abc_view(path)
+        else:
+            with open(path, encoding='utf-8') as handle:
+                abc = handle.read()
+    except (OSError, ValueError, UnicodeDecodeError) as error:
+        logger.info("[preview] partition de %s/%s illisible : %s", app_name, instance.pk, error)
+        return data
+
+    def audio(face, key, label):
+        if face and str(face.get('mime_type') or '').startswith('audio/') and face.get('url'):
+            return {'key': key, 'label': label, 'url': face['url']}
+        return None
+    audios = [a for a in (audio(input_data, 'input', INPUT_FACE), audio(output_data, 'output', 'Sortie')) if a]
+    follows = ''
+    if side not in ('input', 'output'):
+        from wama.common.services.process_pipeline import pipeline_of
+        pipeline = pipeline_of(instance)
+        spec = pipeline.spec(side) if pipeline is not None else None
+        if spec is not None:
+            follows = 'output' if spec.depends_on else 'input'
+    elif side == 'output':
+        follows = 'input'
+    if follows not in [a['key'] for a in audios]:
+        follows = ''
+    return {**data, 'score': {'abc': abc, 'audios': audios, 'follows': follows,
+                              'edit_url': _score_edit_url(app_name, instance, data.get('field')),
+                              'scripts': _score_face_scripts(),
+                              'styles': _score_face_styles(),
+                              'sound_banks': _score_sound_banks()}}
+
+
+def _score_edit_url(app_name, instance, field) -> str:
+    """La page d'édition de l'app qui écrit le champ `field`, ouverte sur lui ; '' sinon."""
+    if not field:
+        return ''
+    from django.urls import reverse
+    from wama.common.surfaces import surfaces_of
+    for found in surfaces_of(app_name):
+        if field not in tuple(found.fields) + tuple(found.also_edits):
+            continue
+        ok, _reason = found.can_open(instance)
+        if not ok:
+            continue
+        url = reverse('common:surface', args=[app_name, found.key, instance.pk])
+        return url + (f'?field={field}' if field in found.also_edits else '')
+    return ''
+
+
+def _score_face_scripts() -> list:
+    from wama.common.surface_views import page_scripts
+    from wama.common.surfaces import BRICKS
+    from wama.common.templatetags.wama_static import static_v
+    loaded, out = page_scripts(), []
+    for key in SCORE_FACE_BRICKS:
+        for path in BRICKS[key].requires:
+            if path not in loaded and static_v(path) not in out:
+                out.append(static_v(path))
+    return out
+
+
+def _score_face_styles() -> list:
+    """Les feuilles de la page des surfaces (`SURFACE_STYLESHEET` : le transport n'en déclare pas)
+    et celles que déclarent les briques."""
+    from wama.common.surfaces import BRICKS, SURFACE_STYLESHEET
+    from wama.common.templatetags.wama_static import static_v
+    paths = [SURFACE_STYLESHEET] + [p for key in SCORE_FACE_BRICKS for p in BRICKS[key].styles()]
+    return [static_v(p) for p in dict.fromkeys(paths)]
+
+
+def _score_sound_banks() -> dict:
+    from wama.common.utils.sound_banks import page_banks
+    return page_banks()
 
 
 def _process_faces(app_name, instance, request, input_data, output_data) -> dict:
@@ -896,6 +999,13 @@ def unified_preview(request, app_name: str, pk: int):
             data['side'] = 'output'
         else:
             data = {'error': "Aucun aperçu disponible pour cet élément", 'side': side}
+        # Une PARTITION se grave et se joue dans la visionneuse (2026-11-15) ; une face qui casse
+        # n'emporte pas l'aperçu.
+        try:
+            data = _score_face(app_name, instance, data.get('side'), data,
+                               preview_data if has_input else None, output_data)
+        except Exception as exc:
+            logger.warning(f"Preview {app_name}/{pk} : partition indisponible : {exc}")
         _add_server_peaks(data)
         with_playback_copy(data, request)
         data['sides'] = sides

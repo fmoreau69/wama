@@ -1134,6 +1134,30 @@ class ScoreRulesTest(SimpleTestCase):
         self.assertAlmostEqual(25.5, out['one'], places=6, msg='one note : the first, at the written tempo')
         self.assertIsNone(out['none'], 'no attack in the audio : nothing to set it on')
 
+    def test_what_is_listened_decides_the_timing_in_the_page_and_in_the_viewer(self):
+        """The ONE rule of the score brick and of the viewer's score face (2026-11-15) : the marks
+        on the audio the score is taken from and on its own MIDI reading ; the attacks on the audio
+        they were read on ; the written tempo anywhere else. The MIDI follows the marks, or the
+        attacks."""
+        out = json.loads(self.engine.eval('''(function(){
+            var S = window.WamaScore, m = [[0, 1], [10, 2]], a = [[0, 5], [10, 6]];
+            function t(o) { var r = S.timingFor(o); return [r.how, r.pairs === m ? 'm' : r.pairs === a ? 'a' : null,
+                                                           r.midi === m ? 'm' : r.midi === a ? 'a' : null]; }
+            return JSON.stringify({
+                source: t({marks: m, anchors: a, listened: 'input', follows: 'input', anchorsOf: ''}),
+                other: t({marks: m, anchors: a, listened: 'output', follows: 'input', anchorsOf: ''}),
+                own: t({marks: m, anchors: a, listened: '', follows: 'input', anchorsOf: ''}),
+                midi: t({marks: m, anchors: a, listened: 'midi:x', follows: 'input', ownMidi: true}),
+                supplied: t({marks: null, anchors: a, listened: 'midi:x', ownMidi: true}),
+                nothing: t({marks: null, anchors: null, listened: 'input', follows: 'input'})});
+        })()'''))
+        self.assertEqual(['marks', 'm', 'm'], out['source'])
+        self.assertEqual(['', None, 'm'], out['other'], 'another audio : the written tempo')
+        self.assertEqual(['anchors', 'a', 'm'], out['own'], 'the audio the attacks were read on')
+        self.assertEqual(['marks', 'm', 'm'], out['midi'], 'its MIDI follows its marks')
+        self.assertEqual(['anchors', 'a', 'a'], out['supplied'])
+        self.assertEqual(['', None, None], out['nothing'])
+
     def test_a_clicked_note_gives_its_time_and_its_voice(self):
         timings = json.dumps([{'type': 'bar', 'milliseconds': 0},
                               {'type': 'event', 'milliseconds': 750, 'startCharArray': [12, 40]}])
@@ -2528,6 +2552,19 @@ class ComposerScoreSurfaceTest(TestCase):
     def _save(self, value, base=None):
         body = {'value': value, **({'base': base} if base else {})}
         return self.client.post(self.base + 'save/', json.dumps(body), content_type='application/json')
+
+    def test_the_page_opens_on_the_score_the_viewer_asks_for_and_on_no_other(self):
+        """2026-11-15 : « Éditer » of the viewer's score face opens the page on THAT score
+        (`?field=`, one of the `also_edits`) ; a field the surface does not edit is ignored."""
+        from wama.common.surface_views import _requested_field
+        from wama.common.surfaces import surface
+        score = surface('composer', 'score')
+        self.assertEqual('parts_score', _requested_field(score, self.gen, 'parts_score'))
+        self.assertEqual('', _requested_field(score, self.gen, 'audio_output'))
+        self.assertEqual('', _requested_field(score, self.gen, ''))
+        page = self.client.get(self.base + '?field=parts_score')
+        self.assertEqual(200, page.status_code)
+        self.assertEqual('parts_score', page.context['config']['field'])
 
     def test_the_page_composes_the_score_the_transport_and_the_versions(self):
         from wama.common.surfaces import surface

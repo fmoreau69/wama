@@ -36,7 +36,8 @@ def abc_view(path, title: str = '') -> str:
     title = title or path.stem
     try:
         if path.suffix.lower() in _MIDI_SUFFIXES:
-            return midi_to_abc(path.read_bytes(), title=title)
+            # Un fichier FOURNI : son temps ne renvoie à aucun audio, pas de repères (`score_timing`).
+            return midi_to_abc(path.read_bytes(), title=title, marks=False)
         text = read_musicxml(path)
         return musicxml_to_abc(text, title=work_title(text) or title)
     except Exception as error:

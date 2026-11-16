@@ -1725,6 +1725,7 @@
     function viewerKind(data) {
         const mime = String((data && data.mime_type) || '').toLowerCase();
         if (data && data.side === 'compare') return 'media';
+        if (data && data.score) return 'media';           // une partition gravée prend la largeur
         if (mime.indexOf('audio/') === 0) return 'audio';
         if (/^(image|video|model)\//.test(mime) || mime === 'application/pdf' || mime.indexOf('text/html') === 0) return 'media';
         if (mime.indexOf('text/') === 0 || (data && typeof data.content === 'string')) return 'text';
@@ -1800,10 +1801,16 @@
     }
 
     function _goSide(base, sides, side) {
-        _modalClock = takeClock(_modalContainer(), base, _modalClock);
+        const container = _modalContainer();
+        _modalClock = takeClock(container, base, _modalClock);
+        // Ce qu'on ÉCOUTAIT (2026-11-15) : la face audio quittée, ou la version écoutée d'une face
+        // partition — la face suivante, une partition, continue sur le même audio.
+        const scoreFace = container && container.querySelector('.wama-score-face');
+        const from = scoreFace ? scoreFace.dataset.listened : (currentPreviewData && currentPreviewData.side);
         _json(faceUrl(base, side)).then(function (nd) {
             if (!nd) return;
             nd._baseUrl = base;
+            nd._fromSide = from || '';
             nd.sides = nd.sides || sides;
             // De Comparer (ou de la Sortie) vers la Sortie : le MÊME fichier ; ailleurs, le premier.
             if (side !== 'output') _sub = 0;
@@ -1953,12 +1960,170 @@
         return pane;
     }
 
+    // ── La face PARTITION (2026-11-15, demande de Fabien : « on lance la lecture, on bascule sur la
+    // partition, la lecture se poursuit sans s'arrêter, montrant le défilement de la partition avec
+    // les notes jouées comme dans la page d'édition ») ─────────────────────────────────────────────
+    // Ce que le serveur dit d'une partition (`preview_utils._score_face`) : son texte, les audios de
+    // l'élément et celui dont elle est TIRÉE (`follows`), la page qui l'édite, les scripts à charger.
+    // La gravure et ses notes jouées sont celles de la page d'édition (`WamaScorePlayer`), le calage
+    // sa règle (`WamaScore.timingFor`), la lecture MIDI la sienne (`WamaMidiPlayer`), le transport
+    // le commun (`WamaTransport`) — sur l'axe de la face, qui reçoit le temps de la face d'avant.
+
+    /** Les scripts de la face, un à un (abcjs d'abord) ; un script que la page a déjà ne se recharge
+     *  pas (la page d'édition elle-même a ceux de ses briques). */
+    function _scoreScripts(list) {
+        return (list || []).reduce(function (ready, src) {
+            const bare = String(src).split('?')[0];
+            if (document.querySelector('script[src^="' + bare + '"]')) return ready;
+            return ready.then(function () { return window.WamaApp.loadScript(src); });
+        }, Promise.resolve());
+    }
+
+    function _scoreFace(data) {
+        const sc = data.score;
+        const face = document.createElement('div');
+        face.className = 'wama-score-face';
+        const tools = document.createElement('div');
+        tools.className = 'wama-score-face-tools';
+        const transportHost = document.createElement('div');
+        const stage = document.createElement('div');
+        stage.className = 'wama-score-face-stage';
+        const paper = document.createElement('div');
+        paper.className = 'wama-score-paper';
+        paper.textContent = 'Chargement de la partition…';
+        stage.appendChild(paper);
+        const source = document.createElement('pre');
+        source.className = 'wama-text-body is-plain is-code wama-score-face-source';
+        source.textContent = sc.abc;
+        source.hidden = true;
+        // Le SUIVEUR de la face : un seul lecteur, dont on change la version écoutée sans arrêter
+        // l'axe (`attach`, son décalage `start` pour une lecture MIDI calée sur les repères).
+        const audio = document.createElement('audio');
+        audio.preload = 'auto';
+        audio.hidden = true;
+        face.append(tools, transportHost, stage, source, audio);
+        const axis = playOnAxis(face, []);
+        let drop = null;
+        function listen(url, start) {
+            if (drop) { drop(); drop = null; }
+            if (!url) { audio.removeAttribute('src'); return; }
+            if (audio.getAttribute('src') !== url) audio.setAttribute('src', url);
+            if (axis) {
+                drop = axis.attach(audio, { offset: -(Number(start) || 0) });
+                axis.seek(axis.time());
+            }
+        }
+
+        // Ce qu'on écoute : les audios de l'élément, puis les lectures MIDI (posées une fois le
+        // moteur chargé). D'office : l'audio de la face d'où l'on vient, sinon celui dont la
+        // partition est tirée, sinon le premier.
+        const audios = (sc.audios || []).map(function (a) {
+            return { key: a.key, label: 'Audio — ' + a.label, url: a.url };
+        });
+        const pick = document.createElement('select');
+        pick.className = 'form-select form-select-sm w-auto';
+        pick.setAttribute('aria-label', 'Écouter');
+        pick.title = 'Écouter : un audio de l’élément ou la lecture MIDI de la partition';
+        const keys = audios.map(function (a) { return a.key; });
+        let listened = keys.indexOf(data._fromSide) >= 0 ? data._fromSide
+            : (keys.indexOf(sc.follows) >= 0 ? sc.follows : (keys[0] || ''));
+        face.dataset.listened = listened;
+        const first = audios.filter(function (a) { return a.key === listened; })[0];
+        if (first) listen(first.url, 0);
+
+        const sourceBtn = document.createElement('button');
+        sourceBtn.type = 'button';
+        sourceBtn.className = 'btn btn-sm btn-outline-secondary';
+        sourceBtn.innerHTML = '<i class="fas fa-code" aria-hidden="true"></i> Source ABC';
+        sourceBtn.setAttribute('aria-pressed', 'false');
+        sourceBtn.addEventListener('click', function () {
+            const showing = source.hidden;
+            source.hidden = !showing;
+            stage.hidden = showing;
+            sourceBtn.setAttribute('aria-pressed', String(showing));
+            sourceBtn.classList.toggle('active', showing);
+        });
+        const status = document.createElement('span');
+        status.className = 'small text-body-secondary';
+        tools.append(pick, sourceBtn);
+        if (sc.edit_url) {
+            const edit = document.createElement('a');
+            edit.className = 'btn btn-sm btn-outline-primary';
+            edit.href = sc.edit_url;
+            edit.innerHTML = '<i class="fas fa-pen" aria-hidden="true"></i> Éditer';
+            edit.title = 'Ouvrir la page d’édition de la partition';
+            tools.appendChild(edit);
+        }
+        tools.appendChild(status);
+
+        // Les feuilles des briques montées (le transport) : celles de la page des surfaces.
+        (sc.styles || []).forEach(function (href) { window.WamaApp.loadStyle(href); });
+        _scoreScripts(sc.scripts).then(function () {
+            const Score = window.WamaScore, Player = window.WamaScorePlayer, Midi = window.WamaMidiPlayer;
+            if (!face.isConnected && !document.body.contains(face)) return;     // face déjà remplacée
+            paper.textContent = '';
+            const engraved = Player.engrave(paper, sc.abc, {});
+            const lights = Player.lighter(stage, function () { return true; });
+            const marks = Score.syncOf(sc.abc);
+            let timing = null, midiPairs = null;
+            function realign() {
+                const chosen = Score.timingFor({ marks: marks, anchors: null, listened: listened,
+                                                 follows: sc.follows, anchorsOf: null,
+                                                 ownMidi: listened.indexOf('midi:') === 0 });
+                timing = Score.timeMap(chosen.pairs);
+                midiPairs = chosen.midi;
+                status.textContent = chosen.how === 'marks' ? 'Calée sur ses repères' : 'Tempo écrit';
+            }
+            function paint(seconds, following) {
+                lights.paint(engraved.tl, timing ? timing.toScore(seconds) : seconds * 1000, following);
+            }
+            realign();
+            // Les lectures MIDI : celles qui savent suivre les repères quand la partition en porte.
+            const midi = (Midi && Midi.choices(sc.sound_banks) || []).filter(function (c) {
+                return !midiPairs || Midi.syncable(c.key);
+            }).map(function (c) { return { key: 'midi:' + c.key, label: c.label, bank: c.key }; });
+            audios.concat(midi).forEach(function (c) {
+                const option = document.createElement('option');
+                option.value = c.key;
+                option.textContent = c.label;
+                pick.appendChild(option);
+            });
+            if (!listened && midi.length) listened = midi[0].key;
+            pick.value = listened;
+            function choose(key) {
+                listened = key;
+                face.dataset.listened = key;
+                realign();
+                const a = audios.filter(function (x) { return x.key === key; })[0];
+                if (a) { listen(a.url, 0); paint(axis.time(), false); return; }
+                const c = midi.filter(function (x) { return x.key === key; })[0];
+                if (!c) return;
+                status.textContent = 'Rendu de « ' + c.label + ' »…';
+                Midi.render(sc.abc, c.bank, sc.sound_banks, midiPairs).then(function (got) {
+                    if (listened !== key) return;                    // un autre choix entre-temps
+                    listen(got.url, got.start);
+                    status.textContent = got.from ? 'Lecture : ' + got.from : '';
+                }).catch(function (e) { status.textContent = 'Rendu impossible : ' + e.message; });
+            }
+            pick.addEventListener('change', function () { choose(pick.value); });
+            if (listened.indexOf('midi:') === 0) choose(listened);
+            if (window.WamaTransport && axis) window.WamaTransport.mount(transportHost, { axis: axis, options: {} });
+            if (axis) axis.subscribe(function (snap) { paint(snap.time, snap.playing || snap.reason === 'seek'); });
+            paint(axis ? axis.time() : 0, false);
+        }).catch(function (e) {
+            paper.textContent = 'Partition non gravée : ' + (e && e.message || e);
+        });
+        return face;
+    }
+
     /**
      * Build the preview content element based on MIME type.
      */
     function buildPreviewContent(data) {
         const mimeType = data.mime_type || '';
 
+        // Une PARTITION se grave et se joue (2026-11-15), quel que soit son type de fichier.
+        if (data.score && typeof data.score.abc === 'string') return _scoreFace(data);
         if (mimeType.startsWith('video/')) {
             // Taille : la place que laisse l'écran (`--wv-stage`, media-preview.css), proportions
             // gardées — plus de hauteur figée en ligne (70vh débordait sur un écran bas).
