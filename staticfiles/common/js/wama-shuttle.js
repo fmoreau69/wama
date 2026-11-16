@@ -23,7 +23,8 @@
     'use strict';
 
     // Le même maximum dans les deux sens (décision de Fabien, 2026-11-16 : ×32, pour parcourir
-    // vite un long fichier) — celui du curseur de vitesse du transport (`WamaTransport.MAX_RATE`).
+    // vite un long fichier). Le curseur de vitesse du transport LIT son maximum ici
+    // (`WamaTransport.MAX_RATE`) : la vitesse la plus haute ne se déclare qu'à cet endroit.
     var DEFAULT_LEVELS = [-32, -16, -8, -4, -2, -1.75, -1.5, -1.25, -1,
                           0, 1, 1.25, 1.5, 1.75, 2, 4, 8, 16, 32];
 

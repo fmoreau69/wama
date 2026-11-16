@@ -45,7 +45,11 @@
     // La vitesse CONTINUE (`speed: 'slider'`) : un curseur logarithmique SIGNÉ, de −MAX_RATE à
     // +MAX_RATE — le même maximum dans les deux sens (décision de Fabien, 2026-11-16), celui des
     // crans du shuttle. Au milieu, la plus lente (±MIN_RATE) ; à droite l'avant, à gauche l'arrière.
-    var MIN_RATE = 0.25, MAX_RATE = 32, SLIDER_SPAN = 100;
+    // Le maximum se LIT aux crans du shuttle (`WamaShuttle.DEFAULT_LEVELS`, requis par la brique) :
+    // une seule déclaration de la vitesse la plus haute ; sans shuttle, celui de la liste.
+    var MIN_RATE = 0.25, SLIDER_SPAN = 100;
+    var MAX_RATE = global.WamaShuttle ? Math.max.apply(null, global.WamaShuttle.DEFAULT_LEVELS)
+                                      : RATES[RATES.length - 1];
 
     /** Position du curseur (−SPAN…SPAN) → vitesse signée, arrondie à une valeur lisible. */
     function rateAt(p) {

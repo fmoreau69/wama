@@ -1680,6 +1680,8 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       on s'était arrêté — décision du même jour) : premier consommateur d'une option de la
       marche ②. Gardes : `AxisTest` (bornes égales des deux côtés et égales à celles du
       shuttle), `tests_editor_axis`. ⚠ Rien de cela n'est joué au navigateur.
+      Revérifié le jour même : le maximum était écrit deux fois (transport et shuttle) — le
+      transport le LIT désormais aux crans du shuttle (`WamaShuttle.DEFAULT_LEVELS`).
       ⏳ Reste de la marche ② : la lecture arrière image par image ; la bande fine existe en
       option mais l'aperçu ne la monte pas encore (marche ③).
   - ✅ **2026-10-21 — LE VOLET DEVIENT UNE ZONE DE BRIQUES, étape 1 : les surfaces** (décision de

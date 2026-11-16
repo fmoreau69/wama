@@ -471,6 +471,29 @@ class RegistriesAccessTests(TestCase):
         self.assertEqual(200, self.client.get(bricks).status_code)
         self.assertNotEqual(200, self.client.get(other).status_code)
 
+    def test_an_ordinary_account_opens_the_edit_page_of_every_surface(self):
+        """2026-11-16 (Fabien : « les utilisateurs simples doivent pouvoir accéder aux pages
+        d'édition »). An edit page is a page of `/common/surface/…` : the policy of the Registries,
+        even kept to one role, never closes it — what an account may open there is decided by
+        what it may READ (`surface_views._readable_or_404`), not by a page right."""
+        from wama.accounts.models import AppAccessPolicy
+        from wama.accounts.permissions import refused_app
+        from wama.common.surfaces import SURFACES, load_all
+        load_all()
+        policy, _ = AppAccessPolicy.objects.get_or_create(app_id='registries')
+        policy.roles.add(Group.objects.get_or_create(name=GROUP_PREFIX + 'ingenierie')[0])
+        account = self._account('plain_editor', 'utilisateur')
+        self.assertTrue(SURFACES)
+        closed = [s.id for s in SURFACES.values()
+                  if refused_app(account, reverse('common:surface', args=[s.app, s.key, 1]))]
+        self.assertEqual([], closed)
+        # Past the gate, the view answers by the element : unknown here, so 404 — never a
+        # redirection home.
+        self.client.force_login(account)
+        first = next(iter(SURFACES.values()))
+        self.assertEqual(404, self.client.get(
+            reverse('common:surface', args=[first.app, first.key, 987654321])).status_code)
+
     def test_the_registries_are_a_gated_column_of_the_transversal_world(self):
         from wama.accounts.permissions import access_cases, app_id_for_path
         columns = {a['id']: a for a in access_cases()['apps']}
