@@ -43,10 +43,10 @@
       },
       "quantization": "Q4_K_M",
       "vram_measured": {
-        "at": "2026-11-10T00:45:56+00:00",
-        "last_gb": 4.43,
+        "at": "2026-11-15T12:00:16+00:00",
+        "last_gb": 3.3,
         "max_gb": 4.43,
-        "n": 40
+        "n": 53
       },
       "vram_provenance": "heuristic"
     },
@@ -55,9 +55,9 @@
       "format": "gguf"
     },
     "identity": {
-      "author": null,
+      "author": "Qwen",
       "description_short": "A 4B-parameter multilingual embedding model optimized for text and code retrieval, classification, clustering, and bitext mining with a 32K context window.",
-      "license": null,
+      "license": "apache-2.0",
       "model_type": "embedding",
       "platform_ref": "ollama:qwen3-embedding",
       "source": "ollama"

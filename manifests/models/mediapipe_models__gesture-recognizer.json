@@ -33,9 +33,9 @@
       "format": "task"
     },
     "identity": {
-      "author": null,
+      "author": "Google",
       "description_short": "Hand gestures from the webcam (3D scenes)",
-      "license": null,
+      "license": "apache-2.0",
       "model_type": "vision",
       "platform_ref": null,
       "source": "mediapipe_models"
