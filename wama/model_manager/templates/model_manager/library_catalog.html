@@ -78,6 +78,7 @@ administrateur (`request_library_action`). Un compte ordinaire n'a pas de sectio
     <div class="wama-cat-card" data-id="{{ r.lib.key }}"
          data-f-installee="{% if r.live_version %}installée{% else %}absente{% endif %}"
          data-f-allowlist="{% if r.lib.is_allowed %}autorisée{% else %}non autorisée{% endif %}"
+         data-f-role="{{ r.role|default:'non classée' }}"
          data-f-text="{{ r.lib.key|lower }} {{ r.lib.summary|lower }} {{ r.lib.license|lower }}">
       <h3>
         {{ r.lib.key }}
@@ -87,6 +88,7 @@ administrateur (`request_library_action`). Un compte ordinaire n'a pas de sectio
         {% if r.lib.is_allowed %}<span class="wama-cat-badge lc-ok">allowlist</span>
         {% else %}<span class="wama-cat-badge lc-warn">install non autorisée</span>{% endif %}
         {% if r.lib.vendor %}<span class="wama-cat-badge lc-off">vendorisée</span>{% endif %}
+        {% if r.role %}<span class="wama-cat-badge lc-off">{{ r.role }}</span>{% endif %}
       </h3>
       {% if r.lib.summary %}<div class="wama-cat-desc">{{ r.lib.summary }}</div>{% endif %}
       <div class="lc-meta">

@@ -289,3 +289,51 @@ class ModelLibrariesSinglePathTest(TestCase):
         self._row('pytorch_download:lpips-alexnet',
                   {'engine': 'lpips', 'loaded_by': 'wama.model_manager.services.bench'})
         self.assertEqual(['lpips'], librairies_des_backends(['pytorch_download:lpips-alexnet']))
+
+
+class LibraryRoleTest(TestCase):
+    """2026-11-16 (décision de Fabien) : le rôle d'une librairie — socle, moteur, app, brique — est
+    une étiquette de lecture DÉCLARÉE à son manifeste (`identity.role`), gardée par l'extraction et
+    projetée au registre ; il ne se calcule pas (un moteur isolé ne se voit pas d'ici)."""
+
+    @staticmethod
+    def _manifest(role=None):
+        identity = {'version': '1.0', **({'role': role} if role else {})}
+        return {'manifest_kind': 'library', 'key': 'role-probe', 'name': 'role-probe',
+                'body': {'identity': identity, 'install': {'pip': 'role-probe==1.0'}}}
+
+    def test_a_role_outside_the_vocabulary_is_an_error(self):
+        from wama.common.manifests.builtin import library
+        self.assertEqual([], library.validate_library_body(self._manifest('engine')['body']))
+        self.assertEqual([], library.validate_library_body(self._manifest()['body']))
+        errors = library.validate_library_body(self._manifest('moteur')['body'])
+        self.assertTrue(any('identity.role' in e for e in errors), errors)
+
+    def test_the_projection_writes_the_role_and_an_absent_role_stays_empty(self):
+        from wama.common.manifests.builtin import library
+        from wama.common.models import Library
+        library.write_back_library(self._manifest('engine'), apply=True)
+        self.assertEqual('engine', Library.objects.get(key='role-probe').role)
+        library.write_back_library(self._manifest(), apply=True)
+        self.assertEqual('', Library.objects.get(key='role-probe').role)
+
+    def test_the_extraction_keeps_the_role_the_corpus_states(self):
+        """Les métadonnées d'un paquet ne disent pas son rôle : sans cette reprise, la prochaine
+        extraction l'effacerait. Sans rôle déclaré, la clé est ABSENTE (le corpus ne périme pas)."""
+        from unittest import mock
+
+        from wama.common.manifests.builtin import library
+        stated = {'source': {'type': 'extract'}, 'body': {'identity': {'role': 'platform'}, 'install': {'pip': 'x'}}}
+        with mock.patch.object(library, 'corpus_manifest', lambda key: stated):
+            self.assertEqual('platform', library.extract_library('django')['body']['identity']['role'])
+        silent = {'source': {'type': 'extract'}, 'body': {'identity': {'role': 'nonsense'}, 'install': {'pip': 'x'}}}
+        with mock.patch.object(library, 'corpus_manifest', lambda key: silent):
+            self.assertNotIn('role', library.extract_library('django')['body']['identity'])
+
+    def test_every_role_the_corpus_states_is_in_the_vocabulary(self):
+        import json
+        from wama.common.manifests.builtin.library import LIBRARY_ROLES
+        for path in (Path(settings.BASE_DIR) / 'manifests' / 'libraries').glob('*.json'):
+            role = ((json.loads(path.read_text(encoding='utf-8')).get('body') or {})
+                    .get('identity') or {}).get('role')
+            self.assertIn(role, (None, *LIBRARY_ROLES), path.name)

@@ -1218,6 +1218,9 @@ class Library(models.Model):
     author = models.CharField(max_length=200, blank=True, default='',
                               help_text="Auteur/éditeur déclaré en amont (métadonnée PyPI `Author`).")
     repository = models.CharField(max_length=300, blank=True, default='')
+    # RÔLE dans WAMA (socle, moteur, app, brique — `builtin.library.LIBRARY_ROLES`) : une étiquette
+    # de lecture DÉCLARÉE au manifeste (`identity.role`) et projetée ici ; '' = pas encore classée.
+    role = models.CharField(max_length=16, blank=True, default='', db_index=True)
     pip_spec = models.CharField(
         max_length=200, blank=True, default='',
         help_text="Spécificateur d'installation épinglé, p.ex. 'faster-whisper==1.2.1'")

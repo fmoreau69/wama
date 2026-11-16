@@ -48,6 +48,10 @@ def validate_library_body(body: dict) -> list[str]:
         errs.append(f"identity.author dépasse le registre ({len(str(ident['author']))} car., "
                     f"≤ {AUTHOR_MAX}) — l'extraction le borne (`author_name`)")
 
+    role = ident.get('role') if isinstance(ident, dict) else None
+    if role and role not in LIBRARY_ROLES:
+        errs.append(f"identity.role inconnu ({role!r}) — attendu : {', '.join(LIBRARY_ROLES)}")
+
     install = body.get('install') or {}
     if not isinstance(install, dict):
         errs.append("install doit être un dict")
@@ -83,6 +87,18 @@ def validate_library_body(body: dict) -> list[str]:
     if deps is not None and not isinstance(deps, list):
         errs.append("dependencies doit être une liste")
     return errs
+
+
+#: RÔLE d'une librairie (`identity.role`, 2026-11-16, décision de Fabien) — une étiquette de
+#: LECTURE, pour filtrer, trier et retrouver ; jamais une condition d'entrée au registre (le critère
+#: reste « le code de WAMA l'importe », `library_index.unseeded`). DÉCLARÉ au manifeste, parce qu'il
+#: ne se mesure pas juste : un moteur installé dans un environnement isolé ou vendorisé ne se voit
+#: pas depuis celui-ci (essai du 2026-11-15, `LICENSING §4bis`). Clé → libellé affiché.
+#:   • `platform` — le socle : ce sans quoi WAMA ne démarre pas (`library_index.SOCLE_PLATEFORME`) ;
+#:   • `engine`   — un moteur : ce qu'un modèle ou un backend exige pour tourner ;
+#:   • `app`      — au service d'une ou de quelques apps (un format, un export) ;
+#:   • `brick`    — une brique du commun (assistant, registres, sécurité, outillage servi).
+LIBRARY_ROLES = {'platform': 'Socle', 'engine': 'Moteur', 'app': 'App', 'brick': 'Brique'}
 
 
 #: Longueur du champ `Library.license` (un IDENTIFIANT — 'MIT', 'Apache-2.0' — jamais un texte).
@@ -291,6 +307,27 @@ def author_name(meta) -> Optional[str]:
     return f'{kept} …' if kept else declared[:AUTHOR_MAX - 2] + ' …'
 
 
+def corpus_manifest(key: str) -> Optional[dict]:
+    """Le manifeste `library` du corpus pour `key`, ou None (absent, illisible)."""
+    import json
+    from pathlib import Path
+
+    from django.conf import settings
+
+    path = Path(settings.BASE_DIR) / 'manifests' / 'libraries' / f'{key}.json'
+    try:
+        return json.loads(path.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return None
+
+
+def declared_role(key: str) -> str:
+    """Le rôle DÉCLARÉ au manifeste du corpus (`identity.role`), ou '' — ce que l'extraction
+    garde : les métadonnées d'un paquet ne disent pas à quoi il sert dans WAMA."""
+    role = (((corpus_manifest(key) or {}).get('body') or {}).get('identity') or {}).get('role')
+    return role if role in LIBRARY_ROLES else ''
+
+
 def authored_vendor_manifest(key: str) -> Optional[dict]:
     """Le manifeste AUTORÉ d'une librairie vendorisée, lu au corpus — ou None.
 
@@ -305,15 +342,8 @@ def authored_vendor_manifest(key: str) -> Optional[dict]:
     perdait ces contraintes : la réinstallation suivante aurait tiré les dépendances que la
     contrainte écartait (starlette, épinglé pour le serveur MCP).
     """
-    import json
-    from pathlib import Path
-
-    from django.conf import settings
-
-    path = Path(settings.BASE_DIR) / 'manifests' / 'libraries' / f'{key}.json'
-    try:
-        manifest = json.loads(path.read_text(encoding='utf-8'))
-    except (OSError, ValueError):
+    manifest = corpus_manifest(key)
+    if manifest is None:
         return _vendor_manifest_from_registry(key)
     install = ((manifest.get('body') or {}).get('install') or {})
     authored = (manifest.get('source') or {}).get('type') == 'authored'
@@ -346,7 +376,8 @@ def _vendor_manifest_from_registry(key: str) -> Optional[dict]:
         'body': {
             'identity': {'version': lib.version, 'license': lib.license or None,
                          'author': lib.author or None, 'summary': lib.summary or None,
-                         'repository': lib.repository or None},
+                         'repository': lib.repository or None,
+                         **({'role': lib.role} if lib.role else {})},
             'install': {'vendor': dict(lib.vendor)},
             'entry_points': lib.entry_points or {},
             'dependencies': list(lib.dependencies or []),
@@ -378,6 +409,7 @@ def extract_library(key: str) -> Optional[dict]:
     depot = (urls.get('source') or urls.get('repository') or urls.get('homepage')
              or meta.get('Home-page') or None)
 
+    role = declared_role(dist.name) or declared_role(key)
     console = sorted(ep.name for ep in dist.entry_points if ep.group == 'console_scripts')
     deps = dependency_names(dist.requires)
 
@@ -392,6 +424,9 @@ def extract_library(key: str) -> Optional[dict]:
             'author': author_name(meta),
             'summary': meta.get('Summary') or None,
             'repository': depot,
+            # DÉCLARÉ, pas extrait : repris du manifeste du corpus, et absent tant que personne
+            # ne l'a posé (une clé vide périmerait tout le corpus pour rien).
+            **({'role': role} if role else {}),
         },
         'install': {
             'pip': f"{dist.name}=={dist.version}",
@@ -436,6 +471,7 @@ _CHAMPS_PROJETES = (
     ('license',         lambda m, b: (b.get('identity') or {}).get('license') or ''),
     ('author',          lambda m, b: (b.get('identity') or {}).get('author') or ''),
     ('repository',      lambda m, b: (b.get('identity') or {}).get('repository') or ''),
+    ('role',            lambda m, b: (b.get('identity') or {}).get('role') or ''),
     ('pip_spec',        lambda m, b: (b.get('install') or {}).get('pip') or ''),
     ('requires_python', lambda m, b: (b.get('install') or {}).get('requires_python') or ''),
     ('entry_points',    lambda m, b: b.get('entry_points') or {}),

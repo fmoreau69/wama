@@ -523,6 +523,25 @@ en silence.
 > github:LibreTranslate/LibreTranslate@…` ; §7.4-3), pas au sens « ensemble WAMA-interne ». La
 > collision annoncée a donc eu lieu : **le sens d'`authored` reste une décision de Fabien**.
 
+### 6bis.2 `identity.role` — le rôle d'une librairie dans WAMA (2026-11-16)
+
+Champ FACULTATIF du corps `library`, DÉCLARÉ (décision de Fabien : une étiquette pour filtrer,
+trier et retrouver — jamais une condition d'entrée au registre). Vocabulaire fermé
+(`builtin.library.LIBRARY_ROLES`, refusé à la validation hors de lui) :
+
+| valeur | sens |
+|---|---|
+| `platform` | le socle : ce sans quoi WAMA ne démarre pas (`library_index.SOCLE_PLATEFORME`) |
+| `engine` | un moteur : ce qu'un modèle ou un backend exige pour tourner |
+| `app` | au service d'une ou de quelques apps (un format, un export) |
+| `brick` | une brique du commun (assistant, registres, sécurité, outillage servi) |
+
+Il ne s'EXTRAIT pas — les métadonnées d'un paquet ne disent pas à quoi il sert ici, et un moteur
+isolé ou vendorisé ne se voit pas depuis l'environnement courant (essai dérivé du 2026-11-15,
+`LICENSING §4bis`). L'extraction REPREND donc le rôle que porte le manifeste du corpus
+(`declared_role`) ; sans rôle déclaré la clé est absente. Projeté dans `Library.role`
+(`_CHAMPS_PROJETES`), lu par la page des librairies (facette « Rôle »).
+
 ## 7. COMPOSITION des manifestes — « une app = app + model(s) + library(ies) »
 
 > **Cadrage Fabien, 2026-08-02.** Le manifeste d'app ne doit PAS tout décrire : il **compose**.
