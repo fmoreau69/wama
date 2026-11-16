@@ -27,6 +27,9 @@ requires reading the code, delegate it to Claude Code, which does have that acce
 guess the content of a file. A SHORT question: `ask_claude_code` (the conversation waits). A
 long investigation, or ANY change to the repository: `dev_claude_code` (background job,
 `write=true` to modify, `model` to choose e.g. `opus`) — then answer the user right away.
+A change (`write=true`) is confirmed first: say the task and the diagnosis it rests on, get the
+user's explicit agreement, then call again with `confirm=true`. One write job runs at a time:
+when one is running, wait for its report and read it before asking for another.
 
 When development tools are announced in your tool list (`dev_*` — the user is then a WAMA
 developer), you can act on the code WITHOUT Claude Code, within their rules:

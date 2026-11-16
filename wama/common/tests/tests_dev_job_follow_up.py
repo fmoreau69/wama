@@ -201,7 +201,8 @@ class ClaudeCodeInTheBackgroundTest(TestCase):
         with mock.patch('wama.common.services.claude_code.subscription_allowed', return_value=True), \
              mock.patch('wama.common.services.claude_code.prepare', return_value=prepared), \
              mock.patch.object(dev_tools, 'start_job', return_value={'job_id': 'J-3'}) as start:
-            out = dev_tools.dev_claude_code(self.user, 'corrige le reader', write=True, model='opus')
+            out = dev_tools.dev_claude_code(self.user, 'corrige le reader', write=True, model='opus',
+                                            confirm=True)
         self.assertEqual('J-3', out['job_id'])
         args, kwargs = start.call_args
         self.assertEqual('claude_code:write', args[1])
@@ -229,9 +230,52 @@ class ClaudeCodeInTheBackgroundTest(TestCase):
              mock.patch('wama.common.services.claude_code.prepare',
                         return_value={'error': 'profil 100 % local'}), \
              mock.patch.object(dev_tools, 'start_job') as start:
-            out = dev_tools.dev_claude_code(self.user, 'corrige', write=True)
+            out = dev_tools.dev_claude_code(self.user, 'corrige', write=True, confirm=True)
         self.assertEqual('profil 100 % local', out['error'])
         start.assert_not_called()
+
+    def _write(self, running=None, **kwargs):
+        prepared = {'argv': ['claude', '-p', 'corrige'], 'env': {}}
+        with mock.patch('wama.common.services.claude_code.subscription_allowed', return_value=True), \
+             mock.patch('wama.common.services.claude_code.prepare', return_value=prepared), \
+             mock.patch.object(dev_tools, 'running_write_job', return_value=running), \
+             mock.patch.object(dev_tools, 'start_job', return_value={'job_id': 'J-5'}) as start:
+            return dev_tools.dev_claude_code(self.user, 'corrige le reader', **kwargs), start
+
+    def test_a_repository_change_waits_for_the_user_s_agreement(self):
+        """2026-11-16, Fabien's decision. On 2026-11-14 the assistant started two write jobs in
+        49 s on one subject, without agreement. Counter-proof : a READ starts at once."""
+        out, start = self._write(write=True)
+        self.assertIn('confirm=true', out['error'])
+        self.assertEqual('corrige le reader', out['task'])
+        start.assert_not_called()
+        out, start = self._write(write=True, confirm=True)
+        self.assertEqual('J-5', out['job_id'])
+        out, start = self._write()
+        self.assertEqual('J-5', out['job_id'], 'a read needs no agreement')
+
+    def test_one_write_job_at_a_time_and_a_read_beside_it(self):
+        running = {'id': 'J-1', 'tool': 'claude_code:write', 'status': 'running'}
+        out, start = self._write(running=running, write=True, confirm=True)
+        self.assertEqual('J-1', out['running_job'])
+        self.assertIn('dev_read_report', out['error'])
+        start.assert_not_called()
+        out, start = self._write(running=running)
+        self.assertEqual('J-5', out['job_id'], 'a read runs beside a write')
+
+    def test_the_running_write_job_is_read_from_the_job_cards(self):
+        states = {'J-3': {'id': 'J-3', 'tool': 'claude_code', 'status': 'running'},
+                  'J-2': {'id': 'J-2', 'tool': 'claude_code:write', 'status': 'done'},
+                  'J-1': {'id': 'J-1', 'tool': 'claude_code:write', 'status': 'running'}}
+        cards = [mock.Mock(stem=key) for key in states]
+        directory = mock.Mock()
+        directory.glob.return_value = cards
+        with mock.patch.object(dev_tools, 'jobs_dir', return_value=directory), \
+             mock.patch('builtins.sorted', side_effect=lambda items, **k: list(items)), \
+             mock.patch.object(dev_tools, 'job_state', side_effect=lambda key, **k: states[key]):
+            self.assertEqual('J-1', dev_tools.running_write_job()['id'])
+            states['J-1']['status'] = 'done'
+            self.assertIsNone(dev_tools.running_write_job())
 
 
 class StructuredArgumentsTest(TestCase):

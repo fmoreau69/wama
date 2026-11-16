@@ -623,11 +623,29 @@ CLAUDE_CODE_TOOL = 'claude_code'
 CLAUDE_CODE_JOB_TIMEOUT_S = 3600
 
 
-def dev_claude_code(user, task: str, write: bool = False, model: str = '') -> dict:
-    """Confie une tâche de développement à Claude Code (abonnement du demandeur) en TÂCHE DE FOND : audit, explication, ou modification du dépôt avec write=true. Réponds aussitôt à l'utilisateur ; la réponse de Claude Code arrive dans le fil à la fin. Devant une PANNE, diagnostique d'abord toi-même quand tu as les outils d'inspection (dev_read_log sans chemin puis le journal récent, dev_search_code sur le message d'erreur, dev_read_code, dev_db_query) et confie ICI la correction en disant ce que tu as trouvé — fichier, ligne, message du journal.
+def running_write_job():
+    """La tâche Claude Code EN ÉCRITURE qui tourne en ce moment (sa fiche), ou None — lue parmi les
+    dernières fiches, tous développeurs confondus : le dépôt est un, deux écritures s'y croisent."""
+    for card in sorted(jobs_dir().glob('*.json'), reverse=True)[:20]:
+        try:
+            state = job_state(card.stem, with_log=False)
+        except DevToolError:
+            continue
+        if state.get('tool') == CLAUDE_CODE_TOOL + ':write' and state.get('status') == 'running':
+            return state
+    return None
+
+
+def dev_claude_code(user, task: str, write: bool = False, model: str = '',
+                    confirm: bool = False) -> dict:
+    """Confie une tâche de développement à Claude Code (abonnement du demandeur) en TÂCHE DE FOND : audit, explication, ou modification du dépôt avec write=true. Réponds aussitôt à l'utilisateur ; la réponse de Claude Code arrive dans le fil à la fin. Devant une PANNE, diagnostique d'abord toi-même quand tu as les outils d'inspection (dev_read_log sans chemin puis le journal récent, dev_search_code sur le message d'erreur, dev_read_code, dev_db_query) et confie ICI la correction en disant ce que tu as trouvé — fichier, ligne, message du journal. Une MODIFICATION (write=true) demande l'accord explicite de l'utilisateur (confirm=true ensuite), et une seule tourne à la fois.
 
     task : la tâche en clair. write : autoriser la modification du dépôt (sinon lecture seule).
     model : un modèle déclaré de l'abonnement (opus, sonnet…) — vide = choix du CLI.
+    confirm : avec write=true, l'accord EXPLICITE de l'utilisateur sur la tâche annoncée (décision
+    de Fabien, 2026-11-16 : le 14/11, deux tâches en écriture lancées en 49 s sur le même sujet,
+    sans accord, la première sur une prémisse fausse). Une demande « /<nom> » qu'il a écrite
+    lui-même vaut accord.
     Une demande « /<nom> » (/reverif, /palier, /cloture, /conformite…) est un SKILL de Claude
     Code : la confier ICI telle quelle (task="/reverif …", write=true) — jamais la traduire en
     dev_sandbox, dev_regen_check ou un rôle.
@@ -651,6 +669,20 @@ def dev_claude_code(user, task: str, write: bool = False, model: str = '') -> di
             f"une sortie de rôle ({OUTPUTS_PATH}…) ne se corrige pas à la main : ce qu'un rôle "
             "propose se refait par le rôle (dev_run_role — le rôle `model` reprend sur le verdict "
             "de « Valider »), ou se rejette au model manager.")
+    if write:
+        # Une écriture à la fois : la seconde attend le RAPPORT de la première, qui peut la rendre
+        # inutile (le 14/11, la première répondait « ce mécanisme existe déjà »).
+        if running := running_write_job():
+            return {'error': f"une tâche Claude Code en écriture tourne déjà ({running.get('id')}) : "
+                             "deux écritures dans le même dépôt se croisent. Attendez sa fin "
+                             "(annoncée dans ce fil), lisez son rapport (dev_read_report), puis "
+                             "décidez s'il en faut une autre.",
+                    'running_job': running.get('id')}
+        if not confirm:
+            # Le refus COMMUN d'un geste à confirmer (`tool_api._unconfirmed`), jamais une variante.
+            from wama.tool_api import _unconfirmed
+            return _unconfirmed("Modifier le dépôt par Claude Code (dites la tâche et le diagnostic "
+                                "qui la fonde)", task=task[:300])
     # La porte de confidentialité sur la tâche (`common/privacy/gate`). ⚠ En tâche de fond, la
     # réponse arrive au journal sans repasser par la porte : les pseudonymes y restent.
     from wama.common.privacy.gate import privacy_gate
