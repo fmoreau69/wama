@@ -130,6 +130,15 @@ class ServiceTermsTest(SimpleTestCase):
         self.assertEqual(['model', 'service'], [l['registre'] for l in lines])
         self.assertEqual([audit.PERMISSIVE, audit.A_QUALIFIER], ranks)
 
+    def test_the_weights_licence_of_a_served_model_is_shown_for_information_only(self):
+        models = [self._model('alpha', licence='Apache 2.0 License'), self._model('alpha', licence='apache-2.0'),
+                  self._model('alpha', licence='mit'), self._model('alpha')]
+        (line,), _ = self._lines(models, {'alpha': 'https://alpha.example/terms'})
+        self.assertEqual([('apache-2.0', 2), ('mit', 1)], line['weights'])
+        self.assertIn('4 modèles servis', line['detail'])
+        self.assertIn('poids : apache-2.0 ×2, mit ×1', line['detail'])
+        self.assertEqual(audit.SERVICE_TERMS, line['q']['id'], 'la ligne reste qualifiée par le service')
+
     def test_the_model_scene_reads_the_same_rule(self):
         models = [self._model('alpha'), self._model('beta')]
         _, ranks = self._lines(models, {'alpha': 'https://alpha.example/terms', 'beta': ''})

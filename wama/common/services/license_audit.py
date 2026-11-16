@@ -52,6 +52,9 @@ REGISTRES = {'model': 'Modèles', 'library': 'Librairies', 'media': 'Médias', '
 #: licence des poids ; WAMA tient ses conditions (décision de Fabien, 2026-11-15).
 SERVICE_TERMS = 'conditions du service'
 
+#: Combien de licences de poids une ligne de service nomme avant de compter le reste.
+WEIGHTS_SHOWN = 4
+
 #: Identifiant normalisé → (famille, exige une attribution).
 #: Table de DOMAINE (ce qu'une licence permet) : elle ne se dérive d'aucune donnée du dépôt,
 #: contrairement aux listes de classes ou de spécialités qu'on a supprimées ailleurs.
@@ -275,22 +278,34 @@ def _lignes_librairies():
 
 def _service_lines():
     """UNE ligne par service distant qui sert des modèles du catalogue — pas une par modèle : ce
-    sont les conditions du service qui s'appliquent, les mêmes pour tout ce qu'il sert."""
+    sont les conditions du service qui s'appliquent, les mêmes pour tout ce qu'il sert.
+
+    La licence des POIDS d'un modèle servi, quand elle est connue (un modèle ouvert servi par un
+    tiers), se lit À TITRE D'INFORMATION sur la ligne du service (`weights`, et dans `detail`) :
+    elle ne qualifie pas la ligne (décision de Fabien, 2026-11-16 : « voir les deux »)."""
     from collections import Counter
 
     from wama.common import external_sources
     from wama.model_manager.models import AIModel
-    served = Counter(m.source for m in AIModel.objects.filter(is_proposed=False)
-                     .only('source', 'execution', 'license') if served_under_terms(m))
+    served, weights = Counter(), defaultdict(Counter)
+    for m in AIModel.objects.filter(is_proposed=False).only('source', 'execution', 'license'):
+        if served_under_terms(m):
+            served[m.source] += 1
+            if m.license:
+                weights[m.source][qualifier(m.license)['id'] or m.license] += 1
     sources = external_sources.by_key()
     for key, n in sorted(served.items()):
         source = sources.get(key)
         text, url = service_terms(key)
         hosting = external_sources.CLOUD_ORIGIN_LABELS.get(source.hosting, '') if source else ''
         count = f"{n} modèle servi" if n == 1 else f"{n} modèles servis"
+        known = weights[key].most_common()
+        shown = ', '.join(f'{ident} ×{k}' for ident, k in known[:WEIGHTS_SHOWN])
+        if len(known) > WEIGHTS_SHOWN:
+            shown += f' (+{len(known) - WEIGHTS_SHOWN})'
         yield {'registre': 'service', 'cle': key, 'nom': source.label if source else key,
-               'licence': text, 'auteur': '', 'url': url,
-               'detail': ' · '.join(x for x in (count, hosting) if x)}
+               'licence': text, 'auteur': '', 'url': url, 'weights': known,
+               'detail': ' · '.join(x for x in (count, hosting, f'poids : {shown}' if shown else '') if x)}
 
 
 def _lignes_medias(user=None):
