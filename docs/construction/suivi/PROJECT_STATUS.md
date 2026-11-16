@@ -31792,3 +31792,29 @@ boîtes, pas des contours ; le suivi ne passe pas par le gouverneur de ressource
 par le chargement du moteur ; SAM 3.1 et d'autres moteurs à explorer ; la ligne « Suivre la tête
 de lecture » de la table générée des mécanismes (mêlée au travail d'une autre session) ; l'outil
 d'assistant pour ces gestes de page ; jumelle `anonymizer_01`.
+
+## §PALIER 2026-11-16 (soir), « ANONYMIZER : le suivi d'un objet désigné JOUÉ EN SERVICE ; un panneau du volet ne s'allonge plus sans fin » — commit local, non poussé — aucun redémarrage (une feuille de style et un scénario) — 🔚 la page de correction du DOCUMENT (par passage), puis le domaine audio
+
+**Mesuré en service (après la relance de Fabien)** — les vraies routes, le worker GPU, SAM3, un
+élément témoin du compte de test retiré en sortie : sur un extrait réel de 60 images, un point →
+60 images proposées sur 60 (deux résultats : 40 vers l'avant, 20 vers l'arrière), 55 s
+chargement compris ; sur l'image témoin, un clic sur un visage → sa boîte à un pixel près
+(`[90, 70, 231, 251]` pour un objet posé en `90, 70, 230, 250`), 27 s. Aucune correction écrite
+par le serveur dans les deux cas.
+
+**Défaut relevé par Fabien, réparé** : le panneau « Suivi d'objet », glissé dans le volet droit,
+s'allongeait sans fin. Cause : dans le volet un panneau prend la hauteur de son contenu
+(`wama-brick-layout.js`, `contentHeight` : le bas de l'enfant le plus bas, plus la marge basse du
+corps) ; la liste de la brique s'étirait pour remplir le panneau (`flex: 1 1 auto`) sous une
+marge basse — chaque mesure ajoutait la marge. La liste ne s'étire plus.
+
+**Garde** : scénario GÉNÉRIQUE `common.surface_panel_fit` (`ui_smoke_surfaces.check_panel_fit`) —
+sur chaque surface à témoin, tous ses emplacements placés dans la colonne du volet (la
+disposition du compte de test, rendue en sortie), hauteurs lues deux fois à deux secondes :
+aucune ne bouge, aucune n'est démesurée. Joué sur le service : 11 surfaces sur 11. Contre-épreuve
+(l'ancien style réinjecté dans la page) : rouge sur le panneau `tracking` des deux surfaces de
+l'anonymizer, les neuf autres vertes.
+
+**Non fait, nommé** : la page du document, l'audio ; les zones proposées restent des boîtes ;
+l'outil d'assistant pour ces gestes de page ; jumelle `anonymizer_01` ; suite complète non
+rejouée par cette session.

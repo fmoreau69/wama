@@ -2359,6 +2359,117 @@ def _axis_gestures(context, token, surface, pk, verdict, reverse, page_hook=None
     verdict(not shown, f"{sid} : aucune erreur JS ({shown[:3]})")
 
 
+#: La hauteur de chaque panneau de la page (id d'emplacement → pixels), et celle de la page.
+_PANEL_HEIGHTS_JS = """() => { const out = {};
+    document.querySelectorAll('.grid-stack-item').forEach(el => {
+        const id = el.gridstackNode && el.gridstackNode.id; if (id) out[id] = el.offsetHeight; });
+    return out; }"""
+
+#: Au-delà, un panneau du volet n'est plus « à la hauteur de son contenu » : il s'emballe.
+PANEL_HEIGHT_LIMIT = 4000
+
+
+def check_panel_fit(page_hook=None):
+    """Un panneau glissé dans le VOLET prend la hauteur de son contenu — ET S'Y TIENT (2026-11-16,
+    relevé par Fabien : le panneau « Suivi d'objet », placé dans le volet droit, « s'est mis à
+    s'allonger sans fin » — sa liste remplissait le panneau sous une marge basse, chaque mesure
+    l'allongeait). (ok, détail).
+
+    Sur CHAQUE surface à témoin, TOUS ses emplacements placés dans la colonne du volet (la
+    disposition du compte de test, rendue telle qu'elle était en sortie) : la hauteur de chaque
+    panneau est lue deux fois à deux secondes d'écart — elle ne bouge plus, et reste sous
+    `PANEL_HEIGHT_LIMIT`. Aucune brique nommée : une brique neuve y passe sans une ligne."""
+    from django.urls import reverse
+    from playwright.sync_api import sync_playwright
+
+    from wama.common.services.nightly_tests import SkipScenario
+    from wama.common.surfaces import clean_layout
+    from wama.common.utils.user_settings import (clear_user_app_settings, get_user_app_setting,
+                                                 save_user_app_settings)
+
+    surfaces, _refused = _witness_surfaces()
+    if not surfaces:
+        raise SkipScenario("aucune surface à témoin")
+    verdicts, sessions_before = [], _session_keys()
+
+    def verdict(ok, text):
+        verdicts.append((bool(ok), text))
+
+    def account(uid):
+        from django.contrib.auth import get_user_model
+        return get_user_model().objects.get(pk=uid)
+
+    def all_in_panel(surface, uid):
+        """Pose la disposition « tout dans le volet » ; rend celle d'avant."""
+        name = f'surface_layout.{surface.key}'
+        before = get_user_app_setting(account(uid), surface.app, name)
+        places, row = {}, 0
+        for slot in surface.slots:
+            places[slot.id] = {'x': 0, 'y': row, 'w': 1, 'h': slot.h, 'zone': 'panel'}
+            row += slot.h
+        save_user_app_settings(account(uid), surface.app,
+                               {name: clean_layout(surface, {'slots': places, 'frozen': True})})
+        return name, before
+
+    def put_back(surface, uid, name, before):
+        if before is None:
+            clear_user_app_settings(account(uid), surface.app, [name])
+        else:
+            save_user_app_settings(account(uid), surface.app, {name: before})
+
+    with ExitStack() as guards:
+        for guard in witness_guards(surfaces, 'panel_fit'):
+            guards.enter_context(guard)
+        # Le plan AVANT le navigateur : la base ne se lit pas depuis sa boucle.
+        plan = []
+        for surface in surfaces:
+            token, uid = _test_session_key(surface.app), _test_account_id(surface.app)
+            if not (token and uid):
+                verdict(False, f"{surface.id} : aucun compte de test")
+                continue
+            pk = _in_plain_thread(mount_witness, surface, uid)
+            name, before = _in_plain_thread(all_in_panel, surface, uid)
+            plan.append((surface, token, uid, pk, name, before))
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch()
+                try:
+                    for surface, token, _uid, pk, _name, _before in plan:
+                        context = browser.new_context(viewport={'width': 1500, 'height': 1000})
+                        try:
+                            context.add_cookies(_cookie(token))
+                            page = context.new_page()
+                            if page_hook:
+                                page_hook(page)
+                            url = BASE_URL.rstrip('/') + reverse(
+                                'common:surface', args=[surface.app, surface.key, pk])
+                            page.goto(url, wait_until='load', timeout=45000)
+                            page.wait_for_selector('.grid-stack-item .wama-brick-body', timeout=20000)
+                            page.wait_for_timeout(2500)
+                            first = page.evaluate(_PANEL_HEIGHTS_JS)
+                            page.wait_for_timeout(2000)
+                            second = page.evaluate(_PANEL_HEIGHTS_JS)
+                            moving = sorted(k for k in second if second[k] != first.get(k))
+                            tall = sorted(k for k, h in second.items() if h > PANEL_HEIGHT_LIMIT)
+                            verdict(second and not moving and not tall,
+                                    f"{surface.id} : {len(second)} panneau(x) dans le volet, hauteur "
+                                    f"stable (qui bouge : {moving or 'aucun'} ; démesuré : "
+                                    f"{tall or 'aucun'})")
+                        except Exception as error:
+                            verdict(False, f"{surface.id} : {type(error).__name__} — {str(error)[:160]}")
+                        finally:
+                            context.close()
+                finally:
+                    browser.close()
+        finally:
+            for surface, _token, uid, _pk, name, before in plan:
+                _in_plain_thread(put_back, surface, uid, name, before)
+    _drop_new_sessions(sessions_before)
+    failed = [text for ok, text in verdicts if not ok]
+    detail = f"{len(verdicts)} surface(s) — {len(verdicts) - len(failed)}/{len(verdicts)}"
+    return (not failed), detail + (f" — ÉCHECS : {failed}" if failed else '')
+
+
 def register_surface_scenarios():
     """Les scénarios communs des surfaces (vignettes de briques, disposition, clavier) — aucun GPU."""
     from wama.common.services.nightly_tests import register
@@ -2379,6 +2490,15 @@ def register_surface_scenarios():
                      "en arrière ; les courbes disent l'échantillon le plus proche ; zéro erreur JS"),
         run=lambda ctx: check_axis_follow(),
         timeout_s=240, vram_gb=0.0,
+    )
+    register(
+        id='common.surface_panel_fit', app='common', stage='ui',
+        description=("Surfaces : chaque panneau placé dans le volet droit prend la hauteur de son "
+                     "contenu et s'y TIENT — sur chaque surface à témoin, tous ses emplacements "
+                     "dans la colonne du volet, hauteurs lues deux fois (aucune qui bouge, aucune "
+                     "démesurée)"),
+        run=lambda ctx: check_panel_fit(),
+        timeout_s=300, vram_gb=0.0,
     )
     register(
         id='common.surface_layout', app='common', stage='ui',

@@ -219,10 +219,13 @@ body.wama-panel-arranged > .container {
 .wama-brick-image.is-video canvas { position: absolute; left: 0; top: 0; }
 
 /* Suivi d'un objet désigné (2026-11-16) : le geste, puis les propositions à accepter ou refuser. */
-.wama-brick-tracking { display: flex; flex-direction: column; gap: .35rem; padding: .4rem .55rem; font-size: .78rem; color: var(--wama-edit-text); }
+/* ⚠ La liste ne s'ÉTIRE pas (`flex: 0 1 auto`) : dans le volet, un panneau prend la hauteur de
+   son contenu — une liste qui remplit le panneau, sous une marge basse, l'allongeait à chaque
+   mesure, sans fin (relevé par Fabien le 2026-11-16 ; garde : `common.surface_panel_fit`). */
+.wama-brick-tracking { display: flex; flex-direction: column; gap: .35rem; padding: .4rem .55rem; font-size: .78rem; color: var(--wama-edit-text); overflow: auto; }
 .wama-tracking-head { display: flex; gap: .35rem; align-items: center; }
 .wama-tracking-head .form-select { width: auto; min-width: 0; flex: 1 1 auto; }
-.wama-tracking-list { flex: 1 1 auto; overflow: auto; color: var(--wama-edit-muted); }
+.wama-tracking-list { flex: 0 1 auto; color: var(--wama-edit-muted); }
 .wama-tracking-row { display: flex; align-items: center; gap: .3rem; padding: .15rem 0; color: var(--wama-edit-text); }
 .wama-tracking-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 

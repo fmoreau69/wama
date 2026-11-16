@@ -659,8 +659,16 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       (`WamaDetections.addMany`). Mesuré : le moteur de WAMA sur GPU (avant 30/30, arrière
       21/21, tranche suivante enchaînée, image fixe en 0,1 s, 5,1 Go) ; la brique au navigateur
       avec une boucle simulée (`common.axis_follow`, 23 gestes sur la page vidéo).
-      ⏳ La chaîne ENTIÈRE en service (clic → worker GPU → proposition) n'est pas jouée : elle
-      demande la relance des workers. ⏳ Les zones proposées sont des BOÎTES (le contour du
+      ✅ *Même jour, après la relance* — la chaîne ENTIÈRE jouée EN SERVICE (les vraies routes,
+      le worker GPU, SAM3, un élément témoin du compte de test) : sur un extrait réel de 60
+      images, un point → 60 images proposées sur 60 (40 vers l'avant, 20 vers l'arrière), 55 s
+      chargement compris ; sur l'image témoin, un clic sur un visage → sa boîte à un pixel près,
+      27 s ; aucune correction écrite par le serveur. Et un défaut relevé par Fabien, réparé :
+      le panneau du suivi, glissé dans le VOLET, s'allongeait sans fin (sa liste remplissait le
+      panneau sous une marge basse, chaque mesure de « la hauteur du contenu » l'allongeait) —
+      la liste ne s'étire plus, et le scénario GÉNÉRIQUE `common.surface_panel_fit` place tous
+      les emplacements de chaque surface à témoin dans le volet et lit leurs hauteurs deux fois
+      (11 surfaces stables ; rouge sur ce panneau avec l'ancien style). ⏳ Les zones proposées sont des BOÎTES (le contour du
       masque n'entre pas dans la couche de corrections) ; SAM 3.1 et d'autres moteurs de suivi
       à explorer (décision de Fabien).
       ✅ *2026-11-16 — décisions de Fabien* : la portée « toute la séquence » reste le défaut
