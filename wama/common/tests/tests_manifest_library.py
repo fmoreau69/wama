@@ -333,7 +333,12 @@ class LibraryRoleTest(TestCase):
     def test_every_role_the_corpus_states_is_in_the_vocabulary(self):
         import json
         from wama.common.manifests.builtin.library import LIBRARY_ROLES
+        from wama.common.services.library_index import SOCLE_PLATEFORME, _normalise
         for path in (Path(settings.BASE_DIR) / 'manifests' / 'libraries').glob('*.json'):
             role = ((json.loads(path.read_text(encoding='utf-8')).get('body') or {})
                     .get('identity') or {}).get('role')
             self.assertIn(role, (None, *LIBRARY_ROLES), path.name)
+            # Le socle a UNE liste (`SOCLE_PLATEFORME`, celle qui l'écarte des `requires`) : un rôle
+            # déclaré ne peut ni y ajouter une librairie ni en classer une ailleurs.
+            if role:
+                self.assertEqual(_normalise(path.stem) in SOCLE_PLATEFORME, role == 'platform', path.name)
