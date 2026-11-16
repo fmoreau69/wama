@@ -456,9 +456,11 @@ class RegistriesAccessTests(TestCase):
         policy, _ = AppAccessPolicy.objects.get_or_create(app_id='registries')
         policy.roles.add(Group.objects.get_or_create(name=GROUP_PREFIX + 'ingenierie')[0])
         own = [reverse(r.url_name) for r in REGISTRIES.values() if r.account_page and r.url_name]
-        self.assertEqual([reverse('common:ui_bricks_catalog')], own)
-        self.assertEqual([p.strip('/') for p in own], account_page_prefixes())
-        bricks, other = own[0], reverse('common:sources_catalog')
+        # 2026-11-16 (Fabien) : the applications page too — each account manages its subscriptions
+        # there.
+        self.assertEqual({reverse('common:ui_bricks_catalog'), reverse('common:apps_catalog')}, set(own))
+        self.assertEqual(sorted(p.strip('/') for p in own), sorted(account_page_prefixes()))
+        bricks, other = reverse('common:ui_bricks_catalog'), reverse('common:sources_catalog')
         visitor = self.client.get(bricks)
         self.assertEqual(302, visitor.status_code)
         self.assertTrue(visitor.url.startswith(resolve_url(settings.LOGIN_URL)), visitor.url)
@@ -469,6 +471,7 @@ class RegistriesAccessTests(TestCase):
         self.assertFalse(can_open_page(account, 'public', other))
         self.client.force_login(account)
         self.assertEqual(200, self.client.get(bricks).status_code)
+        self.assertEqual(200, self.client.get(reverse('common:apps_catalog')).status_code)
         self.assertNotEqual(200, self.client.get(other).status_code)
 
     def test_an_ordinary_account_opens_the_edit_page_of_every_surface(self):

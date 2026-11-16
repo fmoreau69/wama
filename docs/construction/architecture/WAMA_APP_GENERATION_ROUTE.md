@@ -1682,8 +1682,15 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       shuttle), `tests_editor_axis`. ⚠ Rien de cela n'est joué au navigateur.
       Revérifié le jour même : le maximum était écrit deux fois (transport et shuttle) — le
       transport le LIT désormais aux crans du shuttle (`WamaShuttle.DEFAULT_LEVELS`).
-      ⏳ Reste de la marche ② : la lecture arrière image par image ; la bande fine existe en
-      option mais l'aperçu ne la monte pas encore (marche ③).
+      ✅ **La lecture arrière image par image n'est pas une option de plus** (lu le 16/11) : celle
+      du cam_analyzer est une minuterie qui recule d'une image par période (`index.js:2059-2072`,
+      le navigateur ne jouant pas en arrière) — c'est ce que l'axe fait déjà, pour tout média :
+      son temps recule, le média muet est reposé (`follow`, au plus toutes les `SEEK_EVERY_MS`
+      = 90 ms, soit ~11 images par seconde, pour ne pas noyer le décodeur), bouton `reverse`
+      et crans J jusqu'à −32 ; l'image exacte se prend au pas (`step`, touches , .). La marche ②
+      est close côté commun ; la bande fine existe en option mais l'aperçu ne la monte pas
+      encore (marche ③). ⏳ Si le portage du cam_analyzer (marche ⑦) montre que 11 images par
+      seconde ne suffisent pas en arrière, l'intervalle devient un réglage de l'axe.
   - ✅ **2026-10-21 — LE VOLET DEVIENT UNE ZONE DE BRIQUES, étape 1 : les surfaces** (décision de
     Fabien : *« on passe tout WAMA progressivement en briques UI »*, verrouillé par défaut pour
     tous, le volet en colonne, les réglages en deux colonnes gardés). Domicile : `WAMA_VOLETS

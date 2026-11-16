@@ -75,6 +75,8 @@ register(Registry(
     source="`APP_CATALOG` (déclaré en code) + grille de conformité MESURÉE depuis le code réel",
     refresh=_refresh_apps, count=_count_apps, entries=_entries_apps,
     url_name='common:apps_catalog', manifest_kind='app',
+    # Chacun y gère SES abonnements et y lit les pages de ses apps (décision de Fabien, 2026-11-16).
+    account_page=True,
     periodic='nightly-consistency',
     # Les jumelles ont un créateur (`created_by` de `sandbox.load_registry`, registre gitignoré), pas une portée
     # `ScopedVisibility` (ROADMAP §29, étape 5).
