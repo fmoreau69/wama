@@ -212,9 +212,10 @@ class ProcessFacesTest(_MediaRootMixin, TestCase):
         self.assertEqual('', played['edit_url'], 'a score the page only reads has no editing')
         scripts = ' '.join(reduced['scripts'])
         for needed in ('abcjs-basic-min.js', 'wama-score.js', 'wama-score-player.js',
-                       'wama-midi-player.js', 'wama-transport.js'):
+                       'wama-midi-player.js'):
             self.assertIn(needed, scripts)
-        self.assertNotIn('wama-axis.js', scripts, 'the base page has it already')
+        for loaded in ('wama-axis.js', 'wama-transport.js'):
+            self.assertNotIn(loaded, scripts, 'the base page has it already')
         self.assertIn('banks', reduced['sound_banks'])
         self.assertEqual(gen.pk, reduced['pk'])
         # 2026-11-16 (Fabien : « on ne laisse pas deux fonctionnements parallèles ») : the face

@@ -99,6 +99,8 @@ JS_SIDES_LAYOUT = """() => {
     const r = e => e.getBoundingClientRect();
     const c = r(content);
     const media = box.querySelector('img, video, embed, pre');
+    // La bande fine sous une vidéo (2026-11-16) a sa ligne : l'image remplit le reste.
+    const strip = content.querySelector('.wama-viewer-strip');
     const navs = Array.from(m.querySelectorAll('.wama-preview-nav-btn'))
         .filter(b => getComputedStyle(b).display !== 'none' && r(b).width > 0);
     return {
@@ -109,7 +111,8 @@ JS_SIDES_LAYOUT = """() => {
             cross: !(s.bottom <= c.top || s.top >= c.bottom || s.right <= c.left || s.left >= c.right),
             above: s.bottom <= c.top + 0.5,
             visible: s.top >= 0 && s.bottom <= window.innerHeight}; }),
-        fills: media ? r(media).height >= c.height - 2 : true,
+        fills: media ? r(media).height >= c.height - (strip ? r(strip).height : 0) - 2 : true,
+        strip: strip ? {h: r(strip).height, w: r(strip).width, scroll: strip.scrollWidth > strip.clientWidth + 1} : null,
     };
 }"""
 
@@ -189,6 +192,9 @@ def sides_layout_fault(layout, where: str, must_fill: bool = False) -> str:
         return f"{where} : une flèche de navigation recouvre l'aperçu"
     if must_fill and not layout['fills']:
         return f"{where} : le média ne prend pas la hauteur disponible"
+    strip = layout.get('strip')
+    if strip and (strip['h'] < 20 or strip['scroll']):
+        return f"{where} : la bande fine sous la vidéo est écrasée ou coupée ({strip})"
     return ''
 
 
@@ -676,6 +682,9 @@ def check_preview_layout():
                             # pas mesurée — le contrôle passerait à vide.
                             if layout and not layout.get('navs'):
                                 fault = fault or f"{name}, {screen} : aucune flèche de navigation affichée"
+                            # Une vidéo a sa bande fine (2026-11-16) : sans elle, rien ne la pilote.
+                            if layout and name == 'vidéo' and not layout.get('strip'):
+                                fault = fault or f"vidéo, {screen} : aucune bande fine sous la vidéo"
                             arrows += bool(layout and layout.get('navs'))
                             if fault:
                                 faults.append(fault)
@@ -714,8 +723,8 @@ def check_preview_layout():
     return True, (f"{measured} mises en page mesurées ({len(LAYOUT_CASES)} natures + Comparer, "
                   f"modale et tout l'écran, {len(LAYOUT_VIEWPORTS)} tailles d'écran) : la bascule "
                   f"est au-dessus de l'aperçu, sans le recouvrir ; les flèches ({arrows} mesures) "
-                  "ne le recouvrent pas ; le document rendu s'ouvre dans un cadre isolé (visionneuse "
-                  "et card)")
+                  "ne le recouvrent pas ; une vidéo a sa bande fine, entière ; le document rendu "
+                  "s'ouvre dans un cadre isolé (visionneuse et card)")
 
 
 #: L'état de la visionneuse que lisent les gestes de navigation : le fichier montré (titre), le

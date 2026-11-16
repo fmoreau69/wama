@@ -6,7 +6,8 @@
  * envoie des commandes — ce module, montable PARTOUT (`WamaTransport.mount(hôte, cfg)`) : la
  * surface (enveloppe `media_transport`) et le magnéto du monde Data (`WAMA_DATA_WORLD §5bis`) ;
  * l'aperçu a, depuis le 2026-11-05, l'axe et SES touches (`WamaAxis.keys`) sous les contrôles
- * natifs de ses vidéos — sa barre de transport reste à décider ; les VUES regardent l'axe (ligne de temps
+ * natifs de ses vidéos, et depuis le 2026-11-16 la BANDE FINE d'ici à leur place dans la visionneuse
+ * (`strip`, ses touches restant celles de la couche) ; les VUES regardent l'axe (ligne de temps
  * `wama-timeline.js`, vidéo, partition) ; les OUTILS DE DOMAINE agissent pendant la lecture (modes
  * d'écriture du transcriber). Le transport ne connaît ni média, ni vue, ni donnée : il pilote
  * l'axe, jamais une vue — c'est la vue qui s'abonne.
@@ -33,6 +34,10 @@
  *             sous la clé que donne qui monte le transport (`cfg.key` : la page et son élément)
  *   strip     la BANDE FINE : une ligne étroite sans retour à la ligne, sans bouton de début ni
  *             de saut (leurs touches restent) — celle qu'on glisse sous un média
+ * Et dans `cfg` (qui monte, pas ce qu'on montre) : `keys: false` — le transport n'inscrit pas ses
+ * touches au clavier de la page, parce que son hôte les donne déjà à l'axe (une COUCHE du clavier
+ * comme la visionneuse, `WamaAxis.keys`) ; sans lui, une bande par média montré inscrirait autant
+ * de magnétos à la page.
  * Jusqu'à ce redécoupage, l'onde fenêtrée et ses couches, le zoom, la bande de qualité, la
  * minimap, l'outil Bornes et les modes d'écriture étaient aussi des options d'ici : les premiers
  * sont la VUE `wama-timeline.js`, les derniers la brique `playback_writing`.
@@ -226,7 +231,7 @@
             if (shuttle) shuttle.reset();
             axis.setRate(Number(rate.value) || 1);
         });
-        if (axis) axis.bindKeys({ jump: jump, shuttle: shuttle });
+        if (axis && cfg.keys !== false) axis.bindKeys({ jump: jump, shuttle: shuttle });
 
         /** Aller à un timecode — lecture COMMUNE du temps ; l'axe dit `goto` à ceux qui regardent. */
         function gotoTimecode() {

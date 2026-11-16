@@ -1,0 +1,20 @@
+/* Le TRANSPORT commun (`wama-transport.js`) : la barre de commandes de l'axe de temps, montée par
+   une surface (brique `media_transport`), le magnéto du monde Data et la visionneuse. Sortie de
+   `wama-surface.css` le 2026-11-16 : la visionneuse, de toutes les pages, monte la bande fine sous
+   ses vidéos — la feuille est de la page de base, comme le module. */
+.wama-transport-bar { display: flex; align-items: center; flex-wrap: wrap; gap: .3rem; }
+.wama-transport-bar .btn { padding: .15rem .45rem; font-size: .8rem; }
+.wama-transport-rate { width: auto; padding: .1rem 1.6rem .1rem .45rem; font-size: .78rem;
+  background-color: var(--wama-edit-field); color: var(--wama-edit-text); border-color: var(--wama-edit-border-strong); }
+.wama-transport-clock { margin-left: auto; font-size: .8rem; color: var(--wama-edit-text); font-variant-numeric: tabular-nums; }
+.wama-transport-goto { width: 84px; }
+/* Les curseurs en option (2026-11-15) : la position prend la place qui reste, le volume est court. */
+.wama-transport-position { flex: 1 1 120px; min-width: 80px; }
+.wama-transport-position + .wama-transport-clock { margin-left: 0; }
+.wama-transport-volume { width: 70px; flex: 0 0 auto; }
+.wama-transport-speed { min-width: 42px; }
+.wama-transport-speed-slider { width: 130px; flex: 0 0 auto; }
+/* La bande fine (option `strip`) : une ligne, sans retour, boutons sans cadre. */
+.wama-transport-strip .wama-transport-bar { flex-wrap: nowrap; gap: .15rem; }
+.wama-transport-strip .wama-transport-bar .btn { border-color: transparent; padding: .05rem .35rem; }
+.wama-transport-strip .wama-transport-clock { font-size: .72rem; white-space: nowrap; }

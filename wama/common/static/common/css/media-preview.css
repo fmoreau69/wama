@@ -142,6 +142,38 @@
     margin: 0 auto;
     display: block;
 }
+/* Une vidéo et sa BANDE FINE (2026-11-16, `_videoWithStrip`) : la bande prend sa ligne sous l'image,
+   l'image garde le reste de la scène ; à tout l'écran (la boîte entière), la bande reste dessous. */
+#wamaMediaPreviewModal .wama-viewer-video {
+    --wv-strip: 34px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-width: 100%;
+    background: var(--wv-stage-bg);
+}
+#wamaMediaPreviewModal .preview-container .wama-viewer-video video.wama-viewer-media {
+    max-height: calc(var(--wv-stage) - var(--wv-strip));
+    cursor: pointer;
+}
+#wamaMediaPreviewModal .wama-viewer-video:fullscreen { justify-content: center; width: 100%; height: 100%; }
+#wamaMediaPreviewModal .preview-container .wama-viewer-video:fullscreen video.wama-viewer-media {
+    max-height: calc(100vh - var(--wv-strip));
+    flex: 1 1 auto;
+}
+#wamaMediaPreviewModal .wama-viewer-strip {
+    display: flex;
+    align-items: center;
+    gap: .15rem;
+    align-self: stretch;
+    min-height: var(--wv-strip);
+    padding: .1rem .35rem;
+    background: var(--wv-surface);
+    color: var(--wv-text);
+}
+#wamaMediaPreviewModal .wama-viewer-strip .wama-transport { flex: 1 1 auto; min-width: 0; }
+#wamaMediaPreviewModal .wama-viewer-strip > .btn { border-color: transparent; padding: .05rem .35rem; }
+
 /* PDF, page HTML, objet 3D : un cadre de la hauteur de la scène. */
 #wamaMediaPreviewModal .wama-viewer-frame {
     display: block;

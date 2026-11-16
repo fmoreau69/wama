@@ -391,6 +391,63 @@
         return axis;
     }
 
+    /** Les commandes de la BANDE FINE d'une vidéo montrée (2026-11-16, marche ③ de `ROUTE §F3b`) :
+     *  celles des contrôles natifs qu'elle remplace — lecture, position, temps, vitesse, volume —
+     *  plus ce que le magnéto commun a de plus (pas, arrière, arrêt). */
+    const VIDEO_STRIP = { strip: true, step: true, reverse: true, stop: true, position: true,
+                          volume: true };
+
+    /** Une vidéo de la visionneuse, SANS ses contrôles natifs : sur un axe tenu par sa boîte, la
+     *  bande fine du transport commun dessous (`WamaTransport`, ses touches restant celles de la
+     *  visionneuse). Le reste des contrôles natifs, à parité : un clic sur l'image lit ou arrête,
+     *  un double-clic et ⛶ passent à tout l'écran (la bande y reste), l'image dans l'image quand
+     *  le navigateur l'offre. Sans le transport (banc sans le module) : les contrôles natifs. */
+    function _videoWithStrip(video) {
+        const box = document.createElement('div');
+        box.className = 'wama-viewer-video';
+        box.appendChild(video);
+        const axis = playOnAxis(box, [{ el: video }]);
+        if (!axis || !window.WamaTransport) {
+            video.controls = true;
+            return box;
+        }
+        const strip = document.createElement('div');
+        strip.className = 'wama-viewer-strip';
+        const host = document.createElement('div');
+        strip.appendChild(host);
+        window.WamaTransport.mount(host, { axis: axis, keys: false, options: VIDEO_STRIP });
+        const tool = function (icon, title, act) {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'btn btn-sm btn-outline-emphasis';
+            b.title = title;
+            b.innerHTML = '<i class="fas ' + icon + '"></i>';
+            b.addEventListener('click', act);
+            strip.appendChild(b);
+            return b;
+        };
+        const full = function () {
+            if (document.fullscreenElement === box) document.exitFullscreen();
+            else if (box.requestFullscreen) box.requestFullscreen().catch(function () {});
+        };
+        if (document.pictureInPictureEnabled) {
+            tool('fa-clone', "Image dans l'image", function () {
+                if (document.pictureInPictureElement === video) document.exitPictureInPicture();
+                else video.requestPictureInPicture().catch(function () {});
+            });
+        }
+        const fullBtn = tool('fa-expand', 'Tout l’écran (double-clic sur l’image)', full);
+        // L'icône dit l'état, comme celle des contrôles natifs (sortie par Échap aussi).
+        box.addEventListener('fullscreenchange', function () {
+            fullBtn.querySelector('i').className = 'fas '
+                + (document.fullscreenElement === box ? 'fa-compress' : 'fa-expand');
+        });
+        video.addEventListener('click', function () { axis.toggle(); });
+        video.addEventListener('dblclick', full);
+        box.appendChild(strip);
+        return box;
+    }
+
     /** L'axe de ce que montre `host` (lui-même ou ce qu'il contient), ou null. */
     function axisOf(host) {
         if (!host) return null;
@@ -2090,15 +2147,13 @@
             // gardées — plus de hauteur figée en ligne (70vh débordait sur un écran bas).
             const video = document.createElement('video');
             video.src = data.url;
-            video.controls = true;
             video.autoplay = false;
             video.className = 'wama-viewer-media';
             // Une face à SURCOUCHE (détections) : posée une fois la vidéo dans la page.
             if (data.overlay && window.WamaPreviewOverlay) {
                 setTimeout(function () { window.WamaPreviewOverlay.attach(video, data.overlay); }, 0);
             }
-            playOnAxis(video, [{ el: video }]);
-            return video;
+            return _videoWithStrip(video);
         } else if (mimeType.startsWith('audio/')) {
             if (window.WamaAudioPlayer) {
                 const wrapper = document.createElement('div');
@@ -2477,7 +2532,7 @@
         variantToggle: variantToggle, followDuring: followDuring, followCard: followCard,
         faceViewer: faceViewer,
         takeClock: takeClock, giveClock: giveClock, releaseMedia: _releaseHost,
-        playOnAxis: playOnAxis, axisOf: axisOf, soundOnAxis: _soundOnAxis,
+        playOnAxis: playOnAxis, axisOf: axisOf, soundOnAxis: _soundOnAxis, videoWithStrip: _videoWithStrip,
         isRunningCard: isRunningCard, cardOfPreview: cardOfPreview, cardElement: cardElement,
         // visionneuse et navigation
         show: showPreviewModal, showWithNav: showPreviewModalWithNav,

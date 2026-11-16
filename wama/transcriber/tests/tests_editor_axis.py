@@ -156,8 +156,9 @@ class CorrectionIsADeclaredSurfaceTest(SimpleTestCase):
                                'brick-playback-writing.js', 'brick-segment-list.js',
                                'brick-item-settings.js', 'brick-speaker-names.js',
                                'brick-surface-actions.js')]
-        css = BASE / 'wama' / 'common' / 'static' / 'common' / 'css' / 'wama-surface.css'
-        pairs.append((css, SERVED / 'common' / 'css' / 'wama-surface.css'))
+        for sheet in ('wama-surface.css', 'wama-transport.css'):
+            pairs.append((BASE / 'wama' / 'common' / 'static' / 'common' / 'css' / sheet,
+                          SERVED / 'common' / 'css' / sheet))
         for source, served in pairs:
             self.assertEqual(_read(source), _read(served), f'{served} is stale')
 

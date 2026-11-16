@@ -1960,8 +1960,21 @@ class AxisTest(SimpleTestCase):
             quick.setRate(2); r.followed = T.rateAt(Number(knob.value));
             knob.fire('dblclick'); r.reset = quick.rate();
             r.fastNames = names(fast);
+            // `keys: false` (2026-11-16) : a host that gives the keys itself (the viewer, a layer)
+            // mounts a transport that does not register a magneto on the page.
+            var scopes = [], register = window.WamaKeys.register;
+            window.WamaKeys.register = function (o) { scopes.push(o.scope); return register(o); };
+            T.mount(element('div'), {axis: window.WamaAxis.create(Object.assign({duration: 60}, opts)),
+                                     keys: false, options: {strip: true}});
+            r.quiet = scopes.slice();
+            T.mount(element('div'), {axis: window.WamaAxis.create(Object.assign({duration: 60}, opts)),
+                                     options: {strip: true}});
+            r.loud = scopes.slice(r.quiet.length);
+            window.WamaKeys.register = register;
             return r;
         ''')
+        self.assertEqual(['brick'], out['quiet'], 'keys: false — no magneto registered on the page')
+        self.assertEqual(['page', 'brick'], out['loud'], 'by default the transport registers its keys')
         self.assertEqual(['start', 'skip-back', 'play', 'skip-fwd', 'rate', 'clock'], out['plain'],
                          'no option : the bar of today, nothing more')
         self.assertEqual(['start', 'skip-back', 'step-back', 'reverse', 'stop', 'play', 'step-fwd',

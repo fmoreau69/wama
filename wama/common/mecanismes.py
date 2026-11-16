@@ -2687,6 +2687,7 @@ MECHANISMS = (
               'wama/common/static/common/js/wama-axis.js',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
               annexes=('wama/common/static/common/js/wama-transport.js',
+                       'wama/common/static/common/css/wama-transport.css',
                        'wama/common/static/common/js/wama-timeline.js',
                        'wama/common/utils/waveform.py',
                        'wama/common/services/ui_smoke_editor.py'),

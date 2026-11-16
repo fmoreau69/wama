@@ -1455,18 +1455,23 @@ register_brick(UIBrick(
                 "card, Sortie —, la comparaison et les surcouches de détection ; aussi la galerie "
                 "sans élément (les vignettes de ce catalogue). La page de base la charge pour "
                 "toutes les pages. Ses vidéos SUIVENT l'axe de temps commun (2026-11-05) — la "
-                "vidéo seule comme les deux de Comparer —, et la surcouche suit l'image présentée.",
+                "vidéo seule comme les deux de Comparer —, et la surcouche suit l'image présentée ; "
+                "sous une vidéo seule, la bande fine du transport commun remplace ses contrôles "
+                "natifs (2026-11-16).",
     mount='common/js/media-preview.js',
     # Ce dont elle dépend (2026-11-05) : l'axe et son shuttle, scripts de la page de base — la
     # visionneuse se lit « synchronisable » comme les briques du temps.
-    requires=('common/js/wama-axis.js', 'common/js/wama-shuttle.js',
+    # Le 2026-11-16 : la bande fine du transport commun sous ses vidéos, à la place de leurs
+    # contrôles natifs — le transport est lui aussi de la page de base.
+    requires=('common/js/wama-axis.js', 'common/js/wama-shuttle.js', 'common/js/wama-transport.js',
               'common/js/wama-preview-overlay.js'),
     declarations=('app.inspector', 'pipeline'),
     # Une COUCHE (une modale) : le clavier commun ne distribue rien tant qu'elle est ouverte, elle
     # garde le sien — et passe à l'axe de ce qu'elle montre les touches du magnéto (`WamaAxis.keys`).
     # Les touches du magnéto sont traitées par l'axe (`WamaAxis.keys`, un script qu'elle requiert).
-    shortcuts=(Shortcut(('Space',), 'lecture / pause de la vidéo montrée (son lecteur natif la garde '
-                                    "quand il a le focus)", names=('toggle',)),
+    shortcuts=(Shortcut(('Space',), 'lecture / pause de la vidéo ou du son montré (une vidéo de '
+                                    "Comparer à contrôles natifs la garde quand elle a le focus)",
+                        names=('toggle',)),
                Shortcut(('Ctrl+Space',), 'lecture / pause, même pendant la frappe',
                         names=('toggle_always',)),
                Shortcut(('KeyJ', 'KeyK', 'KeyL'), 'lecture arrière / pause / lecture avant, par crans '

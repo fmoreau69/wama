@@ -347,6 +347,43 @@ class OneFaceSwitchTest(SimpleTestCase):
         self.assertEqual([True, 30], out[7:9], 'the axis pauses it and places it through the player')
         self.assertTrue(out[9], 'and plays it through the player (exclusive playback)')
 
+    def test_a_video_of_the_viewer_has_the_thin_strip_instead_of_its_native_controls(self):
+        """2026-11-16 (step 3) : the video shown in the viewer loses its native controls ; the thin
+        strip of the common transport takes their place, on the axis held by its box, WITHOUT
+        registering keys on the page (the viewer gives them, a layer). A click on the picture plays
+        or pauses, as the native controls did. No transport module : the native controls stay."""
+        self.v8.eval('window.requestAnimationFrame = function () { return 1; };'
+                     'window.cancelAnimationFrame = function () {};'
+                     + (JS / 'wama-axis.js').read_text(encoding='utf-8'))
+        out = list(self.v8.eval("""(function () {
+            var P = window.WamaMediaPreview, mounted = [];
+            function video() { var v = {tagName: 'VIDEO', currentTime: 0, duration: 60, paused: true,
+                ended: false, readyState: 4, seeking: false, playbackRate: 1, volume: 1, muted: false,
+                controls: false, on: {},
+                addEventListener: function (k, fn) { (v.on[k] = v.on[k] || []).push(fn); },
+                removeEventListener: function () {},
+                play: function () { v.paused = false; return null; },
+                pause: function () { v.paused = true; }}; return v; }
+            window.WamaTransport = {mount: function (host, cfg) { mounted.push(cfg); }};
+            var v = video(), box = P.videoWithStrip(v), axis = P.axisOf(box);
+            var r = [v.controls, !!axis, axis ? axis.medias().length : -1, mounted.length,
+                     mounted[0].keys, mounted[0].axis === axis,
+                     JSON.stringify(mounted[0].options), box.children.length];
+            v.on.click[0](); r.push(axis.playing());
+            v.on.click[0](); r.push(axis.playing());
+            delete window.WamaTransport;
+            var bare = video(); P.videoWithStrip(bare); r.push(bare.controls);
+            return r;
+        })()"""))
+        self.assertEqual([False, True, 1, 1, False, True], out[:6],
+                         'no native controls ; the strip on the axis of its box, keys left to the viewer')
+        self.assertEqual({'strip': True, 'step': True, 'reverse': True, 'stop': True,
+                          'position': True, 'volume': True}, json.loads(out[6]),
+                         'the commands of the native controls (play, position, time, speed, volume) and more')
+        self.assertEqual(2, out[7], 'the video, then its strip')
+        self.assertEqual([True, False], out[8:10], 'a click on the picture plays, then pauses')
+        self.assertTrue(out[10], 'without the transport module the native controls stay')
+
     def test_a_sound_of_a_card_or_of_the_panel_joins_an_axis_when_it_first_starts(self):
         """The common player announces the first start of a sound nobody put on an axis
         (`wama:audio-started`) ; the preview then holds an axis on its box. A sound inside a

@@ -1738,8 +1738,23 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       Joué au navigateur : rien avant le
       clic, lecture, pause, clic dans l'onde, fin, relecture depuis le début. ⏳ Reste : rien
       ne PILOTE encore cet axe hors de la visionneuse (ni touches ni bande dans le volet et
-      les cards) — c'est la bande fine (`strip`), qui remplacera aussi les contrôles natifs
-      des vidéos, à parité mesurée.
+      les cards).
+    - 🔄 **2026-11-16 — marche ③, troisième pas : la BANDE FINE remplace les contrôles natifs
+      de la vidéo de la visionneuse.** Le transport commun et sa feuille sont de la page de base
+      (`base.html` : `wama-transport.js` après le shuttle, `wama-transport.css` sortie de
+      `wama-surface.css`) ; la visionneuse le monte sous une vidéo seule
+      (`media-preview.js`, `_videoWithStrip`, options `VIDEO_STRIP`), sur l'axe tenu par sa
+      boîte, SANS inscrire de touches à la page (`cfg.keys: false`, option neuve du
+      transport : la visionneuse, une couche, les donne déjà). Parité mesurée au navigateur,
+      geste par geste, contre les contrôles natifs : lecture/pause (bouton, clic sur l'image,
+      Espace), position (curseur), temps, vitesse (liste), volume et muet, tout l'écran
+      (bouton et double-clic, la bande y reste), image dans l'image quand le navigateur
+      l'offre — plus le pas, l'arrière (J, muet) et l'arrêt ; le téléchargement reste au pied
+      de la visionneuse. Gardes : `OneFaceSwitchTest.test_a_video_of_the_viewer_has_the_thin_strip_instead_of_its_native_controls`,
+      `AxisTest.test_the_transport_shows_a_command_only_with_its_option` (`keys: false`),
+      `common.preview_layout` (la bande présente et entière sous une vidéo). ⏳ Reste : les deux
+      vidéos de Comparer (contrôles natifs sur chacune), la vidéo en ligne du volet et des
+      cards, et une bande sous le son du volet et des cards.
   - ✅ **2026-10-21 — LE VOLET DEVIENT UNE ZONE DE BRIQUES, étape 1 : les surfaces** (décision de
     Fabien : *« on passe tout WAMA progressivement en briques UI »*, verrouillé par défaut pour
     tous, le volet en colonne, les réglages en deux colonnes gardés). Domicile : `WAMA_VOLETS

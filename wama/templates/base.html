@@ -50,6 +50,7 @@
     </style>
     <link href="{% static_v 'common/css/app_modern.css' %}" rel="stylesheet">
     <link href="{% static_v 'common/css/media-preview.css' %}" rel="stylesheet">
+    <link href="{% static_v 'common/css/wama-transport.css' %}" rel="stylesheet">  {# la barre du transport commun : surfaces, monde Data, bande fine de la visionneuse (2026-11-16) #}
     {# Briques inspecteur/params COMMUNES chargées globalement : encadré du bandeau + champs schéma #}
     <link href="{% static_v 'common/css/wama-inspector.css' %}" rel="stylesheet">
     <link href="{% static_v 'common/css/wama-params.css' %}" rel="stylesheet">
@@ -378,6 +379,7 @@
     <script src="{% static_v 'common/js/wama-preview-overlay.js' %}"></script>  {# WamaPreviewOverlay global : détections dessinées sur l'image que montre un aperçu — AVANT l'inspecteur #}
     <script src="{% static_v 'common/js/wama-axis.js' %}"></script>  {# WamaAxis global : l'axe de temps, la SEULE horloge — l'aperçu y pose ses vidéos (2026-11-05), une surface n'en recharge pas (`surface_views.page_scripts`) #}
     <script src="{% static_v 'common/js/wama-shuttle.js' %}"></script>  {# WamaShuttle global : J/K/L, le shuttle du magnéto — celui de la visionneuse et des surfaces #}
+    <script src="{% static_v 'common/js/wama-transport.js' %}"></script>  {# WamaTransport global : les commandes de l'axe — APRÈS le shuttle (il y lit sa vitesse la plus haute) ; la visionneuse en monte la bande fine sous ses vidéos (2026-11-16), une surface ne le recharge pas #}
     <script src="{% static_v 'common/js/media-picker.js' %}"></script>  {# MediaPicker global : import depuis la médiathèque dispo partout (brique commune) #}
     <script src="{% static_v 'common/js/wama-capture.js' %}" data-public-url="{{ wama_public_url }}"></script>  {# WamaCapture global : caméra / micro (contexte sécurisé, refus expliqué, périphériques, enregistrement) — AVANT ses consommateurs : médiathèque, écoute de l'assistant, mains, Face Analyzer #}
     <script src="{% static_v 'common/js/library-add.js' %}"></script>  {# WamaLibraryAdd global : la card d'AJOUT de la médiathèque (page + fenêtre commune) #}
