@@ -289,10 +289,17 @@ def surface_data(request, app: str, key: str, pk: int):
             from wama.common.surfaces import MAX_TEXT_CHARS
             reads[role] = _text(value, MAX_TEXT_CHARS)
         else:
-            reads[role] = value.url if value else ''
+            reads[role] = _media_url(getattr(value, 'name', '') or '') if value else ''
             peaks = _server_peaks(reads[role])
             if peaks:
                 media[role] = peaks
+            if value and request.GET.get('only') != 'state':
+                # Une vidéo que le navigateur ne lit pas, sans copie de lecture : la page le DIT
+                # (`video_compat.playback_state` remet la copie en file) — pas à chaque relecture.
+                from wama.common.utils.video_compat import playback_state
+                said = playback_state(getattr(value, 'name', '') or '')
+                if said:
+                    media[role] = {**(media.get(role) or {}), **said}
             versions = _sources(found, item, role)
             if versions:
                 sources[role] = versions
@@ -412,16 +419,36 @@ def _process_states(item) -> dict:
 def _sources(found, item, role: str) -> list:
     """Les versions du média lu sous `role` (`Surface.sources_of`), servies : `[{key, label, url,
     peaks?}]` — les pics serveur d'un long audio, comme ceux du rôle (`media`)."""
-    from django.core.files.storage import default_storage
     out = []
     for version in found.sources_of(item, role):
-        url = default_storage.url(version['name'])
+        url = _media_url(version['name'])
         entry = {'key': version['key'], 'label': version['label'], 'url': url}
         peaks = _server_peaks(url)
         if peaks:
             entry['peaks'] = peaks
         out.append(entry)
     return out
+
+
+def _media_url(name: str) -> str:
+    """L'adresse d'un fichier que la page LIT (son chemin relatif à MEDIA_ROOT) — celle de sa COPIE
+    DE LECTURE quand il en a une à jour (`video_compat.playback_copy_for`) : une vidéo que le
+    navigateur ne lit pas (un AVI sous une extension `.mp4`, un profil 4:4:4…) reçoit dès son
+    import une copie de même résolution et de même cadence, que l'aperçu sert déjà
+    (`preview_utils.with_playback_copy`). Une page d'édition lisait l'original brut : zones
+    visibles, vidéo absente (relevé par Fabien le 2026-11-16). L'original n'est ni lu ni touché ;
+    sans copie, rien ne change."""
+    from django.core.files.storage import default_storage
+    if not name:
+        return ''
+    try:
+        from wama.common.utils.video_compat import playback_copy_for
+        copy = playback_copy_for(name)
+        if copy:
+            return default_storage.url(copy)
+    except Exception:
+        pass
+    return default_storage.url(name)
 
 
 def _server_peaks(url: str):

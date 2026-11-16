@@ -350,6 +350,42 @@ def schedule_playback_copy(rel: str) -> bool:
         return False
 
 
+#: Une page qui trouve la copie absente la redemande au plus une fois par fenêtre : la tâche est
+#: idempotente, mais une file ne se remplit pas d'ouvertures de page.
+PAGE_REQUEST_TTL = 900
+
+
+def playback_state(rel: str):
+    """Ce qu'une page doit DIRE de la lecture d'un média qu'elle montre (2026-11-16, Fabien : « on
+    informe bien l'utilisateur de ce qu'il se passe en cas de vidéo illisible, et on le prévient
+    que la copie de lecture se génère ») — None quand rien n'est à dire (pas une vidéo, lisible
+    telle quelle, ou sa copie à jour existe) ; sinon `{'playback': 'preparing', 'reason'}` après
+    avoir REMIS la copie en file (la mise en file de l'import est dédoublonnée trente jours : une
+    copie qui a échoué ne se referait jamais d'elle-même). Ne lève jamais."""
+    rel = str(rel or '').replace('\\', '/')
+    try:
+        if not rel or os.path.splitext(rel)[1].lower() not in _video_extensions():
+            return None
+        if f'/{PLAYBACK_DIR}/' in f'/{rel}' or playback_copy_for(rel):
+            return None
+        source = _absolute(rel)
+        if not os.path.isfile(source):
+            return None
+        from wama.common.utils.media_probe import probe_video_format
+        playable, reason = playability(probe_video_format(source))
+        if playable:
+            return None
+        from django.core.cache import cache
+
+        from wama.common.tasks import make_playback_copy_task
+        if cache.add(f'playback_page:{rel}', 1, PAGE_REQUEST_TTL):
+            make_playback_copy_task.delay(rel)
+        return {'playback': 'preparing', 'reason': reason}
+    except Exception as exc:
+        logger.debug(f"[lecture] état de la copie de {rel} illisible : {exc}")
+        return None
+
+
 def backfill_playback_copies(dry_run: bool = False) -> dict:
     """Le RATTRAPAGE : les vidéos que des cards portaient AVANT le récepteur (aucun import ne
     repassera dessus). Parcourt les champs fichier de toutes les cards et met en file une copie

@@ -31840,3 +31840,32 @@ Décision de Fabien : ni le Lab ni le Studio pour le moment (ils se portent et s
 - Budget des routes sans outil 152 → 148.
 
 Vérifié : sous WSL, 441 verts (lectures, couverture, effets, MCP, langue, contrat d'élément, thème, médiathèque) et `wama.filemanager` 99 verts ; après la fusion des deux briques, 113 rejoués sous Windows. Contre-épreuve : les trois extensions neutralisées, 6 tests rouges. `check_docs` 0 cassée sur 4150. ⚠ `wama.filemanager` est rouge sous le venv Windows (montages rclone) et vert sous WSL — artefact de plateforme. ⚠ `doc_facts --check` : `WAMA_MECANISMES.md` et `docs/dev/briques.md` à régénérer (ma ligne de `mecanismes.py` et le travail d'autres sessions) — non régénérées ici. La suite complète n'a pas tourné.
+
+## §PALIER 2026-11-16 (nuit), « PAGES D'ÉDITION : une vidéo que le navigateur ne lit pas — sa copie de lecture servie, ou DITE en préparation » — commit local, non poussé — 🔴 relancer gunicorn (`surface_views`) — 🔚 décisions de Fabien sur « relancer pour COMPLÉTER » (passes d'un même process) ; puis la page du document et l'audio
+
+**Relevé par Fabien** : « je vois les boîtes, mais pas la vidéo » (et, plus tôt, pas l'image).
+Mesuré : la page d'édition lisait l'ORIGINAL ; SEQ08-01 est un AVI sous un nom `.mp4` (profil
+4:4:4), illisible par Chrome (`DEMUXER_ERROR_COULD_NOT_OPEN`), alors que sa copie de lecture
+existait (`.preview/…/SEQ08-01.mp4.mp4`) et que l'aperçu la servait déjà. Le cas « image sans
+image » n'est pas reproduit (faces_02 s'affiche) — card à identifier avec Fabien.
+
+**Livré** : `surface_views._media_url` — un média lu par une surface est servi par sa copie de
+lecture À JOUR quand il en a une (la règle de `preview_utils.with_playback_copy`) ;
+`video_compat.playback_state` — une vidéo illisible sans copie : la page le DIT avec la raison,
+et la copie est REMISE en file (la mise en file de l'import est dédoublonnée trente jours : une
+copie échouée ne se refaisait jamais) ; la brique des zones l'affiche, relit l'adresse toutes les
+10 s et charge la copie dès qu'elle est prête ; un autre échec de lecture est dit aussi.
+
+**Mesuré** : au navigateur sur une copie du vrai SEQ08-01 (serveur jetable) — « Copie de lecture
+en préparation — … (conteneur avi) », puis la copie arrive : « Copie de lecture prête », vidéo
+lue (1280 px). Contre-épreuve (l'état du média retiré) : « La vidéo ne se lit pas… », rien ne se
+charge. Tests : `tests_playback_copy` (sur une vraie vidéo MJPEG : la raison, une seule remise en
+file, rien à dire une fois la copie faite), `tests_surfaces.ReviewSurfaceViewsTest` (copie servie,
+copie périmée écartée, l'état dit à l'ouverture et pas à la relecture légère) — 25 verts.
+
+**Question ouverte de Fabien, consignée** : relancer la détection pour COMPLÉTER (panneaux, logos,
+marques) sans rejouer les modèles de visages et de plaques, en gardant les corrections. Proposition
+faite, en attente de ses décisions : une PASSE = une ligne du process (`process_runs.instance_key`),
+« Compléter » / « Remplacer » offerts par le moteur commun à tout process qui déclare accepter
+plusieurs passes (`ProcessSpec`), la combinaison déclarée par le TYPE de sa sortie (`detections` →
+`detections.merge`) ; le floutage lit l'union et passe périmé ; corrections et versions intactes.

@@ -3391,11 +3391,11 @@ Emplacements canoniques des entrées/sorties par app et par utilisateur (`app_me
 
 ### Copie de lecture des vidéos
 
-Une vidéo qu'une card porte et que le navigateur ne lit pas (conteneur, profil H.264, pixels — pas le seul nom du codec) reçoit, DÈS SON IMPORT et quelle que soit la voie, une copie de lecture H.264 servie par l'aperçu SEULEMENT ; l'original reste intact pour les traitements (2026-10-06, décision de Fabien). Rangée dans le dossier CACHÉ de l'utilisateur (`users/<id>/.preview/`), jamais à côté de l'original ni dans un dossier connecté ; balayée quand l'original part ; ni orpheline pour l'intégrité, ni dédupliquée, ni sauvegardée. Récepteur générique sur les champs fichier, tâche `common.make_playback_copy` (CPU), rattrapage `manage.py playback_copies`. Le verdict lit la sonde COMMUNE (`media_probe.probe_video_format`) ; l'écriture partage le geste de `ensure_h264`
+Une vidéo qu'une card porte et que le navigateur ne lit pas (conteneur, profil H.264, pixels — pas le seul nom du codec) reçoit, DÈS SON IMPORT et quelle que soit la voie, une copie de lecture H.264 servie par l'aperçu SEULEMENT ; l'original reste intact pour les traitements (2026-10-06, décision de Fabien). Rangée dans le dossier CACHÉ de l'utilisateur (`users/<id>/.preview/`), jamais à côté de l'original ni dans un dossier connecté ; balayée quand l'original part ; ni orpheline pour l'intégrité, ni dédupliquée, ni sauvegardée. Récepteur générique sur les champs fichier, tâche `common.make_playback_copy` (CPU), rattrapage `manage.py playback_copies`. Le verdict lit la sonde COMMUNE (`media_probe.probe_video_format`) ; l'écriture partage le geste de `ensure_h264`. 2026-11-16 : une PAGE D'ÉDITION lit aussi la copie (`surface_views._media_url`) et, la trouvant absente, la DIT et la remet en file (`playback_state`, une fois par quart d'heure) ; la vidéo se charge d'elle-même quand la copie est prête
 
 - **Domicile** : `wama/common/utils/video_compat.py` · **doc** : [docs/construction/exploitation/MEDIA_STORAGE_TIERING.md](../construction/exploitation/MEDIA_STORAGE_TIERING.md)
 - **Module** : Browser-compatibility helpers for video files.
-- **API publique** (14) :
+- **API publique** (15) :
   - `get_video_codec(file_path: str, *, timeout: int=10) -> Optional[str]` — Return the codec name of the first video stream, lowercased
   - `is_browser_compatible_codec(codec: Optional[str]) -> bool` — True when the codec is one HTML5 ``<video>`` can play directly.
   - `ensure_h264(file_path: str, *, timeout: int=1800) -> Union[bool, str]` — Ensure a video is browser-compatible. When the codec is already in
@@ -3408,6 +3408,7 @@ Une vidéo qu'une card porte et que le navigateur ne lit pas (conteneur, profil 
   - `original_of_copy(copy_rel: str) -> str` — L'original (chemin relatif) d'un fichier dérivé — l'inverse de `derived_rel`, pour chacun
   - `sweep_orphan_playback_copies(dry_run: bool=False) -> dict` — Retire les fichiers dérivés (copies de lecture, pics fins) dont l'original n'existe plus, ou
   - `schedule_playback_copy(rel: str) -> bool` — Met en file la copie de lecture d'un média vidéo, UNE fois par version du fichier (chemin,
+  - `playback_state(rel: str)` — Ce qu'une page doit DIRE de la lecture d'un média qu'elle montre (2026-11-16, Fabien : « on
   - `backfill_playback_copies(dry_run: bool=False) -> dict` — Le RATTRAPAGE : les vidéos que des cards portaient AVANT le récepteur (aucun import ne
   - `register_playback_copy_receivers()` — Branche le récepteur sur tout modèle à champ fichier (le recensement COMMUN,
 

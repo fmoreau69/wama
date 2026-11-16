@@ -457,6 +457,45 @@
                     ctx.emit('frame', { i: frameIndex });
                 });
             video.addEventListener('loadedmetadata', function () { fit(); });
+            // Une vidéo que le navigateur ne lit pas se DIT (2026-11-16 : la page montrait les zones
+            // sur un fond noir, sans un mot). Sa copie de lecture en préparation (le serveur l'a
+            // remise en file, `media[role].playback`) : la page le dit, relit l'adresse du média
+            // jusqu'à ce que la copie soit prête, et la charge. Les zones restent corrigeables.
+            var preparing = ((ctx.media() || {})[role] || {}).playback === 'preparing';
+            var why = ((ctx.media() || {})[role] || {}).reason || '';
+            function sayPreparing() {
+                ctx.status('Copie de lecture en préparation — la vidéo d\u2019origine ne se lit pas ' +
+                           'dans un navigateur' + (why ? ' (' + why + ')' : '') + '. Elle s\u2019affichera ' +
+                           'd\u2019elle-même ; les zones restent corrigeables image par image.', 'busy');
+            }
+            video.addEventListener('error', function () {
+                if (preparing) sayPreparing();
+                else ctx.status('La vidéo ne se lit pas dans ce navigateur — les zones restent ' +
+                                'corrigeables image par image', 'error');
+                fit();
+            });
+            if (preparing) {
+                sayPreparing();
+                var first = ctx.reads()[role] || '';
+                var waitCopy = function () {
+                    fetch(ctx.config.data_url + '?only=state', { credentials: 'same-origin' })
+                        .then(function (r) { return r.json(); })
+                        .then(function (res) {
+                            var now = ((res || {}).reads || {})[role] || '';
+                            if (now && now !== first) {
+                                var at = axis ? axis.time() : 0;
+                                video.src = now;
+                                if (axis) axis.seek(at);
+                                ctx.status('Copie de lecture prête', 'ok');
+                                preparing = false;
+                                return;
+                            }
+                            setTimeout(waitCopy, 10000);
+                        })
+                        .catch(function () { setTimeout(waitCopy, 20000); });
+                };
+                setTimeout(waitCopy, 10000);
+            }
             var url = ctx.source ? ctx.source(role).url : (ctx.reads()[role] || '');
             if (url) {
                 video.src = url;

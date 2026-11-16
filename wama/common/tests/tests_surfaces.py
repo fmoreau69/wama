@@ -475,6 +475,27 @@ class ReviewSurfaceViewsTest(TestCase):
         data = self.client.get(base + 'data/').json()
         self.assertTrue(data['reads']['video'].endswith('street.png'), 'the file of the card')
         self.assertTrue(data['can_edit'])
+        # A medium the browser cannot play is read through its PLAYBACK COPY when it has one, up
+        # to date (2026-11-16, Fabien : « je vois les boîtes, mais pas la vidéo ») — the rule of
+        # the preview, `video_compat.playback_copy_for` ; a copy older than the original is not.
+        from wama.common.utils.video_compat import playback_copy_rel
+        copy = Path(settings.MEDIA_ROOT) / playback_copy_rel(self.media.file.name)
+        copy.parent.mkdir(parents=True, exist_ok=True)
+        copy.write_bytes(b'playback')
+        served = self.client.get(base + 'data/').json()['reads']['video']
+        self.assertTrue(served.endswith('/.preview/anonymizer/input/street.png.mp4'), served)
+        os.utime(copy, (1, 1))
+        self.assertTrue(self.client.get(base + 'data/').json()['reads']['video'].endswith('street.png'),
+                        'a stale copy is not served')
+        copy.unlink()
+        # What the page must SAY of the reading travels with the medium (`video_compat.playback_state`),
+        # on opening only — the light re-read of the state does not probe the file again.
+        preparing = {'playback': 'preparing', 'reason': 'conteneur avi'}
+        from unittest import mock
+        with mock.patch('wama.common.utils.video_compat.playback_state', return_value=preparing) as said:
+            self.assertEqual(preparing, self.client.get(base + 'data/').json()['media']['video'])
+            self.assertNotIn('video', self.client.get(base + 'data/?only=state').json()['media'])
+        self.assertEqual(1, said.call_count)
         value = {'added': [{'i': 12, 'box': [30, 5, 45, 18], 'label': 'face'}],
                  'removed': [{'i': 0, 'box': [5, 5, 20, 20]}]}
         res = self.client.post(base + 'save/', json.dumps({'value': value}),

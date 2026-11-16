@@ -99,6 +99,25 @@ class PlaybackCopyOnDiskTest(SimpleTestCase):
         self.assertEqual(copy, vc.make_playback_copy(self.rel), 'idempotent')
         self.assertEqual(stamp, os.path.getmtime(os.path.join(self.root, copy)))
 
+    def test_a_page_is_told_the_copy_is_being_prepared_and_requeues_it_once(self):
+        """2026-11-16 (Fabien : « on informe l'utilisateur, et on le prévient que la copie de lecture
+        se génère ») : an unplayable video without its copy says so, with its reason, and the copy is
+        queued again — once per window, the import queueing being kept for thirty days ; nothing is
+        said of a video with its copy up to date, a playable one, or another medium."""
+        with mock.patch('wama.common.tasks.make_playback_copy_task.delay') as delay:
+            said = vc.playback_state(self.rel)
+            again = vc.playback_state(self.rel)
+        from wama.common.utils.media_probe import probe_video_format
+        reason = vc.playability(probe_video_format(os.path.join(self.root, self.rel)))[1]
+        self.assertEqual({'playback': 'preparing', 'reason': reason}, said)
+        self.assertTrue(reason, 'the reason the browser cannot read it is said')
+        self.assertEqual(said, again)
+        delay.assert_called_once_with(self.rel)
+        vc.make_playback_copy(self.rel)
+        self.assertIsNone(vc.playback_state(self.rel), 'its copy is up to date')
+        self.assertIsNone(vc.playback_state('users/7/temp/photo.png'))
+        self.assertIsNone(vc.playback_state(''))
+
     def test_a_playable_video_gets_no_copy(self):
         good = 'users/7/temp/good.mp4'
         subprocess.run(['ffmpeg', '-y', '-v', 'error', '-i', os.path.join(self.root, self.rel),

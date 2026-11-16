@@ -3498,7 +3498,10 @@ MECHANISMS = (
               "orpheline pour l'intégrité, ni dédupliquée, ni sauvegardée. Récepteur générique sur "
               "les champs fichier, tâche `common.make_playback_copy` (CPU), rattrapage "
               "`manage.py playback_copies`. Le verdict lit la sonde COMMUNE "
-              "(`media_probe.probe_video_format`) ; l'écriture partage le geste de `ensure_h264`",
+              "(`media_probe.probe_video_format`) ; l'écriture partage le geste de `ensure_h264`. "
+              "2026-11-16 : une PAGE D'ÉDITION lit aussi la copie (`surface_views._media_url`) et, "
+              "la trouvant absente, la DIT et la remet en file (`playback_state`, une fois par "
+              "quart d'heure) ; la vidéo se charge d'elle-même quand la copie est prête",
               'wama/common/utils/video_compat.py',
               'docs/construction/exploitation/MEDIA_STORAGE_TIERING.md',
               annexes=('wama/common/management/commands/playback_copies.py',),
