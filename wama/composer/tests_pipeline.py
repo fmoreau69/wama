@@ -723,7 +723,8 @@ class ThePipelineIsInTheCatalogueTest(SimpleTestCase):
         self.assertEqual([], validate(manifest))
         self.assertEqual('media', manifest['world'])
         # The separated stems (2026-11-12) first : the input alone decides, nothing reads them.
-        self.assertEqual([('separate', 'composer.separate'),
+        # The remix (2026-11-16) right after them, which it reads.
+        self.assertEqual([('separate', 'composer.separate'), ('remix', 'composer.remix'),
                           ('extract_score', 'composer.extract_score'), ('parts', 'composer.parts'),
                           ('extract_lyrics', 'composer.extract_lyrics'),
                           ('write_lyrics', 'composer.write_lyrics'),
@@ -750,7 +751,9 @@ class ThePipelineIsInTheCatalogueTest(SimpleTestCase):
                           ('extract_score', 'render'), ('extract_lyrics', 'render'), ('plan', 'render'),
                           ('render', 'output'), ('render', 'rendered_parts'), ('render', 'rendered_lyrics'),
                           # Sa partition réduite (2026-11-08, la symétrie) : une branche du rendu.
-                          ('render', 'rendered_score')},
+                          ('render', 'rendered_score'),
+                          # La refusion lit les pistes séparées (2026-11-16).
+                          ('separate', 'remix')},
                          links)
 
     def test_the_export_command_lists_it(self):
@@ -758,7 +761,7 @@ class ThePipelineIsInTheCatalogueTest(SimpleTestCase):
         self.assertIn('composer', _pipeline_keys())
 
     def test_the_task_has_a_glue_for_every_process(self):
-        self.assertEqual({'separate', 'extract_score', 'extract_lyrics', 'write_lyrics', 'plan',
+        self.assertEqual({'separate', 'remix', 'extract_score', 'extract_lyrics', 'write_lyrics', 'plan',
                           'render', 'output', 'parts', 'rendered_score', 'rendered_parts',
                           'rendered_lyrics'},
                          {spec.key for spec in PIPELINE.specs})

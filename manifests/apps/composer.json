@@ -773,6 +773,77 @@
             },
             {
               "args": [],
+              "class": "django.db.models.BooleanField",
+              "kwargs": {
+                "db_default": {
+                  "expr": "False",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "False",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Refusion : le morceau recomposé sans certaines pistes'",
+                  "imports": []
+                }
+              },
+              "name": "remix_stems"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "db_default": {
+                  "expr": "''",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "''",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Pistes à retirer de la refusion, séparées par des virgules.'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "300",
+                  "imports": []
+                }
+              },
+              "name": "remix_without"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FileField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "500",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "upload_to": {
+                  "expr": "wama.common.utils.media_paths.UploadToUserPath('composer', 'output')",
+                  "imports": [
+                    "import wama.common.utils.media_paths"
+                  ]
+                }
+              },
+              "name": "remix_audio"
+            },
+            {
+              "args": [],
               "class": "django.db.models.CharField",
               "kwargs": {
                 "default": {
@@ -1989,6 +2060,116 @@
             "default_from": null,
             "display_format": "",
             "dom_id": {
+              "batch": "batchSettingsRemixStems",
+              "item": "settingsRemixStems",
+              "panel": "remixStems"
+            },
+            "group": "",
+            "help": "Recompose le morceau à partir de ses pistes séparées, sans celles qu'on retire (par exemple sans la batterie, sans la voix). Le morceau d'origine sert de base : ce qu'on garde n'est pas abîmé par la séparation. Le résultat devient une card du lot.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-sliders",
+            "inline": false,
+            "label": "Refusion des pistes",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "remix_stems",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "remember": null,
+            "section": "settings",
+            "show_if": null,
+            "stales": [
+              "remix"
+            ],
+            "step": null,
+            "type": "toggle",
+            "unit": "",
+            "write_from": null
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "panel",
+              "item",
+              "batch"
+            ],
+            "default": "",
+            "default_from": null,
+            "display_format": "",
+            "dom_id": {
+              "batch": "batchSettingsRemixWithout",
+              "item": "settingsRemixWithout",
+              "panel": "remixWithout"
+            },
+            "group": "",
+            "help": "Les pistes à retirer, séparées par des virgules (ex. « Batterie, Voix ») — les noms des pistes séparées. Vide : le morceau d'origine, intact.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-volume-xmark",
+            "inline": false,
+            "label": "Pistes à retirer",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "remix_without",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "remember": null,
+            "section": "settings",
+            "show_if": null,
+            "stales": [
+              "remix"
+            ],
+            "step": null,
+            "type": "text",
+            "unit": "",
+            "write_from": null
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "panel",
+              "item",
+              "batch"
+            ],
+            "default": null,
+            "default_from": null,
+            "display_format": "",
+            "dom_id": {
               "batch": "batchSettingsExtractParts",
               "item": "settingsExtractParts",
               "panel": "extractParts"
@@ -2733,6 +2914,8 @@
             "separate_stems",
             "separation_model",
             "separation_stems",
+            "remix_stems",
+            "remix_without",
             "extract_parts",
             "extract_rendered_parts",
             "extract_rendered_score",
@@ -2953,6 +3136,8 @@
             "parts_model": "select — Modèle des partitions complètes (défaut : 'auto')",
             "prompt": "textarea — Prompt (requis)",
             "quality_intent": "intent — Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources. [0–100] (défaut : 50)",
+            "remix_stems": "toggle — Recompose le morceau à partir de ses pistes séparées, sans celles qu'on retire (par exemple sans la batterie, sans la voix). Le morceau d'origine sert de base : ce qu'on garde n'est pas abîmé par la séparation. Le résultat devient une card du lot.",
+            "remix_without": "text — Les pistes à retirer, séparées par des virgules (ex. « Batterie, Voix ») — les noms des pistes séparées. Vide : le morceau d'origine, intact.",
             "seed": "seed — Vide : un tirage neuf à chaque lancement. Une graine fixée, avec les mêmes réglages et le même modèle, redonne le même résultat sur cette machine. [0–2147483647]",
             "separate_stems": "toggle — Sépare l'audio repris en pistes (voix, batterie, basse, guitare, piano, autres) : chaque piste devient une card du lot de celle-ci, avec ses propres réglages — par exemple pour écrire la partition d'un seul instrument, plus juste que celle du mélange. Les cards des pistes ne se lancent pas d'elles-mêmes.",
             "separation_model": "select — Modèle des pistes séparées (défaut : 'auto')",

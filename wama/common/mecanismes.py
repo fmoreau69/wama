@@ -3705,6 +3705,16 @@ MECHANISMS = (
               'wama/common/utils/audio_rhythm.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
               depends_on=('audio_decode',)),
+    Mechanism('stem_mix', 'Refusion de pistes séparées',
+              "Recompose un morceau depuis ses pistes séparées SANS dégrader ce qu'on garde : "
+              "l'original + Σ (gain − 1) · piste — tout à 1, l'original exact ; une piste à 0 "
+              "retranchée (2026-11-16, demande de Fabien : « refusionner en retirant seulement la "
+              "batterie »). Lecture stéréo à fréquence donnée (`audio_decode.decode_stereo`, un mp3 "
+              "garde ses deux canaux) ; jamais écrêté. Le process `remix` du composer la lit ; le "
+              "mixage en temps réel (gains continus) reprendra la même formule",
+              'wama/common/utils/stem_mix.py',
+              'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
+              depends_on=('audio_decode',)),
     Mechanism('score_timing', 'Repères d\'une partition sur son audio',
               "Où tombe chaque mesure d'une partition dans l'audio dont elle est tirée : un couple "
               "(instant écrit, instant d'audio) par barre, écrit DANS l'ABC (ligne `% wama-sync:` de "

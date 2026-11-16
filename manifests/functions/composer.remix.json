@@ -1,0 +1,64 @@
+{
+  "body": {
+    "app": "composer",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "composer.tasks:compose_task",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "audio",
+        "description": "Audio du morceau d'origine (cover).",
+        "group": "travail",
+        "key": "work_audio",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "audio",
+        "description": "Ses pistes séparées.",
+        "group": "travail",
+        "key": "stems",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "composer.remix",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "audio",
+        "description": "Le morceau recomposé.",
+        "key": "remix",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "params": [],
+    "projects": [],
+    "tags": [
+      "audio",
+      "music"
+    ]
+  },
+  "description": "Recompose le morceau à partir de ses pistes séparées, sans celles qu'on retire : l'original MOINS ces pistes (`common/utils/stem_mix.py`) — ce qu'on garde n'est pas abîmé par la séparation. Le résultat devient une card du lot. Optionnelle.",
+  "key": "composer.remix",
+  "manifest_kind": "function",
+  "name": "Composer — refusion des pistes",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:composer.remix",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

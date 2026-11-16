@@ -189,6 +189,24 @@ PARAMS = [
           dom_id={"panel": "separationStems", "item": "settingsSeparationStems",
                   "batch": "batchSettingsSeparationStems"},
           contexts=PANEL_ITEM_BATCH, stales=("separate",)),
+    # REFUSION (2026-11-16, demande de Fabien) : la case du process optionnel `remix` — l'original
+    # recomposé sans les pistes nommées, une card de plus dans le lot. Ne périme qu'elle-même.
+    Param(name="remix_stems", type="toggle", label="Refusion des pistes",
+          icon="fa-sliders",
+          help="Recompose le morceau à partir de ses pistes séparées, sans celles qu'on retire (par "
+               "exemple sans la batterie, sans la voix). Le morceau d'origine sert de base : ce "
+               "qu'on garde n'est pas abîmé par la séparation. Le résultat devient une card du lot.",
+          dom_id={"panel": "remixStems", "item": "settingsRemixStems",
+                  "batch": "batchSettingsRemixStems"},
+          contexts=PANEL_ITEM_BATCH, stales=("remix",)),
+    Param(name="remix_without", type="text", label="Pistes à retirer",
+          icon="fa-volume-xmark",
+          help="Les pistes à retirer, séparées par des virgules (ex. « Batterie, Voix ») — les noms "
+               "des pistes séparées. Vide : le morceau d'origine, intact.",
+          default="",
+          dom_id={"panel": "remixWithout", "item": "settingsRemixWithout",
+                  "batch": "batchSettingsRemixWithout"},
+          contexts=PANEL_ITEM_BATCH, stales=("remix",)),
     # PARTITION COMPLÈTE (2026-10-16, décision de Fabien) : la case qui ACTIVE le process optionnel
     # `parts` (`ProcessSpec.toggle`) — depuis le 2026-10-26 sur l'ENTRÉE : l'audio repris, comme la
     # partition réduite. Ne périme qu'elle-même : le rendu suit la réduite, jamais celle-ci.

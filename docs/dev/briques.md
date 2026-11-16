@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**244 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**245 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -3413,8 +3413,9 @@ Décode l'audio là où torchcodec/torchaudio sont cassés (WSL) : soundfile + r
 
 - **Domicile** : `wama/common/utils/audio_decode.py`
 - **Module** : Décodage audio robuste pour WAMA (WSL où torchcodec/torchaudio est cassé).
-- **API publique** (7) :
+- **API publique** (8) :
   - `decode_audio(path, target_sr: int=16000, mono: bool=True)` — Décode un fichier audio en (ndarray float32, sample_rate), robuste aux formats
+  - `decode_stereo(path, target_sr: int=44100)` — `((2, time) float32, target_sr)` — un mélange qu'on RECOMPOSE garde ses deux canaux
   - `resample(samples, rate: int, target_sr: int)` — Échantillons mono → float32 à `target_sr` (polyphase, scipy) ; inchangés s'ils y sont.
   - `decode_audio_at(path, target_sr: int=16000)` — (mono float32 à `target_sr` GARANTI, `target_sr`) — ce qu'attend un modèle de parole.
   - `transcode_to_wav(path, out_path, target_sr: int=16000)` — Réécrit un média en WAV PCM 16 bits mono à `target_sr`, via ffmpeg — rend `out_path`.
@@ -3748,6 +3749,16 @@ SEULE frontière entre les deux vocabulaires du monde Data : le référentiel (p
   - `frame_from_table(path, data_type: str, *, meta: Optional[Mapping[str, Any]]=None) -> TypedFrame` — Un fichier PLAT (CSV, TSV, TXT, XLSX…) en cadre du type DIT — l'entrée « Jeu de données »
   - `signal_from_frame(frame: TypedFrame, name: str, *, fs: Optional[float]=None, units: Optional[Mapping[str, str]]=None, comments: str='') -> Signal` — Un cadre typé redevient un flux — **toujours DÉRIVÉ, jamais acquis** (piège ④).
   - `adjoin(ref: TemporalReferential, name: str, frame: TypedFrame, *, offset: float=0.0, **kwargs) -> Signal` — Ajoute au référentiel un flux issu d'un calcul, et le rend.
+
+### Refusion de pistes séparées
+
+Recompose un morceau depuis ses pistes séparées SANS dégrader ce qu'on garde : l'original + Σ (gain − 1) · piste — tout à 1, l'original exact ; une piste à 0 retranchée (2026-11-16, demande de Fabien : « refusionner en retirant seulement la batterie »). Lecture stéréo à fréquence donnée (`audio_decode.decode_stereo`, un mp3 garde ses deux canaux) ; jamais écrêté. Le process `remix` du composer la lit ; le mixage en temps réel (gains continus) reprendra la même formule
+
+- **Domicile** : `wama/common/utils/stem_mix.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
+- **Module** : RECOMPOSER un morceau depuis ses pistes séparées (2026-11-16, demande de Fabien : « refusionner les stems pour recréer un audio complet ou partiel — par exemple en retirant seulement la batterie »).
+- **API publique** (2) :
+  - `mix(original: str, stems: dict, gains: dict, rate: int=44100)` — L'original (chemin) recomposé : chaque piste `stems[clé]` (chemin) pondérée par `gains[clé]`
+  - `write_wav(path, samples, rate: int) -> None`
 
 ### Repères d'une partition sur son audio
 

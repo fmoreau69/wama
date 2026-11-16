@@ -200,6 +200,19 @@ class ComposerGeneration(DerivedCardMixin, KeptOutputsMixin, ProcessingTimeMixin
         help_text="Pistes à extraire (séparation par requête), séparées par des virgules.")
     stems_index = models.FileField(
         max_length=500, upload_to=upload_to_user_output('composer'), blank=True, null=True)
+    # REFUSION (2026-11-16, demande de Fabien : « refusionner les stems pour recréer un audio complet
+    # ou partiel, par exemple en retirant seulement la batterie ») : process OPTIONNEL `remix` après
+    # `separate` — l'original MOINS les pistes retirées (`common/utils/stem_mix.py` : rien de ce
+    # qu'on garde n'est re-synthétisé). `remix_without` : les pistes à retirer, texte lu par
+    # `midi_score.instrument_keys` (le vocabulaire de `separation_stems`) ; `remix_audio` : le
+    # morceau recomposé, qui devient aussi une card du lot.
+    remix_stems = models.BooleanField(
+        default=False, db_default=False, help_text="Refusion : le morceau recomposé sans certaines pistes")
+    remix_without = models.CharField(
+        max_length=300, blank=True, default='', db_default='',
+        help_text="Pistes à retirer de la refusion, séparées par des virgules.")
+    remix_audio = models.FileField(
+        max_length=500, upload_to=upload_to_user_output('composer'), blank=True, null=True)
 
     # Format de sortie (conversion inline via Converter) — 'original' = WAV natif
     output_format = models.CharField(max_length=20, default='original')

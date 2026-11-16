@@ -82,6 +82,33 @@ def decode_audio(path, target_sr: int = 16000, mono: bool = True):
     raise RuntimeError(f"[audio_decode] aucun décodeur n'a pu lire : {path}")
 
 
+def decode_stereo(path, target_sr: int = 44100):
+    """`((2, time) float32, target_sr)` — un mélange qu'on RECOMPOSE garde ses deux canaux
+    (2026-11-16, refusion des pistes séparées : `decode_audio` rend un mp3 en mono). WAV/FLAC/OGG
+    par soundfile, ré-échantillonnés canal par canal ; le reste (mp3, m4a…) par ffmpeg en stéréo.
+    Un mono est dupliqué, au-delà de deux canaux les deux premiers sont gardés."""
+    import numpy as np
+    try:
+        import soundfile as sf
+        data, sr = sf.read(path, dtype='float32', always_2d=True)       # (time, channels)
+        channels = data.T
+    except Exception as e_sf:
+        logger.debug(f"[audio_decode] soundfile failed: {e_sf}, trying ffmpeg (stereo)")
+        from wama.common.utils.ffmpeg_utils import get_ffmpeg_exe, adapt_path_for_ffmpeg
+        _ff = get_ffmpeg_exe()
+        proc = subprocess.run(
+            [_ff, '-nostdin', '-threads', '0', '-i', adapt_path_for_ffmpeg(str(path), _ff),
+             '-f', 'f32le', '-ac', '2', '-ar', str(target_sr), '-'],
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=True)
+        flat = np.frombuffer(proc.stdout, dtype=np.float32)
+        return np.ascontiguousarray(flat[:len(flat) // 2 * 2].reshape(-1, 2).T), target_sr
+    if sr != target_sr:
+        channels = np.stack([resample(c, sr, target_sr) for c in channels])
+    if channels.shape[0] == 1:
+        channels = np.repeat(channels, 2, axis=0)
+    return np.ascontiguousarray(channels[:2], dtype=np.float32), target_sr
+
+
 def resample(samples, rate: int, target_sr: int):
     """Échantillons mono → float32 à `target_sr` (polyphase, scipy) ; inchangés s'ils y sont."""
     from math import gcd

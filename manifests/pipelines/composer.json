@@ -3,6 +3,11 @@
     "layout": {},
     "links": [
       {
+        "from": "separate",
+        "to": "remix",
+        "to_port": null
+      },
+      {
         "from": "extract_lyrics",
         "to": "write_lyrics",
         "to_port": null
@@ -77,6 +82,30 @@
           "watched": [
             "separate_stems",
             "separation_model",
+            "separation_stems",
+            "melody_reference",
+            "source_url"
+          ]
+        }
+      },
+      {
+        "app": null,
+        "function": "composer.remix",
+        "id": "remix",
+        "kind": "function",
+        "params": {},
+        "process": {
+          "degree": "optional",
+          "eta": "composer.tasks:remix_eta",
+          "gpu": false,
+          "label": "Refusion des pistes",
+          "outputs": [
+            "remix_audio"
+          ],
+          "toggle": "remix_stems",
+          "watched": [
+            "remix_stems",
+            "remix_without",
             "melody_reference",
             "source_url"
           ]
@@ -314,7 +343,7 @@
   "description": "Pipeline déclaré en code : chaque process est un nœud `function` du catalogue, chaque dépendance un lien.",
   "key": "composer",
   "manifest_kind": "pipeline",
-  "name": "Composer — partition, rendu, sortie (11 process)",
+  "name": "Composer — partition, rendu, sortie (12 process)",
   "owner": null,
   "projects": [],
   "schema_version": "1.0",

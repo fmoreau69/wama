@@ -110,6 +110,14 @@ def _separate_available() -> bool:
     return stem_separation_available()
 
 
+def _remix_applies(gen, model_key) -> bool:
+    """La REFUSION (2026-11-16) : des pistes séparées existent sur la card d'origine (son index,
+    `stems_index`), et ce n'est pas une piste elle-même."""
+    if getattr(gen, 'derived_role', ''):
+        return False
+    return bool(getattr(getattr(gen, 'stems_index', None), 'name', ''))
+
+
 def _lyrics_available() -> bool:
     from .utils.model_choice import lyrics_transcription_available
     return lyrics_transcription_available()
@@ -181,6 +189,18 @@ register(FunctionSpec(
     inputs=[PortSpec('work_audio', 'audio', group='travail',
                      description="Audio du morceau à séparer (cover).")],
     outputs=[PortSpec('stems', 'audio', description="Les pistes, une card chacune dans le lot.")]))
+
+register(FunctionSpec(
+    key='composer.remix', name="Composer — refusion des pistes",
+    description="Recompose le morceau à partir de ses pistes séparées, sans celles qu'on retire : "
+                "l'original MOINS ces pistes (`common/utils/stem_mix.py`) — ce qu'on garde n'est "
+                "pas abîmé par la séparation. Le résultat devient une card du lot. Optionnelle.",
+    category=FC.TRANSFORM, binding=Binding.APP, app=_APP, impl=_IMPL,
+    tags=['audio', 'music'],
+    inputs=[PortSpec('work_audio', 'audio', group='travail',
+                     description="Audio du morceau d'origine (cover)."),
+            PortSpec('stems', 'audio', description="Ses pistes séparées.")],
+    outputs=[PortSpec('remix', 'audio', description="Le morceau recomposé.")]))
 
 register(FunctionSpec(
     key='composer.rendered_score', name='Composer — partition réduite jouée',
@@ -316,6 +336,12 @@ PIPELINE = register_app_pipeline(_APP, (
                 degree=OPTIONAL, toggle='separate_stems', gpu=True, share=1, needs=MAKES_MUSIC,
                 applies=_separate_applies, available=_separate_available,
                 outputs=('stems_index',), eta='composer.tasks:separate_eta'),
+    # REFUSION (2026-11-16, demande de Fabien) : après les pistes séparées, qu'elle lit (leur
+    # index) ; l'original moins les pistes retirées. Sans GPU. Rien ne la lit : aucun aval.
+    ProcessSpec('remix', label='Refusion des pistes', depends_on=('separate',),
+                watched=('melody_reference', 'source_url'),
+                degree=OPTIONAL, toggle='remix_stems', applies=_remix_applies,
+                outputs=('remix_audio',), eta='composer.tasks:remix_eta'),
     # La partition EXTRAITE ne dépend que de l'audio (remarque d'ae, 2026-10-03) : changer le
     # modèle de RENDU ne la périme pas — s'il cesse de suivre une partition, c'est `applies` qui
     # écarte le process, pas la péremption. `source_url` remplit l'audio au lancement.

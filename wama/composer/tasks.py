@@ -48,7 +48,7 @@ def compose_task(self, generation_id: int, process: str | None = None):
     try:
         run_item_task(self, app_id='composer', model=ComposerGeneration, item_id=generation_id,
                       pipeline=PIPELINE,
-                      processes={'separate': _separate,
+                      processes={'separate': _separate, 'remix': _remix,
                                  'extract_score': _extract_score, 'extract_lyrics': _extract_lyrics,
                                  'write_lyrics': _write_lyrics,
                                  'plan': _plan, 'render': _render, 'output': _output, 'parts': _parts,
@@ -140,6 +140,17 @@ def separate_eta_key_size(gen) -> tuple[str, float, str]:
 def separate_eta(gen):
     """ETA déclarée du process `separate` : apprise seulement (clé de process, cf. `plan_eta`)."""
     return (*separate_eta_key_size(gen), False, 0.0)
+
+
+def remix_eta_key_size(gen) -> tuple[str, float, str]:
+    """(clé, taille, unité) de l'ETA du process `remix` : ∝ durée du morceau (lecture des pistes,
+    une somme, l'écriture)."""
+    return 'composer:remix', float(gen.duration or 0), 'audio_sec'
+
+
+def remix_eta(gen):
+    """ETA déclarée du process `remix` : apprise seulement (la règle de `separate_eta`)."""
+    return (*remix_eta_key_size(gen), False, 0.0)
 
 
 def lyrics_eta_key_size(gen) -> tuple[str, float, str]:
@@ -457,6 +468,67 @@ def _separate(gen, ctx):
         'console_success': f"✓ Pistes séparées : {labels} — {len(cards)} card(s) dans le lot",
         'models': [separator_key],
         'eta': separate_eta_key_size(gen),
+    }
+
+
+def remix_gains(stems, without: str) -> dict:
+    """Les gains de la refusion : 0 pour chaque piste NOMMÉE à retirer (libellés français du
+    vocabulaire commun ou clés, `midi_score.instrument_keys`), 1 pour les autres. Un nom qu'aucune
+    piste ne porte est refusé en le disant — jamais un « retrait » silencieusement sans effet."""
+    from wama.common.utils.midi_score import instrument_keys, instrument_label
+    removed = instrument_keys(without or '')
+    unknown = [key for key in removed if key not in stems]
+    if unknown:
+        have = ', '.join(instrument_label(key) for key in stems)
+        raise RuntimeError(f"Pistes à retirer inconnues : {', '.join(instrument_label(k) for k in unknown)}"
+                           f" — pistes de la card : {have}.")
+    return {key: 0.0 if key in removed else 1.0 for key in stems}
+
+
+def _remix(gen, ctx):
+    """GLU du process `remix` (2026-11-16, demande de Fabien) : l'audio de l'ENTRÉE moins les pistes
+    retirées (`remix_without`), par la brique commune `stem_mix` — l'original sert de base, ce
+    qu'on garde n'est pas re-synthétisé. Le morceau recomposé est la sortie de la card
+    (`remix_audio`) et une card de plus dans le lot (`derived_cards`, rôle `remix`) : on peut en
+    écrire la partition, le recomposer encore."""
+    import json
+    import shutil
+    from django.conf import settings
+    from wama.common.utils.derived_cards import derive_cards
+    from wama.common.utils.midi_score import instrument_label
+    from wama.common.utils.stem_mix import mix, write_wav
+
+    if not gen.melody_reference or not gen.stems_index:
+        raise RuntimeError("Rien à refusionner : lancer d'abord « Pistes séparées ».")
+    with open(os.path.join(settings.MEDIA_ROOT, gen.stems_index.name), encoding='utf-8') as handle:
+        index = json.load(handle)
+    stems = {s['stem']: os.path.join(settings.MEDIA_ROOT, s['path']) for s in index.get('stems', ())
+             if os.path.isfile(os.path.join(settings.MEDIA_ROOT, s['path']))}
+    gains = remix_gains(stems, getattr(gen, 'remix_without', ''))
+    removed = [key for key, gain in gains.items() if gain == 0.0]
+    ctx.console("[Composer] Refusion : " + (f"sans {', '.join(instrument_label(k) for k in removed)}"
+                                            if removed else "toutes les pistes (le morceau d'origine)"))
+    ctx.progress(10)
+    samples, rate = mix(os.path.join(settings.MEDIA_ROOT, gen.melody_reference.name), stems, gains)
+    ctx.progress(80)
+    nature = 'remix' + ''.join(f'-{k.replace(" ", "_")}' for k in removed)
+    rel, abs_path = ctx.output_place('.wav', nature=nature, model='stem_mix')
+    write_wav(abs_path, samples, rate)
+    # La card du lot a SA copie, rangée comme les pistes (dans l'entrée de l'app) : retirer l'une
+    # ne libère jamais le fichier de l'autre.
+    card_rel, card_abs = ctx.output_place('.wav', nature=nature, model='stem_mix',
+                                          source_name=gen.melody_reference.name, folder='input')
+    shutil.copyfile(abs_path, card_abs)
+    derive_cards(gen, [('remix', card_rel)], field='melody_reference',
+                 reset_fields={'separate_stems': False, 'remix_stems': False, 'source_url': ''})
+    label = ('sans ' + ', '.join(instrument_label(k) for k in removed)) if removed else 'complète'
+    return {
+        'fields': {'remix_audio': rel},
+        'output_ref': rel,
+        'label': f'Refusion {label}',
+        'console_success': f"✓ Refusion {label} — une card dans le lot",
+        'models': [],
+        'eta': remix_eta_key_size(gen),
     }
 
 

@@ -392,6 +392,61 @@ class StemSeparationTest(_InputProcessCase):
                          (index['model'], {s['card'] for s in index['stems']}))
         self.assertEqual(SEPARATOR, process_runs.line(gen, 'separate').model_key)
 
+    def _real_audio(self, gen):
+        """The cover and its two stems as REAL signals (the stub separator writes stand-ins) : the
+        cover is voice + drums, stereo ; each stem is its part alone."""
+        import numpy as np
+        import soundfile as sf
+        rate = 22050
+        t = np.arange(rate) / rate
+        voice = 0.3 * np.sin(2 * np.pi * 440 * t)
+        drums = 0.3 * np.sign(np.sin(2 * np.pi * 3 * t))
+        sf.write(str(Path(self.tmp) / gen.melody_reference.name), np.stack([voice + drums] * 2, axis=1), rate,
+                 format='WAV')
+        index = json.loads((Path(self.tmp) / gen.stems_index.name).read_text(encoding='utf-8'))
+        for s in index['stems']:
+            sf.write(str(Path(self.tmp) / s['path']), {'vocals': voice, 'drums': drums}[s['stem']], rate,
+                     format='WAV')
+        return voice, rate
+
+    def test_a_remix_without_the_drums_is_the_original_minus_the_drums(self):
+        """2026-11-16, Fabien : « refusionner en retirant seulement une piste, la batterie » — and
+        without degrading what is kept : the ORIGINAL minus the removed stem
+        (`common/utils/stem_mix.py`), here exactly the voice. The result is the card's output and
+        one more card of the lot."""
+        import numpy as np
+        import soundfile as sf
+        from wama.common.utils.stem_mix import mix
+        gen = self._run(separate_stems=True, melody_reference=self._cover())
+        voice, rate = self._real_audio(gen)
+        ComposerGeneration.objects.filter(pk=gen.pk).update(status='RUNNING', remix_stems=True,
+                                                            remix_without='Batterie')
+        gen = self._run(ComposerGeneration.objects.get(pk=gen.pk), process='remix')
+        self.assertEqual(JOB_SUCCESS, self._states(gen)['remix'], gen.error_message)
+        out, out_rate = sf.read(str(Path(self.tmp) / gen.remix_audio.name), always_2d=True)
+        self.assertEqual((44100, 2), (out_rate, out.shape[1]), 'stereo, at the rate of the mix')
+        heard = out[:, 0][::2]
+        n = min(len(heard), len(voice))
+        self.assertLess(float(np.abs(heard[200:n - 200] - voice[200:n - 200]).max()), 0.02,
+                        'the voice alone (away from the edges the resampling rings on)')
+        remix = self._stems(gen)['remix']
+        self.assertIn('/composer/input/', remix.melody_reference.name, 'an INPUT of its own card')
+        self.assertNotEqual(remix.melody_reference.name, gen.remix_audio.name, 'its own copy')
+        self.assertEqual({'vocals', 'drums', 'remix'}, set(self._stems(gen)), 'the stems are kept')
+        # Every gain at 1 : the original itself, nothing re-synthesised.
+        stems = {'vocals': str(Path(self.tmp) / remix.melody_reference.name)}
+        same, _ = mix(str(Path(self.tmp) / gen.melody_reference.name), stems, {'vocals': 1.0}, rate)
+        original, _ = sf.read(str(Path(self.tmp) / gen.melody_reference.name), always_2d=True)
+        self.assertLess(float(np.abs(same.T - original).max()), 1e-6)
+
+    def test_a_stem_the_card_does_not_have_is_said_never_silently_ignored(self):
+        from wama.composer.tasks import remix_gains
+        stems = {'vocals': 'v.wav', 'drums': 'd.wav'}
+        self.assertEqual({'vocals': 1.0, 'drums': 0.0}, remix_gains(stems, 'batterie'))
+        self.assertEqual({'vocals': 1.0, 'drums': 1.0}, remix_gains(stems, ''), 'nothing removed')
+        with self.assertRaisesRegex(RuntimeError, 'Piano'):
+            remix_gains(stems, 'Piano')
+
     def test_a_relaunch_replaces_the_stems_never_adds_cards(self):
         gen = self._run(separate_stems=True, melody_reference=self._cover())
         first = {role: card.pk for role, card in self._stems(gen).items()}
