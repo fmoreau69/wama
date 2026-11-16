@@ -46,6 +46,12 @@ FABRIQUE de l'app (le même geste que le bouton), jamais un second chemin.
   dérivation prenait la première LIGNE, 44 outils sur 144 montraient une phrase coupée —
   `EveryToolDescriptionIsAWholeSentenceTest`). Arguments typés (ils deviennent le schéma MCP :
   `tool_input_schema`) ; identifiants en anglais (`check_identifier_language`).
+- **Ce que le dépôt prend, l'outil le prend** (2026-11-16) : un créateur reçoit son fichier par
+  `_receive(path, user, app_label)` — jamais par `designate` directement — et lit un fichier
+  de port par `_local_input` d'abord : une adresse http(s) y est téléchargée au mode que l'app
+  déclare (`source_ingest.app_mode`). Vécu le 14/11 : onze modèles déclaraient `WAMA_INGEST`,
+  tous les créateurs rendaient « Fichier introuvable : <url> », et l'assistant en concluait que
+  WAMA ne télécharge pas — `EveryCreatorTakesAnAddressTest`.
 - **Contrat de retour** : une création rend `item_id` (`tests_tool_item_contract`) ; une erreur
   rend `{'error': …}` lisible — jamais une exception (`execute_tool` ne lève pas).
 - **Confirmation** : un geste que la PAGE fait confirmer (`confirm(…)` du gabarit) exige

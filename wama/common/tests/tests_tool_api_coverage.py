@@ -714,3 +714,89 @@ class ModelManagerToolsOnTheRealViewsTest(TestCase):
                     channel.reset_mock()
                     self.assertNotIn('error', T.free_memory(self.dev, **args))
                     channel.assert_called_with('reader:ocr')
+
+
+class EveryCreatorTakesAnAddressTest(TestCase):
+    """WHAT A CARD'S DEPOSIT TAKES, ITS TOOL TAKES (2026-11-16). The guards above hold that a tool
+    EXISTS for each gesture ; none compared what it ACCEPTS. Measured on the web thread of
+    2026-11-14 : eleven item models declare an address input (`WAMA_INGEST`), every creator
+    refused one by « Fichier introuvable : <url> », and the assistant concluded WAMA cannot
+    download. One rule, in one place : `_receive` / `_local_input`."""
+
+    URL = 'https://example.org/song.mp3'
+    #: Creators that take a file argument and no address, each with its reason. Can only shrink.
+    DECLARED_GAPS = {
+        'add_to_media_library': "registers a file ALREADY in the user's space as an asset ; an "
+                                "address enters the library by its providers' download",
+    }
+
+    def test_no_creator_designates_beside_the_common_reception(self):
+        """By AST : `designate` is called in `_receive` alone. A creator calling it directly
+        would refuse an address again."""
+        tree = ast.parse((Path(settings.BASE_DIR) / 'wama' / 'tool_api.py').read_text(encoding='utf-8'))
+        callers = set()
+        for function in ast.walk(tree):
+            if not isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            for node in ast.walk(function):
+                if isinstance(node, ast.Call) and getattr(node.func, 'id', None) == 'designate':
+                    callers.add(function.name)
+        self.assertEqual({'_receive'}, callers)
+
+    def test_a_path_is_left_alone_and_an_address_follows_the_mode_of_its_app(self):
+        from wama.common.utils import source_ingest
+        user = mock.Mock()
+        with mock.patch.object(source_ingest, 'download_to_user',
+                               return_value='users/1/temp/song.mp3') as download:
+            self.assertEqual('users/1/temp/a.wav', T._local_input('users/1/temp/a.wav', user, 'reader'))
+            self.assertIsNone(T._local_input(None, user, 'reader'))
+            download.assert_not_called()
+            for app, mode in (('transcriber', 'audio'), ('describer', 'smart'), ('converter', 'media')):
+                with self.subTest(app=app):
+                    self.assertEqual('users/1/temp/song.mp3', T._local_input(f' {self.URL} ', user, app))
+                    download.assert_called_with(user, self.URL, mode)
+            T._local_input(self.URL, user, 'avatarizer', 'media')
+            download.assert_called_with(user, self.URL, 'media')
+
+    def test_a_failed_download_is_turned_down_naming_the_address(self):
+        from wama.common.utils import source_ingest
+        from wama.common.utils.media_paths import InputRefused
+        with mock.patch.object(source_ingest, 'download_to_user', side_effect=RuntimeError('HTTP 403')):
+            with self.assertRaises(InputRefused) as refused:
+                T._local_input(self.URL, mock.Mock(), 'reader')
+        self.assertIn(self.URL, str(refused.exception))
+        self.assertIn('HTTP 403', str(refused.exception))
+        self.assertNotIn('introuvable', str(refused.exception))
+
+    def _stopped_at_the_address(self, call):
+        """The creator, its download replaced by a refusal : it must have ASKED for the address,
+        and say the refusal — never « Fichier introuvable »."""
+        from wama.common.utils import source_ingest
+        with mock.patch.object(source_ingest, 'download_to_user',
+                               side_effect=RuntimeError('stopped here')) as download:
+            out = call()
+        self.assertTrue(download.called, 'the address never reached the download')
+        self.assertEqual(self.URL, download.call_args.args[1])
+        self.assertIn('stopped here', out.get('error', ''), out)
+
+    def test_every_creator_with_a_file_argument_downloads_an_address(self):
+        """Derived from the registry : every `add_to_<app>` whose signature takes `file_path`."""
+        import inspect
+        user = _account('address_user', 'admin')
+        seen = []
+        for name, tool in sorted(T.TOOL_REGISTRY.items()):
+            if not name.startswith('add_to_') or 'file_path' not in inspect.signature(tool).parameters:
+                continue
+            if name in self.DECLARED_GAPS:
+                continue
+            seen.append(name)
+            with self.subTest(tool=name):
+                self._stopped_at_the_address(lambda: tool(user, file_path=self.URL))
+        self.assertGreaterEqual(len(seen), 7, seen)
+
+    def test_the_ports_of_the_composer_and_the_avatarizer_download_an_address_too(self):
+        user = _account('address_ports', 'admin')
+        self._stopped_at_the_address(
+            lambda: T.compose_music(user, 'a calm song', work_audio=self.URL))
+        self._stopped_at_the_address(
+            lambda: T.add_to_avatarizer(user, audio_path=self.URL, avatar_gallery_name='x'))

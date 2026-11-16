@@ -46,6 +46,39 @@ from wama.common.utils.user_settings import inputs_by_port  # noqa: E402
 # CATALOGUE (`app_registry.accepts_file`, `category_of_path`) et désignent par la brique commune
 # (`media_paths.designate`), comme les vues d'upload.
 
+
+def _local_input(path, user, app_label: str, mode: str = None):
+    """UNE entrée d'outil donnée par une ADRESSE http(s) → téléchargée dans l'espace de
+    l'utilisateur par l'ingest commun, et rendue comme le chemin qu'une désignation reçoit ; un
+    chemin revient tel quel. Lève `InputRefused`.
+
+    POURQUOI (2026-11-16) : le dépôt d'une card prend une adresse (onze modèles d'élément déclarent
+    `WAMA_INGEST`), les outils la refusaient par « Fichier introuvable : <adresse> » — et
+    l'assistant en concluait que WAMA ne sait pas télécharger (fil web du 2026-11-14 : une vidéo
+    YouTube refusée par le converter puis le composer). Une règle, pour tout créateur : la brique
+    de la card d'entrée du Studio (`source_ingest.download_to_user`), avec le mode que l'app
+    DÉCLARE (`source_ingest.app_mode` : le transcriber prend l'audio d'une plateforme, le describer garde
+    une page en `.html`). Sortie réseau gardée par les primitives communes (`url_guard`).
+    `mode` : pour un port qui n'est pas l'entrée déclarée de l'app (l'audio de l'avatarizer…).
+    """
+    from wama.common.utils.source_ingest import app_mode, download_to_user, is_remote
+    if not is_remote(path):
+        return path
+    from wama.common.utils.media_paths import InputRefused
+    try:
+        return download_to_user(user, str(path).strip(), mode or app_mode(app_label))
+    except Exception as exc:
+        raise InputRefused(f"Téléchargement impossible ({str(path).strip()}) : {exc}") from exc
+
+
+def _receive(path, user, app_label: str, subfolder: str = 'input', mode: str = None):
+    """Le fichier d'un outil, REÇU pour `app_label` : une adresse est d'abord téléchargée
+    (`_local_input`), puis le chemin passe LA désignation commune (`media_paths.designate`). Seul
+    appelant de `designate` dans ce module (`tests_tool_api_coverage`) : un créateur qui
+    désignerait à côté refuserait de nouveau une adresse."""
+    from wama.common.utils.media_paths import designate
+    return designate(_local_input(path, user, app_label, mode), user, app_label, subfolder)
+
 # ---------------------------------------------------------------------------
 # Folder mapping: logical name → MEDIA_ROOT-relative path template
 # ---------------------------------------------------------------------------
@@ -232,7 +265,7 @@ def add_to_anonymizer(
 
     Args:
         user:            Django User instance
-        file_path:       Path from find_user_files (relative to MEDIA_ROOT, or mounts/… for a connected folder)  (e.g. "users/1/temp/biovam.mp4", "users/1/temp/lettre.pdf")
+        file_path:       Path from find_user_files (relative to MEDIA_ROOT, or mounts/… for a connected folder), or an http(s) URL (downloaded first)  (e.g. "users/1/temp/biovam.mp4", "users/1/temp/lettre.pdf")
         sam3_prompt:     describe what to blur in text (e.g. "all human faces") — given alone,
                          it selects the DESCRIPTION mode (`target_mode`, a schema setting that
                          can also be passed explicitly: 'classes' | 'description')
@@ -262,9 +295,9 @@ def add_to_anonymizer(
     # dans l'espace de l'utilisateur (le sas où l'assistant dépose), jamais recopié à la main ;
     # même filtre de types que le dépôt de l'app (`_check_media_type`), pas une liste de plus.
     from wama.anonymizer.views import _check_media_type, process_media
-    from wama.common.utils.media_paths import InputRefused, designate
+    from wama.common.utils.media_paths import InputRefused
     try:
-        received = designate(file_path, user, app_label)
+        received = _receive(file_path, user, app_label)
         _check_media_type(received.name)
     except (InputRefused, ValueError) as e:
         return {'error': str(e)}
@@ -444,7 +477,7 @@ def add_to_enhancer(
 
     Args:
         user:         Django User instance
-        file_path:    Path from find_user_files (relative to MEDIA_ROOT, or mounts/… for a connected folder) (from list_user_files)
+        file_path:    Path from find_user_files (relative to MEDIA_ROOT, or mounts/… for a connected folder), or an http(s) URL (downloaded first) (from list_user_files)
         ai_model:     'auto' or the catalog key of an upscaler (`list_ai_models`)
         denoise:      Apply denoising before upscaling
         blend_factor: 0.0 = full AI, 1.0 = original
@@ -480,9 +513,9 @@ def add_to_enhancer(
     # recopié ; sa nature lue à la déclaration du domaine que sert cet outil
     # (`app_modes.surface_file_nature`, la lecture du dépôt de la card), pas dans une liste de plus.
     from wama.common.utils.app_modes import surface_file_nature
-    from wama.common.utils.media_paths import InputRefused, designate
+    from wama.common.utils.media_paths import InputRefused
     try:
-        received = designate(file_path, user, app_label)
+        received = _receive(file_path, user, app_label)
     except InputRefused as e:
         return {'error': str(e)}
     media_type = surface_file_nature(app_label, app_label, received.name)
@@ -553,7 +586,7 @@ def add_to_audio_enhancer(
 
     Args:
         user:               Django User instance
-        file_path:          Path from find_user_files (relative to MEDIA_ROOT, or mounts/… for a connected folder) (from list_user_files)
+        file_path:          Path from find_user_files (relative to MEDIA_ROOT, or mounts/… for a connected folder), or an http(s) URL (downloaded first) (from list_user_files)
         engine:             'auto' or the catalog key of an audio engine (`list_ai_models`) —
                             e.g. 'enhancer:resemble' (quality), 'enhancer:deepfilternet' (speed)
         mode:               'both' | 'denoise' | 'enhance'  (Resemble only)
@@ -591,9 +624,9 @@ def add_to_audio_enhancer(
 
     # Désigné, pointé, nature lue à la déclaration du domaine (2026-09-28) — cf. `add_to_enhancer`.
     from wama.common.utils.app_modes import surface_file_nature
-    from wama.common.utils.media_paths import InputRefused, designate
+    from wama.common.utils.media_paths import InputRefused
     try:
-        received = designate(file_path, user, 'enhancer', 'input/audio')
+        received = _receive(file_path, user, 'enhancer', 'input/audio', mode='audio')
     except InputRefused as e:
         return {'error': str(e)}
     if not surface_file_nature('enhancer', 'audio_enhancer', received.name):
@@ -678,10 +711,10 @@ def synthesize_text(
     # référence branchés sur le nœud du Studio étaient ignorés en silence. Il reçoit désormais
     # les PORTS de l'app, désignés par leur chemin (`designate` : confinement, existence, droit de
     # lecture), et crée par le MÊME chemin que la card.
-    from wama.common.utils.media_paths import InputRefused, designate
+    from wama.common.utils.media_paths import InputRefused
     from wama.synthesizer.services import SynthesisRefused, create_synthesis
     try:
-        received = {port: designate(path, user, app_label)
+        received = {port: _receive(path, user, app_label)
                     for port, path in (('work_file', work_file), ('reference_voice', reference_voice))
                     if path}
     except InputRefused as e:
@@ -752,8 +785,9 @@ def compose_music(
         the generation is born like a card deposit (`new_generation_settings`, 2026-10-29).
         work_score: Path (from find_user_files) of the SCORE of a song to cover — ABC, MIDI
                   or MusicXML (port `work_score`); only for a model that declares it (YuE2)
-        work_audio: Path (from find_user_files) of the AUDIO of a song to cover — its melody
-                  is replayed in the prompt's style (port `work_audio`, MusicGen Melody)
+        work_audio: Path (from find_user_files) or http(s) URL (YouTube, direct link) of the
+                  AUDIO of a song to cover — its melody is replayed in the prompt's style (port
+                  `work_audio`, MusicGen Melody)
         Steps are switches of the schema, passed as settings : `extract_reduced_score=True`
         (the melody score of the song), `extract_parts=True` (one part per instrument),
         `separate_stems=True` (split the work audio into stems — vocals, drums, bass… — each
@@ -793,6 +827,9 @@ def compose_music(
     # l'audio) — lus sans être reçus (`designated_file` : mêmes gardes, rien de pointé ni copié).
     from wama.common.utils.media_paths import InputRefused, designated_file
     try:
+        # Une ADRESSE (YouTube, lien direct) est d'abord téléchargée — la règle de tout créateur.
+        work_score = _local_input(work_score, user, app_label, 'media')
+        work_audio = _local_input(work_audio, user, app_label, 'audio')
         held = [designated_file(path, user) for path in (work_score, work_audio) if path]
     except InputRefused as e:
         return {'error': str(e)}
@@ -880,7 +917,7 @@ def add_to_describer(
 
     Args:
         user:            Django User instance
-        file_path:       Path from find_user_files (relative to MEDIA_ROOT, or mounts/… for a connected folder) (from list_user_files)
+        file_path:       Path from find_user_files (relative to MEDIA_ROOT, or mounts/… for a connected folder), or an http(s) URL (downloaded first) (from list_user_files)
         output_style:    STYLE de description (résumé court, détaillée, scientifique, points
                          clés), PAS un format de fichier — le format d'export est choisi par
                          l'utilisateur APRÈS le traitement. Valeurs : celles déclarées au schéma
@@ -905,9 +942,9 @@ def add_to_describer(
 
     # Désigné, pointé, format lu au catalogue (2026-09-28) — cf. `add_to_enhancer`.
     from wama.common.app_registry import accepts_file
-    from wama.common.utils.media_paths import InputRefused, designate
+    from wama.common.utils.media_paths import InputRefused
     try:
-        received = designate(file_path, user, app_label)
+        received = _receive(file_path, user, app_label)
     except InputRefused as e:
         return {'error': str(e)}
     ext = Path(received.name).suffix.lower()
@@ -977,7 +1014,7 @@ def add_to_transcriber(
 
     Args:
         user:               Django User instance
-        file_path:          Path from find_user_files (relative to MEDIA_ROOT, or mounts/… for a connected folder) (audio or video file)
+        file_path:          Path from find_user_files (relative to MEDIA_ROOT, or mounts/… for a connected folder), or an http(s) URL (downloaded first) (audio or video file)
         backend:            the transcription MODEL — 'auto' (drawn at launch) or a catalogue key
                             ('transcriber:qwen3-asr-1.7b', 'transcriber:canary-1b-v2', or a remote
                             one such as 'albert:whisper-large-v3', called with the user's key);
@@ -999,9 +1036,9 @@ def add_to_transcriber(
     """
     # Désigné, pointé, format lu au catalogue (2026-09-28) — cf. `add_to_enhancer`.
     from wama.common.app_registry import accepts_file
-    from wama.common.utils.media_paths import InputRefused, designate
+    from wama.common.utils.media_paths import InputRefused
     try:
-        received = designate(file_path, user, app_label)
+        received = _receive(file_path, user, app_label)
     except InputRefused as e:
         return {'error': str(e)}
     if not accepts_file('transcriber', received.name):
@@ -1068,7 +1105,7 @@ def add_to_reader(
 
     Args:
         user:          Django User instance
-        file_path:     Path from find_user_files (relative to MEDIA_ROOT, or mounts/… for a connected folder) (PDF or image file)
+        file_path:     Path from find_user_files (relative to MEDIA_ROOT, or mounts/… for a connected folder), or an http(s) URL (downloaded first) (PDF or image file)
         backend:       'auto' ou la clé de catalogue d'un modèle d'OCR (`list_ai_models`) ;
                        un identifiant d'avant (`olmocr`) est normalisé par `ReadingItem.save`
         mode:          'auto' | 'printed' | 'handwritten'
@@ -1088,9 +1125,9 @@ def add_to_reader(
     from pathlib import Path
     # Désigné, pointé, format lu au catalogue (2026-09-28) — cf. `add_to_enhancer`.
     from wama.common.app_registry import accepts_file
-    from wama.common.utils.media_paths import InputRefused, designate
+    from wama.common.utils.media_paths import InputRefused
     try:
-        received = designate(file_path, user, app_label)
+        received = _receive(file_path, user, app_label)
     except InputRefused as e:
         return {'error': str(e)}
     ext = Path(received.name).suffix.lower()
@@ -1162,7 +1199,7 @@ def convert_file(
 
     Args:
         user:           Django User instance
-        file_path:      Path from find_user_files (relative to MEDIA_ROOT, or mounts/… for a connected folder) (image/video/audio/document/archive)
+        file_path:      Path from find_user_files (relative to MEDIA_ROOT, or mounts/… for a connected folder), or an http(s) URL (downloaded first) (image/video/audio/document/archive)
         output_format:  Target format key (e.g. 'mp4', 'webp', 'pdf', 'mp3', 'zip'). Empty =
                         automatic: the user's last format for this nature, else its default
         quality_preset: 'web' | 'balanced' | 'max'  (default 'balanced')
@@ -1182,9 +1219,9 @@ def convert_file(
     # recomposé à la main (`str(rel_path)`) : sous Windows il s'écrivait avec des `\`, que la
     # brique des références (`file_references.direct_references`) ne reconnaît pas, et aucune
     # provenance n'était posée. Mesuré par `tests_tool_api_designation` (venv_win).
-    from wama.common.utils.media_paths import InputRefused, designate
+    from wama.common.utils.media_paths import InputRefused
     try:
-        received = designate(file_path, user, app_label)
+        received = _receive(file_path, user, app_label)
     except InputRefused as e:
         return {'error': str(e)}
     ConversionJob = django_apps.get_model(app_label, 'ConversionJob')
@@ -1794,11 +1831,11 @@ def add_to_avatarizer(
         tts_model:           Modèle TTS (ex: 'coqui-xtts') — mode pipeline
         language:            Langue TTS (ex: 'fr') — mode pipeline
         voice_preset:        Voix TTS (ex: 'default') — mode pipeline
-        audio_path:          Chemin (relatif à MEDIA_ROOT) d'un audio — requis si mode='standalone'
+        audio_path:          Chemin (relatif à MEDIA_ROOT) ou adresse http(s) d'un audio — requis si mode='standalone'
         avatar_source:       'gallery' (avatar NOMMÉ) | 'upload' (image fournie par son chemin)
         avatar_gallery_name: Nom d'un avatar de la médiathèque que l'utilisateur voit (les siens,
                              les partagés, le système) — requis si avatar_source='gallery'
-        avatar_image_path:   Chemin (relatif à MEDIA_ROOT) d'une image avatar — requis si 'upload'
+        avatar_image_path:   Chemin (relatif à MEDIA_ROOT) ou adresse http(s) d'une image avatar — requis si 'upload'
         quality_mode:        'fast' (MuseTalk seul) | 'quality' (MuseTalk + CodeFormer) — se lit
                              comme `use_enhancer` quand celui-ci n'est pas donné, puis se DÉRIVE
                              de lui, comme à la card
@@ -1817,7 +1854,7 @@ def add_to_avatarizer(
     from django.apps import apps as django_apps
     from wama.common.app_registry import category_of_path
     AvatarJob = django_apps.get_model(app_label, 'AvatarJob')
-    from wama.common.utils.media_paths import InputRefused, designate
+    from wama.common.utils.media_paths import InputRefused
 
     # Les deux ports (audio, image d'avatar) sont DÉSIGNÉS (2026-09-28) : pointés s'ils sont
     # dans l'espace de l'utilisateur, jamais recopiés ; nature lue par `category_of_path`. La
@@ -1846,6 +1883,8 @@ def add_to_avatarizer(
     # reçus (`designated_file` : mêmes gardes, rien de pointé ni copié).
     from wama.common.utils.media_paths import designated_file
     try:
+        audio_path = _local_input(audio_path, user, app_label, 'audio')
+        avatar_image_path = _local_input(avatar_image_path, user, app_label, 'media')
         held = [designated_file(path, user) for path in
                 (audio_path, avatar_image_path if avatar_source == 'upload' else '') if path]
     except InputRefused as e:
@@ -1856,7 +1895,7 @@ def add_to_avatarizer(
 
     if mode == 'standalone':  # audio_path fourni — c'est lui qui a dérivé le mode
         try:
-            received = designate(audio_path, user, app_label)
+            received = _receive(audio_path, user, app_label, mode='audio')
         except InputRefused as e:
             return {'error': str(e)}
         if category_of_path(received.name) != 'audio':
@@ -1876,7 +1915,7 @@ def add_to_avatarizer(
         else:
             if not avatar_image_path:
                 return {'error': "Fournissez une image avatar (avatar_image_path)."}
-            image = designate(avatar_image_path, user, app_label)
+            image = _receive(avatar_image_path, user, app_label, mode='media')
     except InputRefused as e:
         return {'error': str(e)}
     if category_of_path(image.name) != 'image':
@@ -6336,6 +6375,10 @@ def _born_creator(label: str):
             if port.get('group') == 'prompt':
                 post[port['id']] = values[0]
                 continue
+            try:
+                values = [_local_input(v, user, label) for v in values]
+            except InputRefused as e:
+                return {'error': f"{port.get('label') or port['id']} : {e}"}
             for value in values:
                 try:
                     found = designated_file(value, user)

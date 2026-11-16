@@ -105,6 +105,14 @@ def declared_mode(model) -> str:
     return (getattr(model, 'WAMA_INGEST', None) or {}).get('mode', 'media')
 
 
+def app_mode(app_id) -> str:
+    """Le mode d'une URL destinée à l'app `app_id` : celui que son modèle d'élément déclare
+    (`declared_mode`). UNE lecture, pour le nœud d'app du Studio et pour les outils de l'assistant
+    (2026-11-16 ; elle vivait dans `studio/services/entries.py`)."""
+    from wama.common.utils.detail_registry import DetailRegistry
+    return declared_mode((DetailRegistry.get(app_id) or {}).get('model'))
+
+
 def download_to_user(user, url, mode='media') -> str:
     """Télécharge `url` dans l'espace temporaire de `user` et rend son chemin (relatif à
     `MEDIA_ROOT`) — le chemin qu'une désignation reçoit ensuite. `mode` : celui que l'app

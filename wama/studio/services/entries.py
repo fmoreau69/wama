@@ -123,13 +123,6 @@ def received_value(user, upstream, mode='media'):
     return download_to_user(user, value, mode)
 
 
-def app_ingest_mode(app_id) -> str:
-    """Le mode d'une URL destinée à l'app `app_id` : celui que son modèle d'élément déclare."""
-    from wama.common.utils.detail_registry import DetailRegistry
-    from wama.common.utils.source_ingest import declared_mode
-    return declared_mode((DetailRegistry.get(app_id) or {}).get('model'))
-
-
 def nature_of(ref) -> str:
     """La catégorie d'un fichier désigné ('' pour une URL sans extension connue)."""
     from wama.common.app_registry import category_of_path
@@ -371,9 +364,10 @@ def unfold(user, app_id, port, upstream, inputs) -> None:
     va au port du lien. Une URL est téléchargée ici, au mode que l'app déclare
     (`received_value`). Un port déjà rempli d'une autre valeur se refuse (`_fill`)."""
     from wama.common.app_registry import studio_node_ports
+    from wama.common.utils.source_ingest import app_mode
     from wama.studio.services.generic_runner import primary_ports
     declared = {p['id']: p for p in (studio_node_ports(app_id) or {}).get('inputs') or []}
-    mode = app_ingest_mode(app_id)
+    mode = app_mode(app_id)
     if not upstream.get('is_card'):
         # Une valeur seule : rangée sous le port du lien ET sous sa nature — la lecture d'avant
         # (l'entrée principale se cherche par nature, `generic_runner.create`).
