@@ -2863,6 +2863,61 @@ d'abord un OCR en échec maquillé en succès.**
      battement 60 s → pile de tous les fils dans `gateway-discord.log` (la cause des coupures,
      enfin lisible) ; 300 s gelée ou 600 s déconnectée → le process se relance (`os.execv`).
 
+### ⭐ 2026-11-16 — fil web n° 46 (14/11) : parole coupée, sa propre voix, une adresse refusée, deux écritures
+
+Lu par `/diagnostic-assistant` (tours persistés + `wama.log` du 14/11), puis quatre décisions de
+Fabien. Mesuré d'abord :
+
+- **Fin de tour** : 22 avis du juge, 14 « finie », 6 « le silence décide », 2 « pas finie » ; 5
+  répliques sur 16 de moins de 2 s. Une phrase est partie en trois (16:34:21 → 16:34:30) : une
+  « finie » à p = 0,957, une « pas finie » à p = 0,008 dont la pause longue a quand même expiré
+  (`TURN.patientMs`), une « finie » à 0,988.
+- **Sa propre voix** : `isOwnSpeech` compare des mots EXACTS (`wama-assistant-voice.js`) — un
+  fragment d'un mot à l'accord différent (« crucial » dit, « cruciale. » entendu) vaut 0. Lecture
+  du code rapprochée du fil, PAS une mesure acoustique.
+- **Une adresse refusée** : `add_to_converter` puis `add_to_composer` ont rendu « Fichier
+  introuvable : <url> » ; l'assistant en a conclu que WAMA ne télécharge pas YouTube. Onze modèles
+  d'élément déclarent pourtant `WAMA_INGEST`.
+- **Deux tâches Claude Code en écriture en 49 s**, sans accord, la première sur une prémisse
+  fausse (elle a répondu que le mécanisme existait) ; la seconde a laissé un correctif du seul
+  composer dans l'arbre, non commité.
+
+✅ Livré le 2026-11-16 :
+
+1. **La MESURE de l'écoute** — aucun effet sur l'écoute. Le découpage dit pourquoi une phrase se
+   ferme (`Segmenter.finish(reason)` : `silence` | `judge` | `patient` | `max` | `manual`) ; la
+   brique garde les dernières répliques de la page (`WamaAssistantListen.utterances()` : fin,
+   avis du juge, sur quoi elle a commencé — `voice` | `thinking` | `none` —, ce qu'elle est
+   devenue, son texte) et envoie la part sans texte avec l'extrait (en-tête `X-Wama-Listen`), que
+   le serveur ajoute à sa ligne de journal (`speech_input.listen_context`, `_log_timing`). Garde :
+   `tests_assistant_listen.ListeningMeasureTest`.
+   ⏳ Ensuite, dans cet ordre, chaque marche rejouée sur un corpus de vraies répliques gardé HORS
+   dépôt (accord de Fabien) : filtre textuel tolérant et règle des fragments courts ; comparaison
+   du micro au signal JOUÉ (donne aussi la latence réelle d'une enceinte) ; en réserve, empreinte
+   de la voix de synthèse seule — jamais celle de l'utilisateur. Les seuils du juge
+   (`FINISH_ABOVE`, `patientMs`) ne bougent pas avant ce corpus. ⏳ « Спасибо » : la transcription
+   distante n'impose pas la langue (`speech_input._transcribe_remote`).
+2. **Ce que le dépôt d'une card prend, son outil le prend** — `tool_api._receive` /
+   `_local_input` : une adresse http(s) est téléchargée chez l'utilisateur par la brique de la
+   card d'entrée du Studio (`source_ingest.download_to_user`), au mode que l'app déclare
+   (`source_ingest.app_mode`, sortie du Studio vers le commun), puis désignée comme un chemin.
+   Tous les créateurs y passent, jumelles et apps nées comprises ; le correctif isolé du composer
+   est retiré. Garde : `tests_tool_api_coverage.EveryCreatorTakesAnAddressTest` (par AST,
+   `designate` n'est appelé que par `_receive`). ⚠ Le téléchargement est SYNCHRONE dans le tour.
+3. **Une écriture par Claude Code se confirme, une à la fois** — `dev_claude_code(write=true)`
+   rend le refus commun « à confirmer » sans `confirm=true`, et se refuse tant qu'une autre
+   écriture tourne (`dev_tools.running_write_job`) en renvoyant à son rapport.
+4. **Les six chapeaux de De Bono** sont des postures d'agent déclarées : `facts` (blanc),
+   `intuition` (rouge), `benefits` (jaune), `ideas` (vert) ; le noir est `critique`, le bleu le
+   décideur du council (`decide`). L'assistant avait « adopté » la méthode par un souvenir et
+   lancé UN agent chargé de jouer les six.
+
+⏳ Restes relevés dans ce fil, non traités : `add_to_composer` exige `prompt` pour séparer des
+pistes ; `dev_search_code` refuse un `glob` en `**/*.py` (4 appels sur 7) ; une erreur d'outil ne
+dit pas la voie à prendre ; la parité des PROCESS (chaque process déclaré lançable sans argument
+étranger) ; le tri des 162 routes d'action sans outil et leur grille (`/apps/`, fiche d'app,
+registres — pas de page neuve) ; une vidéo de l'échange par l'assistant.
+
 ### 2026-11-07→08 — ACE-Step intégré par l'assistant : ce que la donnée doit porter
 
 Fil `ace-step-integration-2` (conv 60, ILaaS qwen-3.6-35b), route d'intégration d'un modèle

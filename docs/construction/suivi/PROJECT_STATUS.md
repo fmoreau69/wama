@@ -31673,3 +31673,20 @@ trois vertes : le test ajouté en fin de fichier était tombé dans une autre cl
 **Rouges qui ne sont pas de ce lot** : budget de langue (code 2555 pour 2552, noms de tests 1317
 pour 1315 — la liste filtrée sur les fichiers du lot ne porte aucun nom neuf) ;
 `tests_cap_from_declared` sur `stems_by_query` du composer.
+
+## §PALIER 2026-11-16, « ASSISTANT : mesure de l'écoute, une adresse pour tout créateur, écriture confirmée, six chapeaux » — commits locaux, non poussés — 🔴 relancer gunicorn (vue de transcription, outils, annonce des compétences), la passerelle et les serveurs MCP (le registre d'outils se charge au démarrage) ; la brique d'écoute est lue à chaud — 🔚 enregistrer un corpus de vraies répliques (hors dépôt), puis le filtre textuel tolérant
+
+Parti du fil web n° 46 (14/11), lu en base et au journal ; détail, mesures et restes : `WAMA_LLM.md` « 2026-11-16 — fil web n° 46 ».
+
+- `3639da561` — la MESURE de l'écoute : raison de fin de chaque réplique, `WamaAssistantListen.utterances()`, en-tête `X-Wama-Listen` ajouté à la ligne `[speech_input]`. Aucun seuil touché.
+- `e7096e59f` — une adresse http(s) donnée à un créateur est téléchargée puis désignée (`tool_api._receive` / `_local_input`) ; `source_ingest.app_mode` (R238). Le correctif isolé du composer laissé dans l'arbre par la tâche Claude Code du 14/11 est retiré, remplacé par cette règle.
+- `1f058915c` — `dev_claude_code(write=true)` : accord (`confirm=true`), une écriture à la fois.
+- `c0d61ccaf` — postures `facts`, `intuition`, `benefits`, `ideas`.
+
+Vérifié : 773 tests verts sous WSL (les modules touchés, les gardes transverses — langue, thème, disposition des tests, route d'installation, cache HF, couverture des outils — et `wama.studio`) ; contre-épreuves rouges sur la brique d'écoute (8 tests) et sur la réception d'une adresse (14 créateurs) ; `check_docs` 0 cassée sur 4142. Suite complète NON lancée par cette session (base de test occupée par deux autres). Les gardes de l'accord avant écriture et des chapeaux n'ont pas eu de contre-épreuve par mutation.
+
+Restes :
+- ⏳ voix : corpus de répliques réelles, filtre textuel tolérant, comparaison au signal joué ; langue de la transcription distante ; les seuils du juge ne bougent pas avant le corpus.
+- ⏳ outils : `prompt` exigé par `add_to_composer` pour séparer des pistes ; `glob` en `**/*.py` refusé par `dev_search_code` ; erreurs qui disent la voie ; parité des process ; tri des 162 routes d'action sans outil et leur grille (`/apps/`, fiche d'app, registres).
+- ⏳ le council « six chapeaux » n'a pas été éprouvé par un vrai modèle.
+- ⚠ `WAMA_MECANISMES.md` régénérée dans l'arbre, non commitée : elle projette le `mecanismes.py` en cours d'une autre session. `manifest_export --check` : 26 manifestes périmés (modèles, composer), d'autres chantiers, dont deux pertes annoncées (alias Nemotron).

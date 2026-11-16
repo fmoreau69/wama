@@ -5284,7 +5284,7 @@ inutile (enrichir un prompt déjà enrichi) ou un assistant sans posture :
 `science` (RAG), `design` (RAG), `dev` — **5** depuis le 2026-08-29 : + `investigation` (web, sans
 RAG, `e23ef2d4`) — **7** depuis le 2026-10-29 : + `critique` et `methodology` (postures de
 réflexion non annoncées, `announced=False`, `WAMA_HARNESS §7.4`, `347bf7e6`) ; un 8ᵉ, `models`
-(2026-10-30), est dans l'arbre de travail, non commité au 2026-10-31, commité depuis (`1f812587b`, relevé du 2026-11-10) (`assistant_skills.py:65-92`). Ajouter un domaine = une entrée au registre + un
+(2026-10-30), est dans l'arbre de travail, non commité au 2026-10-31, commité depuis (`1f812587b`, relevé du 2026-11-10) (`assistant_skills.py:65-92`) — **12** depuis le 2026-11-16 : + `facts`, `intuition`, `benefits`, `ideas` (chapeaux de De Bono, postures non annoncées). Ajouter un domaine = une entrée au registre + un
 fichier `assistant-<clé>.md`, **aucune vue à modifier**.
 
 **Le contexte du laboratoire** est ce qui rend l'assistant « du labo » plutôt que générique —

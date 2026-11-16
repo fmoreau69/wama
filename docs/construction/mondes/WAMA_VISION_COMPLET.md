@@ -490,7 +490,7 @@ skills institutionnels (couplés au RAG organisationnel, ⏳), skills utilisateu
 *Constaté le 2026-10-26* : ✅ les rôles de l'assistant existent — cinq domaines déclarés
 (général, scientifique, graphisme, développement, investigation), un seul actif à la fois
 (`common/utils/assistant_skills.py`, 2026-08-21 ; *+ le 2026-10-29, deux postures de réflexion non
-annoncées, Contradicteur et Méthodologie, chargées par l'assistant ou un sous-agent — §5.7*) ; 🔄 un skill utilisateur a un auteur et une
+annoncées, Contradicteur et Méthodologie, chargées par l'assistant ou un sous-agent — §5.7 ; + le 2026-11-16, quatre postures des six chapeaux de De Bono*) ; 🔄 un skill utilisateur a un auteur et une
 portée, et se promeut par un administrateur (2026-10-20).
 *+ le 2026-10-30, un domaine « Modèles » (`wama/common/utils/assistant_skills.py:75`) — relevé du 2026-11-10.*
 

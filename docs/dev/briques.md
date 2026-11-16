@@ -1380,7 +1380,7 @@ Rôles wama-dev-ai (librarian, model, scout, integrator, codegen) et bac à sabl
 
 - **Domicile** : `wama/common/services/dev_tools.py` · **doc** : [docs/construction/suivi/ROADMAP.md §8d](../construction/suivi/ROADMAP.md)
 - **Module** : Outils de DÉVELOPPEMENT de WAMA — la surface du serveur MCP « wama-dev » (ROADMAP §8d Phase 3, étape 3).
-- **API publique** (29) :
+- **API publique** (30) :
   - `class DevToolError(ValueError)` — Refus LISIBLE — rendu comme `{'error': …}`, jamais comme une trace.
   - `base_dir() -> Path`
   - `jobs_dir() -> Path`
@@ -1402,7 +1402,8 @@ Rôles wama-dev-ai (librarian, model, scout, integrator, codegen) et bac à sabl
   - `dev_sandbox(user, action: str, app: str='', target: str='', manifest: str='') -> dict` — Bac à sable d'apps en tâche de fond : create, substitute, revert, remove, list — l'app d'origine n'est jamais modifiée.
   - `dev_regen_check(user, app: str) -> dict` — Harnais de régénération d'une app (app_regen_check) en tâche de fond — refusé sur dev/main par sa propre garde.
   - `dev_reload_web(user) -> dict` — Recharge gunicorn (signal HUP, rechargement gracieux) — nécessaire après la création, la restauration ou le retrait d'une jumelle.
-  - `dev_claude_code(user, task: str, write: bool=False, model: str='') -> dict` — Confie une tâche de développement à Claude Code (abonnement du demandeur) en TÂCHE DE FOND : audit, explication, ou modification du dépôt avec write=true. Réponds aussitôt à l'utilisateur ; la réponse de Claude Code arrive dans le fil à la…
+  - `running_write_job()` — La tâche Claude Code EN ÉCRITURE qui tourne en ce moment (sa fiche), ou None — lue parmi les
+  - `dev_claude_code(user, task: str, write: bool=False, model: str='', confirm: bool=False) -> dict` — Confie une tâche de développement à Claude Code (abonnement du demandeur) en TÂCHE DE FOND : audit, explication, ou modification du dépôt avec write=true. Réponds aussitôt à l'utilisateur ; la réponse de Claude Code arrive dans le fil à la…
   - `dev_job_status(user, job_id: str) -> dict` — État d'une tâche de développement : en cours, terminée, échouée ou interrompue ; fin du journal et propositions écrites.
   - `dev_read_report(user, job_id: str, offset: int=0) -> dict` — Le RAPPORT ENTIER d'une tâche de développement terminée (la réponse de Claude Code), par tranches : `offset` = où reprendre, `next_offset` = la tranche suivante (null à la fin). À appeler quand un rapport est dit « tronqué » — ne jamais en…
   - `dev_list_jobs(user, limit: int=20) -> dict` — Dernières tâches de développement lancées (tous développeurs), la plus récente d'abord.
@@ -1837,9 +1838,10 @@ Télécharge une source distante vers le FileField, déclaré par WAMA_INGEST. �
 
 - **Domicile** : `wama/common/utils/source_ingest.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : source_ingest — Ingest média DÉCLARATIF et COMMUN (hors common/manifests/**).
-- **API publique** (8) :
+- **API publique** (9) :
   - `is_remote(ref) -> bool` — Cette entrée est-elle une URL à télécharger (http, https) plutôt qu'un chemin ?
   - `declared_mode(model) -> str` — Le mode (`audio` | `smart` | `media`) qu'un modèle d'élément DÉCLARE pour son entrée
+  - `app_mode(app_id) -> str` — Le mode d'une URL destinée à l'app `app_id` : celui que son modèle d'élément déclare
   - `download_to_user(user, url, mode='media') -> str` — Télécharge `url` dans l'espace temporaire de `user` et rend son chemin (relatif à
   - `ensure_local_input(instance, *, console=None, derive=None)` — Si `instance` déclare `WAMA_INGEST` et a une URL dans son champ source mais
   - `ingest_state(instance)` — Ce que l'Entrée d'une card peut dire de sa SOURCE distante tant que le fichier manque :
