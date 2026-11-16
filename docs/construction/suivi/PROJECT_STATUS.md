@@ -31828,3 +31828,15 @@ Détail et listes : `WAMA_LLM.md` « 2026-11-16 — fil web n° 46 », point 6.
 - Relevé : `filemanager:api_search` garde une liste de dossiers écrite à la main à côté de la brique commune `user_files.find_user_files`.
 
 Vérifié : `tests_tool_api_coverage` + `tests_identifier_language` 54 verts ; `check_docs` 0 cassée sur 4149. Aucun outil neuf, aucune garde neuve. Les quatre routes des apps (imager ×2, avatarizer, converter) restent rouges au critère `tool_routes`.
+
+## §PALIER 2026-11-16 (nuit), « ASSISTANT : deux outils étendus à ce que fait leur page (médiathèque, arbre des fichiers) » — commit local, non poussé — 🔴 relancer gunicorn, passerelle, serveurs MCP — 🔚 décision de Fabien sur l'envoi vers une app (deux chemins de naissance), puis le SUIVI des capacités de développement de l'assistant (demande du soir)
+
+Décision de Fabien : ni le Lab ni le Studio pour le moment (ils se portent et s'alignent d'abord). Détail : `WAMA_LLM.md` « 2026-11-16 — fil web n° 46 », point 7.
+
+- `list_media_assets` appelle la vue de la page (`media_library:api_list`, par `tool_api._page_view`) dans sa portée : assets du compte, partagés, du système, chacun avec `origin` et `path`. Sur les données réelles : 22 voix du système que l'assistant ne voyait pas.
+- `list_user_files` lit l'arbre du gestionnaire à sa déclaration (`user_files.list_folder`, `locations`) : 29 à 31 dossiers au lieu de six écrits à la main (`REMOVAL_LEDGER R239`), dossiers connectés compris.
+- Une seule résolution route → vue (`_route_view`) pour les gestes d'app et de page ; budget de langue du code 2552 → 2551 (`vue`).
+- `/apps/` : les gestes communs sont mesurés à côté du tableau (`tool_api.triad_coverage`) — une app à « 0 / 1 » se lisait comme une app sans outil.
+- Budget des routes sans outil 152 → 148.
+
+Vérifié : sous WSL, 441 verts (lectures, couverture, effets, MCP, langue, contrat d'élément, thème, médiathèque) et `wama.filemanager` 99 verts ; après la fusion des deux briques, 113 rejoués sous Windows. Contre-épreuve : les trois extensions neutralisées, 6 tests rouges. `check_docs` 0 cassée sur 4150. ⚠ `wama.filemanager` est rouge sous le venv Windows (montages rclone) et vert sous WSL — artefact de plateforme. ⚠ `doc_facts --check` : `WAMA_MECANISMES.md` et `docs/dev/briques.md` à régénérer (ma ligne de `mecanismes.py` et le travail d'autres sessions) — non régénérées ici. La suite complète n'a pas tourné.

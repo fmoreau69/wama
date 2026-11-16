@@ -98,15 +98,105 @@ class ListUserFilesTest(TestCase):
 
         from django.conf import settings
         from django.contrib.auth.models import AnonymousUser
-        folder = Path(settings.MEDIA_ROOT) / T._FOLDER_MAP['temp'].format(user_id=None)
+        folder = Path(settings.MEDIA_ROOT) / 'users' / 'None'
         self.assertIn('error', T.list_user_files(AnonymousUser()))
         self.assertFalse(folder.exists())
 
     def test_a_signed_in_user_lists_their_folder(self):
         """Contre-épreuve : la garde ne ferme pas l'outil à ceux qui y ont droit."""
-        out = T.list_user_files(_utilisateur('lister'))
+        user = _utilisateur('lister')
+        out = T.list_user_files(user)
         self.assertNotIn('error', out)
-        self.assertEqual('temp', out['folder'])
+        self.assertEqual(f'users/{user.id}/temp', out['folder'])
+
+    @staticmethod
+    def _write(relative):
+        from pathlib import Path
+
+        from django.conf import settings
+        target = Path(settings.MEDIA_ROOT) / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(b'x')
+        return relative
+
+    def test_every_folder_of_the_tree_is_listed_and_readable(self):
+        """The scope is the File Manager's tree, read at its declaration — never a list of
+        folders written in the tool (six of them until 2026-11-16)."""
+        from wama.common.services.user_files import search_roots
+        user = _utilisateur('tree')
+        named = T.list_user_files(user, folder='')['locations']
+        self.assertEqual([r['path'] for r in search_roots(user)], [l['path'] for l in named])
+        self.assertGreater(len(named), 6)
+        for location in named:
+            if location['connected']:
+                continue
+            with self.subTest(folder=location['path']):
+                path = self._write(f"{location['path']}/deep/witness.bin")
+                out = T.list_user_files(user, folder=location['path'])
+                self.assertEqual([path], [f['path'] for f in out['files']])
+                self.assertEqual(('.bin', True), (out['files'][0]['ext'], out['complete']))
+                below = T.list_user_files(user, folder=f"{location['path']}/deep")
+                self.assertEqual([path], [f['path'] for f in below['files']])
+
+    def test_a_folder_outside_the_tree_is_refused_and_the_tree_is_named(self):
+        me, other = _utilisateur('inside'), _utilisateur('outside')
+        self._write(f'users/{other.id}/temp/secret.bin')
+        for folder in (f'users/{other.id}/temp', f'users/{me.id}/temp/../../{other.id}/temp',
+                       'users', 'anon_input', '/etc'):
+            with self.subTest(folder=folder):
+                out = T.list_user_files(me, folder=folder)
+                self.assertIn('error', out)
+                self.assertNotIn('files', out)
+                self.assertTrue(out['locations'])
+
+
+class ListMediaAssetsTest(TestCase):
+    """`list_media_assets` reads the page's own view in the page's scope : what the user may
+    DESIGNATE (`media_paths.readable_by`) is what the tool lists — theirs, what is shared with
+    them, the system's. Until 2026-11-16 it read the user's rows only."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from wama.media_library.models import SystemAsset, UserAsset
+        cls.me, cls.other = _utilisateur('assets_me'), _utilisateur('assets_other')
+        UserAsset.objects.create(user=cls.me, name='my voice', asset_type='voice',
+                                 file=f'users/{cls.me.id}/media_library/assets/mine.wav')
+        UserAsset.objects.create(user=cls.other, name='shared voice', asset_type='voice',
+                                 file=f'users/{cls.other.id}/media_library/assets/shared.wav',
+                                 visibility='public')
+        UserAsset.objects.create(user=cls.other, name='private voice', asset_type='voice',
+                                 file=f'users/{cls.other.id}/media_library/assets/private.wav')
+        system = SystemAsset.objects.create(name='system voice', asset_type='voice')
+        SystemAsset.objects.filter(pk=system.pk).update(file='media_library/system/voice.wav')
+        SystemAsset.objects.create(name='system avatar', asset_type='avatar')
+
+    def _origins(self, **kwargs):
+        out = T.list_media_assets(self.me, **kwargs)
+        self.assertNotIn('error', out)
+        return {a['name']: a['origin'] for a in out['assets']}
+
+    def test_mine_shared_and_system_are_listed_never_another_private_one(self):
+        self.assertEqual({'my voice': 'mine', 'shared voice': 'shared', 'system voice': 'system'},
+                         self._origins(asset_type='voice'))
+
+    def test_each_row_carries_the_path_the_user_may_designate(self):
+        from wama.common.utils.media_paths import readable_by
+        out = T.list_media_assets(self.me, asset_type='voice')
+        self.assertEqual(3, out['total'])
+        for asset in out['assets']:
+            with self.subTest(asset=asset['name']):
+                self.assertTrue(readable_by(asset['path'], self.me))
+
+    def test_one_origin_alone_and_a_search(self):
+        self.assertEqual({'system voice': 'system', 'system avatar': 'system'},
+                         self._origins(origin='system'))
+        self.assertEqual({'shared voice': 'shared'}, self._origins(origin='shared'))
+        self.assertEqual({'system avatar': 'system'}, self._origins(q='avatar'))
+        self.assertIn('error', T.list_media_assets(self.me, origin='everyone'))
+
+    def test_without_an_account_nothing_is_read(self):
+        from django.contrib.auth.models import AnonymousUser
+        self.assertIn('error', T.list_media_assets(AnonymousUser()))
 
 
 class GetItemDetailTest(TestCase):

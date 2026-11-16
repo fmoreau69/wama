@@ -376,7 +376,9 @@ MECHANISMS = (
               "dossiers connectés résolus par `resolve_mount_path` : aucune liste de dossiers. "
               "Bornée par racine (temps, entrées) et une racine tronquée est DITE (`incomplete`). "
               "Porte aussi `mounted_file` : `designate` et les outils acceptent `mounts/…`, COPIÉ "
-              "à l'entrée d'une app, jamais déplacé (2026-10-11, outil `find_user_files`). ⚠ La "
+              "à l'entrée d'une app, jamais déplacé (2026-10-11, outil `find_user_files`). Le MÊME "
+              "périmètre se LIT : `locations` nomme les dossiers de l'arbre, `list_folder` en lit "
+              "un par le même parcours borné (2026-11-16, outil `list_user_files`). ⚠ La "
               "recherche du gestionnaire (`api_search`, 25 dossiers écrits à la main, sans les "
               "dossiers connectés) reste à rallier",
               'wama/common/services/user_files.py',

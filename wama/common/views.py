@@ -494,9 +494,14 @@ def apps_catalog_view(request):
     # mesure de `tool_api.route_coverage`, montrée aux développeurs sous la grille.
     api_coverage = None
     if developer:
-        from wama.tool_api import route_coverage
+        from wama.tool_api import route_coverage, triad_coverage
         from .app_registry import app_identity
         api_coverage = route_coverage()
+        # Les gestes COMMUNS (déposer, lancer, suivre) ne sont pas des routes `api/…` : sans leur
+        # mesure à côté, une app à « 0 / 1 » se lisait comme une app sans outil (Fabien, 16/11).
+        triads = triad_coverage()
+        api_coverage['apps'] = {'total': len(triads),
+                                'complete': sum(not missing for missing in triads.values())}
         for row in api_coverage['pages']:
             page = row['page'].rpartition(':')[2]
             row['label'] = (app_identity(page).get('label') if page else '') or row['page'] or 'WAMA'

@@ -79,29 +79,6 @@ def _receive(path, user, app_label: str, subfolder: str = 'input', mode: str = N
     from wama.common.utils.media_paths import designate
     return designate(_local_input(path, user, app_label, mode), user, app_label, subfolder)
 
-# ---------------------------------------------------------------------------
-# Folder mapping: logical name → MEDIA_ROOT-relative path template
-# ---------------------------------------------------------------------------
-def _dir(app: str, subfolder: str) -> str:
-    """Gabarit de chemin d'app, laissant `{user_id}` à formater par l'appelant."""
-    from wama.common.utils.media_paths import app_media_dir
-    return app_media_dir(app, '{user_id}', subfolder)
-
-
-#: ⚠ Les chemins d'app se DÉRIVENT (`app_media_dir`), ils ne s'écrivent plus. Mesuré le
-#: 2026-09-11 : 61 littéraux `f'<app>/{user_id}/<sous-dossier>'` vivaient dans 4 fichiers, et
-#: tant qu'ils existent le domicile des fichiers ne peut pas bouger — chaque littéral oublié
-#: deviendrait un dossier vide, une preview morte ou un import écrivant à l'ancien endroit,
-#: sans qu'aucune erreur ne le dise. Le temp utilisateur, lui, EST déjà chez l'utilisateur.
-_FOLDER_MAP = {
-    'temp':               'users/{user_id}/temp',
-    'anon_input':         _dir('anonymizer', 'input'),
-    'anon_output':        _dir('anonymizer', 'output'),
-    'transcriber_input':  _dir('transcriber', 'input'),
-    'describer_input':    _dir('describer', 'input'),
-    'reader_input':       _dir('reader', 'input'),
-}
-
 
 def _signed_in_refusal(user, action: str = 'Lecture') -> dict | None:
     """Le refus d'un outil appelé SANS compte identifié (visiteur, appel sans session), ou None.
@@ -173,14 +150,22 @@ def tool_annotations(tool_name: str) -> dict:
 @tool_effect(READ)
 def list_user_files(user, folder: str = 'temp') -> dict:
     """
-    List ALL files in one of the user's folders (any extension).
+    List the files of ONE folder of the user's file tree (any extension, sub-folders included),
+    most recent first — or, with folder='', the folders the tree holds.
+
+    The tree is the File Manager's: the temporary folder, the inputs and outputs of every app,
+    and the user's connected folders. To find a file by its name, call find_user_files instead.
 
     Args:
-        user:   Django User instance
-        folder: 'temp' | 'anon_input' | 'anon_output'
+        folder: 'temp' (the temporary folder, where deposits land), or the `path` of a folder as
+                the answer to folder='' gives it (a sub-folder of one of them too) ; '' lists
+                the folders themselves.
 
     Returns:
-        {"files": [{"name", "path", "size_mb", "ext"}], "folder": folder}
+        {"files": [{"name", "path", "location", "connected", "size_mb", "modified", "ext"}],
+         "count", "folder", "location", "complete"} — `complete: false` means the folder could
+        not be read to its end (too large, cloud unreachable): say so.
+        With folder='': {"locations": [{"path", "location", "connected"}]}.
     """
     # ⚠ AUCUN filtre d'extension ici (correctif 2026-08-29, plan intake ⓪) : ce filtre
     # rendait pdf/txt/csv/wdat INVISIBLES à l'assistant alors que le sas les reçoit.
@@ -188,29 +173,24 @@ def list_user_files(user, folder: str = 'temp') -> dict:
     # extensions déclarent un format de LOT, pas un fichier de travail (WAMA_LLM §Intake).
     # Transverse, donc autorisé à tous par `tool_accessible` : sans compte, `user.id` vaut None et
     # le dossier `users/None/…` était CRÉÉ sous les médias (relevé le 2026-10-30, audit des droits).
+    # Le périmètre est celui de l'ARBRE du gestionnaire, lu à sa déclaration par la brique commune
+    # (`user_files`, celle de `find_user_files`) : six dossiers écrits ici à la main jusqu'au
+    # 2026-11-16 (`REMOVAL_LEDGER R239`), sans les sorties de la plupart des apps ni les dossiers
+    # connectés.
     if refusal := _signed_in_refusal(user):
         return refusal
-    template = _FOLDER_MAP.get(folder)
-    if template is None:
-        available = ', '.join(_FOLDER_MAP.keys())
-        return {'error': f"Unknown folder '{folder}'. Available: {available}"}
-
-    rel_dir = template.format(user_id=user.id)
-    abs_dir = Path(settings.MEDIA_ROOT) / rel_dir
-    abs_dir.mkdir(parents=True, exist_ok=True)
-
-    files = []
-    for f in sorted(abs_dir.rglob('*')):
-        if f.is_file():
-            rel_path = f.relative_to(Path(settings.MEDIA_ROOT))
-            files.append({
-                'name': f.name,
-                'path': str(rel_path).replace('\\', '/'),
-                'size_mb': round(f.stat().st_size / 1_048_576, 2),
-                'ext': f.suffix.lower(),
-            })
-
-    return {'files': files, 'folder': folder, 'count': len(files)}
+    from wama.common.services import user_files
+    folder = (folder or '').strip()
+    try:
+        if not folder:
+            return {'locations': user_files.locations(user)}
+        listing = user_files.list_folder(user, folder)
+    except Exception as e:
+        logger.exception('[tool_api] list_user_files')
+        return {'error': f'Lecture impossible : {e}'}
+    for f in listing.get('files', []):
+        f['ext'] = Path(f['name']).suffix.lower()
+    return listing
 
 
 @tool_effect(READ)
@@ -1295,46 +1275,54 @@ def convert_file(
 # ===========================================================================
 
 @tool_effect(READ)
-def list_media_assets(user, asset_type: str = '', q: str = '') -> dict:
+def list_media_assets(user, asset_type: str = '', q: str = '', origin: str = '',
+                      page: int = 1) -> dict:
     """
-    List the user's personal media library assets.
+    List the media-library assets the user can USE: their own, those shared with them (lab,
+    project, public) and the system's (voices, avatar gallery…) — the list of the media library
+    page and of the apps' selection window.
+
+    Each row says where it comes from (`origin`: 'mine', 'shared' or 'system') and carries its
+    `path`: pass that path as-is to an add_to_* tool to use the asset as an input. An `id` is only
+    unique within its origin — a system asset and one of the user's may share a number.
 
     Args:
-        user:       Django User instance
-        asset_type: Filter by type: 'voice' | 'audio_music' | 'audio_sfx' |
-                    'image' | 'video' | 'document' | 'avatar' (empty = all)
-        q:          Search in name / tags / description
+        asset_type: one nature: 'voice' | 'audio_music' | 'audio_sfx' | 'image' | 'video' |
+                    'document' | 'avatar' | 'object3d' (empty = all)
+        q:          words searched in the name, the tags and the description
+        origin:     'mine', 'shared' or 'system' to read one origin alone (empty = all three)
+        page:       page of results (48 per page); `has_more` says whether another one follows
 
     Returns:
-        {"assets": [{"id", "name", "asset_type", "file_url", "duration",
-                     "file_size", "tags"}], "total": int}
+        {"assets": [{"id", "name", "asset_type", "origin", "owner", "path", "file_url",
+                     "duration", "file_size", "tags", "description", "attributes"}],
+         "total", "page", "has_more"} or {"error"}
     """
+    # LA vue de la page (`media_library:api_list`), dans la portée de la page (`scope=visible` :
+    # la règle qui liste est celle qui laisse DÉSIGNER, `media_paths.readable_by`) et avec les
+    # assets du système, comme la fenêtre de sélection des apps. Jusqu'au 2026-11-16 l'outil
+    # relisait la table à part, et seulement les assets du compte : une voix ou un avatar du
+    # système n'existait pas pour l'assistant.
+    if refusal := _signed_in_refusal(user, "Lecture de la médiathèque"):
+        return refusal
+    origin = (origin or '').strip().lower()
+    if origin not in ('', 'mine', 'shared', 'system'):
+        return {'error': f"origin « {origin} » : 'mine', 'shared', 'system', ou vide pour tout."}
     try:
-        from wama.media_library.models import UserAsset
-        from django.db.models import Q as DQ
-
-        qs = UserAsset.objects.filter(user=user)
-        if asset_type:
-            qs = qs.filter(asset_type=asset_type)
-        if q:
-            qs = qs.filter(
-                DQ(name__icontains=q) | DQ(tags__icontains=q) | DQ(description__icontains=q)
-            )
-        qs = qs.order_by('asset_type', 'name')[:50]
-
-        assets = [{
-            'id':         a.id,
-            'name':       a.name,
-            'asset_type': a.asset_type,
-            'file_url':   a.file.url if a.file else '',
-            'duration':   a.duration_display or '',
-            'file_size':  a.file_size_display,
-            'tags':       a.tags,
-        } for a in qs]
-
-        return {'assets': assets, 'total': len(assets)}
-    except Exception as e:
-        return {'error': f'Erreur lecture médiathèque : {e}', 'assets': [], 'total': 0}
+        page = max(1, int(page or 1))
+    except (TypeError, ValueError):
+        page = 1
+    failure, payload = _page_view(
+        user, 'media_library:api_list', "Lecture de la médiathèque", method='get',
+        data={'type': (asset_type or '').strip(), 'exact': '1', 'q': q or '', 'page': page,
+              'scope': 'visible', 'with_system': '1', 'origin': origin or 'all'})
+    if failure:
+        return failure
+    kept = ('id', 'name', 'asset_type', 'origin', 'owner', 'path', 'file_url', 'duration',
+            'file_size', 'tags', 'description', 'attributes')
+    return {'assets': [{k: a.get(k, '') for k in kept} for a in payload.get('assets', [])],
+            'total': payload.get('total', 0), 'page': payload.get('page', page),
+            'has_more': bool(payload.get('has_more'))}
 
 
 @tool_effect(READ, sub_agent=False,
@@ -2914,24 +2902,33 @@ def convert_model_format(user, model_key: str, target_format: str = 'safetensors
 # registres passe AVANT, car la garde de la vue (`user_passes_test`) répond par une redirection,
 # que `_verdict` lirait comme un succès. Un geste que la page fait confirmer exige `confirm=true`.
 
-def _model_manager_view(user, route: str, what: str, *, method: str = 'post', data=None):
-    """La vue `model_manager:<route>` appelée au nom de `user` → (échec | None, charge). La charge
-    est rendue même en échec : une désinstallation qui attend une seconde confirmation (409) y dit
-    pourquoi."""
-    from django.http import Http404
-    from django.urls import resolve, reverse
+def _page_view(user, route: str, what: str, *, args=(), method: str = 'post', data=None,
+               json_body: bool = False):
+    """LA vue d'une route de page (`<espace>:<nom>`, celle que `ROUTE_TOOLS` nomme) appelée au nom
+    de `user` → (échec | None, charge) : l'outil fait le geste du bouton, par son corps. La charge
+    est rendue même en échec (une vue y dit pourquoi elle refuse).
 
-    url = reverse(f'model_manager:{route}')
-    view, v_args, v_kwargs = resolve(url)
+    ⚠ La garde de compte ou de droit se pose AVANT l'appel : une vue gardée par `login_required`
+    ou `user_passes_test` répond par une redirection, que `_verdict` lirait comme un succès."""
+    from django.http import Http404
+
     try:
-        status_code, payload = _call_view(user, view, v_args, v_kwargs, url=url, method=method,
-                                          data=data, json_body=method != 'get')
+        status_code, payload = _route_view(user, route, args, method=method, data=data,
+                                           json_body=json_body)
     except Http404:
         return {'error': f"{what} : élément introuvable."}, {}
     except Exception as e:
-        logger.warning(f"[tool_api] model_manager:{route} : {e}")
+        logger.warning(f"[tool_api] {route} : {e}")
         return {'error': f"{what} impossible : {e}"}, {}
     return _verdict(status_code, payload, what), payload
+
+
+def _model_manager_view(user, route: str, what: str, *, method: str = 'post', data=None):
+    """La vue `model_manager:<route>` appelée au nom de `user` (`_page_view`, corps JSON) →
+    (échec | None, charge) : une désinstallation qui attend une seconde confirmation (409) dit
+    pourquoi dans sa charge."""
+    return _page_view(user, f'model_manager:{route}', what, method=method, data=data,
+                      json_body=method != 'get')
 
 
 def _model_manager_answer(user, route: str, what: str, *, method: str = 'post', data=None):
@@ -4438,14 +4435,23 @@ def _call_view(user, view, args=(), kwargs=None, *, url: str = '/', method: str 
         return getattr(response, 'status_code', 500), {}
 
 
+def _route_view(user, route: str, args=None, *, method: str = 'post', data=None,
+                json_body: bool = False):
+    """La vue qu'une route NOMMÉE (`<espace>:<nom>`) résout, appelée au nom de `user` par une
+    requête synthétique : rend (status_code, charge). UNE résolution pour les gestes d'app
+    (`_poster_vue`) et ceux des pages (`_page_view`)."""
+    from django.urls import resolve, reverse
+
+    url = reverse(route, args=args)
+    view, v_args, v_kwargs = resolve(url)
+    return _call_view(user, view, v_args, v_kwargs, url=url, method=method, data=data,
+                      json_body=json_body)
+
+
 def _poster_vue(user, app: str, nom_route: str, args, data=None):
     """POST la vue de l'app par une requête synthétique, `data` en champs de formulaire. Rend
     (status_code, charge|texte)."""
-    from django.urls import resolve, reverse
-
-    url = reverse(f'{app}:{nom_route}', args=args)
-    vue, v_args, v_kwargs = resolve(url)
-    return _call_view(user, vue, v_args, v_kwargs, url=url, data=data)
+    return _route_view(user, f'{app}:{nom_route}', args, data=data)
 
 
 def _verdict(statut, charge, quoi):
@@ -7153,6 +7159,12 @@ ROUTE_TOOLS = {
     'common:registres_etat': 'list_registries',                   # `registries.overview`
     'common:conformity_refresh': 'dev_run_operation',   # `conformity` : `measure_and_write_conformity`
     'filemanager:api_search': 'find_user_files',  # the tool reads the tree's declared scope
+    # Extended on 2026-11-16 to do what the route does : the page's view itself, in its scope
+    # (shared and system assets), and the File Manager's tree read at its declaration.
+    'media_library:api_list': 'list_media_assets',
+    'media_library:api_system_list': 'list_media_assets',          # `origin='system'`
+    'filemanager:api_tree': 'list_user_files',                     # `folder=''` : the folders
+    'filemanager:api_children': 'list_user_files',                 # one folder of the tree
     'media_library:api_export_item': 'add_item_to_media_library',  # `export_item_to_library`
     'media_library:api_upload': 'add_to_media_library',            # `add_file_to_library`
     'studio:api_run': 'run_studio_pipeline',                       # `launch.launch_graph`
@@ -7254,6 +7266,17 @@ def action_routes() -> dict:
             continue
         routes[':'.join(filter(None, (source_of(namespace), name))) or path] = view
     return routes
+
+
+def triad_coverage() -> dict:
+    """`{app: [the tools of its triad that are missing]}` for every app of the catalogue — the
+    COMMON gestures (deposit, start, follow ; the cards' and batches' verbs are cross-app tools).
+    Read by the coverage test and by the catalogue page, beside `route_coverage` : the routes
+    counted there are the ones a page has ON TOP of these."""
+    from wama.common.app_registry import APP_CATALOG
+    return {app: [name for name in (f'add_to_{app}', f'start_{app}', f'get_{app}_status')
+                  if name not in TOOL_REGISTRY]
+            for app in APP_CATALOG}
 
 
 def route_coverage() -> dict:

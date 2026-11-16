@@ -2972,6 +2972,36 @@ Fabien. Mesuré d'abord :
    commune que lit l'outil (`common/services/user_files.find_user_files`) — deux périmètres pour
    une recherche ; `api_remount_shares` dit dans sa docstring qu'aucune adresse ne l'ouvre plus.
 
+7. **Premières extensions** (même jour ; décision de Fabien : ni le Lab ni le Studio pour le
+   moment — ils se portent et s'alignent d'abord). Budget **152 → 148**.
+   - `list_media_assets` appelle LA vue de la page (`media_library:api_list`, par
+     `tool_api._page_view`) dans la portée de la page : les assets du compte, ceux qu'on lui
+     partage et ceux du système, chacun avec son `origin` et son `path`. La règle qui liste est
+     celle qui laisse désigner (`media_paths.readable_by`). Avant : la table relue à part, assets
+     du compte seuls — une voix ou un avatar du système n'existait pas pour l'assistant.
+   - `list_user_files` lit l'ARBRE du gestionnaire à sa déclaration, par la brique de
+     `find_user_files` (`user_files.list_folder`, `locations`) : `folder=''` nomme les dossiers,
+     tout dossier de l'arbre se lit, dossiers connectés compris, parcours borné. Les six dossiers
+     écrits à la main sont retirés (`REMOVAL_LEDGER R239`).
+   - `tool_api._page_view` : l'outil appelle la vue que `ROUTE_TOOLS` nomme — la forme du model
+     manager (`_model_manager_view`, qui s'y ramène), ouverte à toute page.
+   - La page `/apps/` dit ce que son tableau ne compte pas : les gestes communs (déposer, lancer,
+     suivre) sont mesurés à côté (`tool_api.triad_coverage`, lue aussi par le test). Une app à
+     « 0 / 1 » se lisait comme une app sans outil.
+
+   ⏳ **Non étendu, à décider** : `filemanager:api_import`. L'envoi vers une app a DEUX chemins de
+   naissance — les importeurs du gestionnaire (`filemanager.views.IMPORTERS` : porte
+   `accepts_file`, provenance, regroupement à l'arrivée en lot) et les créateurs de l'assistant
+   (`add_to_<app>`). Donner le dossier entier aux créateurs en ferait un troisième ; un outil
+   « envoyer vers » qui appelle la vue de l'import suivrait la route, à côté des créateurs.
+
+   ⏳ **Les routes d'app ne sont pas toutes des gestes** : `avatarizer:api_avatar_gallery` et
+   `common:api_voices` sont des SOURCES D'OPTIONS d'un réglage (`OPTION_SOURCES` de
+   `wama-params.js`, comme `catalog` que fait `list_model_choices`) — un outil « les choix d'un
+   réglage » les ferait toutes ; `converter:api_presets` sert la conversion rapide du
+   gestionnaire avec la table des préréglages, que le curseur commun (`quality_intent`) a
+   remplacée dans le schéma (`quality_preset` n'y est plus qu'une trace, `converter/params.py:80-84`).
+
 ⏳ Restes relevés dans ce fil, non traités : `add_to_composer` exige `prompt` pour séparer des
 pistes ; `dev_search_code` refuse un `glob` en `**/*.py` (4 appels sur 7) ; une erreur d'outil ne
 dit pas la voie à prendre ; la parité des PROCESS (chaque process déclaré lançable sans argument

@@ -4,7 +4,8 @@ montre — dossier temporaire, entrées et sorties de chaque app, dossiers CONNE
 réseau, nuage).
 
 POURQUOI UNE BRIQUE (2026-10-11, fil web n° 32). L'assistant ne savait regarder que six dossiers
-écrits à la main (`tool_api._FOLDER_MAP`), sans recherche par nom ni dossier connecté ; la
+écrits à la main (`tool_api._FOLDER_MAP`, retiré le 2026-11-16 : `list_folder` lit un dossier de
+l'arbre, `locations` les nomme), sans recherche par nom ni dossier connecté ; la
 recherche du gestionnaire (`filemanager.views.api_search`) tient sa propre liste de 25 dossiers,
 écrite à la main elle aussi, sans les dossiers connectés. Deux listes du même ensemble, aucune
 juste : *« deux listes du même ensemble finissent par en décrire deux »* (`_app_folders_config`).
@@ -39,6 +40,9 @@ MOUNT_BUDGET_S = 5.0
 MAX_ENTRIES_PER_ROOT = 20000
 #: Préfixe des chemins VIRTUELS d'un dossier connecté (`mounts/<id>/…`), celui du gestionnaire.
 MOUNT_PREFIX = 'mounts/'
+#: Le nom court du dossier TEMPORAIRE, première racine de l'arbre (`search_roots`) : là où
+#: arrivent les dépôts, et le dossier que `list_folder` lit quand on ne lui en nomme pas d'autre.
+TEMP_FOLDER = 'temp'
 
 
 def is_mount_path(path) -> bool:
@@ -133,6 +137,62 @@ def _walk_root(root, terms, found, budget_s):
         logger.warning('[user_files] racine %s illisible : %s', root['path'], e)
         return False, str(e)
     return True, ''
+
+
+def locations(user) -> list:
+    """Les dossiers de l'arbre de cet utilisateur, tels qu'on les DÉSIGNE :
+    `[{'path', 'location', 'connected'}]`, dans l'ordre de l'arbre."""
+    return [{'path': r['path'], 'location': r['location'], 'connected': r['mount']}
+            for r in search_roots(user)]
+
+
+def _folder_root(user, folder: str):
+    """Le dossier `folder` de l'arbre de `user`, sous la forme d'une racine de parcours
+    (`{'path', 'location', 'abs', 'mount'}`), ou None : une racine de `search_roots` ou l'un de ses
+    sous-dossiers, jamais un chemin hors de l'arbre (`..` refusé ; un dossier connecté se résout
+    par la règle du gestionnaire, `resolve_mount_path`)."""
+    folder = str(folder or '').replace('\\', '/').strip('/')
+    if not folder or '..' in folder.split('/'):
+        return None
+    roots = search_roots(user)
+    if folder == TEMP_FOLDER:
+        folder = roots[0]['path']
+    for root in roots:
+        if folder != root['path'] and not folder.startswith(root['path'] + '/'):
+            continue
+        if root['mount']:
+            from wama.filemanager.views import resolve_mount_path
+            target, _mount = resolve_mount_path(folder, user)
+            if target is None:
+                return None
+            base = Path(target)
+        else:
+            base = root['abs'] / folder[len(root['path']):].lstrip('/')
+        return {'path': folder, 'location': root['location'], 'abs': base, 'mount': root['mount']}
+    return None
+
+
+def list_folder(user, folder: str, *, limit: int = 200) -> dict:
+    """Les fichiers d'UN dossier de l'arbre (sous-dossiers compris), les plus récents d'abord :
+    `{'files': [...], 'count', 'folder', 'location', 'complete', 'unreadable'?}`, chaque fichier sous
+    la forme de `find_user_files`. Même parcours BORNÉ que la recherche : `complete: False` dit
+    qu'un dossier trop grand ou injoignable n'a pas été lu jusqu'au bout. Un dossier hors de
+    l'arbre rend `{'error', 'locations'}` — les dossiers qu'on peut nommer."""
+    root = _folder_root(user, folder)
+    if root is None:
+        return {'error': f"Dossier inconnu ou hors de votre espace : {folder!r}.",
+                'locations': locations(user)}
+    found = []
+    complete, error = _walk_root(root, [], found,
+                                 MOUNT_BUDGET_S if root['mount'] else LOCAL_BUDGET_S)
+    found.sort(key=lambda f: f['modified'], reverse=True)
+    try:
+        limit = max(1, min(int(limit or 200), 500))
+    except (TypeError, ValueError):
+        limit = 200
+    return {'files': found[:limit], 'count': len(found), 'folder': root['path'],
+            'location': root['location'], 'complete': complete,
+            **({'unreadable': error} if error else {})}
 
 
 def find_user_files(user, query: str, *, limit: int = 20) -> dict:

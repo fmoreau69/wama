@@ -73,7 +73,8 @@ from wama.tool_api import ROUTE_TOOLS, action_routes  # noqa: E402
 #: only lack their line here — map them first. 208 → 162 on 2026-11-09 : the whole model manager.
 #: 162 → 152 on 2026-11-16 : the sorting (`WAMA_LLM.md` « fil web n° 46 », point 6) — ten routes an
 #: existing tool already did ; the 152 left are sorted there (to extend, to write, the screen's own).
-ROUTES_WITHOUT_TOOL_BUDGET = 152
+#: 152 → 148 the same day : `list_media_assets` and `list_user_files` extended to what the page reads.
+ROUTES_WITHOUT_TOOL_BUDGET = 148
 
 
 def factory_gestures(path: str, function: str) -> set:
@@ -95,14 +96,10 @@ class EveryAppHasItsToolsTest(SimpleTestCase):
 
     def test_every_app_of_the_catalogue_has_its_triad(self):
         from wama.common.app_registry import APP_CATALOG
-        missing = {}
-        for app in APP_CATALOG:
-            if app in APPS_WITHOUT_TOOLS:
-                continue
-            absent = [name for name in (f'add_to_{app}', f'start_{app}', f'get_{app}_status')
-                      if name not in T.TOOL_REGISTRY]
-            if absent:
-                missing[app] = absent
+        measured = T.triad_coverage()
+        self.assertEqual(set(APP_CATALOG), set(measured))
+        missing = {app: absent for app, absent in measured.items()
+                   if absent and app not in APPS_WITHOUT_TOOLS}
         self.assertEqual({}, missing, "une app sans ses outils : la compléter (skill /api-outils)")
 
     def test_an_exemption_is_still_needed(self):
@@ -748,6 +745,12 @@ class TheCoverageIsShownTest(TestCase):
         self.assertIn(f"{coverage['with_tool']} sur {coverage['total']}", html)
         for row in coverage['pages']:
             self.assertIn(f'data-api-coverage-page="{row["page"]}"', html)
+        # The common gestures are measured BESIDE the routes : an app at « 0 / 1 » read as an app
+        # without tools (Fabien, 2026-11-16) — the page says what the table does not count.
+        triads = T.triad_coverage()
+        complete = sum(not missing for missing in triads.values())
+        self.assertIn('data-api-coverage-common', html)
+        self.assertIn(f'{complete} apps sur {len(triads)}', html)
         self.client.force_login(_account('grid_user'))
         self.assertNotIn('data-api-coverage-total',
                          self.client.get(reverse('common:apps_catalog')).content.decode())
