@@ -305,6 +305,45 @@ class OneFaceSwitchTest(SimpleTestCase):
         self.assertEqual([12.5, True, 12.5, False], out[3:7], 'the next face resumes on its own axis')
         self.assertFalse(out[7], 'one axis per face shown')
 
+    def test_a_sound_of_the_viewer_follows_the_axis_too(self):
+        """2026-11-16 (step 3 of the time-axis route) : the sound the viewer shows is played by the
+        common player, and FOLLOWS an axis like a video — so the transport keys of the viewer hold
+        for it. It keeps the time and the state it had (the face before may have given them back),
+        and the axis plays it through the player (its exclusive playback)."""
+        self.v8.eval('window.requestAnimationFrame = function () { return 1; };'
+                     'window.cancelAnimationFrame = function () {};'
+                     + (JS / 'wama-axis.js').read_text(encoding='utf-8'))
+        out = self.v8.eval("""(function () {
+            var P = window.WamaMediaPreview;
+            var a = {tagName: 'AUDIO', currentTime: 12.5, duration: 60, paused: false, ended: false,
+                     readyState: 4, seeking: false, playbackRate: 1, volume: 1, muted: false, on: {},
+                     addEventListener: function (k, fn) { (a.on[k] = a.on[k] || []).push(fn); },
+                     removeEventListener: function () {},
+                     play: function () { a.paused = false; return null; },
+                     pause: function () { a.paused = true; }};
+            var calls = {play: 0, seek: []};
+            window.WamaAudioPlayer = {getAudio: function (id) { return id === 'modal-audio' ? a : null; },
+                play: function () { calls.play++; a.paused = false; return a; },
+                seek: function (id, t) { calls.seek.push(t); a.currentTime = t; }};
+            var holder = {isConnected: true, attrs: {},
+                          setAttribute: function (k, v) { holder.attrs[k] = v; }};
+            var axis = P.soundOnAxis(holder, 'modal-audio');
+            var loose = P.soundOnAxis({isConnected: false, setAttribute: function () {}}, 'modal-audio');
+            var none = P.soundOnAxis(holder, 'other');
+            var r = [axis.medias().length, axis.time(), axis.playing(), 'data-wama-axis' in holder.attrs,
+                     P.axisOf(holder) === axis, loose, none];
+            axis.pause(); axis.seek(30);
+            r.push(a.paused, calls.seek[calls.seek.length - 1]);
+            axis.play(); r.push(calls.play > 0);
+            return r;
+        })()""")
+        out = list(out)
+        self.assertEqual([1, 12.5, True, True, True], out[:5],
+                         'on an axis held by the face, at the time and in the state it had')
+        self.assertEqual([None, None], out[5:7], 'not in the page, or no such player : no axis')
+        self.assertEqual([True, 30], out[7:9], 'the axis pauses it and places it through the player')
+        self.assertTrue(out[9], 'and plays it through the player (exclusive playback)')
+
     def test_the_viewer_width_follows_what_it_shows(self):
         """A media takes the room, a text keeps a reading width, a sound stays narrow (2026-10-14 :
         the viewer was 800 px whatever it showed)."""

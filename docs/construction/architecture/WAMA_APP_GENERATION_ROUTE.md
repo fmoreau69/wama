@@ -1691,6 +1691,16 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       est close côté commun ; la bande fine existe en option mais l'aperçu ne la monte pas
       encore (marche ③). ⏳ Si le portage du cam_analyzer (marche ⑦) montre que 11 images par
       seconde ne suffisent pas en arrière, l'intervalle devient un réglage de l'axe.
+    - 🔄 **2026-11-16 — marche ③, premier pas : le SON de la visionneuse suit l'axe.** Le son
+      montré en grand restait hors de l'axe (le lecteur commun seul) : Espace, J/K/L, les sauts
+      et Début/Fin ne valaient que pour une vidéo. Il est posé sur un axe tenu par sa face
+      (`media-preview.js`, `_soundOnAxis` — la forme du transport d'une surface : lecture
+      exclusive et position reposée restent au lecteur commun), au temps et dans l'état qu'il
+      avait ; le magnéto de la visionneuse le trouve comme une vidéo (`axisOf`). Garde :
+      `OneFaceSwitchTest.test_a_sound_of_the_viewer_follows_the_axis_too`. ⚠ Pas encore joué
+      au navigateur. ⏳ Reste : le son du VOLET et des cards (leur lecteur s'initialise au
+      premier clic — le poser sur l'axe d'office le chargerait pour chaque card), et la bande
+      fine à la place des contrôles natifs, à parité mesurée.
   - ✅ **2026-10-21 — LE VOLET DEVIENT UNE ZONE DE BRIQUES, étape 1 : les surfaces** (décision de
     Fabien : *« on passe tout WAMA progressivement en briques UI »*, verrouillé par défaut pour
     tous, le volet en colonne, les réglages en deux colonnes gardés). Domicile : `WAMA_VOLETS

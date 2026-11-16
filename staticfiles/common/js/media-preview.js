@@ -374,6 +374,25 @@
         return axis;
     }
 
+    /** Le son du lecteur commun `playerId`, une fois dans la page, posé sur un axe tenu par
+     *  `holder` — comme le transport d'une surface (`brick-media-transport.js`) : la lecture
+     *  EXCLUSIVE et la position reposée restent au lecteur. Il garde le temps et l'état qu'il
+     *  avait (la face d'avant a pu les lui rendre, `giveClock`). */
+    function _soundOnAxis(holder, playerId) {
+        const P = window.WamaAudioPlayer;
+        const audio = P && P.getAudio ? P.getAudio(playerId) : null;
+        if (!audio || !holder || !holder.isConnected) return null;
+        const at = audio.currentTime || 0, playing = !audio.paused && !audio.ended;
+        const axis = playOnAxis(holder, [{ el: audio, opts: {
+            play: function () { return P.play(playerId); },
+            seek: function (t) { P.seek(playerId, t, false); },
+        } }]);
+        if (!axis) return null;
+        if (at > 0) axis.seek(at);
+        if (playing) axis.play();
+        return axis;
+    }
+
     /** L'axe de ce que montre `host` (lui-même ou ce qu'il contient), ou null. */
     function axisOf(host) {
         if (!host) return null;
@@ -1959,6 +1978,9 @@
                 const wrapper = document.createElement('div');
                 wrapper.className = 'p-3 w-100';
                 wrapper.appendChild(window.WamaAudioPlayer.create(data.url, 'modal-audio', { height: 80 }));
+                // Le SON suit l'axe, comme la vidéo (2026-11-16, marche ③ de `ROUTE §F3b`) : les
+                // touches du magnéto de la visionneuse valent pour lui.
+                setTimeout(function () { _soundOnAxis(wrapper, 'modal-audio'); }, 0);
                 return wrapper;
             }
             // Fallback si WaveSurfer non chargé
@@ -2329,7 +2351,7 @@
         variantToggle: variantToggle, followDuring: followDuring, followCard: followCard,
         faceViewer: faceViewer,
         takeClock: takeClock, giveClock: giveClock, releaseMedia: _releaseHost,
-        playOnAxis: playOnAxis, axisOf: axisOf,
+        playOnAxis: playOnAxis, axisOf: axisOf, soundOnAxis: _soundOnAxis,
         isRunningCard: isRunningCard, cardOfPreview: cardOfPreview, cardElement: cardElement,
         // visionneuse et navigation
         show: showPreviewModal, showWithNav: showPreviewModalWithNav,
