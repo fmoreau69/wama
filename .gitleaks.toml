@@ -10,3 +10,8 @@ useDefault = true
 description = "faux positif generic-api-key : `model_key=_model_key, notify_label='Composer'` (wama/composer/tasks.py) -- un argument nomme `*_key` suivi d'une chaine, pas une cle (lu le 2026-10-12)"
 regexTarget = "line"
 regexes = ['''model_key=_model_key, notify_label=''']
+
+[[allowlists]]
+description = "faux positif generic-api-key : `keys: the key names … by place ('KeyP', 'Shift+ArrowLeft',` (docstring de `set_brick_keys`, wama/tool_api.py) -- des noms de TOUCHES du clavier, pas une cle (lu le 2026-11-16, commit 6310ddd3a)"
+regexTarget = "line"
+regexes = ['''by place \('KeyP', 'Shift\+ArrowLeft',''']
