@@ -462,7 +462,7 @@ Valeur « auto » d'un select de modèle : résolution AU LANCEMENT sur le domai
   - `is_auto(value) -> bool` — Cette valeur demande-t-elle le tirage automatique ? (vide compris, et l'« auto » borné à
   - `candidates_with(capability: str, value, q=None, **filters) -> list` — Clés catalogue des modèles du domaine `filters` (champs d'`AIModel` ou `capabilities__…`,
   - `catalog_domain(app_id: str)` — DOMAINE déclaré au schéma de l'app pour son select de modèle, ou None.
-  - `catalog_field(app_id: str)` — Le paramètre `options_source='catalog'` du schéma de l'app (le premier), ou None — le
+  - `catalog_field(app_id: str, domain: str=None)` — Le paramètre `options_source='catalog'` du schéma de l'app (le premier), ou None — le
   - `catalog_fields(app_id: str) -> list` — TOUS les paramètres `options_source='catalog'` de l'app — ceux de chacun de ses schémas
   - `declared_cloud_keys(app_id: str, user)` — Les modèles DISTANTS que le tirage AUTOMATIQUE de `app_id` peut retenir pour `user`, ou
   - `declared_resolution(app_id: str) -> dict` — Les affinages du tirage « auto » DÉCLARÉS au schéma de `app_id` (`options_resolution`),
