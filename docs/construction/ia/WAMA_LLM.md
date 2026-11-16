@@ -2912,11 +2912,21 @@ Fabien. Mesuré d'abord :
    décideur du council (`decide`). L'assistant avait « adopté » la méthode par un souvenir et
    lancé UN agent chargé de jouer les six.
 
+5. **La GRILLE de l'API, dans `/apps/`** (décision de Fabien : sans page neuve). UNE mesure,
+   `tool_api.route_coverage` — la déclaration route → outil (`tool_api.ROUTE_TOOLS`) et son
+   lecteur (`action_routes`) ont quitté le test pour le registre —, trois lecteurs : le budget de
+   `tests_tool_api_coverage` (162 routes sans outil sur 226), le critère `tool_routes` de la
+   grille de conformité (par app ; non applicable sans route d'action hors des fabriques) et le
+   bloc « Outils de l'assistant » de la page, montré aux développeurs, page par page. Mesuré le
+   jour même : trois apps rouges sur ce critère — imager (2 routes : résolutions), avatarizer
+   (galerie d'avatars), converter (préréglages).
+
 ⏳ Restes relevés dans ce fil, non traités : `add_to_composer` exige `prompt` pour séparer des
 pistes ; `dev_search_code` refuse un `glob` en `**/*.py` (4 appels sur 7) ; une erreur d'outil ne
 dit pas la voie à prendre ; la parité des PROCESS (chaque process déclaré lançable sans argument
-étranger) ; le tri des 162 routes d'action sans outil et leur grille (`/apps/`, fiche d'app,
-registres — pas de page neuve) ; une vidéo de l'échange par l'assistant.
+étranger) ; le TRI des 162 routes d'action sans outil (déjà faites par un outil et sans ligne,
+pas un geste, à faire) ; la ligne « outils » de la fiche d'app et un registre des outils ; une
+vidéo de l'échange par l'assistant.
 
 ### 2026-11-07→08 — ACE-Step intégré par l'assistant : ce que la donnée doit porter
 

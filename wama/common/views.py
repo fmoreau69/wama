@@ -490,6 +490,18 @@ def apps_catalog_view(request):
         if items or links:
             apps_grouped.append({'id': cid, 'meta': meta, 'apps': items, 'links': links})
 
+    # Ce que l'API de l'assistant couvre des routes d'action, page par page (2026-11-16) — la
+    # mesure de `tool_api.route_coverage`, montrée aux développeurs sous la grille.
+    api_coverage = None
+    if developer:
+        from wama.tool_api import route_coverage
+        from .app_registry import app_identity
+        api_coverage = route_coverage()
+        for row in api_coverage['pages']:
+            page = row['page'].rpartition(':')[2]
+            row['label'] = (app_identity(page).get('label') if page else '') or row['page'] or 'WAMA'
+            row['total'] = len(row['with_tool']) + len(row['without_tool'])
+
     # Horodatage de la dernière MESURE (le plus récent des measured_at par app) —
     # affiché à côté du bouton « Re-mesurer » de la grille.
     measured_at = max(((a.get('conformity') or {}).get('measured_at') or ''
@@ -560,7 +572,7 @@ def apps_catalog_view(request):
 
     return render(request, 'common/apps.html',
                   {'apps_list': apps_list, 'apps_grouped': apps_grouped,
-                   'conformity_measured_at': measured_at,
+                   'conformity_measured_at': measured_at, 'api_coverage': api_coverage,
                    'facettes_apps': facettes,
                    'grille_fonctionnelle': grille_fonctionnelle,
                    'grille_substrat': grille_substrat,

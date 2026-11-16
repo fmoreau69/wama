@@ -7112,6 +7112,149 @@ def execute_tool(tool_name: str, args: dict, user, *, model_call: bool = False) 
 
 
 # ===========================================================================
+# What the API covers of WAMA's action routes (2026-11-08 ; here since 2026-11-16)
+# ===========================================================================
+# The DECLARATION route → tool and its reader. They lived in the coverage test
+# (`tests_tool_api_coverage`), which still holds the budget ; the catalogue page (`/apps/`) and the
+# conformity grid (`tool_routes`) read the same measure — one declaration, three readers.
+
+#: Routes that ARE a surface of the API, not a gesture to give it : the derived REST API, the
+#: tools' own HTTP views, and the assistant's channel (its chat, its voice) — each with its reason.
+API_SURFACE_NAMESPACES = {'api_v1'}            # derived from TOOL_REGISTRY (`wama/api/v1/views.py`)
+API_SURFACE_MODULES = {'wama.tool_api'}        # the HTTP views of the tools themselves
+ASSISTANT_CHANNEL_ROUTES = {                   # the conversation with the assistant itself
+    'ai_chat', 'ai_chat_clear', 'ai_chat_settings', 'ai_chat_follow_ups', 'ai_chat_jobs',
+    'ai_chat_thread', 'ai_chat_stream', 'kokoro_tts', 'speech_to_text', 'end_of_turn',
+}
+
+#: Each action route → the tool that does it, read against the URL resolver itself : a route that
+#: maps nowhere counts in the budget below. One tool may serve several routes (a page's poller of a
+#: gesture is that gesture's tool, called again).
+ROUTE_TOOLS = {
+    # The « Exploitation » page (2026-11-14) relays to the DEVELOPMENT tools, which the assistant
+    # reaches through its development surface — the same tools, one path.
+    'common:api_operations_run': 'dev_run_operation',
+    'common:api_operations_jobs': 'dev_list_jobs',
+    # The domain of an app page (2026-11-12) : `open_page(page, domain=…)` keeps it for the account.
+    'common:api_page_domain': 'open_page',
+    'model_manager:api_models_db': 'list_ai_models',
+    'model_manager:api_prospect_ollama': 'prospect_models',
+    'model_manager:api_prospect_install': 'install_model',
+    'model_manager:api_prospect_install_progress': 'install_model',
+    'model_manager:api_prospect_install_options': 'get_install_options',
+    'model_manager:api_library_action': 'install_library',
+    'model_manager:api_library_action_state': 'get_library_action',
+    'model_manager:api_format_stats': 'get_model_formats',
+    'model_manager:api_conversion_suggestions': 'get_model_formats',
+    'model_manager:api_conversion_options': 'get_model_formats',
+    'model_manager:api_convert_model': 'convert_model_format',
+    'model_manager:api_batch_convert': 'convert_model_format',
+    'model_manager:api_convert_and_backup': 'convert_model_format',
+    # Every other gesture of the model manager page (2026-11-09) — each tool posts the button's view.
+    'model_manager:api_memory_stats': 'get_memory_state',
+    'model_manager:api_memory_detailed': 'get_memory_state',
+    'model_manager:api_tracked_models': 'get_memory_state',
+    'model_manager:api_idle_models': 'get_memory_state',
+    'model_manager:api_large_objects': 'get_memory_state',
+    'model_manager:api_memory_snapshot': 'get_memory_state',
+    'model_manager:api_debug_stats': 'get_memory_state',
+    'model_manager:api_cleaner_status': 'get_memory_state',
+    'model_manager:api_services': 'get_memory_state',
+    'model_manager:api_service_control': 'control_service',
+    'model_manager:api_disk_space': 'get_disk_space',
+    'model_manager:api_check_disk_space': 'get_disk_space',
+    'model_manager:api_catalog_stats': 'get_model_catalog_state',
+    'model_manager:api_sync_logs': 'get_model_catalog_state',
+    'model_manager:api_diagnose_models': 'get_model_catalog_state',
+    'model_manager:api_models_list': 'get_model_catalog_state',
+    'model_manager:api_watcher_status': 'get_model_catalog_state',
+    'model_manager:api_backup_status': 'get_backup_state',
+    'model_manager:api_backup_list': 'get_backup_state',
+    'model_manager:api_backup_models_progress': 'get_backup_state',
+    'model_manager:api_backup_media_progress': 'get_backup_state',
+    'model_manager:api_prospect_assess_progress': 'get_model_evaluation_progress',
+    'model_manager:api_sync_benchmarks_progress': 'get_model_evaluation_progress',
+    'model_manager:api_manifest_proposals': 'list_model_proposals',
+    'model_manager:api_model_options': 'list_model_choices',
+    'model_manager:api_unload_model': 'free_memory',
+    'model_manager:api_unload_model_by_id': 'free_memory',
+    'model_manager:api_cleanup_idle': 'free_memory',
+    'model_manager:api_aggressive_cleanup': 'free_memory',
+    'model_manager:api_clear_gpu': 'free_memory',
+    'model_manager:api_clear_gpu_cache': 'free_memory',
+    'model_manager:api_force_gc': 'free_memory',
+    'model_manager:api_vram_grant': 'free_gpu_for_item',
+    'model_manager:api_cleaner_start': 'control_memory_cleaner',
+    'model_manager:api_cleaner_stop': 'control_memory_cleaner',
+    'model_manager:api_cleaner_configure': 'control_memory_cleaner',
+    'model_manager:api_watcher_control': 'control_model_watcher',
+    'model_manager:api_backup_db': 'start_backup',
+    'model_manager:api_backup_models_start': 'start_backup',
+    'model_manager:api_backup_media_start': 'start_backup',
+    'model_manager:api_backup_model': 'start_backup',
+    'model_manager:api_sync_models': 'sync_model_catalog',
+    'model_manager:api_prospect_assess': 'assess_proposed_models',
+    'model_manager:api_sync_benchmarks': 'sync_model_benchmarks',
+    'model_manager:api_prospect_reject': 'reject_proposed_model',
+    'model_manager:api_model_uninstall': 'uninstall_model',
+    'model_manager:api_model_task_limit': 'set_model_task_limit',
+    'model_manager:api_manifest_proposal_decide': 'decide_model_proposal',
+}
+
+
+def action_routes() -> dict:
+    """`{route key: view}` of every action route — a path with an `api/` segment — outside the API's
+    own surfaces. The key is `<namespace>:<name>` (the name alone, or the path, without them).
+
+    A TWIN's routes fold onto its source's (`generated_from`) : its tools derive from the source's
+    (`_register_twin_creators`), and the sandbox is not versioned — counted apart, the budget would
+    depend on the installation (measured on 2026-11-08 : 212 in the tree, 208 on HEAD)."""
+    from django.urls import URLPattern, URLResolver, get_resolver
+
+    from wama.common.app_registry import APP_CATALOG
+
+    def source_of(namespace):
+        head, _, rest = namespace.partition(':')
+        head = (APP_CATALOG.get(head) or {}).get('generated_from') or head
+        return ':'.join(filter(None, (head, rest)))
+
+    def walk(resolver, prefix, namespace):
+        for p in resolver.url_patterns:
+            if isinstance(p, URLResolver):
+                yield from walk(p, prefix + str(p.pattern),
+                                ':'.join(filter(None, (namespace, p.namespace))))
+            elif isinstance(p, URLPattern):
+                yield namespace, prefix + str(p.pattern), p.name, p.callback
+
+    routes = {}
+    for namespace, path, name, view in walk(get_resolver(), '', ''):
+        if '/api/' not in '/' + path or namespace.split(':')[0] in API_SURFACE_NAMESPACES:
+            continue
+        if view.__module__ in API_SURFACE_MODULES or (not namespace and name in ASSISTANT_CHANNEL_ROUTES):
+            continue
+        routes[':'.join(filter(None, (source_of(namespace), name))) or path] = view
+    return routes
+
+
+def route_coverage() -> dict:
+    """What the assistant's API covers of WAMA's action routes, PAGE by page (a page = the
+    namespace of its routes ; a twin folded onto its source, like `action_routes`).
+
+    `{'total', 'with_tool', 'pages': [{'page', 'with_tool': [names], 'without_tool': [names]}]}`,
+    the pages with the most routes left first. Read by the catalogue page and, per app, by the
+    conformity criterion `tool_routes`."""
+    pages = {}
+    for key in sorted(action_routes()):
+        page, _, name = key.rpartition(':')
+        entry = pages.setdefault(page, {'page': page, 'with_tool': [], 'without_tool': []})
+        entry['with_tool' if key in ROUTE_TOOLS else 'without_tool'].append(name or key)
+    rows = sorted(pages.values(), key=lambda row: (-len(row['without_tool']), row['page']))
+    covered = sum(len(row['with_tool']) for row in rows)
+    return {'total': covered + sum(len(row['without_tool']) for row in rows),
+            'with_tool': covered, 'pages': rows}
+
+
+# ===========================================================================
 # HTTP views (for manual testing with curl or browser)
 # ===========================================================================
 # Trou #20 (clos 2026-08-13) : ces vues appelaient les fonctions d'outil DIRECTEMENT — hors

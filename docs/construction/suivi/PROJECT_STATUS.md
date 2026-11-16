@@ -31721,3 +31721,14 @@ contre-épreuves en processus : cinq mutations, cinq rouges.
 liste ; les versions d'un champ de donnée écrit par un process ; jumelle `anonymizer_01` ; suite
 complète non rejouée par cette session (la session Domaines signale qu'elle ne rendait plus de
 verdict avant `6e04f8e43`).
+
+## §PALIER 2026-11-16 (suite), « ASSISTANT : la grille de l'API dans `/apps/` ; push débloqué (faux positif gitleaks) » — commits locaux, non poussés — 🔴 relancer gunicorn (page du catalogue, registre d'outils) — 🔚 trier les 162 routes d'action sans outil, puis donner leur outil aux quatre routes des apps
+
+Décision de Fabien : la grille dans `/apps/`, sans page neuve. Détail : `WAMA_LLM.md` « 2026-11-16 — fil web n° 46 », point 5.
+
+- UNE mesure, `tool_api.route_coverage` : la déclaration route → outil (`ROUTE_TOOLS`) et son lecteur (`action_routes`) ont quitté `tests_tool_api_coverage` pour `tool_api.py` ; le test garde le budget (162 sur 226).
+- Critère `tool_routes` (F6) à la grille de conformité : non applicable à une app sans route d'action hors des fabriques. Mesuré : rouge pour imager (`api_all_resolutions`, `api_model_resolutions`), avatarizer (`api_avatar_gallery`), converter (`api_presets`) — leurs scores passent à 99, 99 et 98 %.
+- Bloc « Outils de l'assistant » sous la grille de `/apps/`, page par page, montré aux développeurs.
+- `7b80e34e2` — le push était refusé par gitleaks sur la docstring de `set_brick_keys` (noms de touches) : exception ciblée sur la ligne, 54 commits rejoués sans fuite.
+
+Vérifié : `tests_tool_api_coverage` 45 verts ; contre-épreuve rouge (critère neutralisé, restriction aux développeurs retirée : 7 échecs) ; `check_docs` 0 cassée sur 4144. ⚠ `tests_identifier_language` rouge de 2 dans l'arbre (2554 > 2552) : deux variables `indices` dans `anonymizer/tests_task.py` et `tests_playhead_follow.py`, d'une autre session — aucune sur mes lignes (relevé par lignes ajoutées depuis `31a4115cb`). La page n'a pas été vue sur le service (gunicorn non relancé). `.claude/skills/conformite/SKILL.md` et `WAMA_MECANISMES.md` régénérées dans l'arbre, non commitées (co-éditées).

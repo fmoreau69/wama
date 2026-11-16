@@ -63,127 +63,15 @@ GESTURES_WITHOUT_TOOL_BUDGET = 0
 FACTORIES = {'item': ('wama/common/utils/item_views.py', 'make_item_views'),
              'batch': ('wama/common/utils/batch_views.py', 'make_batch_views')}
 
-#: Routes that ARE a surface of the API, not a gesture to give it : the derived REST API, the
-#: tools' own HTTP views, and the assistant's channel (its chat, its voice) — each with its reason.
-API_SURFACE_NAMESPACES = {'api_v1'}            # derived from TOOL_REGISTRY (`wama/api/v1/views.py`)
-API_SURFACE_MODULES = {'wama.tool_api'}        # the HTTP views of the tools themselves
-ASSISTANT_CHANNEL_ROUTES = {                   # the conversation with the assistant itself
-    'ai_chat', 'ai_chat_clear', 'ai_chat_settings', 'ai_chat_follow_ups', 'ai_chat_jobs',
-    'ai_chat_thread', 'ai_chat_stream', 'kokoro_tts', 'speech_to_text', 'end_of_turn',
-}
+#: The route → tool declaration and its reader live with the registry (`tool_api.ROUTE_TOOLS`,
+#: `action_routes`, 2026-11-16) : the catalogue page and the conformity grid read them too.
+from wama.tool_api import ROUTE_TOOLS, action_routes  # noqa: E402
 
-#: Each action route → the tool that does it, read against the URL resolver itself : a route that
-#: maps nowhere counts in the budget below. One tool may serve several routes (a page's poller of a
-#: gesture is that gesture's tool, called again).
-ROUTE_TOOLS = {
-    # The « Exploitation » page (2026-11-14) relays to the DEVELOPMENT tools, which the assistant
-    # reaches through its development surface — the same tools, one path.
-    'common:api_operations_run': 'dev_run_operation',
-    'common:api_operations_jobs': 'dev_list_jobs',
-    # The domain of an app page (2026-11-12) : `open_page(page, domain=…)` keeps it for the account.
-    'common:api_page_domain': 'open_page',
-    'model_manager:api_models_db': 'list_ai_models',
-    'model_manager:api_prospect_ollama': 'prospect_models',
-    'model_manager:api_prospect_install': 'install_model',
-    'model_manager:api_prospect_install_progress': 'install_model',
-    'model_manager:api_prospect_install_options': 'get_install_options',
-    'model_manager:api_library_action': 'install_library',
-    'model_manager:api_library_action_state': 'get_library_action',
-    'model_manager:api_format_stats': 'get_model_formats',
-    'model_manager:api_conversion_suggestions': 'get_model_formats',
-    'model_manager:api_conversion_options': 'get_model_formats',
-    'model_manager:api_convert_model': 'convert_model_format',
-    'model_manager:api_batch_convert': 'convert_model_format',
-    'model_manager:api_convert_and_backup': 'convert_model_format',
-    # Every other gesture of the model manager page (2026-11-09) — each tool posts the button's view.
-    'model_manager:api_memory_stats': 'get_memory_state',
-    'model_manager:api_memory_detailed': 'get_memory_state',
-    'model_manager:api_tracked_models': 'get_memory_state',
-    'model_manager:api_idle_models': 'get_memory_state',
-    'model_manager:api_large_objects': 'get_memory_state',
-    'model_manager:api_memory_snapshot': 'get_memory_state',
-    'model_manager:api_debug_stats': 'get_memory_state',
-    'model_manager:api_cleaner_status': 'get_memory_state',
-    'model_manager:api_services': 'get_memory_state',
-    'model_manager:api_service_control': 'control_service',
-    'model_manager:api_disk_space': 'get_disk_space',
-    'model_manager:api_check_disk_space': 'get_disk_space',
-    'model_manager:api_catalog_stats': 'get_model_catalog_state',
-    'model_manager:api_sync_logs': 'get_model_catalog_state',
-    'model_manager:api_diagnose_models': 'get_model_catalog_state',
-    'model_manager:api_models_list': 'get_model_catalog_state',
-    'model_manager:api_watcher_status': 'get_model_catalog_state',
-    'model_manager:api_backup_status': 'get_backup_state',
-    'model_manager:api_backup_list': 'get_backup_state',
-    'model_manager:api_backup_models_progress': 'get_backup_state',
-    'model_manager:api_backup_media_progress': 'get_backup_state',
-    'model_manager:api_prospect_assess_progress': 'get_model_evaluation_progress',
-    'model_manager:api_sync_benchmarks_progress': 'get_model_evaluation_progress',
-    'model_manager:api_manifest_proposals': 'list_model_proposals',
-    'model_manager:api_model_options': 'list_model_choices',
-    'model_manager:api_unload_model': 'free_memory',
-    'model_manager:api_unload_model_by_id': 'free_memory',
-    'model_manager:api_cleanup_idle': 'free_memory',
-    'model_manager:api_aggressive_cleanup': 'free_memory',
-    'model_manager:api_clear_gpu': 'free_memory',
-    'model_manager:api_clear_gpu_cache': 'free_memory',
-    'model_manager:api_force_gc': 'free_memory',
-    'model_manager:api_vram_grant': 'free_gpu_for_item',
-    'model_manager:api_cleaner_start': 'control_memory_cleaner',
-    'model_manager:api_cleaner_stop': 'control_memory_cleaner',
-    'model_manager:api_cleaner_configure': 'control_memory_cleaner',
-    'model_manager:api_watcher_control': 'control_model_watcher',
-    'model_manager:api_backup_db': 'start_backup',
-    'model_manager:api_backup_models_start': 'start_backup',
-    'model_manager:api_backup_media_start': 'start_backup',
-    'model_manager:api_backup_model': 'start_backup',
-    'model_manager:api_sync_models': 'sync_model_catalog',
-    'model_manager:api_prospect_assess': 'assess_proposed_models',
-    'model_manager:api_sync_benchmarks': 'sync_model_benchmarks',
-    'model_manager:api_prospect_reject': 'reject_proposed_model',
-    'model_manager:api_model_uninstall': 'uninstall_model',
-    'model_manager:api_model_task_limit': 'set_model_task_limit',
-    'model_manager:api_manifest_proposal_decide': 'decide_model_proposal',
-}
 #: Action routes without a tool. The value of the measure ; LOWER it in the commit that adds a tool.
 #: Measured on 2026-11-08 when this guard was written : 208 (221 action routes, 13 mapped ; the
 #: twins' routes folded onto their source's). Some of them are already done by an existing tool and
 #: only lack their line here — map them first. 208 → 162 on 2026-11-09 : the whole model manager.
 ROUTES_WITHOUT_TOOL_BUDGET = 162
-
-
-def action_routes() -> dict:
-    """`{route key: view}` of every action route — a path with an `api/` segment — outside the API's
-    own surfaces. The key is `<namespace>:<name>` (the name alone, or the path, without them).
-
-    A TWIN's routes fold onto its source's (`generated_from`) : its tools derive from the source's
-    (`_register_twin_creators`), and the sandbox is not versioned — counted apart, the budget would
-    depend on the installation (measured on 2026-11-08 : 212 in the tree, 208 on HEAD)."""
-    from django.urls import URLPattern, URLResolver, get_resolver
-
-    from wama.common.app_registry import APP_CATALOG
-
-    def source_of(namespace):
-        head, _, rest = namespace.partition(':')
-        head = (APP_CATALOG.get(head) or {}).get('generated_from') or head
-        return ':'.join(filter(None, (head, rest)))
-
-    def walk(resolver, prefix, namespace):
-        for p in resolver.url_patterns:
-            if isinstance(p, URLResolver):
-                yield from walk(p, prefix + str(p.pattern),
-                                ':'.join(filter(None, (namespace, p.namespace))))
-            elif isinstance(p, URLPattern):
-                yield namespace, prefix + str(p.pattern), p.name, p.callback
-
-    routes = {}
-    for namespace, path, name, view in walk(get_resolver(), '', ''):
-        if '/api/' not in '/' + path or namespace.split(':')[0] in API_SURFACE_NAMESPACES:
-            continue
-        if view.__module__ in API_SURFACE_MODULES or (not namespace and name in ASSISTANT_CHANNEL_ROUTES):
-            continue
-        routes[':'.join(filter(None, (source_of(namespace), name))) or path] = view
-    return routes
 
 
 def factory_gestures(path: str, function: str) -> set:
@@ -800,3 +688,64 @@ class EveryCreatorTakesAnAddressTest(TestCase):
             lambda: T.compose_music(user, 'a calm song', work_audio=self.URL))
         self._stopped_at_the_address(
             lambda: T.add_to_avatarizer(user, audio_path=self.URL, avatar_gallery_name='x'))
+
+
+class TheCoverageIsShownTest(TestCase):
+    """THE GRID OF THE API (2026-11-16, Fabien : in the catalogue page, no new page). One measure
+    (`tool_api.route_coverage`), three readers : the budget above, the conformity criterion
+    `tool_routes` per app, and the block « Outils de l'assistant » of `/apps/`."""
+
+    def test_the_page_measure_is_the_budget_s_measure(self):
+        coverage = T.route_coverage()
+        routes = action_routes()
+        self.assertEqual(len(routes), coverage['total'])
+        self.assertEqual(coverage['total'] - coverage['with_tool'], ROUTES_WITHOUT_TOOL_BUDGET)
+        listed = sum(len(row['with_tool']) + len(row['without_tool']) for row in coverage['pages'])
+        self.assertEqual(coverage['total'], listed, 'a route is counted on one page, once')
+        mapped = {row['page']: row for row in coverage['pages']}['model_manager']
+        self.assertEqual([], mapped['without_tool'], 'the model manager page is whole (2026-11-09)')
+
+    def test_the_criterion_reads_that_measure_for_every_app_of_the_catalogue(self):
+        """Derived from the catalogue : an app without action route is not applicable, an app
+        with routes left says which, a twin reads its source."""
+        from wama.common.app_registry import APP_CATALOG
+        from wama.common.services import conformity_checker as C
+        pages = {row['page']: row for row in T.route_coverage()['pages']}
+        for app, spec in APP_CATALOG.items():
+            row = pages.get(spec.get('generated_from') or app)
+            state, evidence = C._tool_routes(mock.Mock(app=app))
+            with self.subTest(app=app):
+                if row is None:
+                    self.assertIsNone(state)
+                elif row['without_tool']:
+                    self.assertIn(state, (False, 'partial'))
+                    for name in row['without_tool']:
+                        self.assertIn(name, evidence)
+                else:
+                    self.assertIs(True, state)
+        self.assertIn('tool_routes', {c.key for c in C.CRITERIA})
+
+    def test_a_route_given_its_tool_turns_the_criterion_and_the_page_green(self):
+        """Counter-proof on the measure itself : the first app that has routes left, each mapped."""
+        from wama.common.services import conformity_checker as C
+        row = next(r for r in T.route_coverage()['pages'] if r['without_tool'] and ':' not in r['page'])
+        added = {f"{row['page']}:{name}": 'open_page' for name in row['without_tool']}
+        with mock.patch.dict(T.ROUTE_TOOLS, added):
+            self.assertIs(True, C._tool_routes(mock.Mock(app=row['page']))[0])
+            again = {r['page']: r for r in T.route_coverage()['pages']}[row['page']]
+            self.assertEqual([], again['without_tool'])
+
+    def test_the_catalogue_page_shows_it_to_a_developer_only(self):
+        from django.urls import reverse
+        coverage = T.route_coverage()
+        self.client.force_login(_account('grid_dev', 'developpeur'))
+        page = self.client.get(reverse('common:apps_catalog'))
+        self.assertEqual(200, page.status_code)
+        html = page.content.decode()
+        self.assertIn('data-api-coverage-total', html)
+        self.assertIn(f"{coverage['with_tool']} sur {coverage['total']}", html)
+        for row in coverage['pages']:
+            self.assertIn(f'data-api-coverage-page="{row["page"]}"', html)
+        self.client.force_login(_account('grid_user'))
+        self.assertNotIn('data-api-coverage-total',
+                         self.client.get(reverse('common:apps_catalog')).content.decode())

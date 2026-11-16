@@ -434,6 +434,42 @@ n'écrit aucun JS, et un autre catalogue héritera du mécanisme avec les deux m
         </table>
     </div>
 
+    {% comment %}Ce que l'API de l'assistant COUVRE (2026-11-16, décision de Fabien : dans cette
+    page, sans page neuve). La mesure est celle de `tool_api.route_coverage` — les routes d'action
+    (`api/…`) de chaque page et l'outil qui fait chacune —, tenue par le budget de
+    `tests_tool_api_coverage` ; par app, c'est le critère `tool_routes` de la grille au-dessus.
+    Montrée aux développeurs : une route sans outil est un geste que l'assistant ne sait pas faire.{% endcomment %}
+    {% if api_coverage %}
+    <div class="d-flex align-items-center justify-content-between mb-3 mt-4 flex-wrap gap-2" data-api-coverage>
+        <h2 class="h5 text-body-emphasis mb-0"><i class="fas fa-robot me-2 text-secondary"></i>Outils de l'assistant</h2>
+        <small class="text-body-secondary">routes d'action qui ont leur outil :
+            <strong class="text-body-emphasis" data-api-coverage-total>{{ api_coverage.with_tool }} sur {{ api_coverage.total }}</strong>
+            — une route sans outil est un geste que l'assistant ne sait pas faire</small>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm table-hover summary-table align-middle">
+            <thead>
+                <tr>
+                    <th>Page</th>
+                    <th class="text-center">Avec outil</th>
+                    <th class="text-center">Sans outil</th>
+                    <th>Routes sans outil</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in api_coverage.pages %}
+                <tr data-api-coverage-page="{{ row.page }}">
+                    <td>{{ row.label }}{% if row.label != row.page and row.page %} <small class="text-body-secondary">{{ row.page }}</small>{% endif %}</td>
+                    <td class="text-center">{{ row.with_tool|length }} / {{ row.total }}</td>
+                    <td class="text-center">{% if row.without_tool %}<span class="check-fail">{{ row.without_tool|length }}</span>{% else %}<i class="fas fa-check check-ok"></i>{% endif %}</td>
+                    <td><small class="text-body-secondary">{{ row.without_tool|join:", " }}</small></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
     {% comment %}2ᵉ grille — FONCTIONNELLE (WAMA_VERIFICATION §2, câblée le 2026-09-01).
     La grille au-dessus atteste une ADOPTION (le code contient la brique) ; celle-ci atteste
     un FONCTIONNEMENT (le geste exécuté a produit l'effet — scénarios nocturnes Playwright).

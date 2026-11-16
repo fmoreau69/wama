@@ -4185,7 +4185,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
 
 - **Domicile** : `wama/tool_api.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Tool API
-- **API publique** (140) :
+- **API publique** (142) :
   - `tool_effect(effect: str, *, sub_agent: bool=True, reason: str='')` — Marque l'EFFET d'un outil sur sa fonction. `sub_agent=False` retire une LECTURE de ce qu'un
   - `effect_of(tool_name: str) -> dict | None` — L'effet déclaré d'un outil du registre, None s'il n'en déclare pas (ou n'existe pas).
   - `sub_agent_tools() -> frozenset` — Les outils qu'un sous-agent peut appeler — DÉRIVÉS des marques, jamais recopiés : les
@@ -4315,6 +4315,8 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `relay_quality_intent(user, tool_name: str, result: dict) -> dict` — Relaie le curseur Rapide ↔ Qualité de l'ASSISTANT vers l'élément qu'un outil `add_to_<app>`
   - `relay_next_step(tool_name: str, result: dict) -> dict` — Dit au modèle, DANS LE RÉSULTAT, qu'un ajout n'a lancé AUCUN traitement.
   - `execute_tool(tool_name: str, args: dict, user, *, model_call: bool=False) -> dict` — Dispatch a tool call from the agentic loop.
+  - `action_routes() -> dict` — `{route key: view}` of every action route — a path with an `api/` segment — outside the API's
+  - `route_coverage() -> dict` — What the assistant's API covers of WAMA's action routes, PAGE by page (a page = the
   - `list_user_files_view(request)`
   - `add_to_anonymizer_view(request)`
   - `start_anonymizer_view(request)`

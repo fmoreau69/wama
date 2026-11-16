@@ -2366,6 +2366,31 @@ def _triad_specs(f: _AppFiles):
     return False, 'aucune triade exposée (voir critère tool_api)'
 
 
+def _tool_routes(f: _AppFiles):
+    """Chaque route d'ACTION de l'app (un chemin `api/…`) a-t-elle son outil d'assistant ?
+
+    La mesure est celle de l'API entière (`tool_api.route_coverage`, lue aussi par la page du
+    catalogue et tenue par le budget de `tests_tool_api_coverage`), ramenée à l'app ; une jumelle
+    se lit sur sa source, comme ses outils. Non applicable à une app sans route d'action : ses
+    gestes de card et de lot passent par les fabriques, que la triade et les verbes transverses
+    couvrent (`tool_api`, `triad_specs`)."""
+    try:
+        from wama.common.app_registry import APP_CATALOG
+        from wama.tool_api import route_coverage
+        page = (APP_CATALOG.get(f.app) or {}).get('generated_from') or f.app
+        row = next((r for r in route_coverage()['pages'] if r['page'] == page), None)
+    except Exception as e:
+        return None, f'lecture des routes impossible : {e!r}'
+    if row is None:
+        return None, "aucune route d'action (`api/…`) hors des fabriques"
+    done, left = row['with_tool'], row['without_tool']
+    if not left:
+        return True, f"{len(done)} route(s) d'action, chacune avec son outil (tool_api.ROUTE_TOOLS)"
+    return ('partial' if done else False,
+            f"{len(left)} route(s) d'action sans outil sur {len(done) + len(left)} : "
+            f"{', '.join(left)} (skill /api-outils)")
+
+
 # ── F6 — prompts & contrat tool_api ──────────────────────────────────────────────
 
 def _prompt_skill(f: _AppFiles):
@@ -3080,6 +3105,8 @@ CRITERIA: list[Criterion] = [
               mechanism='tool_api'),
     Criterion('tool_api_item_id', 'F6', "Contrat de retour add_to_<app> → 'item_id'", _tool_api_item_id,
               mechanism='tool_api'),
+    Criterion('tool_routes', 'F6', "Routes d'action de l'app : chacune a son outil d'assistant",
+              _tool_routes, mechanism='tool_api'),
     # ── F7 permissions & scope données ──
     Criterion('access_policy', 'F7', "Gating d'app déclaré (DEFAULT_APP_ACCESS)", _access_policy),
     Criterion('access_guard_routes', 'F7',
