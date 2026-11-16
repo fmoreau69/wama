@@ -112,12 +112,14 @@ def _transcribe_remote(user, key: str, audio: bytes, content_type: str) -> dict:
 
 
 def transcribe_utterance(user, audio: bytes, *, content_type: str = 'audio/wav',
-                         language: str = '', warm_up: bool = False) -> dict:
+                         language: str = '', warm_up: bool = False, context: str = '') -> dict:
     """Une réplique dite → `{text, language, engine}` (`engine` : la clé distante, ou 'local').
 
     `warm_up` : la brique d'écoute s'ouvre et veut que la PREMIÈRE phrase ne paie pas le
     chargement — utile au local seul ; un distant n'a rien à charger, on ne lui envoie rien.
     Les erreurs du LOCAL remontent telles quelles (`TTSServiceLoadingError`, `RuntimeError`).
+    `context` : ce que la brique d'écoute dit de la réplique (en-tête `X-Wama-Listen`) — ajouté à
+    la ligne de journal, sans effet sur la transcription.
     """
     content_type = (content_type or 'audio/wav').lower()
     started = time.monotonic()
@@ -127,7 +129,7 @@ def transcribe_utterance(user, audio: bytes, *, content_type: str = 'audio/wav',
             return {'text': '', 'language': language, 'engine': key}
         try:
             result = _transcribe_remote(user, key, audio, content_type)
-            _log_timing(key, started, audio)
+            _log_timing(key, started, audio, context=context)
             return {'text': drop_phantom_phrases(result.get('text')),
                     'language': result.get('language') or language, 'engine': key}
         except Exception as exc:
@@ -137,12 +139,25 @@ def transcribe_utterance(user, audio: bytes, *, content_type: str = 'audio/wav',
     local_started = time.monotonic()
     result = stt_via_service(audio, content_type=content_type, language=language)
     if not warm_up:
-        _log_timing('local', started, audio, local_started)
+        _log_timing('local', started, audio, local_started, context=context)
     return {'text': drop_phantom_phrases(result.get('text')),
             'language': result.get('language') or language, 'engine': 'local'}
 
 
-def _log_timing(engine: str, started: float, audio: bytes, local_started: float = None):
+#: Ce qu'on garde de l'en-tête `X-Wama-Listen` : des couples `clé=valeur` de lettres, chiffres,
+#: points et tirets, séparés par `;` — une valeur venue du navigateur ne s'écrit pas telle quelle
+#: dans un journal.
+_LISTEN_CONTEXT = re.compile(r'[a-z]{1,12}=[a-z0-9.\-]{1,16}')
+
+
+def listen_context(raw: str) -> str:
+    """L'en-tête de mesure de la brique d'écoute, réduit à ses couples bien formés (10 au plus)."""
+    parts = (raw or '')[:300].lower().split(';')[:10]
+    return ';'.join(part for part in parts if _LISTEN_CONTEXT.fullmatch(part))
+
+
+def _log_timing(engine: str, started: float, audio: bytes, local_started: float = None,
+                context: str = ''):
     """Une ligne par réplique : quel moteur, combien de temps (2026-10-28, Fabien : « je
     suspecte plutôt des process qui pourraient interférer avec l'assistant »). Une phrase lente
     se lit alors au journal, avec la part du repli local quand le distant a d'abord échoué."""
@@ -153,5 +168,9 @@ def _log_timing(engine: str, started: float, audio: bytes, local_started: float 
     detail = ''
     if local_started is not None and local_started - started > 0.05:
         detail = f" (dont {local_started - started:.2f} s avant le repli local)"
+    # La MESURE de l'écoute (2026-11-16) : pourquoi la réplique s'est fermée (`end`), sur quoi
+    # elle a commencé (`over`), l'avis du juge (`p`) — jamais son texte.
+    heard = listen_context(context)
+    heard = f" [écoute : {heard}]" if heard else ''
     logger.info(f"[speech_input] réplique de {spoken} transcrite par {engine} "
-                f"en {total:.2f} s{detail}")
+                f"en {total:.2f} s{detail}{heard}")

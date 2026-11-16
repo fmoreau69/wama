@@ -53,6 +53,11 @@
  *                            Rejette avec le message lisible si le micro ne s'ouvre pas.
  *   stop()                 : coupe tout (micro rendu, conversation arrêtée).
  *   state()                : {mode: 'off'|'dictation'|'conversation'|'capture', phase, echoCancelled}.
+ *   utterances()           : la MESURE — les dernières répliques des chats de la page : pourquoi
+ *                            chacune s'est fermée (`end` : silence|judge|patient|max|manual), sur
+ *                            quoi elle a commencé (`over` : voice|thinking|none), l'avis du juge,
+ *                            ce qu'elle est devenue (`outcome`). Le serveur en journalise la part
+ *                            sans texte (en-tête `X-Wama-Listen`, `speech_input._log_timing`).
  *
  * Dépend de : `WamaCapture` (accès au micro, enregistrement — 2026-10-26), `WamaAssistantChat`
  * (send/abort/isBusy/input), `WamaAssistantVoice` (isAudible/isOwnSpeech/stop/onChange),
@@ -215,6 +220,7 @@
     this.pause = 0;                       // numéro de la pause en cours (l'avis lui est propre)
     this.asked = false;                   // avis déjà demandé pour cette pause
     this.patient = false;                 // « pas finie » : la pause peut durer `TURN.patientMs`
+    this.probability = null;              // dernier avis rendu pour la pause en cours (mesure)
   };
 
   Segmenter.prototype.feed = function (frame, mode) {
@@ -248,7 +254,9 @@
     this.frames.push(frame);
     this.totalMs += ms;
     if (db > this.floor + KEEP_DB) {
-      if (this.quietMs > 0) { this.pause++; this.asked = false; this.patient = false; }
+      if (this.quietMs > 0) {
+        this.pause++; this.asked = false; this.patient = false; this.probability = null;
+      }
       this.quietMs = 0;
       this.speechMs += ms;
     } else this.quietMs += ms;
@@ -257,7 +265,8 @@
       this.askJudge();
     }
     var endMs = this.patient ? TURN.patientMs : this.endMs;
-    if (this.quietMs >= endMs || this.totalMs >= MAX_UTTERANCE_MS) this.finish();
+    if (this.totalMs >= MAX_UTTERANCE_MS) this.finish('max');
+    else if (this.quietMs >= endMs) this.finish(this.patient ? 'patient' : 'silence');
   };
 
   /** L'avis de fin de tour sur la phrase dite jusqu'ici. Il ne vaut que pour SA pause : si la
@@ -266,7 +275,8 @@
     var self = this, frames = this.frames, pause = this.pause;
     Promise.resolve().then(function () { return self.judge(concat(frames)); }).then(function (verdict) {
       if (self.frames !== frames || self.pause !== pause || !verdict) return;
-      if (verdict.complete === true) self.finish();
+      if (typeof verdict.probability === 'number') self.probability = verdict.probability;
+      if (verdict.complete === true) self.finish('judge');
       else if (verdict.complete === false) self.patient = true;
     }).catch(function () {});
   };
@@ -279,12 +289,18 @@
     this.loudMs = 0;
   };
 
-  Segmenter.prototype.finish = function () {
+  /** `reason` — POURQUOI la phrase se ferme, pour la mesure seule (2026-11-16) : 'silence' (la
+   *  pause ordinaire), 'judge' (avis « finie »), 'patient' (avis « pas finie », la pause longue a
+   *  quand même expiré), 'max' (plafond de durée), 'manual' (un geste : second clic, arrêt). */
+  Segmenter.prototype.finish = function (reason) {
     if (!this.frames) return;
     var frames = this.frames, speechMs = this.speechMs;
+    var info = { reason: reason || 'manual', speechMs: Math.round(speechMs),
+                 quietMs: Math.round(this.quietMs), totalMs: Math.round(this.totalMs),
+                 probability: this.probability };
     this.reset();
     if (speechMs < MIN_SPEECH_MS) { this.onEvent('discard'); return; }
-    this.onEvent('end', concat(frames));
+    this.onEvent('end', concat(frames), info);
   };
 
   // ── Micro ────────────────────────────────────────────────────────────────────
@@ -348,17 +364,38 @@
   function explainMicError(e) { return global.WamaCapture.explain(e, 'microphone'); }
 
   // UN envoi de WAV au serveur, le même pour la transcription, le préchauffage et la fin de tour.
-  function postWav(url, wav) {
-    return fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'audio/wav', 'X-CSRFToken': csrfToken() },
-      body: wav,
-    });
+  // `context` (facultatif) : ce que l'écoute SAIT de la réplique, pour la ligne de journal du serveur.
+  function postWav(url, wav, context) {
+    var headers = { 'Content-Type': 'audio/wav', 'X-CSRFToken': csrfToken() };
+    if (context) headers['X-Wama-Listen'] = context;
+    return fetch(url, { method: 'POST', headers: headers, body: wav });
+  }
+
+  // ── MESURE (2026-11-16, Fabien : « on mesure bien pour ne pas introduire de régression ») ──
+  // Chaque réplique d'un chat dit POURQUOI elle s'est fermée et dans quelle situation elle a été
+  // entendue. Deux lectures, aucun effet sur l'écoute : l'en-tête `X-Wama-Listen` de l'envoi à
+  // transcrire (le serveur l'ajoute à sa ligne de journal, sans le texte) et `utterances()`, les
+  // dernières répliques de la page avec ce qu'elles sont devenues (`outcome`) et leur texte —
+  // gardé dans la page seule.
+  var UTTERANCES_KEPT = 100;
+  var utterances = [];
+
+  function noteUtterance(entry) {
+    utterances.push(entry);
+    if (utterances.length > UTTERANCES_KEPT) utterances.shift();
+    return entry;
+  }
+
+  function listenContext(entry) {
+    var parts = ['mode=' + entry.mode, 'end=' + entry.end, 'speech=' + entry.speechMs,
+                 'quiet=' + entry.quietMs, 'over=' + entry.over, 'aec=' + (entry.aec ? 1 : 0)];
+    if (typeof entry.probability === 'number') parts.push('p=' + entry.probability);
+    return parts.join(';');
   }
 
   // La réponse ENTIÈRE du serveur ({text, language, engine}) ; `transcribe` n'en garde que le texte.
-  function transcribeClip(samples, rate) {
-    return postWav(cfg.sttUrl || '/api/stt/', toWav(downsample(samples, rate))).then(function (r) {
+  function transcribeClip(samples, rate, context) {
+    return postWav(cfg.sttUrl || '/api/stt/', toWav(downsample(samples, rate)), context).then(function (r) {
       return r.json().catch(function () { return { error: 'réponse illisible (' + r.status + ')' }; });
     }).then(function (data) {
       if (data.error) throw new Error(data.error);
@@ -367,8 +404,8 @@
     });
   }
 
-  function transcribe(samples, rate) {
-    return transcribeClip(samples, rate).then(function (data) { return (data.text || '').trim(); });
+  function transcribe(samples, rate, context) {
+    return transcribeClip(samples, rate, context).then(function (data) { return (data.text || '').trim(); });
   }
 
   // L'avis de fin de tour : les `TURN.keepSeconds` dernières secondes, en WAV 16 kHz. Le serveur
@@ -540,6 +577,10 @@
       // d'écho du navigateur peut ne pas couvrir ce que joue la page. Une phrase commencée
       // pendant qu'il réfléchit le reprend aussi : elle remplace la question en cours.
       this.bargeIn = (how === 'interrupt') || (this.mode === 'conversation' && this.assistantActive());
+      // Mesure : sur quoi la phrase a commencé — sa voix audible, sa réflexion, ou rien.
+      var speaking = global.WamaAssistantVoice;
+      this.heardOver = (speaking && speaking.isAudible()) ? 'voice'
+        : (this.chat.isBusy && this.chat.isBusy()) ? 'thinking' : 'none';
       this.phase = 'hearing';
       this.render();
       return;
@@ -550,20 +591,31 @@
     var mode = this.mode, rate = this.mic ? this.mic.rate : TARGET_RATE, heardAt = this.heardAt;
     var bargeIn = this.bargeIn;
     this.bargeIn = false;
+    var info = how || {};                 // à la fin, le 3e argument est la mesure du découpage
+    var entry = noteUtterance({
+      at: Date.now(), mode: mode, end: info.reason || 'manual', speechMs: info.speechMs || 0,
+      quietMs: info.quietMs || 0, totalMs: info.totalMs || 0, probability: info.probability,
+      over: this.heardOver || 'none', aec: !!(this.mic && this.mic.echoCancelled),
+      outcome: 'transcribing', text: '',
+    });
+    this.heardOver = 'none';
     if (mode === 'dictation') { closeMic(this.mic); this.mic = null; this.segmenter = null; }
     this.phase = 'transcribing';
     this.pending++;
     this.render();
-    transcribe(samples, rate).then(function (text) {
+    transcribe(samples, rate, listenContext(entry)).then(function (text) {
+      entry.text = text;
       // L'assistant ne se répond jamais à lui-même : sa propre voix, entendue au micro, n'est
       // ni une réplique ni une dictée (`WamaAssistantVoice.isOwnSpeech`).
       var voice = global.WamaAssistantVoice;
-      if (text && voice && voice.isOwnSpeech(text, heardAt)) return;
-      if (mode === 'dictation') { self.writeDraft(text); return; }
-      if (!text || self.mode !== 'conversation') return;
+      if (text && voice && voice.isOwnSpeech(text, heardAt)) { entry.outcome = 'own-voice'; return; }
+      if (mode === 'dictation') { entry.outcome = text ? 'draft' : 'empty'; self.writeDraft(text); return; }
+      if (!text || self.mode !== 'conversation') { entry.outcome = text ? 'stopped' : 'empty'; return; }
+      entry.outcome = bargeIn ? 'barge-in' : 'sent';
       if (bargeIn) self.interrupt();
       self.sendTurn(text);
     }).catch(function (e) {
+      entry.outcome = 'error';
       say(e.message || String(e));
     }).then(function () {
       self.pending = Math.max(0, self.pending - 1);
@@ -784,6 +836,8 @@
       return ctl ? { mode: ctl.mode, phase: ctl.phase, echoCancelled: !!(ctl.mic && ctl.mic.echoCancelled) }
                  : { mode: 'off', phase: 'idle', echoCancelled: false };
     },
+    // La mesure : les dernières répliques des chats de la page (copie — rien n'y est modifiable).
+    utterances: function () { return utterances.map(function (e) { return Object.assign({}, e); }); },
     // Exposés pour les tests (découpage, encodage, enchaînement — sans micro ni DOM réel).
     _Controller: Controller,
     _Capture: Capture,

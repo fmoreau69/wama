@@ -1079,3 +1079,135 @@ class TranscriberSpeakListensThroughTheCommonBrickTest(TestCase):
         self.assertTrue(task_for.call_args.args[0].is_realtime)
         t.refresh_from_db()
         self.assertEqual('RUNNING', t.status)
+
+
+class ListeningMeasureTest(TestCase):
+    """THE MEASURE OF THE LISTENING (2026-11-16, Fabien : « on mesure bien pour ne pas introduire
+    de régression »). Each reply says WHY it closed and over what it started — in the page
+    (`utterances()`) and on the server's log line (header `X-Wama-Listen`), never its text there.
+    Nothing of the listening itself changes : the tests of the cutting above stay as they were."""
+
+    _ctx = ListenBrickTest._ctx
+    _controller = ListenBrickTest._controller
+    _feed = EndOfTurnBrickTest._feed
+
+    def _reasons(self, ctx, verdict, pattern):
+        ctx.eval("""
+            var ends = [], rate = 48000, len = 2048, k = 0;
+            var seg = new WamaAssistantListen._Segmenter(rate, 900, function (evt, samples, info) {
+              if (evt === 'end') ends.push(info);
+            }, function () { return Promise.resolve(%s); });
+        """ % json.dumps(verdict))
+        # One evaluation per step : the simulated verdict only lands between two of them.
+        for step in pattern:
+            self._feed(ctx, [step])
+        return json.loads(ctx.eval("JSON.stringify(ends)"))
+
+    def test_each_way_of_closing_a_phrase_has_its_name(self):
+        phrase = [[0, 1000], [0.1, 1500], [0, 400]]             # the verdict is asked in that pause
+        cases = (('judge', {'complete': True, 'probability': 0.98}, []),
+                 ('patient', {'complete': False, 'probability': 0.01}, [[0, 1700]]),
+                 ('silence', {'complete': None, 'probability': 0.9}, [[0, 600]]),
+                 ('silence', None, [[0, 600]]))
+        for reason, verdict, pause in cases:
+            with self.subTest(reason=reason, verdict=verdict):
+                ends = self._reasons(self._ctx(), verdict, phrase + pause)
+                self.assertEqual([reason], [e['reason'] for e in ends])
+                self.assertEqual((verdict or {}).get('probability'), ends[0]['probability'])
+                self.assertGreater(ends[0]['speechMs'], 1000)
+
+    def test_a_phrase_closed_by_a_gesture_or_by_the_ceiling_says_so(self):
+        ctx = self._ctx()
+        self._reasons(ctx, None, [[0, 1000], [0.1, 1500]])
+        ctx.eval("seg.finish();")
+        self.assertEqual(['manual'], [e['reason'] for e in json.loads(ctx.eval("JSON.stringify(ends)"))])
+        ends = self._reasons(self._ctx(), None, [[0, 1000], [0.1, 31000]])
+        self.assertEqual('max', ends[0]['reason'])
+
+    def _hear(self, ctx, text, info):
+        ctx.eval("""
+            var Blob = function (parts, opts) { this.parts = parts; };
+            var posted = [];
+            var fetch = function (url, opts) {
+              posted.push(opts.headers['X-Wama-Listen'] || null);
+              return Promise.resolve({ json: function () { return Promise.resolve({ text: %s }); } });
+            };
+            c.onSegment('end', new Float32Array(1600), %s);
+        """ % (json.dumps(text), json.dumps(info)))
+        return (json.loads(ctx.eval("JSON.stringify(WamaAssistantListen.utterances())")),
+                json.loads(ctx.eval("JSON.stringify(posted)")))
+
+    def test_a_reply_is_kept_in_the_page_with_what_it_became_and_sent_with_its_context(self):
+        ctx = self._ctx()
+        self._controller(ctx, echo_cancelled=True)
+        ctx.eval("voice.speaking = true; c.onSegment('start', null, 'interrupt');")
+        kept, posted = self._hear(ctx, 'Arrête-toi', {'reason': 'judge', 'speechMs': 800,
+                                                         'quietMs': 340, 'totalMs': 1140,
+                                                         'probability': 0.98})
+        self.assertEqual(['mode=conversation;end=judge;speech=800;quiet=340;over=voice;aec=1;p=0.98'],
+                         posted)
+        entry = kept[0]
+        self.assertEqual(('judge', 'voice', 'barge-in', 'Arrête-toi', True),
+                         (entry['end'], entry['over'], entry['outcome'], entry['text'], entry['aec']))
+
+    def test_its_own_voice_and_an_ordinary_reply_are_told_apart(self):
+        ctx = self._ctx()
+        self._controller(ctx, echo_cancelled=True)
+        ctx.eval("voice.echo = true;")
+        kept, _ = self._hear(ctx, 'cruciale.', {'reason': 'silence'})
+        self.assertEqual('own-voice', kept[0]['outcome'])
+        ctx.eval("voice.echo = false; c.onSegment('start', null, 'normal');")
+        kept, posted = self._hear(ctx, 'Liste mes fichiers', {'reason': 'silence', 'speechMs': 900})
+        self.assertEqual(('sent', 'none'), (kept[1]['outcome'], kept[1]['over']))
+        self.assertNotIn(';p=', posted[0], 'no verdict, no probability')
+
+    def test_the_list_handed_out_is_a_copy(self):
+        ctx = self._ctx()
+        self._controller(ctx, echo_cancelled=True)
+        self._hear(ctx, 'Bonjour', {'reason': 'silence'})
+        ctx.eval("WamaAssistantListen.utterances()[0].outcome = 'altered';")
+        self.assertEqual('sent', json.loads(ctx.eval(
+            "JSON.stringify(WamaAssistantListen.utterances())"))[0]['outcome'])
+
+    # ── The server's line ─────────────────────────────────────────────────────────────────────
+    def _logged(self, context):
+        from wama.common.tts import speech_input
+        user = User.objects.create_user(f'measure_{len(context)}', password='x')
+        wav = b'RIFF' + b'\0' * (44 - 4 + 32000)
+        with mock.patch.object(speech_input, 'remote_stt_key', return_value=''), \
+             mock.patch('wama.common.tts.service_client.stt_via_service',
+                        return_value={'text': 'bonjour tout le monde', 'language': 'fr'}), \
+             self.assertLogs('wama.common.tts.speech_input', level='INFO') as logs:
+            speech_input.transcribe_utterance(user, wav, language='fr', context=context)
+        return logs.output[-1]
+
+    def test_the_log_line_carries_the_context_and_never_the_text(self):
+        line = self._logged('mode=conversation;end=judge;speech=800;quiet=340;over=voice;aec=1;p=0.98')
+        self.assertIn('[écoute : mode=conversation;end=judge;speech=800;quiet=340;over=voice;aec=1;'
+                      'p=0.98]', line)
+        self.assertNotIn('bonjour', line)
+
+    def test_without_context_the_line_is_the_one_of_before(self):
+        self.assertTrue(self._logged('').endswith(' s'), 'counter-proof : nothing appended')
+
+    def test_what_the_browser_sends_is_reduced_to_well_formed_pairs(self):
+        from wama.common.tts.speech_input import listen_context
+        self.assertEqual('end=judge;p=0.98',
+                         listen_context('END=judge;<script>=1;p=0.98;text=bonjour tout le monde;\n=x'))
+        self.assertEqual('', listen_context(None))
+        self.assertLessEqual(len(listen_context(';'.join(['a=1'] * 50)).split(';')), 10)
+
+    def test_the_view_passes_the_header_to_the_log(self):
+        user = User.objects.create_user('measure_view', password='x')
+        self.client.force_login(user)
+        with mock.patch('wama.common.services.resource_governor.release_in_progress',
+                        return_value=False), \
+             mock.patch('wama.common.tts.speech_input.remote_stt_key', return_value=''), \
+             mock.patch('wama.common.tts.service_client.stt_via_service',
+                        return_value={'text': 'bonjour', 'language': 'fr'}), \
+             self.assertLogs('wama.common.tts.speech_input', level='INFO') as logs:
+            response = self.client.post(reverse('speech_to_text'), data=b'RIFF....WAVE',
+                                        content_type='audio/wav',
+                                        headers={'X-Wama-Listen': 'mode=dictation;end=manual'})
+        self.assertEqual(200, response.status_code)
+        self.assertIn('[écoute : mode=dictation;end=manual]', logs.output[-1])

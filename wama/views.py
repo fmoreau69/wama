@@ -858,7 +858,8 @@ def speech_to_text(request):
         result = transcribe_utterance(request.user, audio,
                                       content_type=request.content_type or 'audio/wav',
                                       language=language,
-                                      warm_up=request.GET.get('warmup') == '1')
+                                      warm_up=request.GET.get('warmup') == '1',
+                                      context=request.headers.get('X-Wama-Listen', ''))
     except TTSServiceLoadingError:
         return JsonResponse({'error': "Le service vocal démarre — réessayez dans un instant.",
                              'busy': True}, status=503)
