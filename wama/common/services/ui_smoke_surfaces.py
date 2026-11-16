@@ -22,6 +22,7 @@ vignette, il se voit dans la brique qu'il compose.
 """
 from __future__ import annotations
 
+import json
 from contextlib import ExitStack
 
 from .ui_smoke import (BASE_URL, IGNORED_CONSOLE, _drop_new_sessions, _garde_de_montage,
@@ -155,6 +156,48 @@ def _capture_surface(context, token, surface, pk, captured, opened, faults, reve
         captured[slot.brick] = (rank, surface.id, shot)
 
 
+#: Une brique rendue DÉFAILLANTE avant que la page ne la déclare (`WamaSurface.registerBrick`
+#: emballé) : son montage lève. Argument : la clé de la brique.
+_FAILING_BRICK_JS = """(brick) => { let held; Object.defineProperty(window, 'WamaSurface', {configurable: true,
+    get() { return held; }, set(v) { const orig = v.registerBrick;
+      v.registerBrick = function (k, d) {
+          if (k === brick) d = Object.assign({}, d, {mount() { throw new Error('témoin de panne'); }});
+          return orig(k, d); };
+      held = v; } }); }"""
+
+#: Ce que montre chaque emplacement : sa brique, si son cadre dit la panne, s'il a du contenu.
+_SLOT_BODIES_JS = """() => [...document.querySelectorAll('.grid-stack-item')].map(item => {
+    const body = item.querySelector('.wama-brick-body');
+    return {id: (item.gridstackNode || {}).id || item.getAttribute('gs-id'),
+            failed: !!body && /indisponible : témoin de panne/.test(body.textContent),
+            filled: !!body && body.childElementCount > 0};
+})"""
+
+
+def _failing_brick(context, surface, token, pk, faults, reverse):
+    """Une brique qui LÈVE à son montage n'emporte pas la page (2026-11-16, `mountBrick` du noyau) :
+    elle le dit dans son cadre et dans la console, les autres se montent. Vécu le 2026-11-16 : un
+    script de brique servi avant la relance du Python qui le déclarait — la partition du composer
+    sans transport, et « aucune erreur »."""
+    broken = surface.slots[0].brick
+    context.add_cookies(_cookie(token))
+    context.add_init_script(script=f'({_FAILING_BRICK_JS})({json.dumps(broken)})')
+    page = context.new_page()
+    said = []
+    page.on('console', lambda m: said.append(m.text) if m.type == 'error' else None)
+    url = BASE_URL.rstrip('/') + reverse('common:surface', args=[surface.app, surface.key, pk])
+    page.goto(url, wait_until='load', timeout=45000)
+    page.wait_for_selector('.grid-stack-item .wama-brick-body', timeout=20000)
+    page.wait_for_timeout(2500)
+    slots = {s['id']: s for s in page.evaluate(_SLOT_BODIES_JS)}
+    others = [s.id for s in surface.slots if s.brick != broken]
+    empty = [sid for sid in others if not (slots.get(sid) or {}).get('filled')]
+    failed = [s.id for s in surface.slots if s.brick == broken and (slots.get(s.id) or {}).get('failed')]
+    if not failed or empty or not any('non montée' in text for text in said):
+        faults.append(f"{surface.id} : une brique en panne ({broken}) emporte la page — cadre qui le "
+                      f"dit {failed}, autres briques vides {empty}, console {said[:2]}")
+
+
 def capture_brick_thumbnails():
     """Ouvre chaque surface sur son témoin et capture ses briques — (ok, détail).
 
@@ -196,6 +239,19 @@ def capture_brick_thumbnails():
                                          reverse)
                     except Exception as error:           # une surface en échec n'arrête pas les autres
                         faults.append(f"{surface.id} : {type(error).__name__} — {str(error)[:200]}")
+                    finally:
+                        context.close()
+                # Une brique en panne n'emporte pas la page : sur la première surface qui en porte
+                # deux différentes.
+                isolated = next(((s, t, k) for s, t, k in plan
+                                 if len({slot.brick for slot in s.slots}) > 1), None)
+                if isolated:
+                    context = browser.new_context(viewport={'width': 1500, 'height': 1000})
+                    try:
+                        _failing_brick(context, *isolated, faults, reverse)
+                    except Exception as error:
+                        faults.append(f"{isolated[0].id} (brique en panne) : {type(error).__name__} — "
+                                      f"{str(error)[:200]}")
                     finally:
                         context.close()
             finally:
