@@ -162,12 +162,12 @@ Ce que WAMA sait RECONNAÎTRE, en entrée comme en sortie — la distinction n'a
 - **Doc** : [docs/construction/exploitation/LICENSING.md](../construction/exploitation/LICENSING.md)
 - **Kind de manifeste** : `library`
 
-La page mesure l'installation réelle à CHAQUE affichage et compare au déclaré : l'écart affiché ne peut pas être périmé. Le registre lui-même s'alimente par la projection des manifestes, pas par un scan.
+La page mesure l'installation réelle à CHAQUE affichage et compare au déclaré : l'écart affiché ne peut pas être périmé. Le registre lui-même s'alimente par la projection des manifestes, pas par un scan — le RÔLE d'une librairie (socle, moteur, app, brique) compris : déclaré au manifeste, jamais calculé.
 
 ### Licences
 
 - **Clé** : `licenses` — Dérivé à chaque affichage — toujours à jour
-- **Source** : Agrégation de `AIModel`, `Library`, médias et des `requires` des manifestes d'app
+- **Source** : Agrégation de `AIModel`, `Library`, médias, des conditions d'usage des services distants (`external_sources`), des distributions installées hors registre et des `requires` des manifestes d'app
 - **Provenance des éléments** : Agrégat — lit d'autres registres
 - **Page dans WAMA** : `/common/licenses/`
 - **Doc** : [docs/construction/exploitation/LICENSING.md](../construction/exploitation/LICENSING.md)

@@ -455,7 +455,8 @@ register(Registry(
     doc='docs/construction/exploitation/LICENSING.md',
     description="La page mesure l'installation réelle à CHAQUE affichage et compare au déclaré : "
                 "l'écart affiché ne peut pas être périmé. Le registre lui-même s'alimente par la "
-                "projection des manifestes, pas par un scan.",
+                "projection des manifestes, pas par un scan — le RÔLE d'une librairie (socle, "
+                "moteur, app, brique) compris : déclaré au manifeste, jamais calculé.",
 ))
 
 
@@ -558,7 +559,9 @@ register(Registry(
 
 register(Registry(
     key='licenses', label='Licences', nature=DERIVED,
-    source="Agrégation de `AIModel`, `Library`, médias et des `requires` des manifestes d'app",
+    source="Agrégation de `AIModel`, `Library`, médias, des conditions d'usage des services "
+           "distants (`external_sources`), des distributions installées hors registre et des "
+           "`requires` des manifestes d'app",
     url_name='common:licenses_catalog', provenance=AGGREGATE,
     doc='docs/construction/exploitation/LICENSING.md',
     description="Vue transversale sans registre propre — « une page qui DÉRIVE ne peut pas "

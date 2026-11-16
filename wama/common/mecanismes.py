@@ -2054,6 +2054,12 @@ MECHANISMS = (
               depends_on=('progress_views',)),
     Mechanism('license_audit', 'Audit des licences',
               "Vue dérivée : licences+auteurs des 4 registres, traversée par app. "
+              "Un modèle SERVI relève des conditions d'usage de son service, une ligne par "
+              "service (`external_sources.terms_url` ; la licence de ses poids n'y est qu'une "
+              "information, 2026-11-15/16) ; les dépendances que le registre `Library` ne porte "
+              "pas sont LUES dans l'environnement, exceptions seules, chacune avec la librairie "
+              "qui la tire (`transitives`, sur `library_index.installed_distributions`, lecture "
+              "que partage `check_dep_vulns`). "
               "Ne voit PAS le code vendorisé (`static/vendors/`, codeformer) — inventorié à "
               "la main dans LICENSING.md §3",
               'wama/common/services/license_audit.py', 'docs/construction/exploitation/LICENSING.md'),
@@ -3146,7 +3152,9 @@ MECHANISMS = (
               "relève un quota sans rendre la source « non configurée » quand elle manque. La "
               "FORME des clés se déclare aussi (`api_key_prefix`, 2026-10-26, mesurée sur des "
               "clés réelles) : une clé tronquée est refusée au dépôt (`api_keys.key_shape_error`, "
-              "dans `store_key`, le geste des deux écrans). Une "
+              "dans `store_key`, le geste des deux écrans). Un service distant déclare la page "
+              "de ses CONDITIONS D'USAGE (`terms_url`, 2026-11-15) : le service gère la licence "
+              "des poids, WAMA tient ses conditions (audit des licences, page des sources). Une "
               "PLATEFORME de modèles déclare la fiche d'un modèle (`model_page`, 2026-10-22) : "
               "`model_platforms()` est le vocabulaire de `AIModel.platform_ref`, "
               "`model_page_url()` en rend la page (lien de card, validation du manifeste "

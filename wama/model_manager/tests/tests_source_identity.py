@@ -181,6 +181,22 @@ class SourceForTheAssistantTest(TestCase):
                                  row['origin'])
                 self.assertIn('abonnement', row['origin'])
 
+    def test_a_served_model_carries_the_terms_of_its_service_and_a_local_one_does_not(self):
+        """2026-11-16 : la règle de l'audit des licences — un modèle servi relève des conditions
+        de son service ; la licence de ses poids n'est alors qu'une information."""
+        from wama.common.external_sources import get
+        from wama.tool_api import get_ai_model
+        AIModel.objects.create(model_key='claude_code:opus', name='Opus', model_type='llm',
+                               source='claude_code', execution='cloud', license='mit')
+        AIModel.objects.create(model_key='synthesizer:terms-probe', name='Probe', model_type='speech',
+                               source='synthesizer', execution='local', license='mit')
+        user = get_user_model().objects.create_user('terms_tool_reader', password='x')
+        served = get_ai_model(user, 'claude_code:opus')
+        self.assertEqual({'text': 'conditions du service', 'url': get('claude_code').terms_url},
+                         served['service_terms'])
+        self.assertEqual('mit', served['license'])
+        self.assertNotIn('service_terms', get_ai_model(user, 'synthesizer:terms-probe'))
+
 
 class SourceFilterScriptTest(SimpleTestCase):
     """The options of the filter and the card badge, built by the page script — run under V8."""

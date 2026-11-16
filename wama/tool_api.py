@@ -2263,11 +2263,14 @@ def get_ai_model(user, model_key: str) -> dict:
     Returns the complete metadata: `source` (an app, a remote provider or a platform), `origin`
     (where it runs, who serves it, what it costs — e.g. « Cloud commercial · Claude Code ·
     abonnement »), descriptions, capabilities, footprints (vram/ram/disk), license + author,
+    `service_terms` for a model SERVED by a remote service ({text, url}: those terms are what
+    applies — `license` is then only the licence of its weights, for information),
     platform_ref, quality_index, `benchmark` (third-party score, or null), `internal_quality`
     (what WAMA measured itself against human references, each scale with the WAMA `reports`
     that present it — give the user that link), states. For the install choices of a proposal,
     see get_install_options.
     """
+    from wama.common.services.license_audit import served_under_terms, service_terms
     from wama.model_manager.models import AIModel
 
     # Un modèle privé d'autrui est « introuvable » : le dire existant en dirait l'auteur.
@@ -2275,6 +2278,10 @@ def get_ai_model(user, model_key: str) -> dict:
     if m is None:
         return {'error': f"Modèle '{model_key}' introuvable au catalogue "
                          f"(les clés se découvrent via list_ai_models)."}
+    # La règle de l'audit des licences (2026-11-16) : un modèle servi relève des conditions de
+    # son service ; non établies, elles sont dites telles (`text` vide).
+    terms = (dict(zip(('text', 'url'), service_terms(m.source)))
+             if served_under_terms(m) else None)
     return {
         'key': m.model_key, 'name': m.name, 'source': m.source, 'origin': m.origin_label,
         'type': m.model_type,
@@ -2283,6 +2290,7 @@ def get_ai_model(user, model_key: str) -> dict:
         'vram_gb': m.vram_gb, 'ram_gb': m.ram_gb, 'disk_gb': m.disk_gb,
         'platform_ref': m.platform_ref,
         'license': m.license, 'author': m.author,
+        **({'service_terms': terms} if terms else {}),
         'quality_index': m.quality_index,
         'downloaded': m.is_downloaded, 'loaded': m.is_loaded,
         'available': m.is_available, 'proposed': m.is_proposed,
