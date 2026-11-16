@@ -104,3 +104,93 @@ class PlayheadFollowTest(SimpleTestCase):
         with self.assertRaises(RuntimeError):
             follow(self.channel, 'task', boom)
         self.assertIsNone(cache.get(self.channel.key('lock')))
+
+
+@override_settings(CACHES=LOCMEM)
+class LoopResultsTest(SimpleTestCase):
+    """2026-11-16 : a loop never writes the item — it leaves RESULTS that the page reads from an
+    index (the transcriber wrote that in its task and view ; the second loop put it here)."""
+
+    def test_results_are_numbered_and_read_from_an_index(self):
+        from wama.common.services.playhead_follow import append_result, results_since
+        cache.clear()
+        channel = Channel('test_results', 3)
+        self.assertEqual({'next': 0, 'running': False, 'results': []}, results_since(channel, -1))
+        self.assertEqual(0, append_result(channel, {'x': 'a'})['id'])
+        self.assertEqual(1, append_result(channel, {'x': 'b'})['id'])
+        self.assertEqual([], results_since(channel, -1)['results'], 'a page that opens replays nothing')
+        self.assertEqual(['a', 'b'], [r['x'] for r in results_since(channel, 0)['results']])
+        self.assertEqual((2, ['b']), (results_since(channel, 1)['next'],
+                                      [r['x'] for r in results_since(channel, '1')['results']]))
+        self.assertEqual([], results_since(channel, 'nonsense')['results'])
+
+
+class ObjectTrackingSlicesTest(SimpleTestCase):
+    """2026-11-16 (`services/object_tracking`) : a designated object is followed slice by slice —
+    forward first, each slice from the last box seen, then backward from the box found on the
+    designated frame ; a direction ends at an edge of the medium or when the object is lost."""
+
+    WINDOW = 10
+
+    def _engine(self, total, lost_from=None):
+        """A stand-in for `track_object` on a medium of `total` frames ; the object is no longer
+        seen from frame `lost_from` on."""
+        calls = []
+
+        def track(frame, *, count, reverse=False, point=None, box=None):
+            calls.append((frame, 'point' if point is not None else 'box', reverse))
+            spanned = (range(frame, max(frame - count, -1), -1) if reverse
+                       else range(frame, min(frame + count, total)))
+            return [{'i': i, 'box': None if (lost_from is not None and i >= lost_from)
+                     else [i, 0, i + 5, 5]} for i in spanned]
+        return track, calls
+
+    def _follow(self, track, target):
+        from wama.common.services import object_tracking as tracking
+        progress, frames, turns = {}, [], 0
+        while (planned := tracking.next_slice(progress, target)) is not None:
+            direction, frame, designation = planned
+            found = track(frame, count=self.WINDOW, reverse=direction == tracking.BACKWARD,
+                          **designation)
+            frames += tracking.advance(progress, direction, found, self.WINDOW)
+            turns += 1
+            self.assertLess(turns, 50, 'a tracking always ends')
+        self.assertTrue(tracking.finished(progress, target))
+        return frames
+
+    def test_both_directions_cover_the_medium_once(self):
+        track, calls = self._engine(total=27)
+        frames = self._follow(track, {'id': 'a', 'i': 12, 'point': [3, 3]})
+        self.assertEqual(sorted(range(27)), sorted(f['i'] for f in frames), 'every frame, once')
+        self.assertEqual((12, 'point', False), calls[0], 'the point designates the first slice only')
+        self.assertTrue(all(kind == 'box' for _f, kind, _r in calls[1:]))
+        self.assertEqual([12, 21], [f for f, _k, reverse in calls if not reverse])
+        self.assertEqual([12, 3], [f for f, _k, reverse in calls if reverse],
+                         'a slice starts again where the one before stopped')
+
+    def test_a_lost_object_ends_its_direction(self):
+        track, calls = self._engine(total=200, lost_from=30)
+        frames = self._follow(track, {'id': 'a', 'i': 25, 'point': [3, 3]})
+        self.assertEqual(list(range(25, 30)), sorted(f['i'] for f in frames if f['i'] >= 25))
+        self.assertLessEqual(len([c for c in calls if not c[2]]), 2, 'no slice after the loss')
+        self.assertEqual(0, min(f['i'] for f in frames), 'the other direction goes to its edge')
+
+    def test_an_object_not_seen_where_it_was_designated_gives_nothing(self):
+        track, calls = self._engine(total=40, lost_from=0)
+        self.assertEqual([], self._follow(track, {'id': 'a', 'i': 5, 'point': [3, 3]}))
+        self.assertEqual(1, len(calls), 'nothing to follow backward from')
+
+    def test_a_still_image_is_its_only_frame(self):
+        track, _calls = self._engine(total=1)
+        self.assertEqual([{'i': 0, 'box': [0, 0, 5, 5]}],
+                         self._follow(track, {'id': 'a', 'i': 0, 'point': [3, 3]}))
+
+    def test_targets_are_cleaned_and_capped(self):
+        from wama.common.services import object_tracking as tracking
+        cleaned = tracking.clean_targets([{'id': 7, 'i': '4', 'point': ['10', 20.5]}] * 20)
+        self.assertEqual(tracking.MAX_TARGETS, len(cleaned))
+        self.assertEqual({'id': '7', 'i': 4, 'point': [10.0, 20.5]}, cleaned[0])
+        for bad in ([{'id': 1, 'i': 0, 'point': [1]}], [{'id': 1, 'i': 0, 'point': [-1, 2]}],
+                    [{'id': 1, 'point': [1, 2]}]):
+            with self.assertRaises((ValueError, KeyError, TypeError)):
+                tracking.clean_targets(bad)

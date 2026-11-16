@@ -735,14 +735,8 @@ def write_results(request, pk: int):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     from wama.common.utils.scoping import editable_or_404
     t = editable_or_404(Transcript, user, pk=pk)
-    channel = write_channel(t.pk)
-    results = cache.get(channel.key('results')) or []
-    try:
-        since = int(request.GET.get('since', -1))
-    except ValueError:
-        since = -1
-    return JsonResponse({'next': len(results), 'running': channel.is_running(),
-                         'results': results[since:] if since >= 0 else []})
+    from wama.common.services.playhead_follow import results_since
+    return JsonResponse(results_since(write_channel(t.pk), request.GET.get('since', -1)))
 
 
 def correction_saved(t, segs, user, finished: bool):

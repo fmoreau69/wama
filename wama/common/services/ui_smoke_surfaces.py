@@ -2234,6 +2234,71 @@ def _axis_gestures(context, token, surface, pk, verdict, reverse, page_hook=None
             back = at(early)['removed']
             verdict(back == 2, f"{sid} : annuler défait la reprise ({back} retirés sur l'image {early})")
 
+        # ⑨ SUIVRE UN OBJET DÉSIGNÉ (2026-11-16) : « Désigner un objet », un clic dans le média —
+        # la brique des zones rend le point, la brique du suivi pose le curseur et lit des
+        # PROPOSITIONS ; acceptées, elles entrent dans les corrections en un cran ; refusées, rien.
+        # La boucle serveur est tenue par le scénario (les deux routes de geste que la surface
+        # déclare, lues à la page) : aucun modèle n'est chargé.
+        routes = page.evaluate("() => JSON.parse(document.getElementById('wama-surface-config')"
+                               ".textContent).routes || {}")
+        if page.locator('.wama-brick-tracking').count() and routes.get('track_cursor'):
+            import json as _json
+            asked = {'targets': [], 'stopped': 0}
+
+            def cursor(route):
+                body = _json.loads(route.request.post_data or '{}')
+                if body.get('enabled') is False:
+                    asked['stopped'] += 1
+                else:
+                    asked['targets'] = body.get('targets') or []
+                route.fulfill(json={'ok': True, 'running': True, 'started': True})
+
+            def results(route):
+                since = int(route.request.url.split('since=')[-1])
+                found = [{'id': n, 'target': t['id'], 'done': True,
+                          'frames': [{'i': t['i'], 'box': [20, 20, 70, 80]},
+                                     {'i': t['i'] + 1, 'box': [22, 20, 72, 80]}]}
+                         for n, t in enumerate(asked['targets'])]
+                route.fulfill(json={'next': len(found), 'running': False,
+                                    'results': found[since:] if since >= 0 else []})
+
+            page.route('**' + routes['track_cursor'], cursor)
+            page.route('**' + routes['track_results'] + '*', results)
+            pick = page.locator('.wama-brick-tracking [data-tracking="pick"]')
+            canvas = page.locator('.wama-brick-image.is-video canvas')
+
+            def designate():
+                pick.click()
+                box = canvas.bounding_box()
+                page.mouse.click(box['x'] + box['width'] * 0.5, box['y'] + box['height'] * 0.5)
+                page.wait_for_timeout(2600)
+                return page.locator('.wama-tracking-row .wama-tracking-text').all_inner_texts()
+
+            base = at(early)['manual']
+            rows_said = designate()
+            sent = asked['targets'][:1]
+            verdict(len(sent) == 1 and sent[0]['i'] == early and len(sent[0]['point']) == 2
+                    and rows_said and '2 images' in rows_said[0],
+                    f"{sid} : désigner un objet pose le curseur sur l'image montrée et montre sa "
+                    f"proposition ({sent}, {rows_said})")
+            page.locator('.wama-tracking-row [data-act="accept"]').first.click()
+            page.wait_for_timeout(600)
+            accepted = (zones()['manual'], at(early + 1)['manual'])
+            verdict(accepted[0] == base + 1 and accepted[1] >= 1 and not page.locator('.wama-tracking-row').count(),
+                    f"{sid} : accepter ajoute ses zones aux corrections, image par image "
+                    f"({base} → {accepted[0]} ajout sur l'image {early}, {accepted[1]} sur la suivante)")
+            history('Control+z')
+            undone = at(early)['manual']
+            verdict(undone == base, f"{sid} : annuler retire l'objet accepté de toutes ses images, en un cran ({undone})")
+            designate()
+            page.locator('.wama-tracking-row [data-act="refuse"]').first.click()
+            page.wait_for_timeout(600)
+            verdict(zones()['manual'] == base and asked['stopped'] >= 1,
+                    f"{sid} : refuser n'ajoute rien, et le suivi est arrêté quand plus rien n'est attendu "
+                    f"({zones()['manual']} ajout, {asked['stopped']} arrêt(s))")
+            page.unroute('**' + routes['track_cursor'])
+            page.unroute('**' + routes['track_results'] + '*')
+
     shown = [e for e in errors if not any(t in e for t in IGNORED_CONSOLE)]
     verdict(not shown, f"{sid} : aucune erreur JS ({shown[:3]})")
 

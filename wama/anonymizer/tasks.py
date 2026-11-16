@@ -804,3 +804,98 @@ def set_media_progress(media_id: int, percent: int) -> None:
     except Exception:
         # best effort only
         pass
+
+
+# ── Suivre un objet DÉSIGNÉ sur la page de correction (2026-11-16) ───────────────────────────
+# Décision de Fabien : un clic sur un objet NON détecté le suit sur toute la séquence — sur le
+# patron de l'écriture à la lecture du transcriber. Mécanique = la boucle COMMUNE
+# `playhead_follow` ; enchaînement des tranches = `common/services/object_tracking` ; ce qui est
+# propre ici : le moteur (SAM3 et son module de suivi), le média de la card, la cession aux
+# traitements de la file. ⚠ Le serveur N'ÉCRIT PAS les corrections : il dépose des PROPOSITIONS
+# en cache, la page les accepte ou les refuse et son enregistrement en fait une version.
+
+#: La clé de catalogue du moteur de suivi — le SAM3 que la détection par description charge déjà.
+TRACKING_MODEL_KEY = 'anonymizer:sam3'
+
+
+def track_channel(media_id):
+    from wama.common.services.playhead_follow import Channel
+    return Channel('anonymizer_track', media_id)
+
+
+@shared_task(bind=True)
+def live_track_task(self, media_id: int):
+    """La boucle de suivi : suit le curseur de la page (`{'targets': [{id, i, point}]}`) et suit,
+    tranche par tranche, chaque objet désigné — vers l'avant puis vers l'arrière. Chaque tranche
+    dépose un résultat `{'target', 'frames': [{i, box}], 'done'}`. Tâche du module `tasks` : file
+    GPU. Cède la place dès qu'un média de la file a la main."""
+    from wama.common.backends.manager import backend_for_key
+    from wama.common.models import JOB_AWAITING_RESOURCES, JOB_RUNNING
+    from wama.common.services import object_tracking as tracking
+    from wama.common.services.playhead_follow import append_result, follow
+
+    close_old_connections()
+    try:
+        media = Media.objects.get(pk=media_id)
+    except Media.DoesNotExist:
+        return {'ok': False, 'error': f'Media {media_id} introuvable'}
+    channel = track_channel(media.pk)
+    state = {'engine': None}
+
+    def start():
+        if not check_sam3_installed():
+            raise RuntimeError("SAM3 n'est pas installé : le suivi d'un objet désigné en a besoin")
+        Engine = backend_for_key(TRACKING_MODEL_KEY)
+        if Engine is None or not getattr(Engine, 'supports_object_tracking', False):
+            raise RuntimeError(f"{TRACKING_MODEL_KEY} : aucun moteur de suivi résolu")
+        engine = Engine()
+        engine.load_model('tracker')
+        state['engine'] = engine
+        _console(media.user_id, "Suivi d'objet : SAM3 chargé (libéré après 90 s sans demande)")
+
+    def should_yield():
+        busy = (Media.objects.filter(status__in=(JOB_RUNNING, JOB_AWAITING_RESOURCES))
+                .exclude(pk=media.pk).exists())
+        if busy:
+            _console(media.user_id, "Un traitement attend : le suivi d'objet s'interrompt "
+                                    "(désignez l'objet de nouveau ensuite)", level='warning')
+        return busy
+
+    def step(cursor):
+        progress = cache.get(channel.key('progress')) or {}
+        for target in cursor.get('targets') or []:
+            mine = progress.setdefault(target['id'], {})
+            planned = tracking.next_slice(mine, target)
+            if planned is None:
+                continue
+            direction, frame, designation = planned
+            window = state['engine'].TRACK_WINDOW
+            found = state['engine'].track_object(
+                media.file.path, frame, count=window,
+                reverse=direction == tracking.BACKWARD, **designation)
+            frames = tracking.advance(mine, direction, found, window)
+            cache.set(channel.key('progress'), progress, TRACK_TTL)
+            append_result(channel, {'target': target['id'], 'frames': frames,
+                                    'done': tracking.finished(mine, target)}, TRACK_TTL)
+            return True
+        return False
+
+    try:
+        reason = follow(channel, self.request.id, step, on_start=start, should_yield=should_yield)
+        if reason not in ('cooldown', 'already_running'):
+            _console(media.user_id, "Suivi d'objet arrêté — SAM3 libéré")
+        return {'ok': True, 'reason': reason}
+    except Exception as exc:
+        _console(media.user_id, f"Suivi d'objet interrompu ({exc})", level='warning')
+        append_result(channel, {'error': str(exc)[:300]}, TRACK_TTL)
+        return {'ok': False, 'error': str(exc)}
+    finally:
+        if state['engine'] is not None:
+            try:
+                state['engine'].unload()
+            except Exception:
+                pass
+
+
+#: Durée de vie des propositions et de l'avancement d'un suivi.
+TRACK_TTL = 3600

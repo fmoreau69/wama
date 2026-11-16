@@ -31757,3 +31757,38 @@ Premier passage : 32 verts, 8 passés, 8 échecs. Relevé d'avant la régénéra
 
 **Garde** : `GeneratedPageByDomainTest` exige le volet nommé ; mutation (l'`id` retiré) rouge. Avant /
 après : dix pages à une file inchangées à l'octet.
+
+## §PALIER 2026-11-16 (suite), « ANONYMIZER : un objet NON détecté se DÉSIGNE d'un clic — suivi par SAM3 dans la boucle commune (marche B) » — commit local, non poussé — 🔴 relancer gunicorn ET les workers GPU (tâche `live_track_task`, moteur SAM3, routes de geste) — 🔚 jouer la chaîne ENTIÈRE en service sur une vraie vidéo (clic → worker → proposition → accepter → floutage) ; puis la page du document et l'audio
+
+**Livré** :
+- **Le moteur** — `SAM3Processor.track_object` (`load('tracker')`, `load_sam3_tracker`) : le module
+  de suivi de SAM3, depuis les poids déjà installés, part d'un point ou d'une boîte et suit sur
+  une tranche de 90 images, vers l'avant ou l'arrière ; une image fixe rend la segmentation de
+  l'objet cliqué. Drapeau `supports_object_tracking`.
+- **L'enchaînement** — `common/services/object_tracking` (aucun moteur, aucune app) : l'avant
+  d'abord, chaque tranche depuis la dernière boîte vue, puis l'arrière ; un sens finit à un bord
+  du média ou quand l'objet est perdu.
+- **La boucle** — `anonymizer.tasks.live_track_task` sur `playhead_follow` (file GPU, cède aux
+  traitements de la file), routes de geste `track_cursor` / `track_results` déclarées par les
+  deux surfaces. Les résultats d'une boucle passent au commun (`append_result`,
+  `results_since`), le transcriber les lit de là.
+- **La page** — brique `object_tracking` (« Désigner un objet », classe, propositions à accepter
+  ou refuser) ; la brique des zones rend le point cliqué et dessine les zones proposées (bus
+  `pick-request` / `pick`, `overlay`) ; `WamaDetections.addMany` : accepter = un cran
+  d'annulation. Le serveur n'écrit jamais la correction.
+
+**Mesuré** : le moteur de WAMA sur GPU (extrait 640×480, 60 images) — avant 30/30, arrière
+21/21, tranche suivante enchaînée 11/11, image fixe 0,1 s, 5,1 Go en crête, chargement 61 s à
+froid ; la boucle avec un moteur simulé (200 images, trois tranches, chaque image proposée une
+fois, aucune correction écrite) ; la page au navigateur avec une boucle simulée —
+`common.axis_follow` 60 gestes sur 60 sur six surfaces (désigner, accepter, annuler, refuser),
+`check_image_boxes_keys` 10/10. Contre-épreuves : six mutations en processus et une au
+navigateur (le point rendu muet : 18/20), toutes rouges. Écart de ma main trouvé par la garde de
+langue (une variable `indices` dans deux tests), renommée.
+
+**Non fait, nommé** : la chaîne entière en service (elle demande la relance) ; la page de l'IMAGE
+jouée au navigateur avec le suivi (seule la page vidéo l'est) ; les zones proposées sont des
+boîtes, pas des contours ; le suivi ne passe pas par le gouverneur de ressources autrement que
+par le chargement du moteur ; SAM 3.1 et d'autres moteurs à explorer ; la ligne « Suivre la tête
+de lecture » de la table générée des mécanismes (mêlée au travail d'une autre session) ; l'outil
+d'assistant pour ces gestes de page ; jumelle `anonymizer_01`.

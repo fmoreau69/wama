@@ -77,6 +77,30 @@ def load_sam3_image_model():
                                   load_from_HF=False)
 
 
+def load_sam3_tracker():
+    """Le module de SUIVI de SAM3 (2026-11-16) — suivre UN objet désigné par un point ou une boîte,
+    d'une image aux suivantes : `(modèle vidéo, tracker)`, depuis les mêmes poids locaux que le
+    modèle image (`sam3.pt`, 3ᵉ voie).
+
+    ⚠ MESURÉ le 2026-11-15 sur GPU (extrait de 60 images en 640×480) : le prédicteur vidéo complet
+    (`Sam3VideoPredictor`) REFUSE un point sans propagation préalable par texte (« No cached outputs
+    found ») ; son module `tracker`, lui, part d'un point — à condition de lui donner la dorsale du
+    détecteur, qu'il partage dans le modèle vidéo et ne porte pas seul (`backbone` à None).
+    Chargement 25 s, 0,8 s pour le point, 77 ms par image, 5,5 Go en crête."""
+    import os
+
+    from sam3.model_builder import build_sam3_video_model
+
+    from wama.common.utils.hf_weights import poids_locaux
+    snapshot = poids_locaux('facebook/sam3', _sam_root(), patterns=['sam3.pt', 'config.json'])
+    model = build_sam3_video_model(checkpoint_path=os.path.join(snapshot, 'sam3.pt'),
+                                   load_from_HF=False).cuda().eval()
+    tracker = model.tracker
+    if getattr(tracker, 'backbone', None) is None:
+        tracker.backbone = model.detector.backbone
+    return model, tracker
+
+
 def sam3_image_processor(image_model, confidence_threshold: float):
     """Le PROCESSEUR image de SAM3 sur `image_model`, avec le SEUIL de l'appelant — la seule
     construction (2026-10-16 ; l'anonymizer et le cam_analyzer construisaient chacun le leur).
@@ -122,6 +146,8 @@ class SAM3Processor(FrameDetectionBackend):
         self.image_model = None
         self.image_processor = None
         self.video_predictor = None
+        self.video_model = None
+        self.tracker = None
         self._model_loaded = False
 
         # Processing settings
@@ -151,11 +177,13 @@ class SAM3Processor(FrameDetectionBackend):
 
         `cleanup()` reste le point d'entrée historique : il libère EN PLUS le writer vidéo.
         """
-        if not self._model_loaded and self.image_model is None:
+        if not self._model_loaded and self.image_model is None and self.tracker is None:
             return
         self.image_model = None
         self.image_processor = None
         self.video_predictor = None
+        self.video_model = None
+        self.tracker = None
         self._model_loaded = False
         gc.collect()
         if torch.cuda.is_available():
@@ -182,6 +210,13 @@ class SAM3Processor(FrameDetectionBackend):
         # Token HF (global, inoffensif) — la bascule du CACHE, elle, est confinée ci-dessous.
 
         try:
+            if model_type == 'tracker':
+                # Le SUIVI d'un objet désigné (2026-11-16) : le module de suivi seul, sans le
+                # processeur image — une boucle de suivi ne détecte rien par texte.
+                logger.info("[SAM3] Loading tracker...")
+                self.video_model, self.tracker = load_sam3_tracker()
+                self._model_loaded = True
+                return True
             # Note: We only import the image model as video predictor requires 'triton' (Linux only)
             if model_type in ['image', 'auto']:
                 logger.info("[SAM3] Loading image model...")
@@ -341,6 +376,105 @@ class SAM3Processor(FrameDetectionBackend):
                                             conf=score, polygons=polygons))
             results.append(found)
         return results
+
+    # ── Le SUIVI d'un objet désigné (2026-11-16, la page de correction des détections) ─────────
+    #: Ce moteur sait suivre un objet désigné par un point ou une boîte (`track_object`) — le
+    #: drapeau qu'une glu lit avant de le demander (patron `supports_text_positions`).
+    supports_object_tracking = True
+    #: Une TRANCHE de suivi, en images : la fenêtre chargée d'un coup (toutes ses images vont en
+    #: mémoire à 1008 px de côté — 60 images tenaient en 5,5 Go).
+    TRACK_WINDOW = 90
+
+    def track_object(self, media_path: str, frame: int, *, point=None, box=None,
+                     count: int = 0, reverse: bool = False) -> list:
+        """Suit l'objet désigné sur l'image `frame` de `media_path` — par un `point` `(x, y)` ou
+        une `box` `[x1, y1, x2, y2]`, en PIXELS du média — sur `count` images (défaut
+        `TRACK_WINDOW`), vers l'avant ou vers l'arrière (`reverse`). Rend `[{'i', 'box'}]` dans
+        l'ordre du suivi, l'image désignée d'abord ; `box` est None là où l'objet n'est pas vu.
+        Une IMAGE fixe rend sa seule image : la segmentation de l'objet cliqué.
+
+        Une tranche à la fois : la fenêtre est écrite en images dans un dossier jetable (la
+        librairie charge TOUTES les images d'une vidéo en mémoire — un fichier entier n'y tient
+        pas), et l'appelant enchaîne les tranches en redonnant la dernière boîte vue."""
+        import shutil
+        import tempfile
+
+        from wama.common.utils.video_utils import is_image
+        if self.tracker is None:
+            raise RuntimeError("SAM3 : le module de suivi n'est pas chargé (load('tracker'))")
+        if (point is None) == (box is None):
+            raise ValueError("un point OU une boîte désigne l'objet")
+        count = max(1, int(count or self.TRACK_WINDOW))
+        frame = max(0, int(frame))
+        folder = tempfile.mkdtemp(prefix='wama_sam3_track_')
+        try:
+            if is_image(media_path):
+                image = cv2.imread(media_path)
+                if image is None:
+                    raise RuntimeError(f"image illisible : {os.path.basename(media_path)}")
+                images, first = [image], 0
+                frame = 0
+            else:
+                first = max(0, frame - count + 1) if reverse else frame
+                images = self._read_frames(media_path, first,
+                                           frame - first + 1 if reverse else count)
+            if not images or frame - first >= len(images):
+                return []
+            height, width = images[0].shape[:2]
+            for n, image in enumerate(images):
+                cv2.imwrite(os.path.join(folder, f'{n:05d}.jpg'), image,
+                            [cv2.IMWRITE_JPEG_QUALITY, 92])
+            local = frame - first
+            found = {}
+            with torch.inference_mode(), torch.autocast('cuda', dtype=torch.bfloat16):
+                state = self.tracker.init_state(video_path=folder)
+                if point is not None:
+                    prompt = {'points': [[point[0] / width, point[1] / height]], 'labels': [1]}
+                else:
+                    prompt = {'box': torch.tensor([box[0] / width, box[1] / height,
+                                                   box[2] / width, box[3] / height]),
+                              'points': torch.zeros(0, 2),
+                              'labels': torch.zeros(0, dtype=torch.int32)}
+                _idx, _ids, _low, masks = self.tracker.add_new_points_or_box(
+                    state, frame_idx=local, obj_id=1, **prompt)
+                found[local] = self._mask_box(masks[0])
+                if len(images) > 1:
+                    for step in self.tracker.propagate_in_video(
+                            state, start_frame_idx=local, max_frame_num_to_track=None,
+                            reverse=reverse, tqdm_disable=True, propagate_preflight=True):
+                        found[int(step[0])] = self._mask_box(step[3][0])
+            return [{'i': first + n, 'box': found[n]} for n in sorted(found, reverse=reverse)]
+        finally:
+            shutil.rmtree(folder, ignore_errors=True)
+
+    @staticmethod
+    def _read_frames(media_path: str, first: int, count: int) -> list:
+        """`count` images de la vidéo à partir de `first`, lues par OpenCV — comme la détection
+        les a lues : les indices sont ceux du document de détections."""
+        capture = cv2.VideoCapture(media_path)
+        try:
+            if first:
+                capture.set(cv2.CAP_PROP_POS_FRAMES, first)
+            images = []
+            while len(images) < count:
+                ok, image = capture.read()
+                if not ok:
+                    break
+                images.append(image)
+            return images
+        finally:
+            capture.release()
+
+    @staticmethod
+    def _mask_box(mask):
+        """La boîte `[x1, y1, x2, y2]` (pixels entiers) d'un masque de suivi — None s'il est vide
+        (l'objet n'est pas vu sur cette image)."""
+        seen = (mask.squeeze() > 0)
+        if not bool(seen.any()):
+            return None
+        rows = torch.where(seen.any(dim=1))[0]
+        cols = torch.where(seen.any(dim=0))[0]
+        return [int(cols[0]), int(rows[0]), int(cols[-1]) + 1, int(rows[-1]) + 1]
 
     def detect(self, **kwargs) -> dict:
         doc = super().detect(**kwargs)

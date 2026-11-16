@@ -135,3 +135,34 @@ def follow(channel: Channel, owner: str, step: Callable[[dict], bool], *,
                 sleep(poll_seconds)
     finally:
         cache.delete(channel.key('lock'))
+
+
+# ── Les RÉSULTATS d'une boucle (2026-11-16, 2ᵉ boucle à propositions : le suivi d'objet) ──────
+# La boucle n'écrit jamais la donnée de l'élément : elle dépose ses résultats en cache, la page
+# les lit depuis un index et les applique ou les propose. Le transcriber l'écrivait dans sa tâche
+# et sa vue ; la seconde occurrence le met ici.
+
+#: Durée de vie des résultats d'un canal.
+RESULTS_TTL = 3600
+
+
+def append_result(channel: Channel, result: dict, ttl: int = RESULTS_TTL) -> dict:
+    """Ajoute un résultat au canal, numéroté (`id` = son rang) ; rend le résultat rangé."""
+    results = cache.get(channel.key('results')) or []
+    result = dict(result, id=len(results))
+    results.append(result)
+    cache.set(channel.key('results'), results, ttl)
+    return result
+
+
+def results_since(channel: Channel, since) -> dict:
+    """`{'next', 'running', 'results'}` — les résultats du canal depuis l'index `since`
+    (`since=-1` : seulement l'index courant — une page qui s'ouvre ne rejoue pas les résultats
+    d'une session précédente)."""
+    results = cache.get(channel.key('results')) or []
+    try:
+        since = int(since)
+    except (TypeError, ValueError):
+        since = -1
+    return {'next': len(results), 'running': channel.is_running(),
+            'results': results[since:] if since >= 0 else []}

@@ -2335,6 +2335,8 @@
         "start_process",
         "stop",
         "stop_process",
+        "track_cursor",
+        "track_results",
         "update_settings",
         "upload",
         "validate_prompt"
@@ -2359,6 +2361,16 @@
           "name": "start_process",
           "pattern": "start/<int:pk>/<str:process>/",
           "view": "views.start_process"
+        },
+        {
+          "name": "track_cursor",
+          "pattern": "track/<int:pk>/cursor/",
+          "view": "views.track_cursor"
+        },
+        {
+          "name": "track_results",
+          "pattern": "track/<int:pk>/results/",
+          "view": "views.track_results"
         },
         {
           "name": "stop",
@@ -2521,6 +2533,12 @@
           "function": "process_single_media",
           "lifecycle": true,
           "task_name": null
+        },
+        {
+          "file": "tasks.py",
+          "function": "live_track_task",
+          "lifecycle": false,
+          "task_name": null
         }
       ]
     },
@@ -2566,6 +2584,10 @@
           "image": "file"
         },
         "reruns": "blur",
+        "routes": {
+          "track_cursor": "track_cursor",
+          "track_results": "track_results"
+        },
         "slots": [
           {
             "brick": "image_boxes",
@@ -2606,6 +2628,16 @@
             "x": 9,
             "y": 14,
             "zone": "grid"
+          },
+          {
+            "brick": "object_tracking",
+            "h": 5,
+            "id": "tracking",
+            "options": {},
+            "w": 3,
+            "x": 9,
+            "y": 19,
+            "zone": "grid"
           }
         ],
         "validate": "wama.anonymizer.surfaces.validate_corrections",
@@ -2638,6 +2670,10 @@
           "video": "file"
         },
         "reruns": "blur",
+        "routes": {
+          "track_cursor": "track_cursor",
+          "track_results": "track_results"
+        },
         "slots": [
           {
             "brick": "image_boxes",
@@ -2698,6 +2734,16 @@
             "w": 3,
             "x": 9,
             "y": 14,
+            "zone": "grid"
+          },
+          {
+            "brick": "object_tracking",
+            "h": 5,
+            "id": "tracking",
+            "options": {},
+            "w": 3,
+            "x": 9,
+            "y": 19,
             "zone": "grid"
           }
         ],

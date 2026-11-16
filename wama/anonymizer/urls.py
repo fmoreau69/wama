@@ -20,6 +20,9 @@ urlpatterns = [
     path('card/<int:pk>/html/', views.card_html, name='card_html'),
     path('start/<int:pk>/', views.start, name='start'),
     path('start/<int:pk>/<str:process>/', views.start_process, name='start_process'),
+    # Suivre un objet désigné sur la page de correction (2026-11-16) : routes de geste des surfaces.
+    path('track/<int:pk>/cursor/', views.track_cursor, name='track_cursor'),
+    path('track/<int:pk>/results/', views.track_results, name='track_results'),
     path('stop/<int:pk>/', views.stop, name='stop'),
     path('start_all/', views.start_all, name='start_all'),
     # Réglages de l'UTILISATEUR (brique commune user_settings, 2026-09-27) — ex-`update_settings/`

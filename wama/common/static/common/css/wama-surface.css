@@ -218,6 +218,14 @@ body.wama-panel-arranged > .container {
 .wama-brick-image.is-video video { position: absolute; left: 0; top: 0; max-width: none; object-fit: fill; }
 .wama-brick-image.is-video canvas { position: absolute; left: 0; top: 0; }
 
+/* Suivi d'un objet désigné (2026-11-16) : le geste, puis les propositions à accepter ou refuser. */
+.wama-brick-tracking { display: flex; flex-direction: column; gap: .35rem; padding: .4rem .55rem; font-size: .78rem; color: var(--wama-edit-text); }
+.wama-tracking-head { display: flex; gap: .35rem; align-items: center; }
+.wama-tracking-head .form-select { width: auto; min-width: 0; flex: 1 1 auto; }
+.wama-tracking-list { flex: 1 1 auto; overflow: auto; color: var(--wama-edit-muted); }
+.wama-tracking-row { display: flex; align-items: center; gap: .3rem; padding: .15rem 0; color: var(--wama-edit-text); }
+.wama-tracking-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* Liste des objets */
 .wama-brick-objects { display: flex; flex-direction: column; }
 .wama-objects-summary { padding: .4rem .55rem; font-size: .78rem; border-bottom: 1px solid var(--wama-edit-border); color: var(--wama-edit-text); }

@@ -20,6 +20,12 @@
  * au serveur (`WamaDetections.editObject`, la règle de l'interpolation) ; la portée se dit aux
  * autres briques par le bus (`scope`).
  *
+ * DEUX SERVICES rendus aux autres briques par le bus (2026-11-16, le suivi d'un objet désigné) :
+ * un POINT — une brique le demande (`pick-request` `{on}`), le prochain clic dans le média le lui
+ * rend (`pick` `{i, point: [x, y]}`, en pixels du média, l'image montrée) ; et des zones
+ * PROPOSÉES — `overlay` `{key, frames: {image: [{box, label}]}}`, dessinées en pointillé sur
+ * l'image qu'elles concernent, jamais éditables ici.
+ *
  * Gestes (outil « Sélection ») : clic = sélectionner la zone la plus petite sous le pointeur ;
  * glisser dans la zone sélectionnée = la déplacer ; glisser une poignée = la redimensionner ;
  * glisser dans le vide = se déplacer dans l'image ; molette = zoom autour du pointeur.
@@ -70,6 +76,8 @@
         }
         var view = { scale: 1, x: 0, y: 0, fitted: false };
         var tool = 'select';
+        var picking = false;          // une brique attend un point : le prochain clic le lui rend
+        var overlays = {};            // {clé: {image: [{box, label}]}} : les zones PROPOSÉES
         var drag = null;              // geste en cours : {kind, start, obj, box, handle}
         var objects = [];
 
@@ -224,6 +232,17 @@
                     g.fillRect(hd.x - HANDLE / 2, hd.y - HANDLE / 2, HANDLE, HANDLE);
                 });
             }
+            // Les zones PROPOSÉES par une autre brique (un suivi), sur l'image montrée.
+            g.setLineDash([6, 4]);
+            g.lineWidth = 2;
+            g.strokeStyle = COLORS.manual;
+            Object.keys(overlays).forEach(function (key) {
+                ((overlays[key] || {})[frameIndex] || []).forEach(function (z) {
+                    var r = screenBox(z.box);
+                    g.strokeRect(r[0], r[1], r[2], r[3]);
+                });
+            });
+            g.setLineDash([]);
             if (drag && drag.kind === 'draw' && drag.box) {
                 var d = screenBox(drag.box);
                 g.lineWidth = 2;
@@ -284,6 +303,19 @@
             if (ev.button !== 0) return;
             canvas.focus();
             var p = point(ev);
+            if (picking) {
+                // Le point demandé par une autre brique : sur l'image ARRÊTÉE, en pixels du média.
+                hold();
+                picking = false;
+                canvas.style.cursor = tool === 'add' ? 'crosshair' : 'default';
+                var q0 = toImage(p), size0 = mediaSize();
+                if (q0[0] >= 0 && q0[1] >= 0 && q0[0] <= size0[0] && q0[1] <= size0[1]) {
+                    ctx.emit('pick', { i: frameIndex, point: [Math.round(q0[0]), Math.round(q0[1])] });
+                } else {
+                    ctx.emit('pick', { i: frameIndex, point: null });
+                }
+                return;
+            }
             if (tool === 'add' && ctx.canEdit) {
                 hold();
                 drag = { kind: 'draw', start: toImage(p), box: null };
@@ -393,6 +425,16 @@
             if (canvas.width !== Math.round(body.clientWidth * (global.devicePixelRatio || 1))) resize();
             else draw();
         }
+
+        ctx.on('pick-request', function (p) {
+            picking = !!(p && p.on);
+            canvas.style.cursor = picking ? 'crosshair' : (tool === 'add' ? 'crosshair' : 'default');
+        });
+        ctx.on('overlay', function (p) {
+            if (!p || !p.key) return;
+            overlays[p.key] = p.frames || {};
+            draw();
+        });
 
         ctx.on('select', function (s) {
             var o = byId(s.id);

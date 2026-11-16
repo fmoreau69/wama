@@ -645,6 +645,24 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       pour le point, 77 ms par image, 5,5 Go ; le prédicteur vidéo complet, lui, refuse un point
       sans propagation préalable par texte. Puis le clic à segmentation automatique (image
       comprise), la page du document, la jumelle à régénérer.
+      ✅ *2026-11-16 — la marche B est écrite* : la brique `object_tracking` (« Désigner un
+      objet », puis un clic dans le média) ; la brique des zones rend le point et dessine les
+      zones PROPOSÉES (bus `pick-request` / `pick`, `overlay`) ; la boucle commune
+      `playhead_follow` (`anonymizer.tasks.live_track_task`, routes de geste `track_cursor` /
+      `track_results` déclarées par les deux surfaces) suit l'objet tranche par tranche —
+      `common/services/object_tracking` enchaîne : l'avant d'abord, chaque tranche depuis la
+      dernière boîte vue, puis l'arrière ; un sens finit à un bord du média ou quand l'objet est
+      perdu — par `SAM3Processor.track_object` (90 images par tranche, écrites dans un dossier
+      jetable : la librairie charge toute sa fenêtre en mémoire). Sur une IMAGE, la même route
+      rend la segmentation de l'objet cliqué. Le serveur ne dépose que des propositions ;
+      acceptées, elles entrent dans la couche de corrections en un cran d'annulation
+      (`WamaDetections.addMany`). Mesuré : le moteur de WAMA sur GPU (avant 30/30, arrière
+      21/21, tranche suivante enchaînée, image fixe en 0,1 s, 5,1 Go) ; la brique au navigateur
+      avec une boucle simulée (`common.axis_follow`, 23 gestes sur la page vidéo).
+      ⏳ La chaîne ENTIÈRE en service (clic → worker GPU → proposition) n'est pas jouée : elle
+      demande la relance des workers. ⏳ Les zones proposées sont des BOÎTES (le contour du
+      masque n'entre pas dans la couche de corrections) ; SAM 3.1 et d'autres moteurs de suivi
+      à explorer (décision de Fabien).
       ✅ *2026-11-16 — décisions de Fabien* : la portée « toute la séquence » reste le défaut
       sur une vidéo ; « il faut les versions » ; le suivi par le module de SAM3 est retenu
       (SAM 3.1 et d'autres modèles à explorer ensuite). **Les versions** : une correction

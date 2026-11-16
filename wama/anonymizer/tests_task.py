@@ -457,3 +457,100 @@ class Sam3StatusWithoutImportTest(TestCase):
         self.assertFalse(absent['installed'])
         self.assertFalse(absent['ready'])
         self.assertTrue(absent['error'])
+
+
+@override_settings(CACHES={'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+                                       'LOCATION': 'anonymizer-track-tests'}})
+class DesignatedObjectTrackingTest(TestCase):
+    """2026-11-16 : an object the detection missed is DESIGNATED by a click and followed by the
+    common loop (`playhead_follow`), slice by slice (`object_tracking`), by the tracking engine of
+    the catalogue — the server leaves PROPOSALS, it never writes the corrections."""
+
+    def setUp(self):
+        cache.clear()
+        self.user = get_user_model().objects.create_user('anonymizer_tracking', password='x')
+        self.other = get_user_model().objects.create_user('anonymizer_tracking_other', password='x')
+        # Les routes de l'app passent le portier d'accès : le rôle qui ouvre l'anonymizer.
+        from django.contrib.auth.models import Group
+        from wama.accounts.permissions import GROUP_PREFIX
+        role = Group.objects.get_or_create(name=f'{GROUP_PREFIX}recherche')[0]
+        self.user.groups.add(role)
+        self.other.groups.add(role)
+        self.media = Media.objects.create(user=self.user, file_ext='.mp4', media_type='video',
+                                          status='SUCCESS', file='users/0/anonymizer/input/clip.mp4')
+        self.cursor = f'/anonymizer/track/{self.media.pk}/cursor/'
+        self.results = f'/anonymizer/track/{self.media.pk}/results/'
+
+    def _post(self, payload):
+        import json
+        return self.client.post(self.cursor, json.dumps(payload), content_type='application/json')
+
+    def test_the_cursor_is_posted_and_the_loop_spawned_once(self):
+        self.client.force_login(self.user)
+        target = {'id': 'a', 'i': 3, 'point': [10, 12]}
+        with mock.patch.object(tasks.live_track_task, 'delay') as delay:
+            first = self._post({'targets': [target]}).json()
+            second = self._post({'targets': [target]}).json()
+            self.assertEqual(400, self._post({'targets': [{'id': 'a', 'i': 0, 'point': [1]}]}).status_code)
+            self.assertEqual(400, self._post({'targets': []}).status_code)
+        self.assertEqual((True, True, False), (first['ok'], first['started'], second['started']))
+        delay.assert_called_once_with(self.media.pk)
+        self.assertEqual({'targets': [{'id': 'a', 'i': 3, 'point': [10.0, 12.0]}]},
+                         cache.get(tasks.track_channel(self.media.pk).key('cursor')))
+        self.assertEqual({'next': 0, 'running': False, 'results': []},
+                         self.client.get(self.results).json())
+        self.client.force_login(self.other)
+        self.assertEqual(404, self._post({'targets': [target]}).status_code)
+        self.assertEqual(404, self.client.get(self.results).status_code)
+
+    def test_the_loop_follows_slice_by_slice_and_leaves_proposals_only(self):
+        from wama.common.services import playhead_follow
+        channel = tasks.track_channel(self.media.pk)
+        total, window = 200, 90
+
+        class Engine:
+            supports_object_tracking = True
+            TRACK_WINDOW = window
+            calls, loaded, unloaded = [], [], []
+
+            def load_model(self, kind):
+                self.loaded.append(kind)
+
+            def unload(self):
+                self.unloaded.append(1)
+
+            def track_object(self, path, frame, *, count, reverse=False, point=None, box=None):
+                self.calls.append((frame, reverse))
+                spanned = (range(frame, max(frame - count, -1), -1) if reverse
+                           else range(frame, min(frame + count, total)))
+                found = [{'i': i, 'box': [i, 0, i + 4, 4]} for i in spanned]
+                if reverse:                               # the last slice : the page stops the loop
+                    cache.set(channel.key('stop'), 'user', timeout=60)
+                return found
+
+        playhead_follow.post_cursor(channel, {'targets': [{'id': 'a', 'i': 50, 'point': [5.0, 5.0]}]},
+                                    lambda: None)
+        with mock.patch('wama.common.backends.manager.backend_for_key', return_value=Engine), \
+                mock.patch.object(tasks, 'check_sam3_installed', return_value=True), \
+                mock.patch.object(tasks, 'close_old_connections'):
+            outcome = tasks.live_track_task.apply(args=[self.media.pk]).get()
+        self.assertEqual({'ok': True, 'reason': 'user'}, outcome)
+        self.assertEqual((['tracker'], [1]), (Engine.loaded, Engine.unloaded), 'loaded once, released')
+        self.assertEqual([(50, False), (139, False), (50, True)], Engine.calls)
+        results = playhead_follow.results_since(channel, 0)['results']
+        self.assertEqual([False, False, True], [r['done'] for r in results])
+        seen = [f['i'] for r in results for f in r['frames']]
+        self.assertEqual(sorted(range(total)), sorted(seen), 'every frame proposed once')
+        self.media.refresh_from_db()
+        self.assertFalse(self.media.detection_corrections, 'the server writes no correction')
+
+    def test_an_engine_that_cannot_track_says_so_in_the_results(self):
+        from wama.common.services import playhead_follow
+        channel = tasks.track_channel(self.media.pk)
+        playhead_follow.post_cursor(channel, {'targets': [{'id': 'a', 'i': 0, 'point': [1.0, 1.0]}]},
+                                    lambda: None)
+        with mock.patch.object(tasks, 'check_sam3_installed', return_value=False), \
+                mock.patch.object(tasks, 'close_old_connections'):
+            outcome = tasks.live_track_task.apply(args=[self.media.pk]).get()
+        self.assertFalse(outcome['ok'])
+        self.assertIn('SAM3', playhead_follow.results_since(channel, 0)['results'][0]['error'])

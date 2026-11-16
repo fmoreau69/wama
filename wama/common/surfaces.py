@@ -1191,6 +1191,19 @@ register_brick(UIBrick(
                                    "jusqu'à l'arrêt)", 'page', names=('record',)),
                Shortcut(('Escape',), 'rendre le clavier', 'field'))))
 
+register_brick(UIBrick(
+    key='object_tracking', name="Suivi d'objet",
+    description="Un OUTIL : désigner d'un clic un objet que la détection n'a pas vu. La brique "
+                "qui montre le média rend le point cliqué (bus `pick`) ; la boucle serveur commune "
+                "(`playhead_follow`) le suit tranche par tranche par les routes de geste que la "
+                "surface déclare (`track_cursor`, `track_results`) — sur toute la séquence d'une "
+                "vidéo, sur la seule image sinon — et PROPOSE ses zones, dessinées sur le média "
+                "(bus `overlay`). Acceptées, elles entrent dans la couche de corrections en un "
+                "geste annulable ; refusées, elles sont oubliées. Le serveur n'écrit rien.",
+    script='common/js/surfaces/brick-object-tracking.js',
+    requires=('common/js/wama-detections.js',),
+    consumes=('detections',), emits=('detection_corrections',)))
+
 # ── 2026-10-21 : la page de correction du transcriber devenue surface (ROUTE §F3b, étape 2) ──
 register_brick(UIBrick(
     key='segment_list', name='Segments',

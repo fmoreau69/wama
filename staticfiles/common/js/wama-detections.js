@@ -158,6 +158,16 @@
         return c;
     }
 
+    /** Ajouter un objet sur PLUSIEURS images (`entries` : `[{i, box}]`, les zones qu'un suivi
+     *  propose) : un ajout par image, de la classe `label`. */
+    function addMany(value, entries, label) {
+        var c = layer(value);
+        (entries || []).forEach(function (e) {
+            c.added.push({ i: e.i || 0, box: round(e.box), label: label || 'face' });
+        });
+        return c;
+    }
+
     /** L'OBJET sur toute la séquence (2026-11-15) : promesse de `[{i, box, label}]`, demandée à
      *  la route commune de la surface (`?only=chain`, `detections.object_chain` — la règle de
      *  « c'est le même objet » n'est écrite qu'en Python). `gap` : le trou franchi, que la surface
@@ -197,5 +207,6 @@
         MIN_IOU: MIN_IOU, iou: iou, applyCorrections: applyCorrections, objects: objects,
         remove: remove, restore: restore, add: add, move: move,
         removeMany: removeMany, restoreMany: restoreMany, chain: chain, editObject: editObject,
+        addMany: addMany,
     };
 })(typeof window !== 'undefined' ? window : this);

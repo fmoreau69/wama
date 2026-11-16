@@ -491,7 +491,11 @@ MECHANISMS = (
               "visionneuse) — scénario `common.axis_follow` ; retirer ou rétablir un objet DÉTECTÉ "
               "y vaut d'office pour TOUTE LA SÉQUENCE : l'objet est demandé à la route commune "
               "`?only=chain` (`detections.object_chain`, les maillons de l'interpolation), un "
-              "retrait par image dans la même couche de corrections, UN cran d'annulation",
+              "retrait par image dans la même couche de corrections, UN cran d'annulation. "
+              "2026-11-16 : un objet NON détecté se DÉSIGNE d'un clic (brique `object_tracking` ; "
+              "la brique des zones rend le point et dessine les zones proposées — bus `pick`, "
+              "`overlay`) : suivi par la boucle `playhead_follow`, proposé, accepté en un cran ou "
+              "refusé ; et la brique « Versions » reprend une correction enregistrée",
               'wama/common/surfaces.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
               annexes=('wama/common/surface_views.py',
@@ -2729,11 +2733,17 @@ MECHANISMS = (
               "prioritaire à laisser passer). Verrou de lancement, verrou vivant, refroidissement : "
               "chacun a son cas vécu. L'app fournit le chargement, la tranche et la question « dois-je "
               "céder ? » — jamais la mécanique. Extrait du mode Live du cam_analyzer quand le "
-              "transcriber en est devenu le 2ᵉ utilisateur ; première forme du curseur de session",
+              "transcriber en est devenu le 2ᵉ utilisateur ; première forme du curseur de session. "
+              "3ᵉ boucle (2026-11-16) : le SUIVI d'un objet désigné sur la page de correction des "
+              "détections (`anonymizer.tasks.live_track_task`, enchaînement des tranches par "
+              "`services/object_tracking`, moteur `SAM3Processor.track_object`) ; les RÉSULTATS "
+              "d'une boucle — déposés en cache, lus depuis un index, jamais écrits sur l'élément — "
+              "sont au commun (`append_result`, `results_since`), le transcriber les lit de là",
               'wama/common/services/playhead_follow.py',
               'docs/construction/mondes/WAMA_DATA_WORLD.md §5',
               annexes=('wama/common/tests/tests_playhead_follow.py',
-                       'wama_lab/cam_analyzer/tests/tests_live_follow.py')),
+                       'wama_lab/cam_analyzer/tests/tests_live_follow.py',
+                       'wama/common/services/object_tracking.py')),
     Mechanism('media_picker', 'Sélecteur de médiathèque',
               "Modale commune de choix d'un asset de la médiathèque (filtrée par type), rendue "
               "à l'appelant sous forme de File + méta (`onSelect`), ou de l'asset SEUL, sans "

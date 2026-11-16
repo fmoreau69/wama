@@ -32,7 +32,10 @@
  * d'un process du même type, `Surface.sources_of` — que le transport recharge et dont la ligne de
  * temps relit les pics), `frame` (l'IMAGE qu'une brique montre d'une vidéo a changé — `{i}` ;
  * 2026-11-15, la brique des zones sur une vidéo : la liste des objets la suit), `scope` (la
- * PORTÉE d'un retrait ou d'un rétablissement — `{sequence}` : l'objet sur toute la séquence).
+ * PORTÉE d'un retrait ou d'un rétablissement — `{sequence}` : l'objet sur toute la séquence),
+ * `pick-request` / `pick` (une brique demande un POINT du média montré, la brique qui le montre
+ * le rend — `{i, point}`), `overlay` (des zones PROPOSÉES à dessiner sur le média —
+ * `{key, frames: {image: [{box, label}]}}`, 2026-11-16, le suivi d'un objet désigné).
  *
  * L'AXE PARTAGÉ (2026-10-15, `wama-axis.js`) : `ctx.axis()` rend LE temps de la surface — un
  * seul par page, créé au premier appel. Le transport le pilote, les vues s'y abonnent ; une

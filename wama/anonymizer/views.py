@@ -1070,3 +1070,53 @@ def batch_create(request):
     })
 
 
+
+
+# ── Suivre un objet désigné sur la page de correction (2026-11-16) ───────────────────────────
+# Deux routes de GESTE que les surfaces déclarent (`Surface.routes`) et que la brique commune
+# `object_tracking` appelle sans les connaître — le pendant de `write_cursor` / `write_results`
+# du transcriber. Rien n'est écrit sur la card : la boucle dépose des propositions.
+
+@require_POST
+def track_cursor(request, pk: int):
+    """Pose le curseur du suivi (`{targets: [{id, i, point}]}`) que suit la boucle commune, et la
+    lance si besoin. `{enabled: false}` l'arrête et oublie l'avancement (un objet désigné de
+    nouveau est suivi de nouveau)."""
+    import json as _json
+    from wama.common.services import object_tracking as tracking
+    from wama.common.services.playhead_follow import post_cursor
+    from wama.common.utils.scoping import editable_or_404
+    from .tasks import TRACK_TTL, live_track_task, track_channel
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    media = editable_or_404(Media, user, pk=pk)
+    try:
+        body = _json.loads(request.body or '{}')
+    except ValueError:
+        return JsonResponse({'ok': False, 'reason': 'payload invalide'}, status=400)
+    channel = track_channel(media.pk)
+    spawn = lambda: live_track_task.delay(media.pk)  # noqa: E731
+    if not body.get('enabled', True):
+        cache.delete(channel.key('progress'))
+        return JsonResponse({'ok': True, **post_cursor(channel, None, spawn)})
+    if media.media_type not in ('image', 'video') or not media.file:
+        return JsonResponse({'ok': False, 'reason': "le suivi d'un objet vaut pour une image ou une vidéo"},
+                            status=400)
+    try:
+        targets = tracking.clean_targets(body.get('targets'))
+    except (KeyError, TypeError, ValueError):
+        return JsonResponse({'ok': False, 'reason': 'payload invalide'}, status=400)
+    if not targets:
+        return JsonResponse({'ok': False, 'reason': 'aucun objet désigné'}, status=400)
+    cache.touch(channel.key('results'), TRACK_TTL)
+    cache.touch(channel.key('progress'), TRACK_TTL)
+    return JsonResponse({'ok': True, **post_cursor(channel, {'targets': targets}, spawn)})
+
+
+def track_results(request, pk: int):
+    """Les propositions du suivi depuis l'index `since` (`playhead_follow.results_since`)."""
+    from wama.common.services.playhead_follow import results_since
+    from wama.common.utils.scoping import editable_or_404
+    from .tasks import track_channel
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    media = editable_or_404(Media, user, pk=pk)
+    return JsonResponse(results_since(track_channel(media.pk), request.GET.get('since', -1)))

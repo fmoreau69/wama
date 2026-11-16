@@ -74,7 +74,8 @@ class RegistryTest(SimpleTestCase):
         from wama.common.surfaces import surface
         review = surface('anonymizer', 'review')
         self.assertIsNotNone(review)
-        self.assertEqual(['image_boxes', 'object_list', 'surface_actions', 'revision_history'],
+        self.assertEqual(['image_boxes', 'object_list', 'surface_actions', 'revision_history',
+                          'object_tracking'],
                          [s.brick for s in review.slots])
         self.assertEqual(('detection_corrections', 'blur'), (review.edits, review.reruns))
         self.assertEqual('common/js/wama-detections.js', review.scripts()[0],
@@ -176,7 +177,9 @@ class RegistryTest(SimpleTestCase):
             var D = window.WamaDetections, kept = {removed: [{i: 0, box: [120, 50, 160, 70]}]};
             var gone = D.removeMany(kept, chain), twice = D.removeMany(gone, chain);
             return JSON.stringify({gone: gone, twice: twice.removed.length,
-                                   back: D.restoreMany(gone, chain), untouched: kept.removed.length});
+                                   back: D.restoreMany(gone, chain), untouched: kept.removed.length,
+                                   added: D.addMany(kept, [{i: 3, box: [1.26, 2, 9, 9.04]}, {i: 4, box: [2, 2, 9, 9]}],
+                                                    'plate').added});
         })(%s)""" % json.dumps(chain)))
         self.assertEqual(5, len(out['gone']['removed']))
         self.assertEqual(5, out['twice'], 'a frame already removed is not removed twice')
@@ -186,6 +189,9 @@ class RegistryTest(SimpleTestCase):
                          {f['i']: [d['label'] for d in f['d']] for f in fixed['frames']})
         self.assertEqual([{'i': 0, 'box': [120, 50, 160, 70]}], out['back']['removed'],
                          'restoring the object leaves the other removal')
+        self.assertEqual([{'i': 3, 'box': [1.3, 2, 9, 9], 'label': 'plate'},
+                          {'i': 4, 'box': [2, 2, 9, 9], 'label': 'plate'}], out['added'],
+                         'the zones a tracking proposes enter as additions, one per frame')
 
     def test_a_brick_of_the_panel_follows_its_content_height(self):
         """2026-10-31 (Fabien : « avoir un scroll dans une section d'un volet qui scrolle, ce n'est

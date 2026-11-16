@@ -15,6 +15,11 @@ correction porte l'indice de l'image où elle est faite (`i`), que le floutage r
 (`detections.apply_corrections`). Retirer ou rétablir un objet DÉTECTÉ vaut d'office pour toute
 la séquence (`detections.object_chain`, demandé par la route commune `?only=chain`) : un retrait
 par image, la même couche de corrections.
+
+Un objet NON détecté se DÉSIGNE d'un clic (2026-11-16, brique `object_tracking`) : la boucle
+commune `playhead_follow` le suit par le module de suivi de SAM3 (`tasks.live_track_task`,
+`common/services/object_tracking`), sur toute la séquence d'une vidéo ou sur la seule image, et
+PROPOSE ses zones — acceptées, elles entrent dans la même couche de corrections.
 """
 from wama.anonymizer.utils.media_utils import sane_classes
 from wama.common.surfaces import BrickSlot, Surface, register_surface
@@ -42,6 +47,11 @@ def validate_corrections(value) -> dict:
     return {'added': added, 'removed': removed} if (added or removed) else {}
 
 
+#: Les routes de geste du SUIVI d'un objet désigné (`views.track_cursor`, `track_results`) — ce
+#: que la brique `object_tracking` appelle sans les connaître.
+TRACKING_ROUTES = {'track_cursor': 'track_cursor', 'track_results': 'track_results'}
+
+
 def _review_available(media) -> tuple:
     if not media.detections_file:
         return False, "Aucune détection : lancer d'abord la détection."
@@ -55,11 +65,14 @@ register_surface(Surface(
            BrickSlot('objects', 'object_list', 9, 0, 3, 9),
            BrickSlot('actions', 'surface_actions', 9, 9, 3, 5),
            # Les VERSIONS des corrections (2026-11-16) : chaque enregistrement en garde une.
-           BrickSlot('versions', 'revision_history', 9, 14, 3, 5)),
+           BrickSlot('versions', 'revision_history', 9, 14, 3, 5),
+           # Un objet NON détecté, désigné d'un clic : segmenté, proposé, accepté ou refusé.
+           BrickSlot('tracking', 'object_tracking', 9, 19, 3, 5)),
     reads={'image': 'file', 'detections': 'detections_file'},
     documents=('detections',),
     edits='detection_corrections', validate=validate_corrections,
     reruns='blur', available=_review_available,
+    routes=TRACKING_ROUTES,
     only={'media_type': 'image'},
     # Assainies : une ancienne sauvegarde a laissé 'false' dans des listes de classes.
     context={'classes': lambda media: sane_classes(media.classes2blur)},
@@ -82,11 +95,14 @@ register_surface(Surface(
                       'remember': True}),
            BrickSlot('objects', 'object_list', 9, 0, 3, 9),
            BrickSlot('actions', 'surface_actions', 9, 9, 3, 5),
-           BrickSlot('versions', 'revision_history', 9, 14, 3, 5)),
+           BrickSlot('versions', 'revision_history', 9, 14, 3, 5),
+           # Un objet NON détecté, désigné d'un clic : suivi sur toute la séquence, proposé.
+           BrickSlot('tracking', 'object_tracking', 9, 19, 3, 5)),
     reads={'video': 'file', 'detections': 'detections_file'},
     documents=('detections',),
     edits='detection_corrections', validate=validate_corrections,
     reruns='blur', available=_review_available,
+    routes=TRACKING_ROUTES,
     only={'media_type': 'video'},
     # `chain_gap` : le trou qu'un objet franchit d'une détection à la suivante quand un geste vaut
     # pour toute la séquence — le réglage d'interpolation de la card, celui que lit le floutage.

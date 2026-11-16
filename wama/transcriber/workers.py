@@ -1268,7 +1268,7 @@ def live_write_task(self, transcript_id: int):
     transcriptions de la file passent AVANT l'écoute d'un utilisateur.
     """
     from wama.common.models import JOB_AWAITING_RESOURCES, JOB_RUNNING
-    from wama.common.services.playhead_follow import follow
+    from wama.common.services.playhead_follow import append_result, follow
     from wama.common.services.word_anchoring import spoken_text
     from wama.common.utils.intervals import merge_intervals, subtract_intervals
 
@@ -1312,10 +1312,8 @@ def live_write_task(self, transcript_id: int):
         a, b = min(missing, key=lambda r: (r[1] < at, abs(r[0] - at)))   # devant d'abord
         b = min(b, a + WRITE_SLICE_SECONDS)
         words = _transcribe_span(state['backend'], t.audio.path, a, b, t.language or None)
-        results = cache.get(channel.key('results')) or []
-        results.append({'id': len(results), 'mode': mode, 'start': round(a, 3), 'end': round(b, 3),
-                        'words': words, 'text': spoken_text(words)})
-        cache.set(channel.key('results'), results, WRITE_TTL)
+        append_result(channel, {'mode': mode, 'start': round(a, 3), 'end': round(b, 3),
+                                'words': words, 'text': spoken_text(words)}, WRITE_TTL)
         done[mode] = merge_intervals((done.get(mode) or []) + [[a, b]])
         cache.set(channel.key('done'), done, WRITE_TTL)
         return True
