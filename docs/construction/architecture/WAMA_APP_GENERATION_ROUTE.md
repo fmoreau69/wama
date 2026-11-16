@@ -1816,7 +1816,23 @@ manifeste** (ce que le kind `app` capte + cible de projection).
     `REMOVAL_LEDGER R127`) : plus aucun consommateur, les deux jumelles qui le rendaient encore
     (gabarits copiés le 07/10) recréées depuis leurs sources. Les lectures d'un résultat n'ont
     plus qu'une voie : les faces de la visionneuse.
-  - ⏳ **Restes, dans l'ordre** : ② rendus par TYPE (ABC en partition) ; ③ les lignes de la bande des process ouvrent leur face, l'état du
+  - ✅ **② pour la PARTITION, 2026-11-16** (`2a6a6fb9e`, demande de Fabien : « on bascule sur la
+    partition, la lecture se poursuit sans s'arrêter […] toujours la possibilité de switcher de
+    l'audio au midi sans interruption ») : une face dont le fichier est une partition
+    (`SCORE_EXTENSIONS`) se GRAVE et se JOUE — le serveur la décrit (`preview_utils._score_face` :
+    texte, audios de l'élément et celui dont elle est TIRÉE par `ProcessSpec.depends_on`, page qui
+    l'édite par `Surface.fields`/`also_edits`, scripts et feuilles que déclarent les briques
+    `score_view` et `media_transport`), la visionneuse la monte par le module commun
+    `WamaScorePlayer` (sorti de la brique), le transport commun sur l'axe de la face, l'écoute
+    choisie (audio d'origine, autre audio, MIDI calé sur les repères) sans arrêter l'axe, la face
+    d'où l'on vient décidant de l'écoute ; « Source ABC », « Éditer » (page ouverte sur ce champ,
+    `?field=`). Mesuré au navigateur : Sortie 3,33 s → Partition 5,03 s en lecture → MIDI → Entrée
+    7,05 → 9,03 s, 0 erreur. Même jour : le noyau des surfaces protège le montage d'une brique
+    (`mountBrick`) — une brique qui lève ne laisse plus la page sans ses autres briques ni erreur.
+    ⏳ La face change sa version écoutée par son petit code (`listen`), de même nature que le
+    `load` de la brique transport, qui exige un contexte de surface : à unifier si une troisième
+    page en a besoin ; les aperçus EN LIGNE (cards, volet) montrent encore le texte.
+  - ⏳ **Restes, dans l'ordre** : ② rendus par TYPE (ABC en partition — fait pour la visionneuse, ci-dessus) ; ③ les lignes de la bande des process ouvrent leur face, l'état du
     process (périmé, en échec) se lit sur elle ; ④ Studio (nœuds `StudioRun`, `output_ref`), Lab
     (passes du cam_analyzer, une face par caméra, `instance_key`), Data (Explorer). Et la face de
     l'ORIGINAL gardé par la Sortie (`native_outputs`) pour les quatre process de la liste qui le

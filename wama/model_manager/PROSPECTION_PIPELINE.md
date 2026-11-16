@@ -4779,6 +4779,18 @@ fondu linéaire ce que `audio_enhancer.py` (DeepFilterNet, l.426-474) fait déj�
 sans garde — une brique commune (`common/utils/`, raccord en flux) les servirait toutes deux ; non
 ramenée (le chemin du rehausseur n'a aucun test qui le tienne).
 
+✅ **REFUSION des pistes** (2026-11-16, `8b851d714`, demande de Fabien : « refusionner les stems pour
+recréer un audio complet ou partiel […] le découpage puis la fusion dégradent la qualité ») : brique
+commune `common/utils/stem_mix.py` — mélange = original + Σ (gain − 1) · piste : tout à 1 = l'original
+EXACT, une piste à 0 retranchée, seuls ses défauts touchent le reste ; lecture stéréo
+(`audio_decode.decode_stereo`). Composer : process optionnel `remix` après `separate`, « Refusion des
+pistes » + « Pistes à retirer » (aussi dans la ⚙ du LOT), sortie `remix_audio` + une card du lot (rôle
+`remix`, sa copie). ⏳ Le second accès (sélection de cards de pistes + clic droit « Refusionner ») : le
+menu commun n'a pas d'action déclarable sur une sélection. ⏳ Le MIXAGE EN TEMPS RÉEL (gains continus
+dans la page, la même formule) : une brique WebAudio calée à l'échantillon — des lecteurs `<audio>`
+suivis à ±20 ms par l'axe ne s'annulent pas en soustraction. La séparation reste à la demande (coût GPU).
+⏳ La jumelle `composer_01` ne reçoit pas le process (sa liste de fonctions est figée à sa création).
+
 **Suite** : validation des trois propositions par Fabien (dacvae et perception_models d'abord, leurs
 manifestes résolvent le `requires` de sam_audio), puis `install_library` (requises d'abord) ;
 correctifs `torchcodec` exportés sous `patches/` et déclarés ; backend `SourceSeparationBackend` en sous-processus (le patron des moteurs vendorisés), capacité `stems: open`
