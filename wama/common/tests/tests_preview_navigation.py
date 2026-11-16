@@ -322,9 +322,12 @@ class OneFaceSwitchTest(SimpleTestCase):
                      play: function () { a.paused = false; return null; },
                      pause: function () { a.paused = true; }};
             var calls = {play: 0, seek: []};
-            window.WamaAudioPlayer = {getAudio: function (id) { return id === 'modal-audio' ? a : null; },
+            var W = window.WamaAudioPlayer = {getAudio: function (id) { return id === 'modal-audio' ? a : null; },
                 play: function () { calls.play++; a.paused = false; return a; },
-                seek: function (id, t) { calls.seek.push(t); a.currentTime = t; }};
+                seek: function (id, t) { calls.seek.push(t); a.currentTime = t; },
+                // the player's own attach (`follow`, kept by tests_audio_player_js)
+                follow: function (id, axis) { return axis.attach(a, {
+                    play: function () { return W.play(id); }, seek: function (t) { W.seek(id, t); }}); }};
             var holder = {isConnected: true, attrs: {},
                           setAttribute: function (k, v) { holder.attrs[k] = v; }};
             var axis = P.soundOnAxis(holder, 'modal-audio');
@@ -343,6 +346,46 @@ class OneFaceSwitchTest(SimpleTestCase):
         self.assertEqual([None, None], out[5:7], 'not in the page, or no such player : no axis')
         self.assertEqual([True, 30], out[7:9], 'the axis pauses it and places it through the player')
         self.assertTrue(out[9], 'and plays it through the player (exclusive playback)')
+
+    def test_a_sound_of_a_card_or_of_the_panel_joins_an_axis_when_it_first_starts(self):
+        """The common player announces the first start of a sound nobody put on an axis
+        (`wama:audio-started`) ; the preview then holds an axis on its box. A sound inside a
+        holder that already has an axis (the viewer) is left alone, and nothing is created
+        before a start — mounting a queue costs no axis."""
+        from py_mini_racer import MiniRacer
+        v8 = MiniRacer()
+        v8.eval(FAKE_DOM + FAKE_ELEMENTS + 'var docOn = {};'
+                'document.addEventListener = function (k, fn) { docOn[k] = fn; };'
+                'window.requestAnimationFrame = function () { return 1; };'
+                'window.cancelAnimationFrame = function () {};'
+                + (JS / 'wama-axis.js').read_text(encoding='utf-8'))
+        v8.eval((JS / 'media-preview.js').read_text(encoding='utf-8'))
+        out = list(v8.eval("""(function () {
+            var P = window.WamaMediaPreview, followed = [];
+            var a = {tagName: 'AUDIO', currentTime: 0, duration: 60, paused: false, ended: false,
+                     readyState: 4, seeking: false, playbackRate: 1, volume: 1, muted: false,
+                     addEventListener: function () {}, removeEventListener: function () {},
+                     play: function () { a.paused = false; return null; },
+                     pause: function () { a.paused = true; }};
+            window.WamaAudioPlayer = {getAudio: function () { return a; },
+                play: function () { return a; }, seek: function () {},
+                follow: function (id, axis) { followed.push(id); return axis.attach(a, {}); }};
+            var box = function (held) { var b = {isConnected: true, attrs: {},
+                setAttribute: function (k, v) { b.attrs[k] = v; },
+                closest: function () { return held ? {} : null; }}; return b; };
+            var card = box(false), inViewer = box(true);
+            var before = typeof docOn['wama:audio-started'];
+            docOn['wama:audio-started']({target: inViewer, detail: {id: 'modal-audio'}});
+            var skipped = followed.length;
+            docOn['wama:audio-started']({target: card, detail: {id: '7'}});
+            var axis = P.axisOf(card);
+            return [before, skipped, followed.join(','), !!axis, axis ? axis.medias().length : -1,
+                    axis ? axis.playing() : null, P.axisOf(inViewer) === null];
+        })()"""))
+        self.assertEqual('function', out[0], 'the preview listens to the first start of a sound')
+        self.assertEqual(0, out[1], 'a sound inside a holder that has its axis is left alone')
+        self.assertEqual(['7', True, 1, True, True], out[2:],
+                         'the sound of the card follows an axis held by its box, still playing')
 
     def test_the_viewer_width_follows_what_it_shows(self):
         """A media takes the room, a text keeps a reading width, a sound stays narrow (2026-10-14 :

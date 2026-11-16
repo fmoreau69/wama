@@ -380,14 +380,12 @@
      *  avait (la face d'avant a pu les lui rendre, `giveClock`). */
     function _soundOnAxis(holder, playerId) {
         const P = window.WamaAudioPlayer;
-        const audio = P && P.getAudio ? P.getAudio(playerId) : null;
+        const audio = P && P.follow ? P.getAudio(playerId) : null;
         if (!audio || !holder || !holder.isConnected) return null;
         const at = audio.currentTime || 0, playing = !audio.paused && !audio.ended;
-        const axis = playOnAxis(holder, [{ el: audio, opts: {
-            play: function () { return P.play(playerId); },
-            seek: function (t) { P.seek(playerId, t, false); },
-        } }]);
+        const axis = playOnAxis(holder, []);
         if (!axis) return null;
+        P.follow(playerId, axis);
         if (at > 0) axis.seek(at);
         if (playing) axis.play();
         return axis;
@@ -1213,6 +1211,15 @@
             event.preventDefault();
             event.stopPropagation();
             openPreview(btn.dataset.previewUrl, btn);
+        });
+
+        // Le son d'une card ou du volet : posé sur un axe à son PREMIER départ (le lecteur commun
+        // l'annonce, `wama:audio-started`, et se tait pour un son déjà sur un axe — une surface,
+        // la visionneuse). Monter une file ne crée donc aucun axe.
+        document.addEventListener('wama:audio-started', function (event) {
+            const box = event.target;
+            if (!box || !event.detail || (box.closest && box.closest('[' + AXIS_ATTR + ']'))) return;
+            _soundOnAxis(box, event.detail.id);
         });
 
         document.addEventListener('dblclick', function (event) {

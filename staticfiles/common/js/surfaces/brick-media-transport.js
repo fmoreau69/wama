@@ -92,11 +92,8 @@
             if (serverPeaks && serverPeaks.duration) axis.setDuration(serverPeaks.duration);
             // Le média joue et se positionne par le lecteur commun : sa lecture EXCLUSIVE, et sa
             // position reposée quand le fichier devient positionnable — l'axe ne les refait pas.
-            dropMedia = axis.attach(media, {
-                offset: (Number(options.offset) || 0) - (Number(start) || 0),
-                play: function () { return Player.play(playerId); },
-                seek: function (t) { Player.seek(playerId, t, false); },
-            });
+            // (`Player.follow`, que l'aperçu emprunte aussi pour ses sons.)
+            dropMedia = Player.follow(playerId, axis, (Number(options.offset) || 0) - (Number(start) || 0));
             if (keep) axis.seek(keep);
         }
 

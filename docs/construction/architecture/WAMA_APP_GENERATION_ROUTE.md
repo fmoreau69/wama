@@ -1723,10 +1723,23 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       (`media-preview.js`, `_soundOnAxis` — la forme du transport d'une surface : lecture
       exclusive et position reposée restent au lecteur commun), au temps et dans l'état qu'il
       avait ; le magnéto de la visionneuse le trouve comme une vidéo (`axisOf`). Garde :
-      `OneFaceSwitchTest.test_a_sound_of_the_viewer_follows_the_axis_too`. ⚠ Pas encore joué
-      au navigateur. ⏳ Reste : le son du VOLET et des cards (leur lecteur s'initialise au
-      premier clic — le poser sur l'axe d'office le chargerait pour chaque card), et la bande
-      fine à la place des contrôles natifs, à parité mesurée.
+      `OneFaceSwitchTest.test_a_sound_of_the_viewer_follows_the_axis_too`. Joué au navigateur
+      le jour même sur le WAMA en service (Espace, K, L L à ×1,25, le bouton du lecteur).
+    - 🔄 **2026-11-16 — marche ③, deuxième pas : le son d'une CARD et du VOLET suit l'axe, à
+      son premier départ.** Poser un son sur un axe s'écrit UNE fois, dans le lecteur commun
+      (`WamaAudioPlayer.follow(id, axe, décalage)` : il y joue et s'y positionne par le
+      lecteur) — le transport d'une surface (`brick-media-transport.js`) et l'aperçu
+      l'empruntent, leurs deux copies retirées. Le lecteur annonce le premier départ d'un son
+      que personne n'a posé sur un axe (`wama:audio-started`) ; l'aperçu tient alors un axe
+      sur sa boîte (`media-preview.js`, `_delegate`). Rien au montage : une file de cent cards
+      ne crée aucun axe. Gardes : `tests_audio_player_js` (l'attache, l'annonce une seule
+      fois, jamais pour un son déjà sur un axe),
+      `OneFaceSwitchTest.test_a_sound_of_a_card_or_of_the_panel_joins_an_axis_when_it_first_starts`.
+      Joué au navigateur : rien avant le
+      clic, lecture, pause, clic dans l'onde, fin, relecture depuis le début. ⏳ Reste : rien
+      ne PILOTE encore cet axe hors de la visionneuse (ni touches ni bande dans le volet et
+      les cards) — c'est la bande fine (`strip`), qui remplacera aussi les contrôles natifs
+      des vidéos, à parité mesurée.
   - ✅ **2026-10-21 — LE VOLET DEVIENT UNE ZONE DE BRIQUES, étape 1 : les surfaces** (décision de
     Fabien : *« on passe tout WAMA progressivement en briques UI »*, verrouillé par défaut pour
     tous, le volet en colonne, les réglages en deux colonnes gardés). Domicile : `WAMA_VOLETS

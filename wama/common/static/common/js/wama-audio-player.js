@@ -15,6 +15,7 @@
  *   .init(container, autoplay)     → initialise un container existant
  *   .destroy(id)                   → stoppe + supprime du DOM
  *   .play(id)                      → démarre EN EXCLUSIVITÉ (players + DOM + voix)
+ *   .follow(id, axis, offset)      → pose l'audio sur un axe de temps (wama-axis.js)
  *   .pauseAll()                    → met en pause tous les players
  *   .isPlaying()                   → un player joue-t-il ? (son de notification, 2026-10-06)
  */
@@ -254,6 +255,15 @@
             if (playBtnIcon) playBtnIcon.className = 'fas fa-pause fa-xs';
         });
 
+        // Le PREMIER départ d'un lecteur que personne n'a posé sur un axe de temps (`follow`) :
+        // la page l'apprend, et peut l'y poser (l'aperçu : le son d'une card ou du volet —
+        // `media-preview.js`, 2026-11-16). Au départ seulement : monter une file ne crée rien.
+        audio.addEventListener('play', function() {
+            if (state.onAxis || registry.get(playerId) !== state) return;
+            container.dispatchEvent(new CustomEvent('wama:audio-started',
+                                                    { bubbles: true, detail: { id: playerId } }));
+        }, { once: true });
+
         audio.addEventListener('pause', function() {
             if (playBtnIcon) playBtnIcon.className = 'fas fa-play fa-xs';
         });
@@ -459,6 +469,23 @@
             pauseOthers(String(playerId));
             a.play().catch(function() {});
             return a;
+        },
+
+        /** Pose l'audio du player sur l'axe de temps `axis` (`wama-axis.js`), décalé de `offset` :
+         *  il y joue et s'y positionne PAR le lecteur — sa lecture exclusive (`play`) et sa
+         *  position reposée quand le fichier devient positionnable (`seek`), que l'axe ne refait
+         *  pas. Rend la fonction qui l'en détache ; null sans lecteur ou sans axe. */
+        follow: function(playerId, axis, offset) {
+            var id = String(playerId), self = this, a = this.getAudio(id);
+            if (!a || !axis) return null;
+            var s = registry.get(id);
+            var drop = axis.attach(a, {
+                offset: Number(offset) || 0,
+                play: function() { return self.play(id); },
+                seek: function(t) { self.seek(id, t, false); },
+            });
+            s.onAxis = true;
+            return function() { s.onAxis = false; drop(); };
         },
 
         /** Positionne la lecture à `seconds` (init si nécessaire) + joue optionnellement. */

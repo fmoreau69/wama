@@ -21,8 +21,14 @@ var window = this;
 var fetched = [];
 function fetch(url) { fetched.push(url); return new Promise(function () {}); }
 function Audio() {
-  this.src = ''; this.paused = true; this.preload = '';
-  this.addEventListener = function () {};
+  this.src = ''; this.paused = true; this.preload = ''; this.readyState = 4;
+  var on = [];
+  this.addEventListener = function (k, fn, o) { on.push([k, fn, !!(o && o.once)]); };
+  this.fire = function (k) {
+    var due = on.filter(function (l) { return l[0] === k; });
+    on = on.filter(function (l) { return !(l[0] === k && l[2]); });
+    due.forEach(function (l) { l[1](); });
+  };
   this.pause = function () { this.paused = true; };
   this.play = function () { this.paused = false; return { catch: function () {} }; };
 }
@@ -32,7 +38,8 @@ function el() {
            addEventListener: function () {},
            getContext: function () { return { clearRect: function () {}, fillRect: function () {} }; } };
 }
-var containers = {};
+var containers = {}, announced = [];
+function CustomEvent(type, o) { this.type = type; this.detail = o.detail; this.bubbles = o.bubbles; }
 var document = {
   addEventListener: function () {},
   createElement: function () { return el(); },
@@ -41,6 +48,7 @@ var document = {
 function container(id, url) {
   var parts = {};
   var c = { id: 'audioPlayer_' + id, dataset: { audioUrl: url, waveformHeight: '48' },
+            dispatchEvent: function (e) { announced.push([e.type, e.detail.id, e.bubbles]); },
             querySelector: function (sel) { return parts[sel] || (parts[sel] = el()); } };
   containers[c.id] = c;
   return c;
@@ -83,3 +91,35 @@ class CommonAudioPlayerTest(SimpleTestCase):
         self.assertEqual(0, ctx.eval('fetched.length'),
                          'les pics sont fournis : retélécharger le fichier pour les recalculer est inutile')
         self.assertEqual('none', ctx.eval("WamaAudioPlayer.getAudio('insp').preload"))
+
+    def test_a_player_follows_an_axis_through_its_own_rules(self):
+        """2026-11-16 : ONE attach of a player's sound to a time axis (`follow`) — the surface
+        transport and the preview both take it. The axis plays and places the sound THROUGH the
+        player (exclusive playback, a position set again once seekable)."""
+        ctx = self._ctx()
+        out = list(ctx.eval("""(function () {
+            container('s1', '/b.wav');
+            var got = [], axis = {attach: function (el, o) { got.push(el, o); return function () { got.push('dropped'); }; }};
+            var drop = WamaAudioPlayer.follow('s1', axis, 2), a = WamaAudioPlayer.getAudio('s1');
+            var r = [got[0] === a, got[1].offset, got[1].play() === a, a.paused];
+            got[1].seek(5); r.push(a.currentTime);
+            drop(); r.push(got[2]);
+            r.push(WamaAudioPlayer.follow('absent', axis), WamaAudioPlayer.follow('s1', null));
+            return r;
+        })()"""))
+        self.assertEqual([True, 2, True, False, 5, 'dropped', None, None], out)
+
+    def test_the_first_start_of_a_sound_on_no_axis_is_announced_once(self):
+        """A card or the panel : the page learns the first start, and may put the sound on an axis
+        (`media-preview.js`). Not at mount, not twice, and never for a sound already on an axis."""
+        ctx = self._ctx()
+        out = ctx.eval("""(function () {
+            WamaAudioPlayer.init(container('card7', '/a.wav'), false);
+            var mounted = announced.length, a = WamaAudioPlayer.getAudio('card7');
+            a.fire('play'); a.fire('play');
+            container('s1', '/b.wav');
+            WamaAudioPlayer.follow('s1', {attach: function () { return function () {}; }});
+            WamaAudioPlayer.getAudio('s1').fire('play');
+            return JSON.stringify([mounted, announced]);
+        })()""")
+        self.assertEqual('[0,[["wama:audio-started","card7",true]]]', out)

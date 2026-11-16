@@ -86,8 +86,9 @@ class CorrectionIsADeclaredSurfaceTest(SimpleTestCase):
         # The medium plays and seeks through the common player — its rules (exclusive playback, a
         # position set again once seekable) are never redone by the brick that attaches it.
         brick = _read(TRANSPORT_BRICK)
-        self.assertIn('play: function () { return Player.play(playerId); }', brick)
-        self.assertIn('seek: function (t) { Player.seek(playerId, t, false); }', brick)
+        # ONE attach for every sound of WAMA : the player's own (`follow`, tests_audio_player_js).
+        self.assertIn('Player.follow(playerId, axis,', brick)
+        self.assertNotIn('axis.attach(media', brick)
 
     def test_the_transport_knows_no_view_no_medium_and_no_data(self):
         # Redécoupage du 2026-10-21 : le transport envoie des commandes à l'axe, rien d'autre. Un
