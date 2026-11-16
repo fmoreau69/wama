@@ -1603,7 +1603,9 @@ def _delegate_tool() -> tuple:
         "get several models). Then `decide` concludes for you: \"vote\" for a closed question "
         "(give `options`), \"synthesis\" for an open one (a decider reads the anonymised reports), "
         "\"review\" for a question worth a deep answer (each agent first ranks the others' "
-        "anonymised reports, then the decider concludes with that ranking).")
+        "anonymised reports, then the decider concludes with that ranking). A \"six hats\" "
+        "council (De Bono) is agents facts, intuition, benefits, critique, ideas with "
+        "decide=\"synthesis\" — the decider is the blue hat.")
     line = f"\n- {DELEGATE_TOOL}(task, domain, tasks, agents, decide, options): {description}"
     task_property = {'type': 'string',
                      'description': 'The complete task, understandable without this conversation.'}

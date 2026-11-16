@@ -89,6 +89,20 @@ DOMAINES = (
     AssistantDomain('methodology', 'Méthodologie', 'assistant-methodology', rag=True,
                      announced=False,
                      help_text="Protocole, biais, validité, travaux existants d'une question de recherche."),
+    # Les SIX CHAPEAUX de De Bono (2026-11-16, décision de Fabien : six postures déclarées comme
+    # les deux ci-dessus). Quatre entrées suffisent : le chapeau NOIR est le Contradicteur
+    # (`critique`), le BLEU est le décideur d'un council (`decide` de l'outil `delegate`), qui
+    # existaient. Un council « six chapeaux » = ces agents + `critique`, puis `decide`.
+    AssistantDomain('facts', 'Chapeau blanc — les faits', 'assistant-facts', announced=False,
+                     help_text="Les faits et les données, sourcés, sans avis ; ce qui manque."),
+    AssistantDomain('intuition', 'Chapeau rouge — le ressenti', 'assistant-intuition',
+                     announced=False,
+                     help_text="Intuitions et ressentis que la question provoque, sans justification."),
+    AssistantDomain('benefits', 'Chapeau jaune — les bénéfices', 'assistant-benefits',
+                     announced=False,
+                     help_text="Ce que l'idée apporte, à qui, et à quelles conditions — argumenté."),
+    AssistantDomain('ideas', 'Chapeau vert — les idées', 'assistant-ideas', announced=False,
+                     help_text="Options nouvelles et alternatives, sans les juger."),
 )
 
 DEFAULT_DOMAIN = 'general'

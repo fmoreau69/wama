@@ -203,5 +203,7 @@ class ChargementParLAssistantTests(TestCase):
         # une compétence (décision de Fabien). Toute autre ligne se paie à chaque tour.
         # 700 → 750 le même jour : la ligne NOMME aussi les postures d'agent (733 mesurés ;
         # une dizaine de jetons, décision de Fabien).
-        self.assertLess(annonce, 750)
+        # 750 → 800 le 2026-11-16 : quatre postures de plus dans la même ligne (les chapeaux de
+        # De Bono, décision de Fabien ; 733 → mesuré ci-dessous, une douzaine de jetons).
+        self.assertLess(annonce, 800)
         self.assertLess(annonce * 5, entiers)     # au moins 5× moins cher

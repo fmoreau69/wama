@@ -548,13 +548,28 @@ class CouncilTest(TestCase):
             competences_announcement, resolve_domain, role_instructions,
         )
         line, spec = assistant_engine._delegate_tool()
-        for key in ('critique', 'methodology'):
+        # 2026-11-16 : + les chapeaux de De Bono (blanc, rouge, jaune, vert ; le noir est `critique`).
+        for key in ('critique', 'methodology', 'facts', 'intuition', 'benefits', 'ideas'):
             self.assertEqual(key, resolve_domain(key).key)
             self.assertTrue(role_instructions(key))
             self.assertIn(key, spec['function']['parameters']['properties']['agents']['items']['enum'])
             # Postures d'AGENT : nommées par `delegate`, hors de la liste des compétences que le
             # modèle charge de lui-même ; la ligne de l'utilisateur les nomme (2026-11-10).
             self.assertNotIn(f'- `{key}`', competences_announcement())
+
+    def test_a_six_hats_council_is_a_composition_the_tool_names(self):
+        """2026-11-16 : the assistant had « adopted » the six hats by saving a memory, and ran its
+        council as ONE agent told to play them all. The hats are declared agents ; five of them fit
+        one turn, the sixth (blue) is the decider the tool already has."""
+        from wama.common.utils.assistant_skills import role_instructions
+        line, spec = assistant_engine._delegate_tool()
+        hats = ['facts', 'intuition', 'benefits', 'critique', 'ideas']
+        self.assertLessEqual(len(hats), assistant_engine.MAX_DELEGATIONS_PER_TURN)
+        self.assertIn(', '.join(hats), line)
+        self.assertIn('synthesis', assistant_engine.DECISION_MODES)
+        colours = {'facts': 'WHITE', 'intuition': 'RED', 'benefits': 'YELLOW', 'ideas': 'GREEN'}
+        for key, colour in colours.items():
+            self.assertIn(f'{colour} hat', role_instructions(key))
 
 
 class CouncilUnderTrialTest(TestCase):
