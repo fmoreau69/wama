@@ -1520,16 +1520,21 @@ UNE brique pour tout service externe qui limite son débit : la NOTE de saturati
 
 ### Révisions d'un élément (historique DANS la card)
 
-Chaque résultat produit donne à l'élément une révision numérotée — réglages dérivés du schéma, fichiers et leur empreinte, instruction — rattachée au fait `produit` de `RunOutcome` (un journal, pas deux) ; une révision PUBLIÉE est une version. Capture posée une fois dans le squelette de tâche : zéro ligne par app, la file ne voit rien. Une app qui le DÉCLARE (`keep_outputs`, le Writer d'abord, 2026-10-13) GARDE la copie des fichiers de ses 20 dernières révisions + des publiées (`KeptOutputsMixin`, liste déclarée à la rétention) ; au-delà la révision dit « fichier purgé ». ⏳ Restaurer d'un geste, les dix apps, volet Historique : marches suivantes
+Chaque résultat produit donne à l'élément une révision numérotée — réglages dérivés du schéma, fichiers et leur empreinte, instruction — rattachée au fait `produit` de `RunOutcome` (un journal, pas deux) ; une révision PUBLIÉE est une version. Capture posée une fois dans le squelette de tâche : zéro ligne par app, la file ne voit rien. Une app qui le DÉCLARE (`keep_outputs`, le Writer d'abord, 2026-10-13) GARDE la copie des fichiers de ses 20 dernières révisions + des publiées (`KeptOutputsMixin`, liste déclarée à la rétention) ; au-delà la révision dit « fichier purgé ». Un champ de DONNÉE corrigé à la main sur une page d'édition (2026-11-16, la couche de corrections des détections) garde sa VALEUR dans la révision elle-même (`keep_values`, `kept_value` ; même rétention, sans déclaration d'app) : la brique « Versions » la reprend comme un fichier gardé. ⏳ Restaurer d'un geste, les dix apps, volet Historique : marches suivantes
 
 - **Domicile** : `wama/common/services/revisions.py` · **doc** : [docs/construction/exploitation/WAMA_COLLABORATION.md §7.1](../construction/exploitation/WAMA_COLLABORATION.md)
 - **Module** : Révisions d'un élément — la brique de la marche 8a (`WAMA_COLLABORATION.md §7.1`).
-- **API publique** (21) :
+- **API publique** (26) :
   - `json_safe(value)` — Une valeur de réglage telle qu'un JSONField la gardera (Decimal, date… → chaîne ; un
   - `settings_snapshot(app_id: str, item) -> dict` — Réglages de `item` à cet instant, dérivés du schéma de son app. `{}` sans schéma.
   - `text_fingerprint(value) -> str` — Empreinte d'une sortie qui est un TEXTE (pas un fichier) — celle des révisions, et celle
   - `output_references(item, fields=None) -> list` — `[{field, path, sha256}]` des SORTIES de `item`.
-  - `record_revision(app_id: str, item, *, origin: str='process', user=None, outcome=None, model_keys=None, instruction: str='', output_fields=None)` — Donne à `item` sa révision suivante. Rend la ligne créée, ou None si rien n'a pu
+  - `record_revision(app_id: str, item, *, origin: str='process', user=None, outcome=None, model_keys=None, instruction: str='', output_fields=None, values=None)` — Donne à `item` sa révision suivante. Rend la ligne créée, ou None si rien n'a pu
+  - `keep_values(references: list, values) -> list` — Les références de sortie, celles des champs de `values` portant leur VALEUR (`VALUE_KEY`).
+  - `kept_value(app_id: str, item, number: int, field: str) -> tuple` — `(gardée, valeur)` du champ de donnée `field` à la révision `number` — `(False, None)`
+  - `last_kept_value(app_id: str, item, field: str) -> tuple` — `(gardée, valeur)` de la DERNIÈRE révision qui garde la valeur de `field` — ce à quoi un
+  - `keeps_value(revision, field: str) -> bool` — La révision garde-t-elle la valeur du champ de donnée `field` ?
+  - `prune_values(app_id: str, item, keep: int=0) -> int` — La rétention des VALEURS gardées : seules celles des `keep` dernières révisions (défaut
   - `keep_outputs(app_id: str, keep: int=KEEP_DEFAULT, fields=None) -> None` — Déclare que `app_id` GARDE les fichiers de ses `keep` dernières révisions (+ les publiées).
   - `kept_count(app_id: str) -> int` — Combien de révisions gardent leurs fichiers pour `app_id` — 0 : l'app n'en garde pas.
   - `kept_declaration(app_id: str)` — La déclaration de `app_id` telle que le manifeste la porte (`processing.revisions`) :

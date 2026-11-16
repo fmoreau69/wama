@@ -966,7 +966,11 @@ MECHANISMS = (
               "posée une fois dans le squelette de tâche : zéro ligne par app, la file ne voit rien. "
               "Une app qui le DÉCLARE (`keep_outputs`, le Writer d'abord, 2026-10-13) GARDE la copie "
               "des fichiers de ses 20 dernières révisions + des publiées (`KeptOutputsMixin`, liste "
-              "déclarée à la rétention) ; au-delà la révision dit « fichier purgé ». "
+              "déclarée à la rétention) ; au-delà la révision dit « fichier purgé ». Un champ de "
+              "DONNÉE corrigé à la main sur une page d'édition (2026-11-16, la couche de corrections "
+              "des détections) garde sa VALEUR dans la révision elle-même (`keep_values`, "
+              "`kept_value` ; même rétention, sans déclaration d'app) : la brique « Versions » la "
+              "reprend comme un fichier gardé. "
               "⏳ Restaurer d'un geste, les dix apps, volet Historique : marches suivantes",
               'wama/common/services/revisions.py',
               'docs/construction/exploitation/WAMA_COLLABORATION.md §7.1',

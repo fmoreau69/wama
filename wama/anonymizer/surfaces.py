@@ -53,7 +53,9 @@ register_surface(Surface(
     model='anonymizer.Media',
     slots=(BrickSlot('image', 'image_boxes', 0, 0, 9, 14),
            BrickSlot('objects', 'object_list', 9, 0, 3, 9),
-           BrickSlot('actions', 'surface_actions', 9, 9, 3, 5)),
+           BrickSlot('actions', 'surface_actions', 9, 9, 3, 5),
+           # Les VERSIONS des corrections (2026-11-16) : chaque enregistrement en garde une.
+           BrickSlot('versions', 'revision_history', 9, 14, 3, 5)),
     reads={'image': 'file', 'detections': 'detections_file'},
     documents=('detections',),
     edits='detection_corrections', validate=validate_corrections,
@@ -71,10 +73,16 @@ register_surface(Surface(
     model='anonymizer.Media',
     slots=(BrickSlot('video', 'image_boxes', 0, 0, 9, 12,
                      {'role': 'video', 'video': True, 'title': 'Vidéo et zones'}),
-           # Les commandes seules : la vidéo est posée sur l'axe par la brique des zones.
-           BrickSlot('transport', 'media_transport', 0, 12, 9, 2, {'media': False, 'jump': 5}),
+           # Les commandes seules : la vidéo est posée sur l'axe par la brique des zones. Celles
+           # d'une correction image par image (options du transport commun, 2026-11-15) : le pas
+           # d'une image, le curseur de position (la page n'a pas de ligne de temps), le son de la
+           # vidéo, et la position reprise à la réouverture de la page.
+           BrickSlot('transport', 'media_transport', 0, 12, 9, 2,
+                     {'media': False, 'jump': 5, 'step': True, 'position': True, 'volume': True,
+                      'remember': True}),
            BrickSlot('objects', 'object_list', 9, 0, 3, 9),
-           BrickSlot('actions', 'surface_actions', 9, 9, 3, 5)),
+           BrickSlot('actions', 'surface_actions', 9, 9, 3, 5),
+           BrickSlot('versions', 'revision_history', 9, 14, 3, 5)),
     reads={'video': 'file', 'detections': 'detections_file'},
     documents=('detections',),
     edits='detection_corrections', validate=validate_corrections,
@@ -84,7 +92,6 @@ register_surface(Surface(
     # pour toute la séquence — le réglage d'interpolation de la card, celui que lit le floutage.
     context={'classes': lambda media: sane_classes(media.classes2blur),
              'chain_gap': 'max_interpolation_frames'},
-    # Le témoin des vignettes : la mire du harnais et des détections (celles de l'image témoin,
-    # posées sur sa première image).
+    # Le témoin des vignettes : la mire du harnais et ses détections, image par image.
     witness={'file': '.mp4', 'detections_file': 'detections', 'media_type': 'video',
              'file_ext': '.mp4'}))

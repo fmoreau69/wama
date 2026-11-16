@@ -196,10 +196,18 @@ class CorrectionSurfaceEndToEndTest(TestCase):
         self.item.refresh_from_db()
         self.assertEqual('draft', self.item.correction_status)
         self.assertEqual('bonjour à tous', self.item.text)
+        # The versions of a corrected DATA field (2026-11-16) : a page that saves by itself keeps
+        # none while it drafts — one at « Terminer », and not twice the same state.
+        from wama.common.services.revisions import last_kept_value, revisions_of
+        self.assertEqual(0, revisions_of('transcriber', self.item).count())
         done = self.client.post(self.base + 'save/',
                                 json.dumps({'value': value, 'base': draft['token'], 'finished': True}),
                                 content_type='application/json').json()
         self.assertTrue(done['finished'])
+        self.assertEqual((True, value), last_kept_value('transcriber', self.item, 'corrected_segments_json'))
+        self.client.post(self.base + 'save/', json.dumps({'value': value, 'base': done['token'], 'finished': True}),
+                         content_type='application/json')
+        self.assertEqual(1, revisions_of('transcriber', self.item).count())
         self.item.refresh_from_db()
         self.assertEqual('done', self.item.correction_status)
         self.assertEqual(['bonjour à tous'], [s.text for s in self.item.segments.order_by('order')])

@@ -2596,6 +2596,16 @@
             "x": 9,
             "y": 9,
             "zone": "grid"
+          },
+          {
+            "brick": "revision_history",
+            "h": 5,
+            "id": "versions",
+            "options": {},
+            "w": 3,
+            "x": 9,
+            "y": 14,
+            "zone": "grid"
           }
         ],
         "validate": "wama.anonymizer.surfaces.validate_corrections",
@@ -2649,7 +2659,11 @@
             "id": "transport",
             "options": {
               "jump": 5,
-              "media": false
+              "media": false,
+              "position": true,
+              "remember": true,
+              "step": true,
+              "volume": true
             },
             "w": 9,
             "x": 0,
@@ -2674,6 +2688,16 @@
             "w": 3,
             "x": 9,
             "y": 9,
+            "zone": "grid"
+          },
+          {
+            "brick": "revision_history",
+            "h": 5,
+            "id": "versions",
+            "options": {},
+            "w": 3,
+            "x": 9,
+            "y": 14,
             "zone": "grid"
           }
         ],

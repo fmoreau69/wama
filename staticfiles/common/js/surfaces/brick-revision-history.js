@@ -4,7 +4,9 @@
  *
  * Universelle : elle liste les révisions de l'élément (`…/revisions/`), la plus récente d'abord —
  * d'où vient l'état (traitement ou correction à la main), quand, par qui —, et pour celles dont
- * le fichier édité a été GARDÉ, « Reprendre » charge son texte dans la page.
+ * le fichier édité a été GARDÉ, « Reprendre » charge son texte dans la page. Un champ de DONNÉE
+ * corrigé à la main (2026-11-16, la couche de corrections des détections) garde sa valeur dans la
+ * révision elle-même : la brique le reprend de même, sans rien savoir de la différence.
  *
  * Reprendre n'est PAS un retour en arrière destructif (§7.1 : « restaurer ne détruit rien ») :
  * c'est un geste d'édition comme une frappe — `ctx.edit()`, donc un cran de l'historique commun
@@ -68,8 +70,8 @@
             btn.dataset.number = String(r.number);
             btn.textContent = 'Reprendre';
             btn.disabled = !r.kept || !ctx.canEdit;
-            btn.title = !r.kept ? 'Le fichier de cette version n’est plus gardé (ou elle ne l’a pas modifié)'
-                : (ctx.canEdit ? 'Charger le texte de cette version dans la page' : 'Lecture seule');
+            btn.title = !r.kept ? 'Cette version n’est plus gardée (ou elle n’a pas modifié ce qu’on édite ici)'
+                : (ctx.canEdit ? 'Charger cette version dans la page' : 'Lecture seule');
             el.appendChild(head);
             el.appendChild(btn);
             return el;
@@ -78,7 +80,7 @@
         function load() {
             if (!url) { note('Versions indisponibles ici.'); return; }
             fetch(url + query(), { credentials: 'same-origin' }).then(App.jsonOrExplain).then(function (res) {
-                if (!res.keeps) { note('Cette app ne garde pas les versions de ce fichier.'); return; }
+                if (!res.keeps) { note('Les versions ne sont pas gardées ici.'); return; }
                 if (!(res.revisions || []).length) { note('Aucune version pour l’instant.'); return; }
                 list.innerHTML = '';
                 res.revisions.forEach(function (r) { list.appendChild(row(r)); });
@@ -112,7 +114,7 @@
         });
         load();
         return {
-            help: 'Versions : « Reprendre » charge le texte d’une version dans la page (Ctrl+Z l’annule) ; ' +
+            help: 'Versions : « Reprendre » charge une version dans la page (Ctrl+Z l’annule) ; ' +
                   '« Enregistrer » en fait une révision nouvelle, sans rien effacer.',
         };
     }

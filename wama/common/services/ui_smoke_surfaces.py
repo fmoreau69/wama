@@ -2199,6 +2199,41 @@ def _axis_gestures(context, token, surface, pk, verdict, reverse, page_hook=None
         alone = (zones()['removed'], at(late)['removed'])
         verdict(alone == (1, 0), f"{sid} : la portée rendue, ✕ ne retire que sur l'image montrée {alone}")
 
+        # ⑧ Les VERSIONS d'une correction (2026-11-16) : chaque enregistrement qui change la couche
+        # de corrections en garde une, que la brique « Versions » liste ; « Reprendre » charge une
+        # version dans la page — un geste d'édition, que l'annulation défait. Sur la surface qui
+        # pose la brique ; le témoin, et ses révisions avec lui, part en sortie.
+        versions = page.locator('.wama-brick-revisions')
+        if versions.count():
+            rows = lambda: page.locator('.wama-revision-row').count()
+
+            def save():
+                page.locator('.wama-brick-actions [data-act="save"]').first.click()
+                page.wait_for_timeout(1500)
+
+            before = rows()
+            save()                                 # version 1 : un objet retiré sur l'image `early`
+            first = rows()
+            scope.click()                                       # la portée reprise : toute la séquence
+            page.wait_for_timeout(200)
+            at(early)
+            page.locator('.wama-object-row:not(.is-removed) [data-act="remove"]').first.click()
+            page.wait_for_timeout(1200)
+            save()
+            second, wide = rows(), zones()['removed']
+            verdict((before, first, second) == (0, 1, 2),
+                    f"{sid} : chaque enregistrement qui change les corrections garde une version "
+                    f"({before} → {first} → {second})")
+            page.locator('.wama-revision-row button[data-number="1"]').click()
+            page.wait_for_timeout(1200)
+            taken = (zones()['removed'], at(late)['removed'])
+            verdict(wide == 2 and taken == (1, 0),
+                    f"{sid} : « Reprendre » la version 1 rend l'état de son enregistrement "
+                    f"(image {early} : {wide} retirés → {taken[0]}, image {late} : {taken[1]})")
+            history('Control+z')
+            back = at(early)['removed']
+            verdict(back == 2, f"{sid} : annuler défait la reprise ({back} retirés sur l'image {early})")
+
     shown = [e for e in errors if not any(t in e for t in IGNORED_CONSOLE)]
     verdict(not shown, f"{sid} : aucune erreur JS ({shown[:3]})")
 

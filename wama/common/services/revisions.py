@@ -122,9 +122,11 @@ def _target(app_id: str, item) -> dict:
 
 
 def record_revision(app_id: str, item, *, origin: str = 'process', user=None, outcome=None,
-                    model_keys=None, instruction: str = '', output_fields=None):
+                    model_keys=None, instruction: str = '', output_fields=None, values=None):
     """Donne à `item` sa révision suivante. Rend la ligne créée, ou None si rien n'a pu
-    être écrit (best-effort : ne lève jamais). `output_fields` : cf. `output_references`."""
+    être écrit (best-effort : ne lève jamais). `output_fields` : cf. `output_references`.
+    `values` : `{champ: valeur}` des sorties de DONNÉE dont la valeur se GARDE dans la révision
+    (`keep_values`) — une correction à la main d'un champ qui n'est pas un fichier."""
     try:
         from django.db import IntegrityError, transaction
         from django.db.models import Max
@@ -139,7 +141,7 @@ def record_revision(app_id: str, item, *, origin: str = 'process', user=None, ou
             model_keys=[str(k) for k in (model_keys or []) if k],
             instruction=instruction or '',
             settings=settings_snapshot(app_id, item),
-            outputs=output_references(item, output_fields),
+            outputs=keep_values(output_references(item, output_fields), values),
         )
         # Deux résultats simultanés sur le même élément sont rares mais possibles (relance
         # pendant un traitement) : la contrainte d'unicité tranche, on reprend le numéro suivant.
@@ -152,12 +154,92 @@ def record_revision(app_id: str, item, *, origin: str = 'process', user=None, ou
             except IntegrityError:
                 continue
             keep_files(app_id, item, revision)
+            if values:
+                prune_values(app_id, item)
             return revision
         logger.warning("[revisions] numéro introuvable pour %s", target)
         return None
     except Exception as exc:
         logger.debug("[revisions] révision non enregistrée (%s: %s)", type(exc).__name__, exc)
         return None
+
+
+# ── Valeurs gardées : la version d'un champ de DONNÉE (2026-11-16) ──────────────────────
+# Un fichier corrigé à la main garde sa copie à côté de lui (`keep_files`). Un champ de DONNÉE
+# corrigé à la main (la couche de corrections des détections) n'a pas de fichier : sa valeur se
+# garde DANS la référence de la révision, à côté de son empreinte — décision de Fabien, « il faut
+# les versions » : une correction enregistrée se reprend après la fermeture de la page. Même
+# rétention que les fichiers (V3 : les dernières révisions et les publiées), sans déclaration
+# d'app : rien n'est copié sur le disque.
+
+#: Au-delà, la valeur n'est pas gardée (la révision reste, avec son empreinte) — la borne d'un
+#: texte édité (`surfaces.MAX_TEXT_CHARS`).
+MAX_KEPT_VALUE_CHARS = 2_000_000
+VALUE_KEY = 'value'
+
+
+def keep_values(references: list, values) -> list:
+    """Les références de sortie, celles des champs de `values` portant leur VALEUR (`VALUE_KEY`).
+    Une valeur trop lourde ou qui ne se sérialise pas n'est pas gardée — la référence le reste."""
+    if not values:
+        return references
+    out = []
+    for ref in references:
+        name = ref.get('field')
+        if name in values and not ref.get('path'):
+            safe = json_safe(values[name])
+            try:
+                if len(json.dumps(safe)) <= MAX_KEPT_VALUE_CHARS:
+                    ref = dict(ref, **{VALUE_KEY: safe})
+            except (TypeError, ValueError):
+                pass
+        out.append(ref)
+    return out
+
+
+def kept_value(app_id: str, item, number: int, field: str) -> tuple:
+    """`(gardée, valeur)` du champ de donnée `field` à la révision `number` — `(False, None)`
+    quand la révision n'a pas modifié ce champ, ou que sa valeur n'est plus gardée."""
+    from wama.common.models import ItemRevision
+    revision = ItemRevision.objects.filter(number=number, **_target(app_id, item)).first()
+    for ref in (revision.outputs if revision is not None else None) or []:
+        if ref.get('field') == field and VALUE_KEY in ref:
+            return True, ref[VALUE_KEY]
+    return False, None
+
+
+def last_kept_value(app_id: str, item, field: str) -> tuple:
+    """`(gardée, valeur)` de la DERNIÈRE révision qui garde la valeur de `field` — ce à quoi un
+    enregistrement se compare pour ne pas faire deux versions du même état."""
+    for revision in revisions_of(app_id, item)[:KEEP_DEFAULT]:
+        for ref in revision.outputs or []:
+            if ref.get('field') == field and VALUE_KEY in ref:
+                return True, ref[VALUE_KEY]
+    return False, None
+
+
+def keeps_value(revision, field: str) -> bool:
+    """La révision garde-t-elle la valeur du champ de donnée `field` ?"""
+    return any(ref.get('field') == field and VALUE_KEY in ref for ref in revision.outputs or [])
+
+
+def prune_values(app_id: str, item, keep: int = 0) -> int:
+    """La rétention des VALEURS gardées : seules celles des `keep` dernières révisions (défaut
+    `KEEP_DEFAULT`) et des révisions publiées restent ; au-delà la valeur part, la révision reste
+    et le dit (`purged`), comme un fichier purgé. Rend le nombre de références allégées."""
+    keep = keep or KEEP_DEFAULT
+    revisions = revisions_of(app_id, item)
+    stay = set(revisions.values_list('number', flat=True)[:keep])
+    stay |= set(revisions.filter(published_at__isnull=False).values_list('number', flat=True))
+    pruned = 0
+    for revision in revisions.exclude(number__in=list(stay)):
+        if not any(VALUE_KEY in ref for ref in revision.outputs or []):
+            continue
+        revision.outputs = [dict({k: v for k, v in ref.items() if k != VALUE_KEY}, purged=True)
+                            if VALUE_KEY in ref else ref for ref in revision.outputs]
+        revision.save(update_fields=['outputs'])
+        pruned += 1
+    return pruned
 
 
 # ── Fichiers gardés (reste 2 de §7.2) ───────────────────────────────────────────────────

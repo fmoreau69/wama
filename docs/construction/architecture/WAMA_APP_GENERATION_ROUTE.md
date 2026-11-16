@@ -644,9 +644,17 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       détecteur) part d'UN point et suit l'objet dans les deux sens — 25 s de chargement, 0,8 s
       pour le point, 77 ms par image, 5,5 Go ; le prédicteur vidéo complet, lui, refuse un point
       sans propagation préalable par texte. Puis le clic à segmentation automatique (image
-      comprise), la page du document, la jumelle à régénérer. ⚠ À discuter : une correction
-      enregistrée d'un champ de DONNÉE ne laisse aucune révision (`surface_save` n'en écrit que
-      pour un fichier texte) — l'annuler/rétablir vit le temps de la page ;
+      comprise), la page du document, la jumelle à régénérer.
+      ✅ *2026-11-16 — décisions de Fabien* : la portée « toute la séquence » reste le défaut
+      sur une vidéo ; « il faut les versions » ; le suivi par le module de SAM3 est retenu
+      (SAM 3.1 et d'autres modèles à explorer ensuite). **Les versions** : une correction
+      ENREGISTRÉE d'un champ de DONNÉE laisse désormais une révision « corrigé à la main » qui
+      GARDE la valeur écrite (`surface_views._version_of_data`, `revisions.keep_values` —
+      `WAMA_COLLABORATION §7.2`) ; la brique « Versions » (`revision_history`), posée sur les
+      deux pages, la reprend — un geste d'édition annulable. Une page à enregistrement
+      automatique n'en garde une qu'à « Terminer ». **Le transport** de la page vidéo tire les
+      options du commun livrées la veille (pas d'une image, curseur de position, volume,
+      position gardée). Joué au navigateur : `common.axis_follow`, 56 gestes sur six surfaces ;
     - **éprouvé** : 10 tests (`tests_surfaces`, dont la contre-épreuve de parité) ; smoke
       navigateur (serveur éphémère WSL) : tracé, annuler/rétablir, déplacement d'un panneau,
       disposition gardée, 0 erreur console — il a révélé que le focus clavier ne tient pas dans

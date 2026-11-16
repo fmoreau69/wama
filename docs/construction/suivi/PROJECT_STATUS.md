@@ -31690,3 +31690,34 @@ Restes :
 - ⏳ outils : `prompt` exigé par `add_to_composer` pour séparer des pistes ; `glob` en `**/*.py` refusé par `dev_search_code` ; erreurs qui disent la voie ; parité des process ; tri des 162 routes d'action sans outil et leur grille (`/apps/`, fiche d'app, registres).
 - ⏳ le council « six chapeaux » n'a pas été éprouvé par un vrai modèle.
 - ⚠ `WAMA_MECANISMES.md` régénérée dans l'arbre, non commitée : elle projette le `mecanismes.py` en cours d'une autre session. `manifest_export --check` : 26 manifestes périmés (modèles, composer), d'autres chantiers, dont deux pertes annoncées (alias Nemotron).
+
+## §PALIER 2026-11-16, « ANONYMIZER : les VERSIONS d'une correction, le transport de la page vidéo » — commit local, non poussé — 🔴 relancer gunicorn (enregistrement des surfaces, route des révisions, déclaration des surfaces) — 🔚 marche B : l'objet NON détecté, cliqué, suivi par le module de suivi de SAM3 dans une boucle `playhead_follow`
+
+**Décisions de Fabien (2026-11-16)** : « toute la séquence » reste la portée par défaut sur une
+vidéo ; « il faut les versions » ; le suivi par le module de SAM3 est retenu, SAM 3.1 et d'autres
+modèles ou librairies à explorer ensuite ; les options du transport commun (monde Data) sont
+posées sur la page vidéo par cette session, qui tient le fichier de surfaces.
+
+**Livré** :
+- **Versions d'un champ de DONNÉE corrigé à la main** — `surface_views._version_of_data` :
+  un enregistrement qui change la couche de corrections donne une révision « corrigé à la main »
+  dont la référence garde la VALEUR écrite (`revisions.keep_values`, `kept_value`,
+  `last_kept_value`, `prune_values` : les 20 dernières et les publiées) — ni fichier, ni champ de
+  modèle, ni migration. L'état d'avant la première version gardée l'est d'abord ; une page à
+  enregistrement automatique n'en garde une qu'à « Terminer », jamais deux fois le même état.
+  La route commune des révisions liste ces versions et rend leur valeur par la validation de la
+  surface ; la brique « Versions » (`revision_history`), posée sur les deux pages de
+  l'anonymizer, les reprend — un geste annulable. Domicile : `WAMA_COLLABORATION §7.2`.
+- **Transport de la page vidéo** : pas d'une image, curseur de position, volume, position gardée
+  (options du transport commun du 15/11, `anonymizer/surfaces.py`).
+
+**Mesuré** : `common.axis_follow` au navigateur, serveur jetable WSL — 56 gestes sur 56 sur six
+surfaces (dont, sur la page vidéo : 0 → 1 → 2 versions, « Reprendre » la version 1, annuler la
+reprise) ; `check_image_boxes_keys` 10/10 ; 1 093 tests verts sur le périmètre élargi
+(surfaces, révisions, transcriber, composer, reader, anonymizer, gardes transverses) ;
+contre-épreuves en processus : cinq mutations, cinq rouges.
+
+**Non fait, nommé** : marche B ; un résumé de ce qui change d'une version à l'autre dans la
+liste ; les versions d'un champ de donnée écrit par un process ; jumelle `anonymizer_01` ; suite
+complète non rejouée par cette session (la session Domaines signale qu'elle ne rendait plus de
+verdict avant `6e04f8e43`).

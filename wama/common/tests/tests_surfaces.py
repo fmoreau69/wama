@@ -74,7 +74,7 @@ class RegistryTest(SimpleTestCase):
         from wama.common.surfaces import surface
         review = surface('anonymizer', 'review')
         self.assertIsNotNone(review)
-        self.assertEqual(['image_boxes', 'object_list', 'surface_actions'],
+        self.assertEqual(['image_boxes', 'object_list', 'surface_actions', 'revision_history'],
                          [s.brick for s in review.slots])
         self.assertEqual(('detection_corrections', 'blur'), (review.edits, review.reruns))
         self.assertEqual('common/js/wama-detections.js', review.scripts()[0],
@@ -336,6 +336,42 @@ class ReviewSurfaceViewsTest(TestCase):
         bad = self.client.post(self.base + 'save/', json.dumps({'value': {'added': [{'box': [9, 9, 1, 1]}]}}),
                                content_type='application/json')
         self.assertEqual(400, bad.status_code, 'an inverted box is refused')
+
+    def test_a_saved_correction_is_a_version_that_can_be_taken_back(self):
+        """2026-11-16 (Fabien : « il faut les versions ») : a hand correction of a DATA field is a
+        state of the card like a corrected file — each save that changes it gives a revision
+        « corrigé à la main » that KEEPS the value, listed by the common route and taken back
+        through the validation of the surface. The state from before the first kept version (a
+        correction saved before that day) is kept first ; a save that changes nothing gives none ;
+        beyond the retention the value leaves and the revision says so."""
+        from wama.common.services import revisions
+        self.client.force_login(self.user)
+        post = lambda value: self.client.post(self.base + 'save/', json.dumps({'value': value}),
+                                              content_type='application/json')
+        listed = lambda: self.client.get(self.base + 'revisions/').json()
+        self.assertEqual((True, []), (listed()['keeps'], listed()['revisions']))
+        old = {'removed': [{'i': 0, 'box': [5.0, 5.0, 20.0, 20.0]}]}
+        type(self.media).objects.filter(pk=self.media.pk).update(detection_corrections=old)
+        first = {'added': [{'i': 0, 'box': [30.0, 5.0, 45.0, 18.0], 'label': 'face'}], 'removed': []}
+        self.assertEqual(200, post(first).status_code)
+        rows = listed()['revisions']
+        self.assertEqual([(2, True, 'manual'), (1, True, 'manual')],
+                         [(r['number'], r['kept'], r['origin']) for r in rows],
+                         'the state from before is kept first, then the correction')
+        self.assertEqual('surface_owner', rows[0]['user'])
+        self.assertEqual(200, post(first).status_code)
+        self.assertEqual(2, len(listed()['revisions']), 'nothing changed : no version')
+        back = self.client.get(self.base + 'revisions/1/').json()
+        self.assertEqual(old['removed'], back['value']['removed'])
+        self.assertEqual(404, self.client.get(self.base + 'revisions/9/').status_code)
+        self.assertEqual(200, post({}).status_code)
+        self.assertEqual([3, 2, 1], [r['number'] for r in listed()['revisions']],
+                         'emptying the corrections is a version too')
+        self.assertEqual(2, revisions.prune_values('anonymizer', self.media, keep=1))
+        self.assertEqual([True, False, False], [r['kept'] for r in listed()['revisions']])
+        self.assertEqual(404, self.client.get(self.base + 'revisions/1/').status_code)
+        self.client.force_login(self.other)
+        self.assertEqual(404, self.client.get(self.base + 'revisions/').status_code)
 
     def test_someone_else_neither_reads_nor_writes(self):
         self.client.force_login(self.other)

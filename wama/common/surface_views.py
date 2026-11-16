@@ -313,10 +313,11 @@ def surface_revisions(request, app: str, key: str, pk: int):
     """Les révisions de l'élément, la plus récente d'abord, et pour chacune si le fichier ÉDITÉ
     a été gardé (`revisions.kept_file`) — ce que la brique « Versions » liste. Vide pour une
     surface qui n'édite pas un fichier texte, ou une app qui ne garde pas ses sorties."""
-    from wama.common.services.revisions import kept_count, kept_file, revisions_of
+    from wama.common.services.revisions import (KEEP_DEFAULT, kept_count, kept_file, keeps_value,
+                                                revisions_of)
     found = _surface_or_404(app, key)
     item = _readable_or_404(found, request.user, pk)
-    if not found.text_value or not kept_count(app):
+    if found.read_only or (found.text_value and not kept_count(app)):
         return JsonResponse({'revisions': [], 'keeps': False})
     from wama.common.models import ItemRevision
     labels = dict(ItemRevision.ORIGIN_CHOICES)
@@ -335,9 +336,12 @@ def surface_revisions(request, app: str, key: str, pk: int):
             'user': (user.get_full_name() or user.username) if user else '',
             'models': revision.model_keys or [],
             'published': revision.published_at is not None,
-            'kept': bool(kept_file(app, item, revision.number, edited)),
+            # Un fichier édité garde sa COPIE ; un champ de donnée, sa valeur dans la révision.
+            'kept': (bool(kept_file(app, item, revision.number, edited)) if found.text_value
+                     else keeps_value(revision, edited)),
         })
-    return JsonResponse({'revisions': out, 'keeps': True, 'keep': kept_count(app)})
+    return JsonResponse({'revisions': out, 'keeps': True,
+                         'keep': kept_count(app) if found.text_value else KEEP_DEFAULT})
 
 
 @login_required
@@ -347,7 +351,7 @@ def surface_revision_value(request, app: str, key: str, pk: int, number: int):
     « Reprendre » le charge dans la page, qui l'enregistre comme une correction de plus."""
     from django.conf import settings
 
-    from wama.common.services.revisions import kept_file
+    from wama.common.services.revisions import kept_file, kept_value
     from wama.common.surfaces import validate_text
     found = _surface_or_404(app, key)
     item = _readable_or_404(found, request.user, pk)
@@ -355,6 +359,16 @@ def surface_revision_value(request, app: str, key: str, pk: int, number: int):
         edited = found.target(item, request.GET.get('field') or '')
     except ValueError:
         raise Http404("champ non édité ici")
+    if not found.text_value and not found.read_only:
+        # Un champ de DONNÉE : sa valeur gardée dans la révision, relue par la validation de la
+        # surface — la page ne reçoit jamais une valeur qu'elle ne pourrait pas enregistrer.
+        kept, value = kept_value(app, item, number, edited)
+        if not kept:
+            raise Http404("aucune version gardée pour cette révision")
+        try:
+            return JsonResponse({'number': number, 'value': found.clean(value)})
+        except ValueError:
+            raise Http404("version illisible")
     rel = kept_file(app, item, number, edited) if found.text_value else ''
     if not rel:
         raise Http404("aucune version gardée pour cette révision")
@@ -461,6 +475,34 @@ def _value_of(found, item, field: str = ''):
     if found.text_value:
         return _edited_text(getattr(item, edited, None))
     return getattr(item, edited, None) or {}
+
+
+def _version_of_data(found, app, item, edited, previous, value, user, *, changed, finished):
+    """La VERSION d'un champ de DONNÉE corrigé à la main (2026-11-16, décision de Fabien : « il
+    faut les versions ») — un état de la card comme un fichier corrigé : une révision « corrigé à
+    la main » qui GARDE la valeur écrite (`revisions.keep_values`), que la brique « Versions »
+    reprend. Quand :
+      • un enregistrement à la demande qui CHANGE la valeur ; l'état d'AVANT, s'il n'est gardé par
+        aucune révision (une correction d'avant ce jour), l'est d'abord — la première reprise
+        possible est celle qu'on vient de quitter ;
+      • une page à enregistrement AUTOMATIQUE : à « Terminer » seulement (pas une version par
+        frappe), si la valeur n'est pas celle de la dernière version gardée."""
+    from wama.common.models import ItemRevision
+    from wama.common.services.revisions import last_kept_value, record_revision
+    kept, last = last_kept_value(app, item, edited)
+    if found.autosave:
+        if not finished or (kept and last == value):
+            return
+    else:
+        if not changed:
+            return
+        if previous and not kept:
+            item_before = type(item).objects.get(pk=item.pk)
+            setattr(item_before, edited, previous)
+            record_revision(app, item_before, origin=ItemRevision.ORIGIN_MANUAL,
+                            output_fields=[edited], values={edited: previous})
+    record_revision(app, item, origin=ItemRevision.ORIGIN_MANUAL, user=user,
+                    output_fields=[edited], values={edited: value})
 
 
 def _write_text(item, field_name: str, text: str) -> bool:
@@ -592,8 +634,13 @@ def surface_save(request, app: str, key: str, pk: int):
                 ensure_kept(app, item, edited)
             changed = _write_text(item, edited, value)
         else:
+            previous = getattr(item, edited, None)
+            changed = value != (previous if previous is not None else {})
             setattr(item, edited, value)
             item.save(update_fields=[edited])
+    if not found.text_value:
+        _version_of_data(found, app, item, edited, previous, value, request.user,
+                         changed=changed, finished=finished)
     if found.text_value and changed:
         # Un fichier corrigé à la main est un état de la card : une RÉVISION « corrigé à la
         # main » (marche 8a) — la même trace qu'un résultat produit, jamais un geste ajouté.
