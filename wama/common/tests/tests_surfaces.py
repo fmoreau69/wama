@@ -2760,7 +2760,8 @@ class ComposerScoreSurfaceTest(TestCase):
         # read from the pipeline of the element (`ctx.run`).
         from wama.composer.function_specs import PIPELINE
         config = page.context['config']
-        self.assertTrue(config['process_url'].endswith('/__process__/'), config['process_url'])
+        # The slot is SERVED with the route : the page replaces what the server named, never a copy.
+        self.assertTrue(config['process_url'].endswith(f"/{config['process_slot']}/"), config['process_url'])
         self.assertEqual({s.key: s.toggle for s in PIPELINE.specs if s.toggle}, config['toggles'])
         self.assertEqual('remix_stems', config['toggles']['remix'])
         # The axis and the shuttle belong to the BASE page since 2026-11-05 (the common preview puts

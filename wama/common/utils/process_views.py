@@ -123,7 +123,8 @@ def start_on_selection(work_model, ids, process, *, user):
         offered = ', '.join(f'{s.key} (« {s.label or s.key} »)' for s in selection_specs(pipeline))
         return None, None, (400, f"« {process} » ne se lance pas depuis une sélection"
                                  + (f" — process proposés : {offered}" if offered else ''))
-    if getattr(origin, 'status', None) == 'RUNNING':
+    from wama.common.models import JOB_RUNNING
+    if getattr(origin, 'status', None) == JOB_RUNNING:
         return None, None, (409, 'Traitement déjà en cours sur la card d’origine')
     declaration = declaration_for(work_model)
     if declaration is None:

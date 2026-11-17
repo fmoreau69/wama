@@ -510,7 +510,8 @@
             var enabled = {};
             if (toggle) enabled[toggle] = true;
             return (toggle ? saveSettings(enabled) : Promise.resolve(true)).then(function (ok) {
-                return ok ? launch(config.process_url.replace('__process__', encodeURIComponent(process)),
+                // L'étape remplace le marqueur que le serveur a nommé (`config.process_slot`).
+                return ok ? launch(config.process_url.replace(config.process_slot, encodeURIComponent(process)),
                                    process) : false;
             });
         }

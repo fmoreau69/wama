@@ -6,6 +6,11 @@
 > constitution de rushs, **montage vidéo automatisé**, **mixage/mastering audio** assisté.
 > Les **specs d'outils détaillées** (montage, mixage/mastering) seront fournies plus tard par Fabien.
 > Le mixage/mastering est explicitement un **PoC** (aucun outil équivalent n'existe à ce jour).
+> *(Constat complété le 2026-11-17 : une première brique de mixage EXISTE, hors du Studio — le
+> mixage en temps réel des pistes séparées du Composer, brique commune `stem_mixer` et module
+> `common/js/wama-stem-mix.js` (WebAudio, sources calées à l'échantillon, une version de plus suivie
+> par l'axe), règle commune `common/utils/stem_mix.py` ; détail : `PROSPECTION_PIPELINE.md`
+> « REFUSION des pistes ». Ni mastering ni outil du Studio : l'intention ci-dessus reste ⏳.)*
 >
 > S'appuie sur le squelette existant : voir `memory/project_meta_app_studio.md`, `MODES_QUEUE_UX.md`
 > (§ méta-app), `CARD_DESIGN.md`. Route actuelle : `/studio/` (app Django dédiée `wama/studio`,

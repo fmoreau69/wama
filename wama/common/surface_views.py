@@ -188,6 +188,7 @@ def surface_page(request, app: str, key: str, pk: int):
             # mixage ») : la route du ▶ d'une étape, l'étape en gabarit (`ctx.run`), et la case qui
             # ACTIVE chaque étape optionnelle (`ProcessSpec.toggle`), lue du pipeline de l'élément.
             'process_url': _url(f'{app}:start_process', pk, PROCESS_SLOT),
+            'process_slot': PROCESS_SLOT,
             'toggles': _toggles_of(item),
             'revisions_url': base + 'revisions/',
             # La page de l'app telle que son IDENTITÉ la déclare (2026-10-29) : `<app>:index` ne

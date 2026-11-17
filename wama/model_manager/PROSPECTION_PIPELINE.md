@@ -4811,6 +4811,13 @@ de 1,5 Go, dite). Les niveaux sont des réglages de la card (`remix_levels`, map
 sur l'axe, une piste qui rejoint pendant la lecture, niveaux écrits sur la card. ⚠ Une vitesse autre que
 ×1 change aussi la hauteur du mixage (un tampon n'a pas l'étirement d'un `<audio>`). La séparation reste
 à la demande (coût GPU).
+✅ /reverif du 2026-11-17 (soir) : 577 tests verts (surfaces, pipeline, générateur, composer et les gardes
+transverses) ; trois recopies ramenées — le marqueur d'étape de `ctx.run` est SERVI
+(`config.process_slot`, plus écrit dans le JS), l'état « en cours » de `start_on_selection` lu de
+`JOB_RUNNING`, et la fiche `stem_mix` du registre des mécanismes, qui annonçait encore le mixage au futur,
+rattache `wama-stem-mix.js` et la brique. ⏳ Le noyau de la page (« Appliquer », `ctx.run`) n'a aucun banc
+V8 : il n'est tenu que par les tests de sa configuration et la sonde navigateur. Curseur borné à 200 %
+quand la refusion accepte jusqu'à 400 % (`MAX_STEM_GAIN`) : un choix d'interface, pas un écart.
 ⏳ **BS-RoFormer SW** (six pistes, meilleur que Demucs en guitare et piano) : intégrable comme second
 modèle du même contrat (`separate_sources`), Demucs restant le défaut ; coût : `audio-separator` sans
 ses dépendances et ses poids par la route ; **bloqué par la licence de ses poids** (CC-BY-NC-SA ou MIT

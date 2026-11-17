@@ -3738,11 +3738,17 @@ MECHANISMS = (
               "l'original + Σ (gain − 1) · piste — tout à 1, l'original exact ; une piste à 0 "
               "retranchée (2026-11-16, demande de Fabien : « refusionner en retirant seulement la "
               "batterie »). Lecture stéréo à fréquence donnée (`audio_decode.decode_stereo`, un mp3 "
-              "garde ses deux canaux) ; jamais écrêté. Le process `remix` du composer la lit ; le "
-              "mixage en temps réel (gains continus) reprendra la même formule",
+              "garde ses deux canaux) ; jamais écrêté. Le process `remix` du composer la lit. Le "
+              "MIXAGE EN TEMPS RÉEL (2026-11-17, page d'édition) joue la MÊME formule dans le "
+              "navigateur (`wama-stem-mix.js`, WebAudio) : toutes les sources parties au même "
+              "échantillon, une piste décodée seulement quand elle quitte 100 % (borne de 1,5 Go, "
+              "dite), le mixage étant une version de plus que l'axe suit ; la brique `stem_mixer` "
+              "écrit les niveaux sur la card (`remix_levels`), que la refusion relit",
               'wama/common/utils/stem_mix.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
-              depends_on=('audio_decode',)),
+              annexes=('wama/common/static/common/js/wama-stem-mix.js',
+                       'wama/common/static/common/js/surfaces/brick-stem-mixer.js'),
+              depends_on=('audio_decode', 'media_axis')),
     Mechanism('score_timing', 'Repères d\'une partition sur son audio',
               "Où tombe chaque mesure d'une partition dans l'audio dont elle est tirée : un couple "
               "(instant écrit, instant d'audio) par barre, écrit DANS l'ABC (ligne `% wama-sync:` de "
