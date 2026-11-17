@@ -2164,7 +2164,7 @@ Rend le code CONVENTIONNEL d'une app depuis son manifeste — une cible par fich
 - **Domicile** : `wama/common/manifests/codegen/templates_gen.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Gabarit `templates/<app>/index.html` (marche A — v1, marche S2).
 - **API publique** (2) :
-  - `render_index(manifest: dict) -> tuple` — (source, raison) — templates/<app>/index.html conventionnel, jamais partiel.
+  - `render_index(manifest: dict, element: tuple=None) -> tuple` — (source, raison) — templates/<app>/index.html conventionnel, jamais partiel.
   - `render_base(manifest: dict) -> tuple` — (fichiers, raison) — `templates/<app>/base.html`, la FINE couche d'app sur l'ossature
 
 ### Grille de conformité
