@@ -10,7 +10,8 @@ eux arrivait en N cards. Désormais chaque fabrique inscrit son regroupement
 Ce que ces gardes tiennent, sans nommer d'app : toute file à lot DÉCLARE son regroupement ; il
 range les éléments dans l'ordre d'arrivée ; toute route `consolidate` d'app est celle de la
 fabrique ; l'import ne connaît aucune app. Puis le geste réel, sur les deux apps qui en étaient
-privées.
+privées ; et l'outil d'ajout de l'assistant (2026-11-17), qui créait un élément par appel, jamais
+de lot, et les arguments qui l'annoncent au modèle.
 """
 import ast
 import inspect
@@ -126,9 +127,8 @@ class ArrivalIsDeclaredOnceTest(TestCase):
         self.assertEqual(2, len(data['batch_ids']))
 
 
-class ArrivalThroughTheFileManagerTest(TestCase):
-    """Le geste RÉEL — « Envoyer vers » de deux fichiers — sur les deux apps que la liste écrite à
-    la main oubliait : un lot à l'arrivée, dans l'ordre d'envoi."""
+class _ArrivalMedia:
+    """Un dossier de médias jetable et un compte : ce que les gestes réels d'arrivée partagent."""
 
     def setUp(self):
         media = tempfile.mkdtemp(prefix='wama_arrival_')
@@ -147,6 +147,17 @@ class ArrivalThroughTheFileManagerTest(TestCase):
         (self.media / rel).write_bytes(content)
         return rel
 
+    def _one_batch(self, model, ids):
+        from wama.common.utils.batch_common import batch_elements, batch_model_for
+        batches = batch_model_for(model).objects.filter(user=self.user)
+        self.assertEqual(1, batches.count(), 'les fichiers envoyés ensemble ont formé plusieurs lots')
+        self.assertEqual(ids, [e.pk for e in batch_elements(batches.get(), model)])
+
+
+class ArrivalThroughTheFileManagerTest(_ArrivalMedia, TestCase):
+    """Le geste RÉEL — « Envoyer vers » de deux fichiers — sur les deux apps que la liste écrite à
+    la main oubliait : un lot à l'arrivée, dans l'ordre d'envoi."""
+
     def _send(self, app, files):
         paths = [self._temp(name, content) for name, content in files]
         response = self.client.post(reverse('filemanager:api_import'),
@@ -156,12 +167,6 @@ class ArrivalThroughTheFileManagerTest(TestCase):
         body = response.json()
         self.assertEqual(len(files), body['count'], body)
         return [r['id'] for r in body['results']]
-
-    def _one_batch(self, model, ids):
-        from wama.common.utils.batch_common import batch_elements, batch_model_for
-        batches = batch_model_for(model).objects.filter(user=self.user)
-        self.assertEqual(1, batches.count(), 'les fichiers envoyés ensemble ont formé plusieurs lots')
-        self.assertEqual(ids, [e.pk for e in batch_elements(batches.get(), model)])
 
     def test_two_images_sent_to_the_imager_arrive_as_one_batch(self):
         from PIL import Image
@@ -180,3 +185,63 @@ class ArrivalThroughTheFileManagerTest(TestCase):
         names = list(BatchSynthesisItem.objects.filter(synthesis_id__in=ids)
                      .order_by('row_index').values_list('output_filename', flat=True))
         self.assertTrue(all(n.endswith('.wav') for n in names), names)
+
+
+class ArrivalThroughTheAssistantTest(_ArrivalMedia, TestCase):
+    """L'outil d'ajout (assistant, API, MCP — `execute_tool`) : plusieurs fichiers de travail en UN
+    appel → un élément par fichier par l'appel ordinaire, rangés en UN lot par la déclaration de
+    l'app, dans l'ordre donné (2026-11-17 — il créait un élément par appel, jamais de lot)."""
+
+    def _add(self, work_file):
+        from wama import tool_api as T
+        return T.execute_tool('add_to_synthesizer', {'work_file': work_file}, self.user,
+                              model_call=True)
+
+    def test_two_texts_given_in_one_call_arrive_as_one_batch_in_the_given_order(self):
+        from wama import tool_api as T
+        from wama.synthesizer.models import VoiceSynthesis
+        out = self._add([self._temp('first.txt', b'Hello.'), self._temp('second.txt', b'World.')])
+        self.assertEqual(2, out.get('count'), out)
+        self.assertEqual(1, len(out['batch_ids']), out)
+        self._one_batch(VoiceSynthesis, out['item_ids'])
+        self.assertEqual(out['item_ids'],
+                         [pk for _, pk in T.items_of_step('add_to_synthesizer', {}, out)])
+
+    def test_a_list_written_as_json_text_is_read_as_the_list(self):
+        out = self._add(json.dumps([self._temp('a.txt', b'A.'), self._temp('b.txt', b'B.')]))
+        self.assertEqual(2, out.get('count'), out)
+
+    def test_a_refused_file_is_named_and_the_others_are_created(self):
+        out = self._add([self._temp('kept.txt', b'Kept.'), f'users/{self.user.id}/temp/missing.txt'])
+        self.assertEqual(1, out.get('count'), out)
+        self.assertEqual(['missing.txt'], [e['file'].rsplit('/', 1)[-1] for e in out['errors']])
+        self.assertNotIn('batch_ids', out)
+
+    def test_a_single_file_in_a_list_is_the_ordinary_call(self):
+        out = self._add([self._temp('only.txt', b'Only.')])
+        self.assertIn('item_id', out)
+        self.assertNotIn('item_ids', out)
+
+
+class ArrivalArgumentsAreDeclaredTest(TestCase):
+    """Les arguments qui prennent plusieurs fichiers sont ceux où arrive un fichier de TRAVAIL de la
+    card (`tool_api.arrival_arguments`, le contrat port → argument du Studio) — annoncés comme une
+    liste au modèle, dans le schéma JSON comme dans la liste texte, et eux seuls."""
+
+    def test_every_creator_announces_its_work_arguments_as_a_list_and_only_them(self):
+        from wama import tool_api as T
+        texts = T.tool_descriptions()
+        covered = []
+        for name in sorted(T.TOOL_REGISTRY):
+            if T.tool_role(name) != 'add':
+                continue
+            arrivals = T.arrival_arguments(name)
+            schema = T.tool_input_schema(name)['properties']
+            with self.subTest(tool=name):
+                self.assertLessEqual(arrivals, T.tool_arg_names(name))
+                for arg, prop in schema.items():
+                    self.assertEqual(arg in arrivals, 'anyOf' in prop, arg)
+                    self.assertEqual(arg in arrivals, T.ARRIVAL_NOTE in texts[name]['args'][arg], arg)
+            if arrivals:
+                covered.append(name)
+        self.assertGreaterEqual(len(covered), 9, covered)

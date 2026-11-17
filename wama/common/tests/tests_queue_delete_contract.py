@@ -81,7 +81,14 @@ def _lot_de(modele_element, user, n):
         el = _instance(modele_element, user)
         if any(f.name == 'batch' for f in modele_element._meta.concrete_fields):
             el.batch = lot                                   # forme à FK DIRECTE
-            el.save(update_fields=['batch'])
+            fields = ['batch']
+            # L'ORDRE des lignes, comme la liaison pose `row_index` : `batch_elements` trie sur ce
+            # champ, et à égalité l'ordre rendu dépendait de l'état de la base (2026-11-17,
+            # `BatchSendToConverterTest` rouge dans une longue série, vert seul).
+            if any(f.name == 'batch_row_index' for f in modele_element._meta.concrete_fields):
+                el.batch_row_index = i
+                fields.append('batch_row_index')
+            el.save(update_fields=fields)
         else:                                                # forme par modèle de LIAISON
             rel = next(r for r in modele_element._meta.related_objects
                        if r.one_to_one and any(f.name == 'batch'

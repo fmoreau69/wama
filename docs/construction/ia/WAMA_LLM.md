@@ -3006,11 +3006,27 @@ Fabien. Mesuré d'abord :
    jetée par la garde de l'arbre seule). Gardes : `tests_send_to.DesignationReceiversTest`,
    `DesignationDeliveryUnderV8Test`, `AssistantSectionRevealsWhatItReceivesUnderV8Test`,
    `tests_assistant_deposit_settings.WebTurnTakesDepositedFilesTest`.
-   ⚠ Écart mesuré le même jour, non soldé : les créateurs des 11 apps réelles prennent UN fichier
-   par appel (`tool_api.add_to_anonymizer` : `file_path: str`) et rien ne range en lot des
-   fichiers ajoutés ensemble par l'assistant, quand le créateur d'une app née d'un manifeste prend
-   une LISTE par port et poste la vue de dépôt de la card (`tool_api._born_creator`), et que le
-   Studio regroupe après coup (`studio/tasks._consolidate_lot_cards`).
+   ~~⚠ Écart mesuré le même jour, non soldé : les créateurs des 11 apps réelles prennent UN fichier
+   par appel […] quand le créateur d'une app née d'un manifeste prend une LISTE par port […]~~ —
+   **soldé le soir même (décision de Fabien : « aligne les créateurs »), et le constat était à
+   moitié faux** : UN élément par fichier est l'unité de WAMA partout (la card poste un dépôt par
+   fichier puis `consolidate` — `wama-import.js:441` ; l'import appelle son importeur par fichier
+   puis `consolidate_arrival` — `filemanager/views.py:1378-1409` ; le Studio de même —
+   `studio/tasks._consolidate_lot_cards`). Le créateur d'une app née d'un manifeste ne faisait PAS
+   mieux : il postait la liste, et la vue de dépôt générée n'en garde que le premier
+   (`views_gen.py` `received[0]`) — les suivants étaient perdus sans un mot. Ce qui manquait à
+   l'assistant était le REGROUPEMENT à l'arrivée. Désormais, au point d'exécution unique
+   (`execute_tool`) : un argument où arrive un fichier de TRAVAIL de la card
+   (`tool_api.arrival_arguments`, lu au contrat port → argument du Studio,
+   `generic_runner.work_arguments` — aucune liste écrite) prend une liste ; chaque fichier passe
+   l'appel ordinaire (droits, porte du schéma, naissance de l'app), puis `consolidate_arrival` sur
+   le modèle de la triade ; un fichier refusé est nommé, les autres sont créés (comme l'import).
+   Annoncé au modèle dans le schéma JSON et la liste texte (`ARRIVAL_NOTE`) ; `items_of_step`,
+   `relay_quality_intent` et `relay_next_step` lisent `item_ids` (le rappel nomme `launch_batch`).
+   Le créateur d'une app née refuse plusieurs fichiers sur un port. Reste, déclaré :
+   `add_to_audio_enhancer` hors du Studio (port `work_audio` de l'enhancer encore non lu,
+   `UNWIRED_PORTS_BUDGET`). Gardes : `tests_arrival_consolidation.ArrivalThroughTheAssistantTest`,
+   `ArrivalArgumentsAreDeclaredTest`, `tests_born_app_tools` (plusieurs fichiers sur un port).
 
    ~~⏳ Les routes d'app ne sont pas toutes des gestes […] un outil « les choix d'un réglage » les
    ferait toutes~~ — **sans objet, mesuré le 2026-11-17** : `list_media_assets` rend les voix et

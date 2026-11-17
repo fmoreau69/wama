@@ -210,10 +210,11 @@ def _node_ports(app_id):
     return (studio_node_ports(app_id) or {}).get('inputs', [])
 
 
-def primary_ports(app_id) -> set:
-    """Les ports par lesquels arrive l'ENTRÉE PRINCIPALE du nœud (transmise par `create`)."""
+def primary_ports(app_id, ports=None) -> set:
+    """Les ports par lesquels arrive l'ENTRÉE PRINCIPALE du nœud (transmise par `create`).
+    `ports` : ceux que l'appelant a déjà lus (`_node_ports` relit les capacités des modèles)."""
     conf = GENERIC_APPS[app_id]
-    ports = _node_ports(app_id)
+    ports = _node_ports(app_id) if ports is None else ports
     if conf.get('primary_input') == 'prompt':
         return {'prompt'} | {p['id'] for p in ports if p.get('group') == 'prompt'}
     kinds = set(conf.get('input_kinds') or ())
@@ -238,6 +239,37 @@ def port_argument_name(app_id, port_id, accepted=None):
         if isinstance(field, str) and field in accepted:
             return field
     return None
+
+
+def work_arguments(app_id) -> set:
+    """Les arguments de `add_to_<app>` où arrive un FICHIER DE TRAVAIL (port du groupe `travail`) —
+    ceux qui prennent PLUSIEURS fichiers arrivés ensemble (`tool_api.arrival_arguments`, 2026-11-17).
+    La règle de `create` et de `port_arguments`, lue ici une fois : l'entrée principale dans
+    `input_kwarg` déclaré (ou le premier argument de l'outil), un autre port dans l'argument du même
+    nom ; un port que l'outil ne lit pas encore (`unwired_ports`) n'en donne aucun."""
+    if app_id not in GENERIC_APPS:
+        return set()
+    from wama.tool_api import tool_arg_names
+    accepted = tool_arg_names(f'add_to_{app_id}')
+    ports = _node_ports(app_id)
+    primary = primary_ports(app_id, ports)
+    found = set()
+    for port in ports:
+        if port.get('group') != 'travail':
+            continue
+        name = (primary_argument(app_id) if port['id'] in primary
+                else port_argument_name(app_id, port['id'], accepted))
+        if name in accepted:
+            found.add(name)
+    return found
+
+
+def primary_argument(app_id):
+    """L'argument de `add_to_<app>` où arrive l'ENTRÉE PRINCIPALE du nœud : celui que l'app déclare
+    (`input_kwarg`), sinon le premier de l'outil (`primary_arg_name`) — lu par `create` et par
+    `work_arguments`."""
+    from wama.tool_api import primary_arg_name
+    return GENERIC_APPS[app_id].get('input_kwarg') or primary_arg_name(f'add_to_{app_id}')
 
 
 def unwired_ports(app_id) -> list:
@@ -310,7 +342,7 @@ def build_generic_runner(app_id):
         # Passe par execute_tool : MÊME point d'exécution que l'assistant IA et l'API REST
         # (gating d'app, coercition par schéma, filtre de signature). Le studio n'ajoute que
         # ce qui relève du GRAPHE : d'où vient l'entrée principale, et les kwargs figés.
-        from wama.tool_api import execute_tool, primary_arg_name
+        from wama.tool_api import execute_tool
         tool = f'add_to_{app_id}'
         # Les AUTRES ports branchés (voix de référence, fichier de travail, résultat existant…)
         # arrivent dans l'argument DU MÊME NOM de l'outil (2026-09-30). Avant, seule l'entrée
@@ -343,7 +375,7 @@ def build_generic_runner(app_id):
 
         # L'entrée principale est passée PAR NOM : déclaré (`input_kwarg`) ou dérivé de la
         # signature. Plus de position à deviner, et l'appel devient un appel d'outil normal.
-        kwarg = conf.get('input_kwarg') or primary_arg_name(tool)
+        kwarg = primary_argument(app_id)
         if not kwarg:
             raise ValueError(f"{app_id} : {tool} n'expose aucun paramètre d'entrée (contrat).")
         call_args.update(extra)

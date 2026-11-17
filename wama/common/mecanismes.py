@@ -2183,8 +2183,10 @@ MECHANISMS = (
               "second RANGE par nature en N lots. La nature est déclarée UNE fois (`group_key`) "
               "et la fabrique INSCRIT le regroupement à l'arrivée de son modèle : "
               "`consolidate_arrival`, appelé par tout chemin d'arrivée (dépôt de N fichiers, "
-              "import du gestionnaire de fichiers, fichier de lot) — aucune app ne le "
-              "redéfinit depuis le 2026-10-16 (tests_arrival_consolidation)",
+              "import du gestionnaire de fichiers, fichier de lot, lot du Studio, et depuis le "
+              "2026-11-17 l'outil d'ajout de l'assistant qui reçoit N fichiers de travail — "
+              "`tool_api.arrival_arguments`, lus au contrat port → argument du Studio) — aucune "
+              "app ne le redéfinit depuis le 2026-10-16 (tests_arrival_consolidation)",
               'wama/common/utils/queue_manipulation.py', 'docs/construction/ui/CARD_DESIGN.md §3bis'),
     Mechanism('batch_views', 'Vues de lot (fabrique commune)',
               "Les six ACTIONS de lot en une fabrique — `make_batch_views` : batch_start, "

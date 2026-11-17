@@ -6436,6 +6436,13 @@ def _born_creator(label: str):
                       if isinstance(v, str) and v.strip()]
             if not values:
                 continue
+            # UN fichier par port et par élément : la vue de dépôt ne garde que le premier
+            # (`received[0]`). Des fichiers de TRAVAIL arrivés ensemble ont déjà été répartis, un
+            # élément chacun, par `execute_tool` (`arrival_arguments`) ; jusqu'au 2026-11-17 les
+            # suivants étaient perdus sans un mot.
+            if len(values) > 1:
+                return {'error': f"{port.get('label') or port['id']} : un seul fichier par élément "
+                                 f"({len(values)} reçus)."}
             if port.get('group') == 'prompt':
                 post[port['id']] = values[0]
                 continue
@@ -6549,7 +6556,9 @@ def items_of_step(tool_name, args, result) -> list:
         one = (args or {}).get(primary_arg_name(tool_name) or '')
         ids = [one] if one not in (None, '') else list(result.get('ids') or [])
     else:
-        ids = [result['item_id']] if result.get('item_id') not in (None, '') else []
+        # `item_ids` : des fichiers arrivés ensemble dans un ajout (`_add_arrived_together`).
+        ids = list(result.get('item_ids') or ([result['item_id']] if result.get('item_id')
+                                                  not in (None, '') else []))
     found = []
     for raw in ids:
         try:
@@ -6688,9 +6697,11 @@ def tool_descriptions():
         app_id = app_id_for_tool(name)
         index = {p['name']: p for p in (schema_for_app(app_id) if app_id else [])}
         noms, params = _tool_arg_names(fn, index)
+        arrivals = arrival_arguments(name)
         out[name] = {
             'description': _tool_sentence(name, fn),
-            'args': {n: _arg_text(index.get(n), params.get(n)) for n in noms},
+            'args': {n: _arg_text(index.get(n), params.get(n))
+                        + (f' {ARRIVAL_NOTE}' if n in arrivals else '') for n in noms},
         }
     return out
 
@@ -6784,7 +6795,14 @@ def tool_input_schema(tool_name: str) -> dict:
     if fn is None:
         raise KeyError(f"outil inconnu : {tool_name!r}")
     app_id = app_id_for_tool(tool_name)
-    return input_schema_for(fn, {p['name']: p for p in (schema_for_app(app_id) if app_id else [])})
+    schema = input_schema_for(fn, {p['name']: p for p in (schema_for_app(app_id) if app_id else [])})
+    # Un argument d'ARRIVÉE prend un chemin ou une liste de chemins (`arrival_arguments`).
+    for name in arrival_arguments(tool_name) & set(schema['properties']):
+        prop = schema['properties'][name]
+        prop.pop('type', None)
+        prop['anyOf'] = [{'type': 'string'}, {'type': 'array', 'items': {'type': 'string'}}]
+        prop['description'] = f"{prop['description']} {ARRIVAL_NOTE}"
+    return schema
 
 
 def input_schema_for(fn, index=None) -> dict:
@@ -6877,6 +6895,28 @@ def primary_arg_name(tool_name: str):
     return None
 
 
+def arrival_arguments(tool_name: str) -> frozenset:
+    """Les arguments d'un outil d'AJOUT (`add_to_<app>`) qui prennent PLUSIEURS fichiers arrivés
+    ENSEMBLE — ceux où arrive un fichier de TRAVAIL de la card, par le contrat port → argument du
+    Studio (`generic_runner.work_arguments`), jamais une liste écrite ici (2026-11-17).
+
+    Un dépôt de N fichiers sur la card, un « Envoyer vers » de N fichiers, un lot du Studio créent
+    UN élément par fichier par la naissance de l'app, puis rangent ceux arrivés ensemble en lot
+    (`consolidate_arrival`). L'outil fait de même au point d'exécution unique (`execute_tool`).
+    Un outil hors du Studio (`add_to_audio_enhancer` : domaine audio de l'enhancer, port
+    `work_audio` encore non lu, `UNWIRED_PORTS_BUDGET`) n'en a aucun."""
+    if tool_role(tool_name) != 'add':
+        return frozenset()
+    from wama.studio.services.generic_runner import work_arguments
+    return frozenset(work_arguments(tool_name[len('add_to_'):]))
+
+
+#: Ce que l'annonce d'un argument d'arrivée ajoute — la même phrase dans la liste texte du prompt
+#: (`tool_descriptions`) et dans le schéma JSON (`tool_input_schema`).
+ARRIVAL_NOTE = ("— plusieurs fichiers arrivés ensemble : une LISTE de chemins, un élément par "
+                "fichier, rangés en un lot comme un dépôt de plusieurs fichiers sur la card")
+
+
 def tool_arg_names(tool_name: str) -> set:
     """Les arguments NOMMÉS d'un outil (hors `user`, `*args`, `**params`) — dérivés de la signature.
 
@@ -6953,8 +6993,12 @@ def relay_quality_intent(user, tool_name: str, result: dict) -> dict:
     d'argument de curseur, la création EST ce geste. Le résultat porte `quality_intent` et
     `quality_level` (libellé du palier) — c'est ce que le modèle doit dire à l'utilisateur.
     Appelé par la boucle de l'ASSISTANT seulement (pas par `execute_tool`) : le studio et l'API
-    d'outils gardent leurs propres réglages."""
-    if not isinstance(result, dict) or 'error' in result or result.get('item_id') is None:
+    d'outils gardent leurs propres réglages. Des fichiers arrivés ensemble (`item_ids`) reçoivent
+    tous le même niveau."""
+    if not isinstance(result, dict) or 'error' in result:
+        return result
+    ids = result.get('item_ids') or [i for i in [result.get('item_id')] if i is not None]
+    if not ids:
         return result
     role, app_id = _split_triad(tool_name)
     if role != 'add' or not app_id:
@@ -6967,16 +7011,17 @@ def relay_quality_intent(user, tool_name: str, result: dict) -> dict:
     entry = DetailRegistry.get(raw_app) or DetailRegistry.get(app_id)
     if not entry:
         return result
-    item = entry['model'].objects.filter(pk=result['item_id']).first()
-    if item is None or not hasattr(item, 'quality_intent'):
-        return result
-    owner = getattr(item, 'user', None)
-    if owner is not None and getattr(owner, 'pk', None) != getattr(user, 'pk', None):
+    items = [item for item in entry['model'].objects.filter(pk__in=ids)
+             if hasattr(item, 'quality_intent')
+             and getattr(getattr(item, 'user', None), 'pk', getattr(user, 'pk', None))
+             == getattr(user, 'pk', None)]
+    if not items:
         return result
     from wama.common.services.assistant_engine import assistant_settings
     value = read_quality_intent(assistant_settings(user).get('quality_intent'))
-    item.quality_intent = value
-    item.save(update_fields=['quality_intent'])
+    for item in items:
+        item.quality_intent = value
+        item.save(update_fields=['quality_intent'])
     from wama.model_manager.services.model_selector import QUALITY_PRESETS
     labels = {key: label for key, label, _ in QUALITY_PRESETS}
     result['quality_intent'] = value
@@ -7029,14 +7074,22 @@ def relay_next_step(tool_name: str, result: dict) -> dict:
     # L'élément, lu au CONTRAT (`items_of_step` : la clé uniforme `item_id`, rendue à la source
     # par chaque ajout et tenue par `tests_tool_item_contract`) — plus de liste de clés d'app.
     items = items_of_step(tool_name, {}, result)
-    item_id = items[0][1] if items else None
+    item_ids = ', '.join(str(i) for _, i in items) or None
     result['started'] = False
     result['next_step'] = start_tool
     result['next_step_hint'] = (
         f"L'élément est dans la file et RIEN NE TOURNE. Appelle `{start_tool}` "
-        f"({item_id}) pour lancer le traitement. N'annonce jamais une tâche « lancée » "
+        f"({item_ids}) pour lancer le traitement. N'annonce jamais une tâche « lancée » "
         f"ni « terminée » après un simple ajout."
     )
+    # Des fichiers arrivés ensemble forment un LOT (`_add_arrived_together`) : son ▶ les lance tous.
+    if result.get('batch_ids'):
+        batches = ', '.join(str(b) for b in result['batch_ids'])
+        result['next_step_hint'] = (
+            f"Les {len(items)} éléments sont dans la file, rangés en lot ({batches}), et RIEN NE "
+            f"TOURNE. `launch_batch(app='{raw_app}', batch_id=…)` lance un lot entier, "
+            f"`{start_tool}` un élément ({item_ids}). N'annonce jamais une tâche « lancée » ni "
+            f"« terminée » après un simple ajout.")
     return result
 
 
@@ -7136,6 +7189,16 @@ def execute_tool(tool_name: str, args: dict, user, *, model_call: bool = False) 
         return {'error': 'forbidden',
                 'detail': f"Accès non autorisé à l'application « {app_id} »."}
 
+    # Des fichiers ARRIVÉS ENSEMBLE (`arrival_arguments`) : un appel ordinaire par fichier, puis le
+    # regroupement à l'arrivée commun — ce que font le dépôt de la card, l'import et le Studio.
+    args = dict(args or {})
+    try:
+        arrival = _arrival(tool_name, args)
+    except ValueError as e:
+        return {'error': str(e)}
+    if arrival:
+        return _add_arrived_together(tool_name, args, user, *arrival, model_call=model_call)
+
     try:
         # Filtre + coercition (mêmes règles pour l'assistant, l'API et le studio).
         clean, ignored = sanitize_tool_args(tool_name, args)
@@ -7174,6 +7237,73 @@ def execute_tool(tool_name: str, args: dict, user, *, model_call: bool = False) 
     except Exception as e:
         logger.error(f'[tool_api] execute_tool({tool_name}) error: {e}', exc_info=True)
         return {'error': str(e)}
+
+
+def _arrival(tool_name: str, args: dict):
+    """`(argument, fichiers)` quand un argument d'arrivée (`arrival_arguments`) reçoit PLUSIEURS
+    fichiers, sinon None. Une liste d'un seul fichier redevient l'appel ordinaire, une liste vide
+    un argument absent (`args` est corrigé sur place) ; une liste écrite en TEXTE JSON se lit comme
+    la liste (la règle de `decode_structured_args`). Lève ValueError quand deux arguments portent
+    chacun plusieurs fichiers : rien ne dit comment les apparier."""
+    lists = {}
+    for name in arrival_arguments(tool_name) & set(args):
+        value = args[name]
+        if isinstance(value, str) and value.lstrip().startswith('['):
+            try:
+                value = json.loads(value)
+            except ValueError:
+                continue
+        if not isinstance(value, (list, tuple)):
+            continue
+        files = [v for v in value if v not in (None, '')]
+        if len(files) > 1:
+            lists[name] = files
+        elif files:
+            args[name] = files[0]
+        else:
+            del args[name]
+    if len(lists) > 1:
+        raise ValueError(f"'{tool_name}' : une seule entrée peut porter plusieurs fichiers à la fois "
+                         f"({', '.join(sorted(lists))}).")
+    return next(iter(lists.items()), None)
+
+
+def _add_arrived_together(tool_name: str, args: dict, user, name: str, files: list, *,
+                          model_call: bool = False) -> dict:
+    """Les fichiers arrivés ensemble dans UN appel d'ajout : un élément par fichier, chacun par
+    l'appel ordinaire (`execute_tool` : droits, porte du schéma, naissance de l'app), puis rangés
+    en lot par la déclaration de l'app (`consolidate_arrival`, le modèle de sa triade). Un fichier
+    refusé ne fait pas refuser les autres — l'import fait de même ; il est nommé dans `errors`.
+    Rend `item_ids` (la clé que lit `items_of_step`), `batch_ids` quand un lot s'est formé."""
+    from wama.common.services.tool_trace import result_error
+    created, errors = [], []
+    for path in files:
+        result = execute_tool(tool_name, {**args, name: path}, user, model_call=model_call)
+        if result_error(result):
+            errors.append({'file': path, 'error': result.get('detail') or result.get('error')})
+        else:
+            created.append(result)
+    ids = [r['item_id'] for r in created if r.get('item_id') not in (None, '')]
+    if not ids:
+        return {'error': ' ; '.join(f"{e['file']} : {e['error']}" for e in errors)
+                         or 'Aucun élément créé.', 'errors': errors}
+    answer = {'item_ids': ids, 'count': len(ids), 'items': created}
+    statuses = {r.get('status') for r in created}
+    if len(statuses) == 1:
+        answer['status'] = statuses.pop()
+    if errors:
+        answer['errors'] = errors
+    if len(ids) > 1:
+        from django.utils.module_loading import import_string
+
+        from wama.common.utils.queue_manipulation import consolidate_arrival
+        try:
+            model = import_string(TRIAD_SPECS[tool_name[len('add_to_'):]]['model'])
+            answer['batch_ids'] = [b.id for b in consolidate_arrival(model, ids, user)]
+        except Exception as e:
+            logger.warning(f'[tool_api] {tool_name} : regroupement à l\'arrivée échoué : {e}')
+            answer['batch_warning'] = f"Éléments créés, mais non rangés en lot : {e}"
+    return answer
 
 
 # ===========================================================================

@@ -2527,7 +2527,7 @@ Audit MESURÉ de `media/` en 4 états : RÉFÉRENCÉ (une ligne de base pointe d
 
 ### Manipulation directe de la file
 
-Endpoints génériques : sortir une card d'un batch, réordonner DANS un lot, ordonner la FILE (`reorder_queue`, 2026-09-04), déplacer, FUSIONNER (`merge`) et consolider. ⚠ `merge` ≠ `consolidate` : le premier fusionne en UN lot et REFUSE si les natures ne cohabitent pas (geste du drag&drop, on a visé une card) ; le second RANGE par nature en N lots. La nature est déclarée UNE fois (`group_key`) et la fabrique INSCRIT le regroupement à l'arrivée de son modèle : `consolidate_arrival`, appelé par tout chemin d'arrivée (dépôt de N fichiers, import du gestionnaire de fichiers, fichier de lot) — aucune app ne le redéfinit depuis le 2026-10-16 (tests_arrival_consolidation)
+Endpoints génériques : sortir une card d'un batch, réordonner DANS un lot, ordonner la FILE (`reorder_queue`, 2026-09-04), déplacer, FUSIONNER (`merge`) et consolider. ⚠ `merge` ≠ `consolidate` : le premier fusionne en UN lot et REFUSE si les natures ne cohabitent pas (geste du drag&drop, on a visé une card) ; le second RANGE par nature en N lots. La nature est déclarée UNE fois (`group_key`) et la fabrique INSCRIT le regroupement à l'arrivée de son modèle : `consolidate_arrival`, appelé par tout chemin d'arrivée (dépôt de N fichiers, import du gestionnaire de fichiers, fichier de lot, lot du Studio, et depuis le 2026-11-17 l'outil d'ajout de l'assistant qui reçoit N fichiers de travail — `tool_api.arrival_arguments`, lus au contrat port → argument du Studio) — aucune app ne le redéfinit depuis le 2026-10-16 (tests_arrival_consolidation)
 
 - **Domicile** : `wama/common/utils/queue_manipulation.py` · **doc** : [docs/construction/ui/CARD_DESIGN.md §3bis](../construction/ui/CARD_DESIGN.md)
 - **Module** : WAMA Common — Manipulation DIRECTE de la file (CARD_DESIGN §3bis) : vues génériques.
@@ -4189,9 +4189,11 @@ Exécute une app par son CONTRAT (triade tool_api normalisée) — zéro logique
 
 - **Domicile** : `wama/studio/services/generic_runner.py` · **doc** : [docs/construction/mondes/STUDIO_VISION.md](../construction/mondes/STUDIO_VISION.md)
 - **Module** : Studio — runner GÉNÉRIQUE piloté par le CONTRAT d'app (STUDIO_VISION « principe directeur », 2026-07-12). Zéro logique par app : tout vient des sources uniques.
-- **API publique** (6) :
-  - `primary_ports(app_id) -> set` — Les ports par lesquels arrive l'ENTRÉE PRINCIPALE du nœud (transmise par `create`).
+- **API publique** (8) :
+  - `primary_ports(app_id, ports=None) -> set` — Les ports par lesquels arrive l'ENTRÉE PRINCIPALE du nœud (transmise par `create`).
   - `port_argument_name(app_id, port_id, accepted=None)` — L'argument de l'outil où ARRIVE le port `port_id` : celui du MÊME NOM ; à défaut, pour le
+  - `work_arguments(app_id) -> set` — Les arguments de `add_to_<app>` où arrive un FICHIER DE TRAVAIL (port du groupe `travail`) —
+  - `primary_argument(app_id)` — L'argument de `add_to_<app>` où arrive l'ENTRÉE PRINCIPALE du nœud : celui que l'app déclare
   - `unwired_ports(app_id) -> list` — Les ports du nœud que l'outil de l'app ne LIT pas encore — le portage qui reste.
   - `unwired_ports_report(measure=None)` — (ok, détail) — la liste MESURÉE des ports non lus confrontée au budget, dans les deux
   - `port_arguments(app_id, inputs) -> dict` — Les liens reçus sur les ports NON principaux, en arguments nommés de l'outil.
@@ -4328,6 +4330,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `input_schema_for(fn, index=None) -> dict` — Schéma JSON des arguments d'une FONCTION d'outil : signature, complétée par le schéma
   - `decode_structured_args(fn, args: dict) -> dict` — Les arguments d'un outil dont la signature annonce un OBJET ou une LISTE (`dict`/`list`, le
   - `primary_arg_name(tool_name: str)` — Nom du 1er paramètre « utile » d'un outil (celui qui suit `user`), ou None.
+  - `arrival_arguments(tool_name: str) -> frozenset` — Les arguments d'un outil d'AJOUT (`add_to_<app>`) qui prennent PLUSIEURS fichiers arrivés
   - `tool_arg_names(tool_name: str) -> set` — Les arguments NOMMÉS d'un outil (hors `user`, `*args`, `**params`) — dérivés de la signature.
   - `sanitize_tool_args(tool_name: str, args: dict)` — Prépare les arguments d'un appel d'outil : coercition par le SCHÉMA de l'app puis
   - `relay_quality_intent(user, tool_name: str, result: dict) -> dict` — Relaie le curseur Rapide ↔ Qualité de l'ASSISTANT vers l'élément qu'un outil `add_to_<app>`

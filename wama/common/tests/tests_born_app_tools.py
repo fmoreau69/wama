@@ -115,6 +115,18 @@ class BornCreatorTest(TestCase):
         self.assertIn('.png', out['error'])
         post.assert_not_called()
 
+    def test_several_files_on_one_port_stop_the_call_before_anything_is_posted(self):
+        """The deposit view keeps ONE file per port (`received[0]`) : several files are refused,
+        never posted to lose all but the first (work files arriving together are split, one element
+        each, by `execute_tool` — `tests_arrival_consolidation`)."""
+        with mock.patch('wama.common.utils.media_paths.designated_file',
+                        return_value='/media/users/1/temp/cv.pdf'), \
+                mock.patch.object(T, '_poster_vue') as post:
+            out = self.creator(self.user, prompt='x',
+                               reference_document=['users/1/temp/a.pdf', 'users/1/temp/b.pdf'])
+        self.assertIn('2 reçus', out['error'])
+        post.assert_not_called()
+
     def test_what_the_view_rejects_is_reported_in_its_own_words(self):
         with mock.patch.object(T, '_poster_vue',
                                return_value=(400, {'error': 'Rien à ajouter'})):
