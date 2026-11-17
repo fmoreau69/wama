@@ -10,7 +10,7 @@
       "author": "Peter Sagerson <psagers@ignorare.net>",
       "license": "BSD",
       "repository": "https://github.com/django-auth-ldap/django-auth-ldap",
-      "role": "brick",
+      "role": "platform",
       "summary": "Django LDAP authentication backend",
       "version": "5.2.0"
     },

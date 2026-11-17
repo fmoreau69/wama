@@ -11,7 +11,7 @@
       "author": "Colin Raffel",
       "license": "MIT",
       "repository": "https://github.com/craffel/pretty-midi",
-      "role": "brick",
+      "role": "processing",
       "summary": "Functions and classes for handling MIDI data conveniently.",
       "version": "0.2.10"
     },

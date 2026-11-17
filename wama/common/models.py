@@ -1221,6 +1221,9 @@ class Library(models.Model):
     # RÔLE dans WAMA (socle, moteur, app, brique — `builtin.library.LIBRARY_ROLES`) : une étiquette
     # de lecture DÉCLARÉE au manifeste (`identity.role`) et projetée ici ; '' = pas encore classée.
     role = models.CharField(max_length=16, blank=True, default='', db_index=True)
+    # MONDE du code qui l'importe (`media | data | lab | transverse`), MESURÉ à l'extraction
+    # (`library_index.measured_world`) et projeté ici depuis l'enveloppe du manifeste.
+    world = models.CharField(max_length=16, blank=True, default='transverse', db_index=True)
     pip_spec = models.CharField(
         max_length=200, blank=True, default='',
         help_text="Spécificateur d'installation épinglé, p.ex. 'faster-whisper==1.2.1'")

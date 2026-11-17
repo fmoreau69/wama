@@ -15,7 +15,7 @@
       "author": "Tom Christie <tom@tomchristie.com>",
       "license": "BSD-3-Clause",
       "repository": "https://github.com/Kludex/uvicorn",
-      "role": "brick",
+      "role": "platform",
       "summary": "The lightning-fast ASGI server.",
       "version": "0.38.0"
     },

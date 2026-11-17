@@ -9,7 +9,7 @@
       "author": null,
       "license": "BSD License",
       "repository": "https://github.com/scipy/scipy",
-      "role": "brick",
+      "role": "processing",
       "summary": "Fundamental algorithms for scientific computing in Python",
       "version": "1.16.2"
     },

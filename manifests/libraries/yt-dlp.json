@@ -11,7 +11,7 @@
       "author": "pukkandan <pukkandan.ytdlp@gmail.com>",
       "license": "Unlicense",
       "repository": "https://github.com/yt-dlp/yt-dlp",
-      "role": "brick",
+      "role": "external",
       "summary": "A feature-rich command-line audio/video downloader",
       "version": "2026.8.19"
     },

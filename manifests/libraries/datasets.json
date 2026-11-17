@@ -26,7 +26,7 @@
       "author": "HuggingFace Inc.",
       "license": "Apache 2.0",
       "repository": "https://github.com/huggingface/datasets",
-      "role": "brick",
+      "role": "external",
       "summary": "HuggingFace community-driven open-source library of datasets",
       "version": "4.7.0"
     },

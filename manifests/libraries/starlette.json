@@ -10,7 +10,7 @@
       "author": "Tom Christie <tom@tomchristie.com>",
       "license": "BSD-3-Clause",
       "repository": "https://github.com/encode/starlette",
-      "role": "brick",
+      "role": "platform",
       "summary": "The little ASGI library that shines.",
       "version": "0.46.2"
     },

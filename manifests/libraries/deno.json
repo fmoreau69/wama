@@ -7,7 +7,7 @@
       "author": "the Deno authors <support@deno.com>",
       "license": "MIT",
       "repository": "https://deno.com",
-      "role": "brick",
+      "role": "external",
       "summary": "Python redistribution of Deno binaries",
       "version": "2.9.7"
     },

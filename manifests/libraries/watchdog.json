@@ -11,7 +11,7 @@
       "author": "Mickaël Schoentgen",
       "license": "Apache-2.0",
       "repository": "https://github.com/gorakhargosh/watchdog/",
-      "role": "brick",
+      "role": "platform",
       "summary": "Filesystem events monitoring",
       "version": "6.0.0"
     },

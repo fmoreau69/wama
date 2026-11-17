@@ -7,7 +7,7 @@
       "author": "Simon Sawicki <contact@grub4k.dev>",
       "license": "Unlicense AND MIT AND ISC",
       "repository": "https://github.com/yt-dlp/ejs",
-      "role": "brick",
+      "role": "external",
       "summary": "External JavaScript for yt-dlp supporting many runtimes",
       "version": "0.8.0"
     },

@@ -89,16 +89,25 @@ def validate_library_body(body: dict) -> list[str]:
     return errs
 
 
-#: RÔLE d'une librairie (`identity.role`, 2026-11-16, décision de Fabien) — une étiquette de
-#: LECTURE, pour filtrer, trier et retrouver ; jamais une condition d'entrée au registre (le critère
-#: reste « le code de WAMA l'importe », `library_index.unseeded`). DÉCLARÉ au manifeste, parce qu'il
-#: ne se mesure pas juste : un moteur installé dans un environnement isolé ou vendorisé ne se voit
-#: pas depuis celui-ci (essai du 2026-11-15, `LICENSING §4bis`). Clé → libellé affiché.
-#:   • `platform` — le socle : ce sans quoi WAMA ne démarre pas (`library_index.SOCLE_PLATEFORME`) ;
-#:   • `engine`   — un moteur : ce qu'un modèle ou un backend exige pour tourner ;
-#:   • `app`      — au service d'une ou de quelques apps (un format, un export) ;
-#:   • `brick`    — une brique du commun (assistant, registres, sécurité, outillage servi).
-LIBRARY_ROLES = {'platform': 'Socle', 'engine': 'Moteur', 'app': 'App', 'brick': 'Brique'}
+#: RÔLE d'une librairie (`identity.role`) — une étiquette de LECTURE, pour filtrer, trier et
+#: retrouver ; jamais une condition d'entrée au registre (le critère reste « le code de WAMA
+#: l'importe », `library_index.unseeded`). DÉCLARÉ au manifeste : il dit ce qu'est la librairie
+#: pour WAMA et ne se mesure pas juste (un moteur isolé ou vendorisé ne se voit pas d'ici, essai du
+#: 2026-11-15). Six rôles (Fabien, 2026-11-17 ; noms éprouvés par le concile) — le rôle suit
+#: l'USAGE PRINCIPAL dans WAMA, pas ce que l'auteur du paquet en dit :
+#:   • `platform`   — le socle : ce sans quoi WAMA ne démarre pas ou ne sert pas, le cadre de ses
+#:                    services locaux compris ; nécessaire à l'EXÉCUTION. Il est la strate 1
+#:                    (`library_index.platform_libraries`) : jamais cité dans un `requires` ;
+#:   • `engine`     — ce qui fait tourner les moteurs des modèles, et leurs dépendances ;
+#:   • `processing` — ce qui lit, transforme ou produit les contenus : médias, documents, données ;
+#:   • `external`   — ce qui relie WAMA au dehors (le registre `external_sources` : fournisseurs
+#:                    LLM, Hub, import depuis le web, canaux, MCP, services en ligne) ;
+#:   • `tooling`    — ce qui sert à vérifier ou maintenir WAMA, pas à le faire tourner ;
+#:   • `app`        — ce qui ne sert qu'à une app : son MONDE (enveloppe `world`, MESURÉ à
+#:                    l'extraction) dit laquelle — une librairie de plusieurs mondes n'est pas `app`.
+#: (« process » et « connector » sont pris : nœud d'un pipeline, carte du monde Data.)
+LIBRARY_ROLES = {'platform': 'Socle', 'engine': 'Moteur', 'processing': 'Traitement',
+                 'external': 'Sources externes', 'tooling': 'Outillage', 'app': 'App'}
 
 
 #: Longueur du champ `Library.license` (un IDENTIFIANT — 'MIT', 'Apache-2.0' — jamais un texte).
@@ -369,7 +378,7 @@ def _vendor_manifest_from_registry(key: str) -> Optional[dict]:
     return {
         'manifest_kind': 'library', 'key': lib.key, 'schema_version': '1.0',
         'name': lib.name or lib.key, 'description': (lib.summary or '')[:500],
-        'world': 'transverse', 'visibility': 'public', 'projects': [],
+        'world': lib.world or 'transverse', 'visibility': 'public', 'projects': [],
         **({'requires': requires} if requires else {}),
         'source': {'type': 'authored',
                    'ref': f"github:{lib.vendor.get('repo')}@{lib.vendor.get('commit')}"},
@@ -394,6 +403,12 @@ def extract_library(key: str) -> Optional[dict]:
     # métadonnées effacer les contraintes déclarées.
     authored = authored_vendor_manifest(key)
     if authored is not None:
+        # Le MONDE n'est pas un fait d'auteur, c'est une mesure : il se reprend pour une librairie
+        # installée par pip (le code l'importe sous son nom de distribution). Une librairie
+        # vendorisée n'est pas une distribution : rien à mesurer, sa déclaration reste.
+        if ((authored.get('body') or {}).get('install') or {}).get('pip'):
+            from wama.common.services.library_index import measured_world
+            authored = {**authored, 'world': measured_world(key)}
         return authored
 
     try:
@@ -409,6 +424,7 @@ def extract_library(key: str) -> Optional[dict]:
     depot = (urls.get('source') or urls.get('repository') or urls.get('homepage')
              or meta.get('Home-page') or None)
 
+    from wama.common.services.library_index import measured_world
     role = declared_role(dist.name) or declared_role(key)
     console = sorted(ep.name for ep in dist.entry_points if ep.group == 'console_scripts')
     deps = dependency_names(dist.requires)
@@ -445,7 +461,9 @@ def extract_library(key: str) -> Optional[dict]:
         'schema_version': '1.0',
         'name': dist.name,
         'description': (meta.get('Summary') or '')[:500],
-        'world': 'transverse',          # une brique logicielle est un asset transverse
+        # Le monde du code qui l'importe, MESURÉ (`library_index.measured_world`, 2026-11-17) :
+        # `transverse` dès que le substrat ou plusieurs mondes s'en servent.
+        'world': measured_world(dist.name),
         'visibility': 'public',
         'projects': [],
         'source': {'type': 'extract', 'ref': f'importlib.metadata:{dist.name}=={dist.version}'},
@@ -472,6 +490,7 @@ _CHAMPS_PROJETES = (
     ('author',          lambda m, b: (b.get('identity') or {}).get('author') or ''),
     ('repository',      lambda m, b: (b.get('identity') or {}).get('repository') or ''),
     ('role',            lambda m, b: (b.get('identity') or {}).get('role') or ''),
+    ('world',           lambda m, b: m.get('world') or 'transverse'),
     ('pip_spec',        lambda m, b: (b.get('install') or {}).get('pip') or ''),
     ('requires_python', lambda m, b: (b.get('install') or {}).get('requires_python') or ''),
     ('entry_points',    lambda m, b: b.get('entry_points') or {}),

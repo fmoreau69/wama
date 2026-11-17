@@ -16,7 +16,7 @@
       "author": "\"Hernan E. Grecco\" <hernan.grecco@gmail.com>",
       "license": "BSD",
       "repository": "https://github.com/hgrecco/pint",
-      "role": "brick",
+      "role": "processing",
       "summary": "Physical quantities module",
       "version": "0.25.3"
     },

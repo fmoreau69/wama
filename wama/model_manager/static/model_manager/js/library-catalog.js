@@ -41,6 +41,7 @@
         { section: 'Provenance', rows: [
             { k: 'Licence', field: 'license' },
             { k: 'Rôle', field: 'role' },
+            { k: 'Monde', field: 'world' },
             { k: 'Auteur', field: 'author' },
             { k: 'Dépôt', field: 'repository' },
             { k: 'Clone épinglé', field: 'vendor', code: true },

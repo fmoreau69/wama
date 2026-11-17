@@ -10,7 +10,7 @@
       "author": "python-ldap project",
       "license": "Python style",
       "repository": "https://www.python-ldap.org/",
-      "role": "brick",
+      "role": "platform",
       "summary": "Python modules for implementing LDAP clients",
       "version": "3.4.4"
     },

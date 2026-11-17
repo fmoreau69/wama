@@ -9,7 +9,7 @@
       "author": "Eric Gazoni, Charlie Clark",
       "license": "MIT",
       "repository": "https://foss.heptapod.net/openpyxl/openpyxl",
-      "role": "app",
+      "role": "processing",
       "summary": "A Python library to read/write Excel 2010 xlsx/xlsm files",
       "version": "3.1.5"
     },
@@ -29,5 +29,5 @@
     "type": "authored"
   },
   "visibility": "public",
-  "world": "transverse"
+  "world": "data"
 }

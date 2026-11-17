@@ -523,24 +523,41 @@ en silence.
 > github:LibreTranslate/LibreTranslate@…` ; §7.4-3), pas au sens « ensemble WAMA-interne ». La
 > collision annoncée a donc eu lieu : **le sens d'`authored` reste une décision de Fabien**.
 
-### 6bis.2 `identity.role` — le rôle d'une librairie dans WAMA (2026-11-16)
+### 6bis.2 `identity.role` et le monde — ce qu'est une librairie pour WAMA, et qui s'en sert
 
-Champ FACULTATIF du corps `library`, DÉCLARÉ (décision de Fabien : une étiquette pour filtrer,
-trier et retrouver — jamais une condition d'entrée au registre). Vocabulaire fermé
-(`builtin.library.LIBRARY_ROLES`, refusé à la validation hors de lui) :
+**Le RÔLE** (2026-11-16, revu le 2026-11-17 — six rôles, décision de Fabien, noms éprouvés par le
+concile) : champ du corps `library`, DÉCLARÉ, vocabulaire fermé (`builtin.library.LIBRARY_ROLES`,
+refusé à la validation hors de lui). Une étiquette pour filtrer, trier, retrouver — jamais une
+condition d'entrée au registre. **Toute librairie du corpus en déclare un** (garde
+`tests_manifest_library.LibraryRoleTest`) : une librairie semée sans rôle rougit, on le déclare à
+sa naissance. Le rôle suit l'USAGE PRINCIPAL dans WAMA, pas ce que l'auteur du paquet en dit.
 
-| valeur | sens |
-|---|---|
-| `platform` | le socle : ce sans quoi WAMA ne démarre pas (`library_index.SOCLE_PLATEFORME`) |
-| `engine` | un moteur : ce qu'un modèle ou un backend exige pour tourner |
-| `app` | au service d'une ou de quelques apps (un format, un export) |
-| `brick` | une brique du commun (assistant, registres, sécurité, outillage servi) |
+| valeur | libellé | sens |
+|---|---|---|
+| `platform` | Socle | ce sans quoi WAMA ne démarre pas ou ne sert pas, le cadre de ses services locaux compris — nécessaire à l'EXÉCUTION. C'est la strate 1 (§7.4) : jamais citée dans un `requires` |
+| `engine` | Moteur | ce qui fait tourner les moteurs des modèles, et leurs dépendances |
+| `processing` | Traitement | ce qui lit, transforme ou produit les contenus : médias, documents, données |
+| `external` | Sources externes | ce qui relie WAMA au dehors — le registre `external_sources` (fournisseurs LLM, Hub, import depuis le web, canaux, MCP, services en ligne) |
+| `tooling` | Outillage | ce qui sert à vérifier ou maintenir WAMA, pas à le faire tourner |
+| `app` | App | ce qui ne sert qu'à une app — son MONDE dit laquelle |
 
-Il ne s'EXTRAIT pas — les métadonnées d'un paquet ne disent pas à quoi il sert ici, et un moteur
-isolé ou vendorisé ne se voit pas depuis l'environnement courant (essai dérivé du 2026-11-15,
-`LICENSING §4bis`). L'extraction REPREND donc le rôle que porte le manifeste du corpus
-(`declared_role`) ; sans rôle déclaré la clé est absente. Projeté dans `Library.role`
-(`_CHAMPS_PROJETES`), lu par la page des librairies (facette « Rôle »).
+« process » (nœud d'un pipeline) et « connector » (carte du monde Data) sont pris : d'où
+`processing` et `external`.
+
+Le rôle ne s'EXTRAIT pas — les métadonnées d'un paquet ne disent pas à quoi il sert ici, et un
+moteur isolé ou vendorisé ne se voit pas depuis l'environnement courant. L'extraction REPREND le
+rôle que porte le manifeste du corpus (`declared_role`). Projeté dans `Library.role`, lu par la
+page des librairies (facette « Rôle »).
+
+**Le MONDE** (2026-11-17) : l'enveloppe `world` d'un manifeste `library`, MESURÉE à l'extraction
+(`library_index.measured_world`) — le monde du code SERVI qui l'importe (tests exclus), lu par
+l'app Django qui contient chaque fichier (`app_registry.app_world`), quand il n'y en a qu'un et que
+ce n'est pas le substrat ; sinon `transverse`. C'est un USAGE : la frontière du kind (§7.1) interdit
+de le déclarer, c'est le code qui le dit, et `manifest_export --check` voit sa dérive. Aussi mesuré
+pour un manifeste autoré installé par pip (pas pour une librairie vendorisée, que le code ne voit
+pas comme un paquet). Projeté dans `Library.world`, facette « Monde » de la page. Rôle × monde se
+croisent (« App · Lab », « Traitement · Données ») au lieu de multiplier les rôles ; une librairie
+`app` sert UN monde (garde `test_an_app_library_serves_one_world`).
 
 ## 7. COMPOSITION des manifestes — « une app = app + model(s) + library(ies) »
 
@@ -1057,10 +1074,12 @@ que le catalogue n'a pas. Autre facette, pas redondance.
    torchaudio, pyannote-audio, librosa, soundfile, openai-whisper, vibevoice — extraction
    `importlib.metadata`, licences absentes = null honnête) → **transcriber `requires` = 4
    modèles + 9 libraries, 13/13 résolus**. Règle des TROIS STRATES actée :
-   - **strate 1 — SOCLE PLATEFORME** (`library_index.SOCLE_PLATEFORME` : Django, celery,
-     redis, numpy, requests) : contrat d'exécution commun aux 10 apps, JAMAIS cité dans un
-     `requires` d'app (exclu même si semé — la plateforme n'est pas une dépendance du
-     workload, cf. k8s/Backstage). Étendre la liste = décision d'architecture.
+   - **strate 1 — SOCLE PLATEFORME** (`library_index.platform_libraries`, *lu aux manifestes
+     qui déclarent `identity.role = platform` depuis le 2026-11-17 — c'était une liste écrite
+     dans le code, `SOCLE_PLATEFORME`, cinq noms, `REMOVAL_LEDGER R240`*) : contrat d'exécution
+     commun à toutes les apps, JAMAIS cité dans un `requires` d'app ni de modèle (exclu même si
+     semé — la plateforme n'est pas une dépendance du workload, cf. k8s/Backstage). Ranger une
+     librairie au socle = décision d'architecture, prise à son manifeste (§6bis.2).
    - **strate 2 — libraries métier** : la jambe `requires` (importée ∩ semée ∩ hors socle).
    - **strate 3 — outils système** (ffmpeg, pandoc, chromium…) : NON déclarés (trou #15,
      ROUTE §11), hors périmètre du kind `library` (binaires, pas des distributions Python).

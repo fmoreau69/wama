@@ -63,7 +63,9 @@ Composition mesurée : **91 liens `app → model`** + jambes `app → library` S
 d'`extract` — et l'écrire à la main a trouvé **4 défauts réels en une heure** (dont D31, un
 identifiant de flux divergent entre `probe()` et `read()`). **Écrire un manifeste à la main est
 un instrument de mesure**, pas une corvée. Strates actées (SPEC §7.4-5) : socle plateforme
-(`library_index.SOCLE_PLATEFORME`, jamais cité) / libraries métier / outils système (trou #15).
+(`library_index.platform_libraries` : les manifestes `library` qui déclarent `identity.role =
+platform`, jamais cités) / libraries métier / outils système (trou #15). Une librairie semée
+DÉCLARE son rôle (six, SPEC §6bis.2) ; son monde se MESURE à l'extraction.
 
 ## 3. Contrôles à relancer après toute modification
 

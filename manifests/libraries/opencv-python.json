@@ -9,7 +9,7 @@
       "author": null,
       "license": "Apache 2.0",
       "repository": "https://github.com/opencv/opencv-python",
-      "role": "brick",
+      "role": "processing",
       "summary": "Wrapper package for OpenCV python bindings.",
       "version": "4.10.0.84"
     },

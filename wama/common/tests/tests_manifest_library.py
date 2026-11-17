@@ -221,10 +221,11 @@ class JambeBackendsDesRequiresTest(TestCase):
     def test_le_socle_plateforme_reste_exclu(self):
         """`diffusers` déclare `REQUIRED_PACKAGES = ['torch', 'diffusers', 'numpy']` : numpy est
         du SOCLE — jamais cité, même semé (même règle que la 1ʳᵉ jambe)."""
-        from wama.common.services.library_index import librairies_des_backends, SOCLE_PLATEFORME
+        from wama.common.services.library_index import librairies_des_backends, platform_libraries
         self._semer('imager:qwen-image-2', 'diffusers')
         libs = librairies_des_backends(['imager:qwen-image-2'])
-        self.assertFalse(set(libs) & SOCLE_PLATEFORME, libs)
+        self.assertIn('numpy', platform_libraries())
+        self.assertFalse(set(libs) & platform_libraries(), libs)
 
 
 class ModelLibrariesSinglePathTest(TestCase):
@@ -323,22 +324,95 @@ class LibraryRoleTest(TestCase):
         from unittest import mock
 
         from wama.common.manifests.builtin import library
+        from wama.common.services import library_index
         stated = {'source': {'type': 'extract'}, 'body': {'identity': {'role': 'platform'}, 'install': {'pip': 'x'}}}
+        # Le monde se mesure sur tout le code (une minute et demie) : hors de ce test.
+        world = mock.patch.object(library_index, 'measured_world', lambda dist: 'transverse')
+        world.start()
+        self.addCleanup(world.stop)
         with mock.patch.object(library, 'corpus_manifest', lambda key: stated):
             self.assertEqual('platform', library.extract_library('django')['body']['identity']['role'])
         silent = {'source': {'type': 'extract'}, 'body': {'identity': {'role': 'nonsense'}, 'install': {'pip': 'x'}}}
         with mock.patch.object(library, 'corpus_manifest', lambda key: silent):
             self.assertNotIn('role', library.extract_library('django')['body']['identity'])
 
-    def test_every_role_the_corpus_states_is_in_the_vocabulary(self):
+    def test_every_library_of_the_corpus_states_a_role_of_the_vocabulary(self):
+        """Un rôle se déclare à la naissance d'une librairie (2026-11-17, « que ce fonctionnement
+        soit pérenne ») : une librairie semée sans rôle rougit ici — la déclarer, jamais la laisser."""
         import json
         from wama.common.manifests.builtin.library import LIBRARY_ROLES
-        from wama.common.services.library_index import SOCLE_PLATEFORME, _normalise
         for path in (Path(settings.BASE_DIR) / 'manifests' / 'libraries').glob('*.json'):
             role = ((json.loads(path.read_text(encoding='utf-8')).get('body') or {})
                     .get('identity') or {}).get('role')
-            self.assertIn(role, (None, *LIBRARY_ROLES), path.name)
-            # Le socle a UNE liste (`SOCLE_PLATEFORME`, celle qui l'écarte des `requires`) : un rôle
-            # déclaré ne peut ni y ajouter une librairie ni en classer une ailleurs.
-            if role:
-                self.assertEqual(_normalise(path.stem) in SOCLE_PLATEFORME, role == 'platform', path.name)
+            self.assertIn(role, LIBRARY_ROLES, f'{path.name} : identity.role à déclarer')
+
+    def test_an_app_library_serves_one_world(self):
+        """Une librairie de PLUSIEURS mondes n'est pas une librairie d'app (concile, 2026-11-17) : son
+        monde mesuré, écrit dans l'enveloppe par l'extraction, dit laquelle — jamais transverse."""
+        import json
+        apps = 0
+        for path in (Path(settings.BASE_DIR) / 'manifests' / 'libraries').glob('*.json'):
+            manifest = json.loads(path.read_text(encoding='utf-8'))
+            if ((manifest.get('body') or {}).get('identity') or {}).get('role') == 'app':
+                apps += 1
+                self.assertIn(manifest.get('world'), ('media', 'data', 'lab'), path.name)
+        self.assertTrue(apps, 'aucune librairie app : la garde ne mesurerait rien')
+
+
+class PlatformFromManifestsTest(SimpleTestCase):
+    """Le SOCLE (strate 1, exclu de tout `requires`) se lit aux manifestes qui déclarent
+    `platform` — il n'y a plus de liste écrite dans le code (2026-11-17)."""
+
+    def test_the_platform_is_what_the_manifests_state(self):
+        import json
+        import tempfile
+        from unittest import mock
+
+        from wama.common.services import library_index
+        with tempfile.TemporaryDirectory() as root:
+            folder = Path(root) / 'manifests' / 'libraries'
+            folder.mkdir(parents=True)
+            for key, role in (('Some_Base', 'platform'), ('some-engine', 'engine'), ('silent', None)):
+                identity = {'version': '1', **({'role': role} if role else {})}
+                (folder / f'{key}.json').write_text(json.dumps({'key': key, 'body': {'identity': identity}}),
+                                                    encoding='utf-8')
+            library_index.platform_libraries.cache_clear()
+            self.addCleanup(library_index.platform_libraries.cache_clear)
+            with mock.patch.object(library_index, '_base_dir', lambda: Path(root)):
+                self.assertEqual(frozenset({'some-base'}), library_index.platform_libraries())
+
+
+class LibraryWorldTest(TestCase):
+    """Le MONDE d'une librairie se MESURE (2026-11-17) : le monde du code servi qui l'importe — un
+    usage, que la frontière du kind interdit de déclarer (SPEC §7.1)."""
+
+    def test_one_world_alone_is_the_world_otherwise_transverse(self):
+        from unittest import mock
+
+        from wama.common.services import library_index
+        served = {'only-lab': {'lab'}, 'lab-and-substrate': {'lab', 'transverse'},
+                  'two-worlds': {'media', 'lab'}}
+        with mock.patch.object(library_index, 'served_worlds', lambda: served):
+            self.assertEqual('lab', library_index.measured_world('Only_Lab'))
+            self.assertEqual('transverse', library_index.measured_world('lab-and-substrate'))
+            self.assertEqual('transverse', library_index.measured_world('two-worlds'))
+            self.assertEqual('transverse', library_index.measured_world('never-imported'))
+
+    def test_a_file_has_the_world_its_app_states_and_a_test_has_none(self):
+        from wama.common.app_registry import APP_CATALOG, app_world
+        from wama.common.services.library_index import _served_file_world
+        base = Path(settings.BASE_DIR)
+        app = next(a for a in APP_CATALOG if app_world(a) and (base / 'wama' / a).is_dir())
+        self.assertEqual(app_world(app), _served_file_world(base / 'wama' / app / 'views.py', base))
+        self.assertIsNone(_served_file_world(base / 'wama' / app / 'tests' / 'tests_x.py', base))
+        self.assertEqual('transverse', _served_file_world(base / 'wama' / 'common' / 'registries.py', base))
+
+    def test_the_projection_writes_the_world_and_defaults_to_transverse(self):
+        from wama.common.manifests.builtin import library
+        from wama.common.models import Library
+        manifest = {'manifest_kind': 'library', 'key': 'world-probe', 'name': 'world-probe', 'world': 'lab',
+                    'body': {'identity': {'version': '1'}, 'install': {'pip': 'world-probe==1'}}}
+        library.write_back_library(manifest, apply=True)
+        self.assertEqual('lab', Library.objects.get(key='world-probe').world)
+        library.write_back_library({**manifest, 'world': None}, apply=True)
+        self.assertEqual('transverse', Library.objects.get(key='world-probe').world)

@@ -18,7 +18,7 @@
       "author": "ONNX Contributors <onnx-technical-discuss@lists.lfaidata.foundation>",
       "license": "Apache-2.0",
       "repository": "https://github.com/onnx/onnx",
-      "role": "brick",
+      "role": "engine",
       "summary": "Open Neural Network Exchange",
       "version": "1.20.0"
     },

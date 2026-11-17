@@ -7,7 +7,7 @@
       "author": "Donald Stufft <donald@stufft.io>",
       "license": "Apache Software License",
       "repository": "https://github.com/pypa/packaging",
-      "role": "brick",
+      "role": "tooling",
       "summary": "Core utilities for Python packages",
       "version": "24.2"
     },

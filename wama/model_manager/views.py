@@ -2238,12 +2238,14 @@ def library_catalog(request):
     Demandée par Fabien le 2026-08-11 (le registre existait sans surface)."""
     import importlib.metadata as im
     from wama.accounts.permissions import is_admin_tier
+    from wama.common.app_registry import world_label
     from wama.common.manifests.builtin.library import LIBRARY_ROLES
     from wama.common.models import Library
 
     rows, details = [], []
     for lib in Library.objects.all():
         role = LIBRARY_ROLES.get(lib.role, '')
+        world = world_label(lib.world or 'transverse')
         try:
             live = im.version(lib.key)
         except im.PackageNotFoundError:
@@ -2253,7 +2255,7 @@ def library_catalog(request):
         declared = (lib.pip_spec.split('==', 1)[1] if '==' in (lib.pip_spec or '')
                     else lib.version or '')
         drift = bool(live and declared and live != declared)
-        rows.append({'lib': lib, 'live_version': live, 'drift': drift, 'role': role})
+        rows.append({'lib': lib, 'live_version': live, 'drift': drift, 'role': role, 'world': world})
         # La FICHE du volet (2026-11-08, `WAMA_VOLETS §2` point 2) : les champs du registre tels
         # qu'ils sont, plus ce que la page MESURE — rendue par `WamaDetails` d'après le schéma de
         # la page, comme la fiche d'un modèle. Rien n'y est recalculé côté navigateur.
@@ -2261,7 +2263,7 @@ def library_catalog(request):
         details.append({
             'key': lib.key, 'name': lib.name, 'summary': lib.summary,
             'declared_version': declared, 'live_version': live or '', 'drift': drift,
-            'route': 'vendor' if vendor else 'pip', 'role': role,
+            'route': 'vendor' if vendor else 'pip', 'role': role, 'world': world,
             'pip_spec': lib.pip_spec, 'requires_python': lib.requires_python,
             'license': lib.license, 'author': lib.author, 'repository': lib.repository,
             'vendor': (f"{vendor.get('repo', '')}@{str(vendor.get('commit', ''))[:12]}"
@@ -2284,6 +2286,7 @@ def library_catalog(request):
         {'cle': 'installee', 'label': 'Installation', 'tous': 'Toutes'},
         {'cle': 'allowlist', 'label': 'Allowlist', 'tous': 'Toutes'},
         {'cle': 'role', 'label': 'Rôle', 'tous': 'Tous'},
+        {'cle': 'world', 'label': 'Monde', 'tous': 'Tous'},
     ]
 
     # Volet = la fiche de la librairie cliquée, et ses ACTIONS (2026-11-08, `WAMA_VOLETS §2`

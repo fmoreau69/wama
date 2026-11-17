@@ -40,13 +40,6 @@ INTERNES = {'wama', 'wama_lab', 'wama_data'}
 EXCLUS = {'migrations', '__pycache__', 'venv', 'venv_win', 'venv_linux',
           'site-packages', 'node_modules', '.git', 'staticfiles'}
 
-#: SOCLE PLATEFORME (strate 1, SPEC §7.4) — contrat d'exécution commun aux 10 apps, PAS une
-#: dépendance de workload : ne se déclare JAMAIS dans le `requires` d'une app (même semé, il
-#: en est exclu). Même logique que k8s/Backstage : la plateforme n'est pas une dépendance de
-#: l'application. Étendre cette liste est une décision d'ARCHITECTURE, pas un réglage.
-#: (torch/transformers n'y sont PAS : capacités ML citées là où elles sont importées — elles
-#: portent l'information dont la génération de backends a besoin, marche B.)
-SOCLE_PLATEFORME = frozenset({'django', 'celery', 'redis', 'numpy', 'requests'})
 
 
 def _base_dir() -> Path:
@@ -197,6 +190,31 @@ def _normalise(nom: str) -> str:
 
 
 @lru_cache(maxsize=1)
+def platform_libraries() -> frozenset[str]:
+    """Le SOCLE PLATEFORME (strate 1, SPEC §7.4) — les librairies que leur manifeste DÉCLARE
+    `platform` (`identity.role`) : le contrat d'exécution commun à toutes les apps, PAS une
+    dépendance de workload. Elles ne se citent JAMAIS dans le `requires` d'une app ni d'un modèle
+    (même semées) — la plateforme n'est pas une dépendance de l'application (cf. k8s/Backstage).
+
+    Lue aux déclarations depuis le 2026-11-17 (Fabien : « passer schéma-driven et retirer la liste
+    en dur ») : c'était une liste écrite ici (`SOCLE_PLATEFORME`, cinq noms), qu'un second
+    vocabulaire — le rôle déclaré — doublait. Ranger une librairie au socle se fait donc à son
+    manifeste ; c'est une décision d'ARCHITECTURE, pas un réglage. (torch/transformers n'y sont
+    PAS : capacités ML citées là où elles sont importées — la génération de backends en a besoin.)"""
+    import json
+    folder = _base_dir() / 'manifests' / 'libraries'
+    platform = set()
+    for path in folder.glob('*.json') if folder.is_dir() else ():
+        try:
+            manifest = json.loads(path.read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            continue
+        if ((manifest.get('body') or {}).get('identity') or {}).get('role') == 'platform':
+            platform.add(_normalise(manifest.get('key') or path.stem))
+    return frozenset(platform)
+
+
+@lru_cache(maxsize=1)
 def semees() -> frozenset[str]:
     """Clés déjà semées au corpus `manifests/libraries/*.json` (nom normalisé)."""
     dossier = _base_dir() / 'manifests' / 'libraries'
@@ -229,7 +247,7 @@ def candidats() -> list[dict]:
             'version': version,
             'declaree': norm in decl,
             'semee': norm in sem,
-            'socle': norm in SOCLE_PLATEFORME,
+            'socle': norm in platform_libraries(),
             'apps': info['apps'],
             'modules': info['modules'],
             'nb_apps': len(info['apps']),
@@ -243,6 +261,46 @@ def candidats() -> list[dict]:
 def non_resolus() -> list[str]:
     """Modules tiers importés dont aucune distribution n'est connue (à inspecter à la main)."""
     return sorted(scan_imports().get('__non_resolus__', {}).get('modules', []))
+
+
+def _served_file_world(path: Path, base: Path):
+    """Le monde du code SERVI qu'est `path` — celui de l'app Django qui le contient
+    (`app_registry.app_world`, sinon transverse) ; None pour un fichier de test, qui ne dit rien de
+    l'usage. Aucun dossier de monde n'est cité ici : c'est l'app qui déclare le sien."""
+    from django.apps import apps
+
+    from wama.common.app_registry import app_world
+    rel = path.relative_to(base)
+    if any(part in ('tests', 'test') for part in rel.parts) or path.name.startswith(('tests', 'test_')):
+        return None
+    module = '.'.join(rel.with_suffix('').parts)
+    config = apps.get_containing_app_config(module)
+    return (app_world(config.label) if config else None) or 'transverse'
+
+
+@lru_cache(maxsize=1)
+def served_worlds() -> dict:
+    """Distribution (nom normalisé) → les mondes du code SERVI qui l'importe (tests exclus)."""
+    base, mapping = _base_dir(), _distributions()
+    worlds: dict = {}
+    for path in code_files():
+        world = _served_file_world(path, base)
+        if world is None:
+            continue
+        for module in _third_party(_modules_du_fichier(path)):
+            for dist in mapping.get(module) or ():
+                worlds.setdefault(_normalise(dist), set()).add(world)
+    return worlds
+
+
+def measured_world(dist: str) -> str:
+    """Le MONDE d'une librairie, MESURÉ (2026-11-17) : celui du code servi qui l'importe quand il
+    n'y en a qu'un et que ce n'est pas le substrat (une librairie de l'app Lab qui lit les ROS bags :
+    `lab`), sinon `transverse`. Un usage, donc une mesure, jamais une déclaration : la frontière du
+    kind `library` interdit d'y écrire l'usage qu'une app en fait (SPEC §7.1) — c'est le code qui le
+    dit, et `manifest_export --check` voit la dérive quand il change."""
+    worlds = served_worlds().get(_normalise(dist)) or set()
+    return next(iter(worlds)) if len(worlds) == 1 else 'transverse'
 
 
 def unseeded() -> list[str]:
@@ -284,7 +342,7 @@ def librairies_de(app_id: str) -> list[str]:
     return sorted(
         c['dist'] for c in candidats()
         if app_id in c['apps'] and _normalise(c['dist']) in sem
-        and _normalise(c['dist']) not in SOCLE_PLATEFORME
+        and _normalise(c['dist']) not in platform_libraries()
     )
 
 
@@ -375,7 +433,7 @@ def seeded_libraries(distributions=(), modules=()) -> list[str]:
         for module in modules:
             dists.update(mapping.get(module.split('.')[0]) or ())
     return sorted(canon[n] for n in {_normalise(d) for d in dists if d}
-                  if n in canon and n not in SOCLE_PLATEFORME)
+                  if n in canon and n not in platform_libraries())
 
 
 def engine_libraries(engine: str) -> list[str]:

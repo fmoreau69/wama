@@ -20,7 +20,7 @@
       "author": "OpenAI <support@openai.com>",
       "license": "Apache-2.0",
       "repository": "https://github.com/openai/openai-python",
-      "role": "brick",
+      "role": "external",
       "summary": "The official Python library for the openai API",
       "version": "2.24.0"
     },

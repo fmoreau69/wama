@@ -15,7 +15,7 @@
       "author": "Nidhal Baccouri",
       "license": "MIT",
       "repository": "https://github.com/nidhaloff/deep_translator",
-      "role": "app",
+      "role": "external",
       "summary": "A flexible free and unlimited python tool to translate between different languages in a simple way using multiple translators",
       "version": "1.11.4"
     },
@@ -35,5 +35,5 @@
     "type": "extract"
   },
   "visibility": "public",
-  "world": "transverse"
+  "world": "media"
 }

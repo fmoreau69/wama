@@ -16,7 +16,7 @@
       "author": "Tom Christie <tom@tomchristie.com>",
       "license": "BSD-3-Clause",
       "repository": "https://github.com/encode/httpx",
-      "role": "brick",
+      "role": "external",
       "summary": "The next generation HTTP client.",
       "version": "0.28.1"
     },

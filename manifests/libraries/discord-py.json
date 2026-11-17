@@ -10,7 +10,7 @@
       "author": "Rapptz",
       "license": "MIT License",
       "repository": null,
-      "role": "brick",
+      "role": "external",
       "summary": "A Python wrapper for the Discord API",
       "version": "2.7.1"
     },

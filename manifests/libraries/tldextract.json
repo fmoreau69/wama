@@ -16,7 +16,7 @@
       "author": "John Kurkowski <john.kurkowski@gmail.com>",
       "license": "BSD-3-Clause",
       "repository": "https://github.com/john-kurkowski/tldextract",
-      "role": "brick",
+      "role": "processing",
       "summary": "Accurately separates a URL's subdomain, domain, and public suffix, using the Public Suffix List (PSL). By default, this includes the public ICANN TLDs and their exceptions. You can optionally support the Public Suffix List's private domains as well.",
       "version": "5.4.0"
     },

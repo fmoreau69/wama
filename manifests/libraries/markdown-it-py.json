@@ -13,7 +13,7 @@
       "author": "Chris Sewell <chrisj_sewell@hotmail.com>",
       "license": "MIT License",
       "repository": "https://github.com/executablebooks/markdown-it-py",
-      "role": "brick",
+      "role": "processing",
       "summary": "Python port of markdown-it. Markdown parsing, done right!",
       "version": "4.0.0"
     },

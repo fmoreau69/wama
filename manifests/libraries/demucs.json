@@ -21,6 +21,7 @@
       "author": "Alexandre Défossez",
       "license": "MIT License",
       "repository": "https://github.com/facebookresearch/demucs",
+      "role": "engine",
       "summary": "Music source separation in the waveform domain.",
       "version": "4.0.1"
     },

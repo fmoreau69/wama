@@ -12,7 +12,7 @@
       "author": "Samuel Colvin, Eric Jolibois, Hasan Ramezani, Adrian Garcia Badaracco, Terrence Dorsey, David Montague, Serge Matveenko, Marcelo Trylesinski, Sydney Runkle, David Hewitt, Alex Hall, Victorien Plot …",
       "license": "MIT",
       "repository": "https://github.com/pydantic/pydantic",
-      "role": "brick",
+      "role": "platform",
       "summary": "Data validation using Python type hints",
       "version": "2.12.5"
     },

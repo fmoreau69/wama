@@ -7,7 +7,7 @@
       "author": "Kirill Simonov",
       "license": "MIT",
       "repository": "https://pyyaml.org/",
-      "role": "brick",
+      "role": "processing",
       "summary": "YAML parser and emitter for Python",
       "version": "6.0.3"
     },

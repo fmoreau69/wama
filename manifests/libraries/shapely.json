@@ -9,7 +9,7 @@
       "author": "Sean Gillies",
       "license": "BSD 3-Clause",
       "repository": "https://github.com/shapely/shapely",
-      "role": "app",
+      "role": "processing",
       "summary": "Manipulation and analysis of geometric objects",
       "version": "2.0.7"
     },

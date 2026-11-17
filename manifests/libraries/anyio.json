@@ -11,7 +11,7 @@
       "author": "Alex Grönholm <alex.gronholm@nextday.fi>",
       "license": "MIT",
       "repository": null,
-      "role": "brick",
+      "role": "platform",
       "summary": "High-level concurrency and networking framework on top of asyncio or Trio",
       "version": "4.12.0"
     },

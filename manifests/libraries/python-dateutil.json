@@ -9,7 +9,7 @@
       "author": "Gustavo Niemeyer",
       "license": "Dual License",
       "repository": "https://github.com/dateutil/dateutil",
-      "role": "brick",
+      "role": "processing",
       "summary": "Extensions to the standard Python datetime module",
       "version": "2.9.0.post0"
     },

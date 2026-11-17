@@ -25,7 +25,7 @@
       "author": "BerriAI",
       "license": "MIT",
       "repository": "https://github.com/BerriAI/litellm",
-      "role": "brick",
+      "role": "external",
       "summary": "Library to easily interface with LLM API providers",
       "version": "1.89.1"
     },

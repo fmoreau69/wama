@@ -22,7 +22,7 @@
       "author": "Hugging Face, Inc.",
       "license": "Apache",
       "repository": "https://github.com/huggingface/huggingface_hub",
-      "role": "brick",
+      "role": "external",
       "summary": "Client library to download and publish models, datasets and other repos on the huggingface.co hub",
       "version": "0.36.2"
     },
