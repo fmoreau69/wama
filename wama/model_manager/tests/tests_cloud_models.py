@@ -427,6 +427,15 @@ class NonRegressionTest(TestCase):
         res = uninstall_model(self.cloud.model_key)
         self.assertFalse(res['ok'])
 
+    def test_a_remote_model_is_not_installed_nor_promised_on_first_use(self):
+        """2026-11-17, relevé de `tool_usage` : `ilaas:qwen-3.8-27b` demandé à l'installation le
+        30/10 ; le refus le disait « téléchargé au premier usage »."""
+        from wama.model_manager.services.model_installer import request_install
+        res = request_install(self.cloud.model_key)
+        self.assertEqual((False, 'remote_model'), (res['ok'], res['reason']))
+        self.assertNotIn('premier usage', res['error'])
+        self.assertIn('albert', res['error'])
+
 
 @override_settings(SECRET_KEY=CLE_A, SECRET_KEY_FALLBACKS=[])
 class AssistantPersonalKeyTest(TestCase):

@@ -340,9 +340,12 @@ def demander(prompt: str, *, cwd: str | None = None, delai: int = DELAI_DEFAUT,
             capture_output=True, text=True, timeout=delai,
         )
     except subprocess.TimeoutExpired:
-        return {'success': False,
-                'error': f"Claude Code n'a pas répondu en {delai}s. Découpez la tâche : le "
-                         f"rafraîchissement du jeton échoue sur les sessions longues."}
+        # Le délai est celui de l'APPEL (2026-11-17, relevé de `tool_usage` : 60 et 120 s choisis
+        # par l'assistant le 07/11). Ce message en donnait pour cause le jeton OAuth, qui ne cède
+        # qu'après 10 à 15 minutes (en-tête) ; `timed_out` laisse l'appelant dire SA voie.
+        return {'success': False, 'timed_out': True,
+                'error': f"Claude Code n'a pas répondu dans le délai de l'appel ({delai} s) : "
+                         f"découpez la tâche."}
     except Exception as e:
         logger.exception("[claude_code] invocation impossible")
         return {'success': False, 'error': f"Invocation impossible : {e}"}

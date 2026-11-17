@@ -24,7 +24,7 @@ côté garantit que le jugement porte sur l'objet réel (2026-09-19).
 Usage (racine du repo, venv_linux) :
     python wama-dev-ai/run_integrator.py --candidate proposed:hf:nvidia/canary-1b-v2 --dry-run
     python wama-dev-ai/run_integrator.py --manifest manifests/models/composer__minimax-music3.json --dry-run
-    python wama-dev-ai/run_integrator.py --manifest wama-dev-ai/outputs/scout_… .json --besoin "générer des chansons avec paroles"
+    python wama-dev-ai/run_integrator.py --manifest wama-dev-ai/outputs/scout_… .json --need "générer des chansons avec paroles"
 """
 import argparse
 import json
@@ -79,7 +79,10 @@ def main():
     source.add_argument('--candidate',
                         help="Clé d'une ligne du catalogue ou d'un CANDIDAT de prospection "
                              "(proposed:hf:org/nom) — son manifeste est EXTRAIT de la base")
-    ap.add_argument('--besoin', default='', help="Besoin utilisateur (texte libre, optionnel)")
+    # `--need` (2026-11-17), comme les rôles `app` et `repo_app` : l'option s'appelait `--besoin`,
+    # et l'assistant passait `need` — refusé le 07/11, relevé de `tool_usage`. Une option de ligne
+    # de commande est du code, donc en anglais (AGENTS.md, nommage, 2026-09-14).
+    ap.add_argument('--need', default='', help="Besoin utilisateur (texte libre, optionnel)")
     add_llm_arguments(ap, role='dev')
     ap.add_argument('--dry-run', action='store_true',
                     help='Contexte seulement, AUCUN appel LLM (test sans GPU)')
@@ -112,7 +115,7 @@ def main():
         f"MODÈLES déjà installés du type '{mtype}' :\n{referentiel(mtype)}\n\n"
         f"MANIFESTE du modèle candidat :\n"
         f"{json.dumps(manifeste, ensure_ascii=False, indent=1)[:8000]}\n\n"
-        + (f"BESOIN utilisateur : {args.besoin}\n\n" if args.besoin else '')
+        + (f"BESOIN utilisateur : {args.need}\n\n" if args.need else '')
         + "Décide : app existante (laquelle) ou génération d'app ? Réponds le JSON du contrat.")
 
     if args.dry_run:
@@ -140,7 +143,7 @@ def main():
 
     sortie = write_output('integrator', manifeste.get('key', 'inconnu'), {
         'provider': args.provider, 'model': model,
-        'manifest_source': origine, 'besoin': args.besoin,
+        'manifest_source': origine, 'need': args.need,
         'mechanical_checks': controles, 'verdict': verdict,
     })
     print(f'[integrator] → {sortie.relative_to(REPO_ROOT)}')

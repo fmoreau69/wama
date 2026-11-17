@@ -75,6 +75,19 @@ class DatabaseTest(_Base):
             with self.subTest(table=table):
                 self.assertIn('error', self._call(self.admin, 'dev_db_query', table=table))
 
+    def test_a_guessed_table_name_is_refused_with_the_real_ones(self):
+        """2026-11-17, relevé de `tool_usage` : `wama.Model`, `wama.ModelItem`, `django_migrations`
+        — trois appels sur trois en échec le 30/10, et le diagnostic abandonné. Le refus dit les
+        tables proches et la voie ; sans `table`, dev_db_schema les liste (comme dev_read_log)."""
+        error = self._call(self.admin, 'dev_db_query', table='wama.Model')['error']
+        self.assertIn('model_manager.AIModel', error)
+        self.assertIn('dev_db_schema', error)
+        self.assertIn('dev_db_schema', self._call(self.admin, 'dev_db_query',
+                                                  table='django_migrations')['error'])
+        listed = {row['table'] for row in self._call(self.admin, 'dev_db_schema')['tables']}
+        self.assertIn('model_manager.AIModel', listed)
+        self.assertFalse(listed & {'auth.User', 'accounts.UserProfile', 'common.CalendarFeed'})
+
     def test_a_filter_on_a_sensitive_column_or_a_relation_is_refused(self):
         for flt in ('token__startswith="a"', 'user__password__startswith="a"',
                     'user__username="x"'):
@@ -135,6 +148,28 @@ class FilesTest(_Base):
                         {'pattern': 'x', 'glob': '../*'}, {'pattern': ''}):
             with self.subTest(refused=refused):
                 self.assertIn('error', self._call(self.admin, 'dev_search_code', **refused))
+
+    def test_dev_search_code_reads_a_path_pattern_as_dev_list_code_does(self):
+        """2026-11-17, relevé de `tool_usage` : 4 de ses 7 appels réels refusés (`**/*.py`,
+        `composer/**/*.py`) quand dev_list_code lisait déjà ce motif. Un motif à « / » se lit sur
+        le chemin relatif à `path` ; aucun fichier lu se DIT, il ne passe pas pour « absent »."""
+        (self.root / 'pkg' / 'a.py').write_text('needle\n', encoding='utf-8')
+        (self.root / 'pkg' / 'deep').mkdir()
+        (self.root / 'pkg' / 'deep' / 'b.py').write_text('needle\n', encoding='utf-8')
+        (self.root / 'pkg' / 'deep' / 'c.js').write_text('needle\n', encoding='utf-8')
+
+        def files(**kwargs):
+            found = self._call(self.admin, 'dev_search_code', pattern='needle', **kwargs)
+            return sorted(m.split(':')[0] for m in found['matches'])
+        self.assertEqual(['pkg/a.py', 'pkg/deep/b.py'], files(glob='**/*.py'))
+        self.assertEqual(['pkg/deep/b.py'], files(glob='deep/*.py', path='pkg'))
+        self.assertEqual(['pkg/deep/b.py', 'pkg/deep/c.js'], files(glob='**/deep/*'))
+        nothing = self._call(self.admin, 'dev_search_code', pattern='needle', glob='composer/**/*.py')
+        self.assertEqual(([], 0), (nothing['matches'], nothing['files_scanned']))
+        self.assertIn('composer/**/*.py', nothing['note'])
+        self.assertNotIn('note', self._call(self.admin, 'dev_search_code', pattern='absent'))
+        listed = self._call(self.admin, 'dev_list_code', path='pkg', pattern='deep/*.py')
+        self.assertEqual(['pkg/deep/b.py'], listed['paths'])
 
     def test_dev_read_code_numbers_lines(self):
         (self.root / 'pkg' / 'a.py').write_text('x = 1\ny = 2\n', encoding='utf-8')

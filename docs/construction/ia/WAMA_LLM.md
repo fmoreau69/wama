@@ -3029,15 +3029,32 @@ Fabien. Mesuré d'abord :
    | `add_to_transcriber` | 2 / 5 | moteur hors schéma — l'erreur liste les valeurs |
    | `add_to_composer` | 2 / 2 | `prompt` exigé ; une adresse YouTube refusée (traitée le 16/11 : `_receive`) |
 
-   ⏳ **Ce que le relevé demande, et qui reste à faire** : pour chaque ligne, lire l'outil et
-   décider si l'erreur dit la voie (la valeur attendue, la liste des choix, l'outil à prendre) ou
-   si l'outil doit accepter ce que le modèle envoie (`dev_search_code` et son `glob`). Les deux
-   lignes « réseau » (`search_web`, `read_web_page`) ne relèvent pas de l'assistant. Puis
-   rejouer : le relevé, filtré sur les jours suivants, dit si l'échec a disparu.
+   ✅ **Ce que le relevé demandait, fait le 2026-11-17** (demande de Fabien : « corrige les outils
+   désignés par le relevé ») : chaque échec relu avec sa date et ses arguments, puis confronté au
+   code du jour. Cinq causes étaient déjà corrigées APRÈS l'échec, rejouées sans effet de bord :
+   `args` d'un rôle en texte JSON (décodé depuis le 07/11, `decode_structured_args`), « Outil
+   inconnu » d'un outil `dev_*` quand la surface ne répond pas (dit depuis le 07/11,
+   `UNREACHABLE_REFUSAL`), `gunicorn.log` (noms proches depuis le 12/11), le moteur
+   `qwen3-asr-1.7b` (accepté), l'adresse YouTube du composer (16/11). Six corrigées ce jour :
 
-⏳ Restes relevés dans ce fil, non traités : `add_to_composer` exige `prompt` pour séparer des
-pistes ; `dev_search_code` refuse un `glob` en `**/*.py` (4 appels sur 7) ; une erreur d'outil ne
-dit pas la voie à prendre ; la parité des PROCESS (chaque process déclaré lançable sans argument
+   | outil | ce qui échouait | correction |
+   |---|---|---|
+   | `dev_search_code` | motif à « / » refusé (`**/*.py`) | UNE lecture du motif pour lister et chercher (`dev_inspect._pattern_hit`, que `dev_list_code` faisait déjà) ; aucun fichier lu se dit (`note`) |
+   | `dev_db_query` / `dev_db_schema` | nom de table deviné | le refus cite les tables proches (`wama.Model` → `model_manager.AIModel`) ; `dev_db_schema` sans `table` les liste, comme `dev_read_log` sans `path` |
+   | `dev_run_role` (`integrator`) | `need` refusé | l'option s'appelait `--besoin` (anglais, comme `app` et `repo_app`) ; une garde lit par AST que chaque argument admis est une option du script |
+   | `ask_claude_code` | délai de 60 ou 120 s | le refus attribuait l'échec au jeton OAuth (qui cède après 10 à 15 min) : il dit le délai de l'appel, et l'outil la voie (`dev_claude_code`, write=false) |
+   | `add_to_composer` | séparer des pistes sans consigne | `prompt` restait obligatoire dans la SIGNATURE alors que le corps l'acceptait vide (07/11) |
+   | `install_model` | modèle distant (`ilaas:…`) | « se téléchargera au premier usage » était faux : servi par son fournisseur, rien à télécharger (`model_selector.is_cloud`) |
+
+   Laissés tels quels, parce que l'erreur dit déjà la voie et que le modèle l'a suivie au coup
+   suivant : `ask_claude_code(write=true)` (renvoi vers `dev_claude_code`), `remember_fact` (les
+   valeurs de `kind`), un `args` écrit en `clé=valeur` (l'exemple d'objet), une valeur de rôle
+   au-delà de 500 caractères (la longueur dite). `install_model` sur une clé inconnue ou un
+   manifeste illisible : refus justes. Les deux lignes « réseau » ne relèvent pas de l'assistant.
+   ⏳ Rejouer le relevé sur les jours qui suivent la relance des services
+   (`manage.py tool_usage --days N`) : il dit si l'échec a disparu.
+
+⏳ Restes relevés dans ce fil, non traités : la parité des PROCESS (chaque process déclaré lançable sans argument
 étranger) ; les 152 routes triées au point 6 (étendre 6 outils, en écrire, décider du Lab et de
 ce qui est propre à l'écran) ; la ligne « outils » de la fiche d'app et un registre des outils ; une
 vidéo de l'échange par l'assistant.

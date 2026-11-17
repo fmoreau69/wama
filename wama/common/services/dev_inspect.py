@@ -94,15 +94,41 @@ def _clamp(value, low: int, high: int, default: int) -> int:
 
 # ── Base de données ──────────────────────────────────────────────────────────────────────────
 
+def _queryable(model) -> bool:
+    """Une table que les outils de base lisent : du projet WAMA, hors comptes et clés."""
+    return (model.__module__.split('.')[0] in ALLOWED_APP_PREFIXES
+            and model._meta.label_lower not in DENIED_MODELS)
+
+
+#: Ce qui suit un refus de nom de table : la voie, la même que celle des journaux (lister).
+TABLES_HINT = "dev_db_schema sans `table` liste celles qu'on peut lire"
+
+
+def _close_tables(label: str) -> str:
+    """Les tables interrogeables proches d'un nom inconnu — par le nom du modèle d'abord
+    (`wama.Model` → `model_manager.AIModel`), puis par le libellé entier."""
+    import difflib
+    labels = sorted(m._meta.label for m in apps.get_models() if _queryable(m))
+    wanted = label.rsplit('.', 1)[-1].lower()
+    by_name = [lb for lb in labels if wanted and wanted in lb.rsplit('.', 1)[-1].lower()]
+    close = difflib.get_close_matches(label.lower(), [lb.lower() for lb in labels], n=8, cutoff=0.5)
+    picked = by_name + [lb for lb in labels if lb.lower() in close and lb not in by_name]
+    return ', '.join(picked[:8])
+
+
 def _model_for(table: str):
     label = (table or '').strip()
+    # Le refus dit la VOIE (2026-11-17, relevé de `tool_usage` : 3 appels sur 3 en échec le
+    # 30/10, `wama.Model`, `wama.ModelItem`, `django_migrations` — puis le diagnostic abandonné).
     if label.count('.') != 1:
-        raise DevToolError("table attendue sous la forme « app.Model »")
+        raise DevToolError(f"table attendue sous la forme « app.Model » : {TABLES_HINT}")
     try:
         model = apps.get_model(label)
     except LookupError:
-        raise DevToolError(f"table inconnue : {label!r}")
-    if model.__module__.split('.')[0] not in ALLOWED_APP_PREFIXES or label.lower() in DENIED_MODELS:
+        close = _close_tables(label)
+        raise DevToolError(f"table inconnue : {label!r} — "
+                           + (f"proches : {close} ; " if close else '') + TABLES_HINT)
+    if not _queryable(model):
         raise DevToolError(f"table non interrogeable : {label!r}")
     return model
 
@@ -149,7 +175,7 @@ def dev_db_query(user, table: str, filter: str = '', fields: str = '', limit: in
                  order_by: str = '') -> dict:
     """Lit des lignes d'une table du projet WAMA (SELECT seul, 50 lignes au plus, pas de SQL libre, pas de jointure) — ADMIN.
 
-    table : « app.Model » (wama*, hors comptes et clés). filter : champ__opérateur="valeur"
+    table : « app.Model » (wama*, hors comptes et clés ; dev_db_schema sans table les liste). filter : champ__opérateur="valeur"
     séparés par des virgules (opérateurs exact, gt, gte, lt, lte, contains, icontains, startswith,
     in avec | entre les valeurs, isnull) ; champs locaux seulement. fields : noms séparés par des
     virgules (vide = toutes les colonnes). order_by : un champ local, préfixe - pour décroissant.
@@ -176,8 +202,16 @@ def dev_db_query(user, table: str, filter: str = '', fields: str = '', limit: in
 
 
 @admin_only
-def dev_db_schema(user, table: str) -> dict:
-    """Colonnes d'une table du projet WAMA (nom, type, nullité, défaut, relation) — mêmes tables que dev_db_query — ADMIN."""
+def dev_db_schema(user, table: str = '') -> dict:
+    """Colonnes d'une table du projet WAMA (nom, type, nullité, défaut, relation), ou LISTE les tables quand `table` est vide — mêmes tables que dev_db_query — ADMIN.
+
+    table : « app.Model » ; vide = la liste des tables qu'on peut lire (libellé, nom lisible) —
+    ne jamais deviner un nom.
+    """
+    if not (table or '').strip():
+        return {'tables': sorted(({'table': m._meta.label, 'name': str(m._meta.verbose_name)}
+                                  for m in apps.get_models() if _queryable(m)),
+                                 key=lambda row: row['table'])}
     model = _model_for(table)
     columns = []
     for f in model._meta.concrete_fields:
@@ -285,6 +319,30 @@ def dev_read_code(user, path: str, start_line: int = 0, end_line: int = 0) -> di
             'text': _clip(body)}
 
 
+def _file_pattern(pattern: str, default: str) -> str:
+    """Le motif de fichier d'un outil de code, refusé s'il sort du dossier de départ."""
+    pattern = (pattern or '').strip() or default
+    if '..' in pattern or pattern.startswith('/'):
+        raise DevToolError("motif refusé : il se lit depuis le dossier `path`, sans « .. » ni « / » "
+                           "de tête")
+    return pattern
+
+
+def _pattern_hit(name: str, rel: str, pattern: str) -> bool:
+    """LA lecture d'un motif de fichier des outils de code (lister, chercher) : sur le NOM
+    (« *.py »), ou, dès qu'il porte un « / », sur le chemin relatif au dossier de départ
+    (« tests/*.py ») — un « **/ » de tête valant aussi au premier niveau (« **/tasks.py »).
+
+    POURQUOI UNE SEULE (2026-11-17, relevé de `tool_usage`) : `dev_list_code` lisait déjà
+    « **/tasks.py », `dev_search_code` refusait tout motif à « / » — 4 de ses 7 appels réels
+    (`**/*.py`, `composer/**/*.py`), la forme qu'un modèle écrit comme il l'écrit à ripgrep."""
+    if '/' not in pattern:
+        return fnmatch.fnmatch(name, pattern)
+    if fnmatch.fnmatch(rel, pattern):
+        return True
+    return pattern.startswith('**/') and _pattern_hit(name, rel, pattern[3:])
+
+
 def _code_files(base: Path, recursive: bool = True):
     """Les fichiers LISIBLES sous `base`, triés : `(chemin, chemin relatif au dépôt)` — LE parcours
     des outils de code (lister, chercher), avec les refus de `_refused_code_path` appliqués aux
@@ -306,30 +364,20 @@ def _code_files(base: Path, recursive: bool = True):
 def dev_list_code(user, path: str = '.', pattern: str = '*', limit: int = 100) -> dict:
     """Liste les fichiers d'un dossier du dépôt (mêmes refus que dev_read_code) — ADMIN.
 
-    pattern : glob sur le nom (« *.py »), ou sur le chemin relatif au dossier avec ** pour
-    descendre (« **/tasks.py »). limit : 1..100.
+    pattern : glob sur le nom (« *.py »), ou sur le chemin relatif au dossier dès qu'il porte un
+    « / » (« **/tasks.py » descend partout, « tests/*.py »). limit : 1..100.
     """
-    if '..' in (pattern or '') or (pattern or '').startswith('/'):
-        raise DevToolError("motif refusé")
-    root = base_dir().resolve()
+    pattern = _file_pattern(pattern, '*')
     base = _code_path(path)
     if not base.is_dir():
         raise DevToolError(f"dossier introuvable : {path!r}")
-    recursive = '**' in pattern
     cap = _clamp(limit, 1, MAX_LIST, MAX_LIST)
     found = []
-    for full, rel_root in _code_files(base, recursive=recursive):
-            name, rel_base = full.name, str(full.relative_to(base))
-            if recursive:
-                tail = pattern.removeprefix('**/')       # « **/tasks.py » vaut aussi à la racine
-                hit = fnmatch.fnmatch(rel_base, pattern) or ('/' not in tail
-                                                             and fnmatch.fnmatch(name, tail))
-            else:
-                hit = fnmatch.fnmatch(name, pattern)
-            if hit:
-                found.append(str(rel_root))
-                if len(found) >= cap:
-                    return {'paths': found, 'truncated': True}
+    for full, rel_root in _code_files(base, recursive='/' in pattern):
+        if _pattern_hit(full.name, full.relative_to(base).as_posix(), pattern):
+            found.append(str(rel_root))
+            if len(found) >= cap:
+                return {'paths': found, 'truncated': True}
     return {'paths': found, 'truncated': False}
 
 
@@ -340,12 +388,12 @@ def dev_search_code(user, pattern: str, path: str = '.', glob: str = '*.py', reg
 
     pattern : le texte cherché (sous-chaîne, casse respectée) ; regex=true le lit comme une
     expression régulière. path : dossier de départ, relatif au dépôt. glob : motif sur le NOM des
-    fichiers (« *.py », « *.html », « *.js », « * »). limit : 1..100 correspondances.
+    fichiers (« *.py », « *.html », « *.js », « * »), ou, avec un « / », sur leur chemin relatif à
+    `path` (« **/*.py », « tests/*.py ») — le même que dev_list_code. limit : 1..100 correspondances.
     """
     if not (pattern or '').strip():
         raise DevToolError("« pattern » vide : donner le texte à chercher")
-    if '/' in (glob or '') or '..' in (glob or ''):
-        raise DevToolError("motif refusé : `glob` porte sur le nom du fichier, `path` sur le dossier")
+    glob = _file_pattern(glob, '*')
     try:
         matcher = re.compile(pattern if regex else re.escape(pattern))
     except re.error as e:
@@ -357,7 +405,8 @@ def dev_search_code(user, pattern: str, path: str = '.', glob: str = '*.py', reg
     cap = _clamp(limit, 1, MAX_MATCHES, 50)
     matches, scanned = [], 0
     for full, rel in _code_files(base):
-            if not fnmatch.fnmatch(full.name, glob or '*') or full.is_symlink():
+            if not _pattern_hit(full.name, full.relative_to(base).as_posix(), glob) \
+                    or full.is_symlink():
                 continue
             try:
                 if full.stat().st_size > MAX_CODE_BYTES:
@@ -373,7 +422,13 @@ def dev_search_code(user, pattern: str, path: str = '.', glob: str = '*.py', reg
                     matches.append(f"{rel.as_posix()}:{n}: {line.strip()[:MAX_MATCH_CHARS]}")
                     if len(matches) >= cap:
                         return {'matches': matches, 'files_scanned': scanned, 'truncated': True}
-    return {'matches': matches, 'files_scanned': scanned, 'truncated': False}
+    out = {'matches': matches, 'files_scanned': scanned, 'truncated': False}
+    if not scanned:
+        # Aucune correspondance parce qu'aucun FICHIER n'a été lu se dit : sans cela, « rien
+        # trouvé » se lirait « le texte n'existe pas » (`composer/**/*.py` depuis la racine).
+        out['note'] = (f"aucun fichier lisible ne correspond à glob={glob!r} sous path={path!r} "
+                       "(le motif à « / » se lit depuis path)")
+    return out
 
 
 #: Préfixe du nom de tâche d'une opération d'exploitation (`operation:check_docs`) : ce par quoi la

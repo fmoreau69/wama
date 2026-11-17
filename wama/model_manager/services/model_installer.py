@@ -2102,6 +2102,14 @@ def request_install(model_key: str, *, force: bool = False, variant_ref: str = '
                              "pas tel quel ni au premier usage. Le réinstaller par une "
                              "PROPOSITION (search_models, puis install_model sur sa clé "
                              "proposed:…)."}
+        from wama.model_manager.services.model_selector import is_cloud
+        if is_cloud(row):
+            # Un modèle SERVI par son fournisseur n'a rien à télécharger : le refus ci-dessous le
+            # disait « téléchargé au premier usage » (relevé de `tool_usage`, 2026-11-17 :
+            # `ilaas:qwen-3.8-27b` demandé à l'installation le 30/10).
+            return {'ok': False, 'reason': 'remote_model',
+                    'error': f"« {row.name} » est servi par son fournisseur ({row.source}) : il "
+                             "ne s'installe pas, il s'appelle à distance — rien à télécharger."}
         if spec_for_catalog_row(row) is None:
             return {'ok': False, 'reason': 'no_install_location',
                     'error': "Ce modèle ne déclare pas d'emplacement d'installation "

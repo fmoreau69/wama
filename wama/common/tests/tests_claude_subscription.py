@@ -231,6 +231,30 @@ class AFailureMustBeReadableTests(TestCase):
             result = ask_claude_code(user, 'audite le dépôt')
         self.assertIn('usage limit reached', result.get('error', ''))
 
+    def test_a_timeout_names_the_delay_of_the_call_and_the_tool_names_its_way(self):
+        """2026-11-17, relevé de `tool_usage` : 60 et 120 s choisis par l'assistant le 07/11, et le
+        refus en donnait pour cause le jeton OAuth (qui cède après 10 à 15 min) ; l'outil ne disait
+        pas où va une question plus longue que le tour."""
+        import subprocess
+        from unittest.mock import patch
+
+        from wama.common.services import claude_code
+        from wama.tool_api import ask_claude_code
+
+        with patch.object(claude_code, 'prepare', return_value={'argv': ['claude'], 'env': {}}), \
+                patch.object(claude_code.subprocess, 'run',
+                             side_effect=subprocess.TimeoutExpired(cmd='claude', timeout=60)):
+            timed_out = claude_code.demander('question', delai=60)
+        self.assertEqual((False, True), (timed_out['success'], timed_out.get('timed_out')))
+        self.assertIn('60 s', timed_out['error'])
+        self.assertNotIn('jeton', timed_out['error'])
+        user = User.objects.create(username='dev-timeout', is_superuser=True)
+        with patch('wama.common.services.claude_code.demander', return_value=timed_out):
+            self.assertIn('dev_claude_code', ask_claude_code(user, 'lis le dépôt', timeout=60)['error'])
+        with patch('wama.common.services.claude_code.demander',
+                   return_value={'success': False, 'error': 'refus'}):
+            self.assertEqual('refus', ask_claude_code(user, 'lis le dépôt')['error'])
+
 
 @override_settings(SECRET_KEY='k' * 50, SECRET_KEY_FALLBACKS=[])
 class SubscriptionModelsTests(TestCase):

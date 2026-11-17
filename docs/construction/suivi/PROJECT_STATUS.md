@@ -31880,3 +31880,17 @@ Demande de Fabien : améliorer l'auto-diagnostic, qu'il débogue lui-même sous 
 - Skill `/diagnostic-assistant` : son §0 part du relevé.
 
 Vérifié : sous WSL, 288 tests du périmètre puis 104 (contrat d'élément, passerelle) ; après correctif, 45 rejoués verts. Contre-épreuve : verdict écrit à l'aveugle, champ ignoré, sous-agents non parcourus, bloc retiré — 4 rouges. Page rendue sur la base réelle (200 ; 301 appels, 40 échecs sur 30 jours). `check_docs` 0 cassée sur 4153. ⚠ `tests_identifier_language` rouge de 1 (code 2552 > 2551) : `taches` dans `wama/common/manifests/codegen/tasks_gen.py`, d'une autre session — relevé par comparaison à HEAD fichier par fichier, aucun dans mes fichiers. ⚠ `WAMA_MECANISMES.md` et `docs/dev/briques.md` restent à régénérer (`doc_facts`), co-éditées. La suite complète n'a pas tourné.
+
+## §PALIER 2026-11-17, « ASSISTANT : les outils que le relevé désigne, corrigés (`WAMA_LLM` « fil web n° 46 », point 8) » — commit local, non poussé — 🔴 relancer gunicorn, workers, passerelle et serveurs MCP (la surface de développement charge `dev_inspect` et `dev_tools` au démarrage) — 🔚 rejouer `manage.py tool_usage --days N` après la relance, pour voir les échecs disparaître
+
+Demande de Fabien : « corrige les outils désignés par le relevé, puis /reverif ».
+
+- Chaque échec du relevé relu avec sa date et ses arguments, puis confronté au code du jour. Déjà corrigés depuis l'échec, rejoués sans effet de bord : `args` d'un rôle en texte JSON, « Outil inconnu » d'un outil `dev_*`, `gunicorn.log`, le moteur `qwen3-asr-1.7b`, l'adresse YouTube du composer.
+- `dev_search_code` : un motif à « / » (`**/*.py`) n'est plus refusé — une seule lecture du motif pour lister et chercher (`dev_inspect._pattern_hit`), et « aucun fichier lu » se dit (`note`).
+- `dev_db_query` / `dev_db_schema` : un nom deviné est refusé avec les tables proches ; `dev_db_schema` sans `table` liste les 134 tables interrogeables, comme `dev_read_log` sans `path`.
+- Rôle `integrator` : l'option `--besoin` devient `--need`, comme `app` et `repo_app` ; une garde lit par AST que chaque argument admis par la surface est une option du script (ou de `add_llm_arguments`).
+- `ask_claude_code` : le délai dépassé est celui de l'appel (le message accusait le jeton OAuth), et l'outil dit la voie (`dev_claude_code`, write=false).
+- `add_to_composer` : `prompt` n'est plus obligatoire dans la signature (le corps l'acceptait vide depuis le 07/11).
+- `install_model` : un modèle distant n'est plus « téléchargé au premier usage » — servi par son fournisseur, rien à télécharger.
+
+Vérifié : sous WSL, 206 tests du périmètre, puis 804 (gardes transverses, couverture d'API, Studio, composer, model manager) ; contre-épreuve en processus (rien sur le disque) : 7 neutralisations, 7 rouges. Rejeu en lecture seule des appels réels qui avaient échoué : chacun aboutit ou dit la voie. `check_docs` 0 cassée sur 4158. ⚠ `tests_identifier_language` rouge de 1 (code 2552 > 2551) : le même qu'au palier précédent, `taches` dans `wama/common/manifests/codegen/tasks_gen.py` (autre session) — aucun identifiant de mes fichiers au relevé détaillé. ⚠ `doc_facts --check` : 4 blocs périmés, aucun par ce palier (bloc « outils » : 129 → 130 outils d'une autre session ; `WAMA_MECANISMES`, `briques`, `roundtrip` co-édités). La suite complète n'a pas tourné.

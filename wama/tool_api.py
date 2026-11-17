@@ -741,7 +741,7 @@ def synthesize_text(
 @tool_effect(WRITE)
 def compose_music(
     user,
-    prompt: str,
+    prompt: str = '',
     model: str = None,
     duration: float = None,
     work_score: str = None,
@@ -789,7 +789,9 @@ def compose_music(
     prompt = (prompt or '').strip()
     # Une consigne VIDE est permise quand un morceau est donné (2026-11-07, « rendu facultatif ») :
     # les partitions d'un audio se demandent sans rien rendre (`generate_audio=False`), comme sur
-    # la card. Seule une demande qui ne donne RIEN est refusée.
+    # la card. Seule une demande qui ne donne RIEN est refusée. La SIGNATURE le dit aussi depuis
+    # le 2026-11-17 : `prompt` y restait obligatoire, et séparer les pistes d'un morceau sans
+    # consigne finissait en `TypeError` avant d'arriver ici (relevé de `tool_usage`, 14/11).
     if not prompt and not (work_score or work_audio):
         return {'error': 'Prompt requis (ou un morceau à reprendre : work_audio / work_score)'}
 
@@ -3946,7 +3948,12 @@ def ask_claude_code(user, task: str, write: bool = False, timeout: int = 300,
         return {"error": str(e)}
 
     if not resultat.get('success'):
-        return {"error": resultat.get('error', 'échec inconnu')}
+        error = resultat.get('error', 'échec inconnu')
+        if resultat.get('timed_out'):
+            # La VOIE d'une question plus longue que le tour (relevé de `tool_usage`, 2026-11-17).
+            error += (" Une question qui demande plus de temps part en tâche de fond : "
+                      "`dev_claude_code` (même tâche, write=false) ; sa fin est annoncée dans le fil.")
+        return {"error": error}
 
     return {
         "response": resultat.get('texte', ''),

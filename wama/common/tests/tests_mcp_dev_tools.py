@@ -102,6 +102,34 @@ class ArgumentsTest(SimpleTestCase):
             with self.subTest(wrong=wrong), self.assertRaises(dev_tools.DevToolError):
                 dev_tools.role_command('backend', {'catalog': 'k:m', 'llm_timeout': wrong})
 
+    def test_every_argument_the_surface_admits_is_an_option_of_its_script(self):
+        """La surface et le script disent la MÊME option (2026-11-17, relevé de `tool_usage` :
+        `integrator` admettait `besoin` quand `app` et `repo_app` disent `need` ; l'assistant
+        passait `need`, refusé). Lu par AST dans le script, et dans `role_utils.add_llm_arguments`
+        pour un script qui l'appelle (les options communes : `--force`, `--llm-timeout`…) : un nom
+        admis qu'aucun des deux ne déclare partirait en option inconnue du rôle."""
+        import ast
+
+        def options(tree) -> set:
+            return {node.value for node in ast.walk(tree) if isinstance(node, ast.Constant)
+                    and isinstance(node.value, str) and node.value.startswith('--')}
+
+        def option(name):
+            return '--' + name.replace('_', '-')
+
+        dev_ai = dev_tools.base_dir() / 'wama-dev-ai'
+        shared = next(options(node) for node in ast.walk(ast.parse(
+            (dev_ai / 'role_utils.py').read_text(encoding='utf-8')))
+            if isinstance(node, ast.FunctionDef) and node.name == 'add_llm_arguments')
+        self.assertLessEqual({option(n) for n in dev_tools.COMMON_ROLE_ARGS}, shared)
+        for role, spec in dev_tools.ROLES.items():
+            script = (dev_ai / spec['script']).read_text(encoding='utf-8')
+            declared = options(ast.parse(script)) | (
+                shared if 'add_llm_arguments(' in script else set())
+            for name in spec['args']:
+                with self.subTest(role=role, argument=name):
+                    self.assertIn(option(name), declared)
+
     def test_le_bac_a_sable_exige_ses_arguments(self):
         self.assertEqual(['app_sandbox', 'list'], dev_tools.sandbox_command('list')[2:])
         self.assertEqual(['app_sandbox', 'create', 'converter', '--owner', 'fab'],

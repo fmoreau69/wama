@@ -127,13 +127,15 @@ class ScoreReachesTheModelTest(TestCase):
     def test_the_tool_asks_for_scores_alone_without_a_prompt(self):
         """2026-11-07 (« rendu facultatif ») : the scores of a song are asked WITHOUT a prompt and
         without rendering — `generate_audio=False`, as on the card. A request that gives nothing
-        at all is still refused."""
+        at all is still refused. The SIGNATURE says so too (2026-11-17, `tool_usage` : the stems of
+        a song asked without a prompt ended in a `TypeError` on 14/11) — no prompt is passed here."""
         from unittest import mock
         from wama.composer.models import ComposerGeneration
-        from wama.tool_api import compose_music
+        from wama.tool_api import compose_music, tool_input_schema
+        self.assertNotIn('prompt', tool_input_schema('compose_music').get('required', []))
         with mock.patch('wama.composer.tasks.compose_task.apply_async') as dispatch:
             dispatch.return_value.id = 'no-task'
-            result = compose_music(self.user, '', model='huggingface:m-a-p/YuE2-3B',
+            result = compose_music(self.user, model='huggingface:m-a-p/YuE2-3B',
                                    work_score=self.rel, generate_audio=False)
             nothing = compose_music(self.user, '  ', model='huggingface:m-a-p/YuE2-3B')
         gen = ComposerGeneration.objects.get(pk=result['generation_id'])

@@ -63,7 +63,7 @@ ROLES = {
     'scout':      {'script': 'run_scout.py',
                    'args': {'hf': str, 'dry_run': bool, 'seed_candidate': bool}},
     'integrator': {'script': 'run_integrator.py',
-                   'args': {'manifest': str, 'candidate': str, 'besoin': str, 'dry_run': bool}},
+                   'args': {'manifest': str, 'candidate': str, 'need': str, 'dry_run': bool}},
     'codegen':    {'script': 'run_codegen.py',
                    'args': {'app': str, 'task': str, 'truth': str}},
     # Marche B2 (2026-09-29) : écrit le BACKEND d'un modèle installé ; sa proposition se valide
@@ -517,7 +517,7 @@ def dev_run_role(user, role: str, args: dict = None, provider: str = '', model: 
     """Lance un rôle wama-dev-ai en tâche de fond ; il écrit une PROPOSITION en attente de validation, n'applique rien.
 
     role : librarian (args dist | repo), model (catalog | hf, force), scout (hf, dry_run),
-    integrator (manifest, besoin, dry_run), codegen (app = id d'une app du catalogue, task = NOM
+    integrator (manifest | candidate, need, dry_run), codegen (app = id d'une app du catalogue, task = NOM
     de sa tâche Celery comme read_document_task, truth = module:fonction de référence — écrit la
     GLU de cette seule tâche ; ce n'est PAS un rôle de modification générale du code : pour cela,
     dev_claude_code avec write=true), backend (catalog, dry_run, no_smoke, compact = matière
