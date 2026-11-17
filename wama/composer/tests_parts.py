@@ -498,6 +498,16 @@ class StemSeparationTest(_InputProcessCase):
         for unreadable in ('beaucoup', '9', '-1'):
             with self.subTest(level=unreadable), self.assertRaisesRegex(RuntimeError, 'Voix'):
                 remix_gains(stems, '', {'vocals': unreadable})
+        # The BOUND of a level (2026-11-17) is the one `remix_levels` declares, read by the remix
+        # and served to the slider of the page : at the bound accepted, above it said.
+        from wama.common.utils.param_schema import schema_for_app
+        from wama.composer.tasks import level_bounds
+        low, high = level_bounds()
+        served = next(p for p in schema_for_app('composer') if p['name'] == 'remix_levels')
+        self.assertEqual((low, high), (served['min'], served['max']))
+        self.assertEqual({'vocals': high, 'drums': 1.0}, remix_gains(stems, '', {'vocals': str(high)}))
+        with self.assertRaisesRegex(RuntimeError, 'Voix'):
+            remix_gains(stems, '', {'vocals': str(high + 0.5)})
 
     def test_the_page_mixes_what_the_remix_renders(self):
         """2026-11-17, Fabien : « le mixage temps réel va dans la page d'édition, la card porte les

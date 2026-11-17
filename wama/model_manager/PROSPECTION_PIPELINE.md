@@ -4816,8 +4816,11 @@ transverses) ; trois recopies ramenées — le marqueur d'étape de `ctx.run` es
 (`config.process_slot`, plus écrit dans le JS), l'état « en cours » de `start_on_selection` lu de
 `JOB_RUNNING`, et la fiche `stem_mix` du registre des mécanismes, qui annonçait encore le mixage au futur,
 rattache `wama-stem-mix.js` et la brique. ⏳ Le noyau de la page (« Appliquer », `ctx.run`) n'a aucun banc
-V8 : il n'est tenu que par les tests de sa configuration et la sonde navigateur. Curseur borné à 200 %
-quand la refusion accepte jusqu'à 400 % (`MAX_STEM_GAIN`) : un choix d'interface, pas un écart.
+V8 : il n'est tenu que par les tests de sa configuration et la sonde navigateur. ~~Curseur borné à 200 %
+quand la refusion accepte jusqu'à 400 % (`MAX_STEM_GAIN`) : un choix d'interface, pas un écart.~~
+Corrigé le même soir (relevé par d5 : c'était bien un écart, la borne écrite deux fois) : elle se
+DÉCLARE une fois, `min`/`max` du réglage `remix_levels` (`composer/params.py`), lue par la refusion
+(`tasks.level_bounds`) et par le curseur (le schéma servi à la page). ×2 proposé — la valeur est à Fabien.
 ⚠ Trouvé APRÈS, par la session d5 (garde `transcriber.tests_editor_axis`, rouge depuis `84e311cc2`, que
 cette revérification n'avait pas lancée) : le transport posait le mixage sur l'axe à CÔTÉ du lecteur
 commun (`axis.attach(media`), hors de sa lecture exclusive — le mixage ne coupait pas les autres sons,

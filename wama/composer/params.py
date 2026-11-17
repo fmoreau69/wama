@@ -209,10 +209,14 @@ PARAMS = [
           contexts=PANEL_ITEM_BATCH, stales=("remix",)),
     # Les NIVEAUX (2026-11-17) : ce que règle le mixage en temps réel de la page d'édition (brique
     # « Mixage »), une piste par clé — sur la page seulement, comme les noms des intervenants.
+    # La BORNE d'un niveau (2026-11-17) se déclare ICI, une fois : le curseur de la brique et la
+    # refusion (`tasks.level_bounds`) la lisent. ×2 (+6 dB), ce que le curseur offrait — proposé,
+    # la valeur est à Fabien (la refusion acceptait ×4).
     Param(name="remix_levels", type="mapping", label="Niveaux des pistes", icon="fa-sliders",
           help="Le niveau de chaque piste dans la refusion (1 = telle quelle, 0,5 = à moitié, "
-               "1,5 = plus fort) — réglé à l'oreille dans la page d'édition ; les pistes retirées "
-               "sont dans « Pistes à retirer ».",
+               "1,5 = plus fort, 2 au plus) — réglé à l'oreille dans la page d'édition ; les "
+               "pistes retirées sont dans « Pistes à retirer ».",
+          min=0.0, max=2.0,
           contexts=("surface",), stales=("remix",)),
     # PARTITION COMPLÈTE (2026-10-16, décision de Fabien) : la case qui ACTIVE le process optionnel
     # `parts` (`ProcessSpec.toggle`) — depuis le 2026-10-26 sur l'ENTRÉE : l'audio repris, comme la

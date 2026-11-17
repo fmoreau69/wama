@@ -19,8 +19,18 @@
     'use strict';
 
     var SAVE_AFTER_MS = 600;           // une pause dans les gestes, puis les niveaux s'écrivent
-    var MAX_PERCENT = 200;
     var LIVE_KEY = 'live-mix';         // la version « Mixage » du média lu
+
+    /** La BORNE d'un niveau, en % : le `max` que le réglage nommé par l'emplacement (`levels`)
+     *  déclare au schéma servi (2026-11-17 — elle était écrite ici ET dans la refusion, ×2 et ×4).
+     *  Un réglage sans borne : 100 %, jamais plus fort que la piste telle quelle. */
+    function maxPercent(ctx, name) {
+        var schema = ((ctx.settings && ctx.settings()) || {}).schema || [];
+        for (var i = 0; i < schema.length; i++) {
+            if (schema[i].name === name && Number(schema[i].max) > 0) return Math.round(Number(schema[i].max) * 100);
+        }
+        return 100;
+    }
 
     function esc(t) {
         var d = document.createElement('div'); d.textContent = t == null ? '' : t;
@@ -43,6 +53,7 @@
             original: data.original, tracks: data.tracks,
             status: function (text, kind) { say(text, kind); },
         });
+        var MAX_PERCENT = maxPercent(ctx, options.levels);
         var canWrite = !!(ctx.canEdit && options.levels);
         var canRender = !!(ctx.canEdit && options.process && ctx.run);
 

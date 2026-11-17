@@ -476,8 +476,10 @@ def remix_gains(stems, without: str, levels=None) -> dict:
     vocabulaire commun ou clés, `midi_score.instrument_keys`), le NIVEAU réglé au mixage pour les
     autres (`levels`, `{piste: gain}` — 2026-11-17), 1 sinon. Un nom qu'aucune piste ne porte est
     refusé en le disant — jamais un « retrait » silencieusement sans effet ; un niveau illisible ou
-    hors de 0–4 aussi. La règle du mixage en temps réel (`wama-stem-mix.js`) est la même."""
+    hors de la borne déclarée (`level_bounds`) aussi. La règle du mixage en temps réel
+    (`wama-stem-mix.js`) est la même."""
     from wama.common.utils.midi_score import instrument_keys, instrument_label
+    low, high = level_bounds()
     removed = instrument_keys(without or '')
     unknown = [key for key in removed if key not in stems]
     if unknown:
@@ -492,17 +494,21 @@ def remix_gains(stems, without: str, levels=None) -> dict:
             gain = float(str(raw).replace(',', '.'))
         except ValueError:
             gain = -1.0
-        if not 0.0 <= gain <= MAX_STEM_GAIN:
+        if not low <= gain <= high:
             raise RuntimeError(f"Niveau illisible pour « {instrument_label(key)} » : {raw!r} "
-                               f"(de 0 à {MAX_STEM_GAIN:g}).")
+                               f"(de {low:g} à {high:g}).")
         if key not in removed:
             gains[key] = gain
     return gains
 
 
-#: Le niveau le plus fort qu'une piste peut recevoir au mixage : ×4 (+12 dB). La brique « Mixage »
-#: va jusqu'à ×2 ; au-delà, la refusion le refuse en le disant.
-MAX_STEM_GAIN = 4.0
+def level_bounds() -> tuple:
+    """`(min, max)` d'un niveau de piste : la borne que le réglage `remix_levels` DÉCLARE
+    (`params.py`, 2026-11-17) — celle du curseur de la brique « Mixage », lue au schéma servi. Elle
+    était écrite deux fois (×4 ici, ×2 dans la brique)."""
+    from .params import PARAMS
+    declared = next(p for p in PARAMS if p.name == 'remix_levels')
+    return float(declared.min), float(declared.max)
 
 
 def stem_files(gen) -> list:

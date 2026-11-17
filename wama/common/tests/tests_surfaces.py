@@ -3603,6 +3603,23 @@ class StemMixTest(SimpleTestCase):
         self.assertEqual(4, out['started'], 'twice the original and the stem at 50 %')
         self.assertEqual(200, out['duration'], 'the axis covers the song')
 
+    def test_the_slider_stops_where_the_setting_declares_its_bound(self):
+        """2026-11-17 : the bound of a level was written twice (×2 in the brick, ×4 in the remix).
+        It is declared once, on the setting the slot names (`levels` → its `max` in the served
+        schema) ; the brick reads it there — a setting without a bound gives no gain above 100 %."""
+        src = (self.SERVED / 'surfaces' / 'brick-stem-mixer.js').read_text(encoding='utf-8')
+        start = src.index('    function maxPercent(')
+        rule = src[start:src.index('\n    }\n', start) + 6]
+        self.assertIn('maxPercent(ctx, options.levels)', src, 'the slider reads the declared bound')
+        self.engine.eval(rule)
+        def bound(schema):
+            return self.engine.eval("maxPercent({settings: function () { return {schema: %s}; }}, "
+                                    "'remix_levels')" % json.dumps(schema))
+        self.assertEqual(200, bound([{'name': 'remix_levels', 'max': 2.0}]))
+        self.assertEqual(400, bound([{'name': 'other', 'max': 2.0}, {'name': 'remix_levels', 'max': 4}]))
+        self.assertEqual(100, bound([{'name': 'remix_levels'}]), 'undeclared : never above the stem')
+        self.assertEqual(100, bound([]))
+
 
 class AnUnreadableAvailabilityClosesThePageTest(SimpleTestCase):
     """2026-11-10 — a generated app declares the `available` of its surfaces as a GLUE HOLE until its
