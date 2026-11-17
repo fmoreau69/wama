@@ -181,6 +181,52 @@ class CapFromTest(SimpleTestCase):
                 }})()""")
                 self.assertEqual(_show_if_met(cond, {'engine': value}), shown)
 
+    def test_the_settings_a_card_excludes_leave_its_gear_and_come_back_for_the_next_card(self):
+        """2026-11-17 (Fabien : a separated stem no longer offers separation and remix). The card
+        names what has no object on it (`data-inapplicable` of its ⚙, `card_gear`) ; its gear and
+        the side panel put it on their container (`setInapplicable`) and the rows leave — even one
+        whose `show_if` holds. The next card, without them, brings them back ; a process gear's own
+        attribute is not read. Counter-proof : the row no card excludes never moves."""
+        out = self.v8.eval("""(function () {
+            function el(attrs) {
+                var a = Object.assign({}, attrs);
+                return {style: {}, getAttribute: function (n) { return n in a ? a[n] : null; },
+                        setAttribute: function (n, v) { a[n] = String(v); },
+                        removeAttribute: function (n) { delete a[n]; },
+                        hasAttribute: function (n) { return n in a; }};
+            }
+            var sep = el({'data-param-row': 'separate_stems'});
+            var parts = el({'data-param-row': 'extract_parts'});
+            var without = el({'data-param-row': 'remix_without', 'data-show-if': 'remix_stems'});
+            var toggle = {type: 'checkbox', checked: true,
+                          getAttribute: function (n) { return n === 'name' ? 'remix_stems' : null; }};
+            var box = el({});
+            box.addEventListener = function () {};
+            box.querySelectorAll = function (sel) {
+                if (sel === '[data-param-row]') return [sep, parts, without];
+                if (sel === '[data-show-if]') return [without];
+                if (sel === '[name],[data-param]') return [toggle];
+                return [];
+            };
+            function card(names) {
+                var step = {dataset: {process: 'parts', inapplicable: 'extract_parts'}};
+                var gear = {dataset: {inapplicable: names}};
+                return {dataset: {}, querySelectorAll: function () { return [step, gear]; }};
+            }
+            var shown = function () { return [sep, parts, without].map(function (r) {
+                return r.style.display || 'shown'; }); };
+            var out = [];
+            window.WamaParams.setInapplicable(box, card('separate_stems remix_without'));
+            out.push(shown());
+            window.WamaParams.setInapplicable(box, card(''));
+            out.push(shown());
+            window.WamaParams.setInapplicable(box, null);
+            out.push(box.hasAttribute('data-inapplicable'));
+            return JSON.stringify(out);
+        })()""")
+        self.assertEqual([['none', 'shown', 'none'], ['shown', 'shown', 'shown'], False],
+                         json.loads(out))
+
     def test_a_carrier_holding_a_list_means_one_of_on_both_sides(self):
         """A carrier whose value is not known yet — the nature a Studio node will receive, image OR
         video — is a LIST (2026-10-18, `studio/services/graph_flow`): a condition holds if ONE of

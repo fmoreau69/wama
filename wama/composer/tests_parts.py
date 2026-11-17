@@ -546,6 +546,35 @@ class StemSeparationTest(_InputProcessCase):
         plain = self._run(melody_reference=self._cover())
         self.assertIsNone(page.context_of(plain)['stems'])
 
+    def test_a_stem_card_offers_neither_separation_nor_remix(self):
+        """2026-11-17, Fabien : « une card de piste séparée propose encore la séparation et la
+        fusion alors qu'elle n'a plus qu'une piste […] on retire les réglages qui sont impossibles
+        pour elle et aussi le mixeur dans l'éditeur ou un message plus approprié ». On a stem card,
+        both steps are excluded by the ELEMENT : their settings leave its ⚙ and the lot does not
+        write them (`inapplicable_settings`), its page says where the mix happens (`excluded`,
+        `origin`). Counter-proofs : the origin keeps them, its partitions stay on the stem ; a card
+        not separated yet keeps the remix — « separate, then remix » in one launch."""
+        from wama.common.services.process_pipeline import inapplicable_settings
+        gen = self._run(separate_stems=True, melody_reference=self._cover())
+        drums = self._stems(gen)['drums']
+        idle = inapplicable_settings(drums)
+        self.assertTrue({'separate_stems', 'separation_model', 'remix_stems', 'remix_without',
+                         'remix_levels'} <= set(idle), idle)
+        self.assertNotIn('extract_parts', idle, 'the partition of a stem stays')
+        self.assertNotIn('melody_reference', idle, 'what another step reads stays')
+        self.assertEqual((), inapplicable_settings(gen), 'the origin keeps everything')
+        from wama.composer.function_specs import PIPELINE
+        fresh = self._run(melody_reference=self._cover())
+        remix = PIPELINE.spec('remix')
+        self.assertEqual((True, False), (PIPELINE.applies(remix, fresh), PIPELINE.applies(remix, drums)),
+                         'not separated yet : the remix can be asked with the separation')
+        self.client.force_login(self.user)
+        config = self.client.get(f'/common/surface/composer/score/{drums.pk}/').context['config']
+        self.assertEqual({'separate', 'remix'}, set(config['excluded']) & {'separate', 'remix'})
+        self.assertEqual((gen.pk, 'drums'), (config['origin']['id'], config['origin']['role']))
+        origin = self.client.get(f'/common/surface/composer/score/{gen.pk}/').context['config']
+        self.assertEqual(({}, False), (origin['origin'], 'remix' in origin['excluded']))
+
     def test_a_relaunch_replaces_the_stems_never_adds_cards(self):
         gen = self._run(separate_stems=True, melody_reference=self._cover())
         first = {role: card.pk for role, card in self._stems(gen).items()}

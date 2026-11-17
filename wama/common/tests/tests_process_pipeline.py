@@ -876,6 +876,75 @@ class WhatTheCardShowsTest(TestCase):
         self.assertFalse(next(r for r in pipeline.card_rows(item) if r['key'] == 'cover')['hidden'],
                          'a step that produced something is never folded')
 
+    def test_the_settings_of_a_step_the_element_excludes_leave_the_card(self):
+        """2026-11-17, Fabien : « une card de piste séparée propose encore la séparation et la
+        fusion alors qu'elle n'a plus qu'une piste […] on retire les réglages qui sont impossibles
+        pour elle ». A step the ELEMENT excludes gives its settings and its switch away
+        (`inapplicable_settings`) — read from the strip rows the card already carries, or judged
+        here ; its folded line has neither checkbox nor gear ; the card's gear names them
+        (`card_gear` → `data-inapplicable`). Only on a DERIVED card, whose nature is fixed : the
+        same exclusion on another card follows its CONTENT (an input not downloaded yet), which may
+        change. Counter-proofs : that non-derived card keeps everything ; a setting another step
+        still reads stays ; a step merely switched off keeps its settings."""
+        from django.template.loader import render_to_string
+        from wama.common.services.process_pipeline import inapplicable_settings
+        from wama.common.utils.card_gear import gear_data
+        pipeline = AppPipeline('demo_pipeline', (
+            ProcessSpec('cover', label='Lecture du cover', degree='optional', toggle='wants_cover',
+                        watched=('cover_model', 'shared'),
+                        applies=lambda item, model_key: bool(getattr(item, 'audio', ''))),
+            ProcessSpec('render', label='Rendu', watched=('shared',)),
+        ), label='Demo')
+        content = _Element(status=JOB_PENDING, audio='', wants_cover=True)
+        self.assertEqual((), inapplicable_settings(content, pipeline=pipeline),
+                         'not derived : the exclusion follows a content that may change')
+        self.assertFalse(any(r['excluded'] for r in pipeline.card_rows(content)))
+        bare = _Element(status=JOB_PENDING, audio='', wants_cover=True, derived_role='drums')
+        self.assertEqual(('cover_model', 'wants_cover'), inapplicable_settings(bare, pipeline=pipeline))
+        rows = pipeline.card_rows(bare)
+        self.assertEqual(('cover_model', 'wants_cover'), inapplicable_settings(bare, rows),
+                         'the same answer from the strip rows')
+        html = render_to_string('common/_card_processes.html', {
+            'processes': rows, 'card_id': 7, 'settings_url': '/demo/settings/7/'})
+        folded = html.split('data-processes-folded')[1]
+        self.assertNotIn('data-toggle-field="wants_cover"', folded, 'no switch for an excluded step')
+        self.assertNotIn('data-process="cover" data-only', folded, 'no gear for an excluded step')
+        bare.processes = rows
+        params = [{'name': n, 'contexts': ['item']} for n in ('wants_cover', 'cover_model', 'shared')]
+        self.assertEqual('cover_model wants_cover', gear_data(bare, params)['inapplicable'])
+        with_audio = _Element(status=JOB_PENDING, audio='a.wav', wants_cover=False, derived_role='drums')
+        self.assertEqual((), inapplicable_settings(with_audio, pipeline=pipeline),
+                         'switched off is not excluded : its settings stay')
+        with_audio.processes = pipeline.card_rows(with_audio)
+        self.assertNotIn('inapplicable', gear_data(with_audio, params))
+
+    def test_the_strip_names_the_model_each_step_used(self):
+        """2026-11-17, Fabien : « je vois seulement Moteur / Modèle auto:text-to-music […] je devrais
+        connaître le modèle utilisé par chaque sous-process ». A step that ran says the model it
+        USED, by its catalogue name (`card_chips.catalog_name`), next to its name ; its key stays
+        on hover. Counter-proofs : a step not run yet names none ; a key the catalogue does not
+        know is shown as is, never dropped."""
+        from unittest import mock
+        from django.template.loader import render_to_string
+        pipeline = AppPipeline('demo_pipeline', (
+            ProcessSpec('separate', label='Pistes séparées'),
+            ProcessSpec('render', label='Rendu', depends_on=('separate',)),
+        ), label='Demo')
+        item = _Element(status=JOB_PENDING)
+        process_runs.start(item, 'separate', model_key='demucs:htdemucs_6s')
+        process_runs.succeed(item, 'separate')
+        names = {'demucs:htdemucs_6s': 'Demucs v4 — 6 stems'}
+        with mock.patch('wama.common.utils.card_chips.catalog_name',
+                        side_effect=lambda key: names.get(key, '')):
+            rows = {r['key']: r for r in pipeline.card_rows(item)}
+            self.assertEqual(('Demucs v4 — 6 stems', ''),
+                             (rows['separate']['model_name'], rows['render']['model_name']))
+            html = render_to_string('common/_card_processes.html', {'processes': list(rows.values())})
+            self.assertRegex(html, r'data-model="demucs:htdemucs_6s"[^>]*>· Demucs v4 — 6 stems<')
+            names.clear()
+            rows = {r['key']: r for r in pipeline.card_rows(item)}
+            self.assertEqual('demucs:htdemucs_6s', rows['separate']['model_name'])
+
     def test_the_gear_of_a_step_also_shows_what_it_writes_without_staling_it(self):
         """2026-11-08, Fabien : « la modale d'écrire les paroles devrait contenir le champ paroles et
         le bouton de génération ». What a step WRITES (`ProcessSpec.writes`) joins its gear — on the
@@ -1187,6 +1256,8 @@ class WhatTheCardShowsTest(TestCase):
         from wama.common.services.process_pipeline import PRELOADED, card_view, preload
         APP_PIPELINES['demo_pipeline'] = self.pipeline
         self.addCleanup(APP_PIPELINES.pop, 'demo_pipeline', None)
+        from wama.common.utils import card_chips
+        card_chips._CATALOGUE_MEMO.clear()
         cards = [_Element(status=JOB_SUCCESS) for _ in range(3)]
         for card in cards:
             self._played(card, 'plan')
@@ -1194,9 +1265,10 @@ class WhatTheCardShowsTest(TestCase):
         with CaptureQueriesContext(connection) as page:
             preload(cards)
             views = [card_view(card, preloaded=True) for card in cards]
-        # Two queries for the whole page : the lines, and what the cards ADD to their pipeline
-        # (`card_pipelines`, 2026-11-11) — never one per card.
-        self.assertEqual(2, len(page), [q['sql'][:80] for q in page])
+        # Three queries for the whole page : the lines, what the cards ADD to their pipeline
+        # (`card_pipelines`, 2026-11-11), and the NAMES of the models their steps used (2026-11-17,
+        # `card_chips.catalog_names`) — never one per card.
+        self.assertEqual(3, len(page), [q['sql'][:80] for q in page])
         self.assertTrue(all(view[1] == JOB_SUCCESS and len(view[0]) == 2 for view in views))
         alone = _Element(status=JOB_SUCCESS)
         self._played(alone, 'render')

@@ -88,6 +88,11 @@ def preload(items) -> None:
     grouped = process_runs.lines_by_item(items)
     if items and app_pipeline(items[0]._meta.app_label) is not None:
         card_pipelines.preload(items)
+    # Le NOM du modèle de chaque étape (2026-11-17, la bande l'écrit) : une requête pour la page.
+    from wama.common.utils import card_chips
+    names_of = getattr(card_chips, 'catalog_names', None)      # service d'avant : absente
+    if names_of:
+        names_of({row.model_key for rows in grouped.values() for row in rows if row.model_key})
     for item in items:
         setattr(item, PRELOADED, grouped.get(str(item.pk), []))
         item.__dict__.setdefault(APPLIES_MEMO, {})
@@ -1330,6 +1335,8 @@ class AppPipeline:
         qui ne dépend d'aucun modèle).
         `{key, label, degree, status, duration_s, model_key, output_label, error, lost}`, plus
         la colonne de chacun dans le graphe (`_columns`) — d'où les branches de la bande."""
+        from wama.common.utils import card_chips
+        catalog_name = getattr(card_chips, 'catalog_name', None) or (lambda key: '')
         self.refresh(item)
         rows = self.rows(item)
         held = self._held(self._live_rows(item))
@@ -1368,6 +1375,10 @@ class AppPipeline:
                            else host.status if host is not None else JOB_PENDING),
                 'duration_s': row.duration_s if row is not None else None,
                 'model_key': row.model_key if row is not None else '',
+                # Le modèle EMPLOYÉ, par son nom (2026-11-17, Fabien : « je devrais connaître le
+                # modèle utilisé par chaque sous-process ») — la bande l'écrit à côté de l'étape.
+                'model_name': (catalog_name(row.model_key) or row.model_key)
+                              if row is not None and row.model_key else '',
                 'output_label': summary.get('label') or '',
                 'error': (row.error_message or '') if row is not None else '',
                 # Les réglages que CE process surveille : ce que son ⚙ montre (P5, 5.1).
@@ -1383,6 +1394,11 @@ class AppPipeline:
                 'state': state,
                 'reason': reason,
                 'hidden': hidden,
+                # Sans objet À CAUSE DE L'ÉLÉMENT, sur une card DÉRIVÉE (2026-11-17 : sa nature est
+                # fixée) : ses réglages n'en ont aucun ici — sa ⚙ ne se montre pas, ni eux dans
+                # celle de la card (`inapplicable_settings`).
+                'excluded': (state == 'na' and self.CAUSE_OF.get(reason) == 'element'
+                             and bool(getattr(item, 'derived_role', ''))),
                 # Les mesures sans référence de sa sortie (`ProcessSpec.checks`, 2026-10-22).
                 'checks': list(summary.get('checks') or []) if row is not None else [],
                 # Rendu, mais son fichier n'est plus sur le disque (`process_runs.output_lost`,
@@ -1562,6 +1578,48 @@ def pipeline_of(item) -> AppPipeline | None:
         return None
     from wama.common.services import card_pipelines
     return card_pipelines.card_pipeline(item, declared)
+
+
+def inapplicable_settings(item, rows=None, pipeline=None) -> tuple:
+    """Les réglages SANS OBJET pour cette card (2026-11-17, Fabien : « une card de piste séparée
+    propose encore la séparation et la fusion alors qu'elle n'a plus qu'une piste […] on retire les
+    réglages qui sont impossibles pour elle ») : ceux des étapes que l'ÉLÉMENT exclut — la cause
+    `element` de `step_state`, celle que la bande replie en « sans objet » —, et seulement eux : un
+    réglage qu'une autre étape lit encore (l'entrée, le modèle) reste. Une étape coupée, privée de
+    son entrée ou que le modèle choisi ne fait pas garde les siens : l'utilisateur peut y revenir.
+    Lu par la ⚙ et le volet (`card_gear` → `data-inapplicable`, qui les retirent) et par les gestes
+    de lot, qui ne les écrivent pas sur elle (`batch_views`). `rows` : les lignes de la bande quand
+    la card les porte déjà (`decorate` pose `processes`) — sans elles, chaque étape est jugée ici,
+    sur `pipeline` (par défaut celui de la card, `pipeline_of`). () sans pipeline.
+
+    ⚠ Seulement sur une card DÉRIVÉE (`DerivedCardMixin.derived_role` : une piste, une refusion) :
+    sa NATURE est fixée, ce que l'élément exclut l'est pour toujours. Ailleurs, l'exclusion suit le
+    CONTENU de la card — une entrée pas encore téléchargée, un type de média — qui peut changer :
+    retirer ces réglages, et ne plus les écrire par le lot, aurait été faux (mesuré le jour même :
+    le contrat « le lot écrit ce qu'écrit la route d'un élément » rougissait chez le converter, le
+    describer et le transcriber)."""
+    if not getattr(item, 'derived_role', ''):
+        return ()
+    if rows is None:
+        rows = getattr(item, 'processes', None)
+    if rows is None:
+        pipeline = pipeline or pipeline_of(item)
+        if pipeline is None:
+            return ()
+        model = pipeline.requested_model(item)
+        rows = []
+        for spec in pipeline.ordered():
+            state, reason = pipeline.step_state(spec, item, model)
+            rows.append({'toggle': spec.toggle, 'settings': pipeline.step_settings(spec),
+                         'excluded': state == 'na' and AppPipeline.CAUSE_OF.get(reason) == 'element'})
+    idle, used = [], set()
+    for row in rows:
+        names = list(row.get('settings') or ()) + ([row['toggle']] if row.get('toggle') else [])
+        if row.get('excluded'):
+            idle.extend(names)
+        else:
+            used.update(names)
+    return tuple(dict.fromkeys(name for name in idle if name not in used))
 
 
 def app_pipeline(app: str) -> AppPipeline | None:

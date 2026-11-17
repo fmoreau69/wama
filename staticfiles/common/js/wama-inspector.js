@@ -582,6 +582,7 @@
       // interrupteurs d'UNE card pendant que N sont sélectionnées — un volet qui ment sur ce
       // qu'il édite, et dont un Enregistrer aurait écrit on ne sait où. Vu à la capture du
       // smoke, pas au code.
+      if (panel.idle) panel.idle(null);
       if (defaults && panel.apply) panel.apply(defaults);
       var n = cards.length;
       var dansLot = cards.filter(function (c) { return !!c.closest('.batch-group'); }).length;
@@ -703,6 +704,7 @@
       if (panel.releaseHolds) panel.releaseHolds();
       itemId = id; batchId = null;
       clearHighlight(); card.classList.add(HL);
+      if (panel.idle) panel.idle(card);
       if (panel.apply && cfg.cardSettings) panel.apply(cfg.cardSettings(card));
       // Une FILLE d'un lot : « faire de ses réglages la référence du lot », à côté de ses réglages.
       if (panel.align) panel.align(card.closest ? card.closest(BATCH_SEL) : null, card);
@@ -722,6 +724,7 @@
       batchId = bid; itemId = null;
       clearHighlight(); group.classList.add(HL);
       if (panel.releaseHolds) panel.releaseHolds();
+      if (panel.idle) panel.idle(null);
       const first = group.querySelector(CARD_SEL);   // réglages = ceux du 1er item
       if (first && panel.apply && cfg.cardSettings) panel.apply(cfg.cardSettings(first));
       // Le volet montre le 1er élément, mais il parle pour le LOT : ce que les filles ne partagent
@@ -739,6 +742,7 @@
       itemId = null; batchId = null;
       clearHighlight();
       if (panel.releaseHolds) panel.releaseHolds();
+      if (panel.idle) panel.idle(null);
       if (defaults && panel.apply) panel.apply(defaults);
       const host = $(ids.actions);
       if (host) host.innerHTML = '';
@@ -966,6 +970,11 @@
         if (WP && WP.releaseBatchOwn && ph) WP.releaseBatchOwn(ph);
         const block = ph && ph.querySelector('.wama-batch-align');
         if (block) block.remove();
+      },
+      // Les réglages SANS OBJET pour la card choisie (2026-11-17) : retirés du volet comme de sa ⚙
+      // (`WamaParams.setInapplicable`) ; sans card (dépôt, lot, plusieurs), rien n'est retiré.
+      idle: function (card) {
+        if (WP && WP.setInapplicable && ph) WP.setInapplicable(ph, card || null);
       },
       // Le lot d'une card inspectée : ses valeurs propres sous les lignes (mère) et son alignement
       // (`WamaParams.bindBatchOwn` / `batchAlignment`, les mêmes que la ⚙ du lot).

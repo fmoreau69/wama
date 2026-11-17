@@ -44,6 +44,20 @@
         var role = options.role || 'audio';
         var data = (ctx.context() || {})[options.tracks || 'tracks'];
         body.classList.add('wama-brick-mixer');
+        // L'étape qu'elle lance est SANS OBJET pour cet élément (2026-11-17, Fabien : une piste
+        // séparée n'a plus qu'une piste — `config.excluded`, la règle de la bande) : le dire, et
+        // mener à la card d'origine d'une card dérivée, où le mixage a lieu (`config.origin`).
+        var config = ctx.config || {};
+        var excluded = options.process && (config.excluded || {})[options.process];
+        if (excluded) {
+            var origin = config.origin || {};
+            body.innerHTML = '<p class="small text-body-secondary mb-0">' +
+                (origin.id ? 'Cette card est tirée de #' + esc(origin.id) + ' : le mixage des pistes se ' +
+                             'fait sur sa card d’origine. <a href="' + esc(origin.url) + '">Ouvrir #' +
+                             esc(origin.id) + '</a>'
+                           : esc(excluded)) + '</p>';
+            return {};
+        }
         if (!data || !(data.tracks || []).length) {
             body.innerHTML = '<p class="small text-body-secondary mb-0">' +
                 esc(options.empty || 'Aucune piste à mixer pour cet élément.') + '</p>';

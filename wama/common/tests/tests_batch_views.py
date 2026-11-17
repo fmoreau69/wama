@@ -400,6 +400,30 @@ class PromotionBetweenChildAndMotherTest(TestCase):
         self._post('batch_update', {'media_type': 'video'})
         self.assertEqual(batch_settings.stored(self.lot), {'output_format': 'mkv', 'media_type': 'video'})
 
+    def test_a_setting_without_object_on_a_child_is_written_on_none_of_its_gestures(self):
+        """2026-11-17, Fabien : « si on réaligne toutes les filles sur la card mère […] les pistes
+        séparées ne prendraient-elles pas le réglage ? ». A setting a child's pipeline excludes
+        (`process_pipeline.inapplicable_settings`, the rule of its own gear) is written on it by
+        neither the batch ⚙, nor promote, nor realign — its sister receives it. Counter-proof : the
+        same gestures without exclusion write both."""
+        from unittest import mock
+        excluded = {self.a.pk: ('output_format',)}
+        with mock.patch('wama.common.services.process_pipeline.inapplicable_settings',
+                        side_effect=lambda item: excluded.get(item.pk, ())):
+            self._post('batch_update', {'output_format': 'mkv'})
+            self.a.refresh_from_db()
+            self.b.refresh_from_db()
+            self.assertEqual(('mp4', 'mkv'), (self.a.output_format, self.b.output_format))
+            self.b.output_format = 'ogg'
+            self.b.save(update_fields=['output_format'])
+            self._post('batch_realign')
+            self._post('batch_promote', {'source': self.b.pk})
+            self.a.refresh_from_db()
+            self.assertEqual('mp4', self.a.output_format, 'realign and promote skip it too')
+        self._post('batch_realign')
+        self.a.refresh_from_db()
+        self.assertEqual('mkv', self.a.output_format, 'without exclusion, the child receives it')
+
     def test_realigning_leaves_what_the_mother_never_set(self):
         """Une durée où les filles divergent reste hors de la référence : « réaligner » ne l'écrase
         pas (vécu le 2026-11-03 : 12 morceaux remis sur la durée du premier)."""

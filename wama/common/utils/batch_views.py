@@ -742,6 +742,15 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
             keep = batch_settings.kept(
                 batch_settings.own_settings(item, _schema_of(item), reference), scope, replace)
             data = {k: v for k, v in data.items() if k not in keep}
+            # Un réglage SANS OBJET pour cette card ne s'écrit pas sur elle (2026-11-17, Fabien :
+            # « si on réaligne toutes les filles sur la card mère […] les pistes séparées ne
+            # prendraient-elles pas le réglage ? ») — ni par la ⚙ du lot, ni par promouvoir ou
+            # réaligner : la règle de sa ⚙, qui les retire (`inapplicable_settings`).
+            # Par `getattr` : un service lancé avant la fonction ne l'a pas (cf. `card_gear`).
+            from wama.common.services import process_pipeline
+            idle_of = getattr(process_pipeline, 'inapplicable_settings', None)
+            idle = set(idle_of(item)) if idle_of else set()
+            data = {k: v for k, v in data.items() if k not in idle}
             try:
                 touched = _write_one(item, data)
             except ValueError as refusal:

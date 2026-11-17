@@ -64,4 +64,17 @@ def gear_data(instance, params, values=None, extra=None) -> dict:
             out[key] = _flat(getattr(instance, name, None))
     for k, v in (extra or {}).items():
         out[k.replace('_', '-')] = _flat(v)
+    # Les réglages SANS OBJET pour cette card (2026-11-17) : la ⚙ et le volet les retirent
+    # (`wama-params.js`, `data-inapplicable` du conteneur). Lus sur les lignes de sa bande, que la
+    # décoration de la card a déjà posées (`process_pipeline.decorate`) : aucune requête de plus ;
+    # une card non décorée n'en déclare aucun.
+    # ⚠ Lu par `getattr` sur le module : un service lancé avant cette fonction l'a en mémoire SANS
+    # elle, et un import nommé y levait — 500 sur toute page de cards (vécu le 2026-11-17).
+    rows = getattr(instance, 'processes', None)
+    if rows is not None:
+        from wama.common.services import process_pipeline
+        idle_of = getattr(process_pipeline, 'inapplicable_settings', None)
+        idle = idle_of(instance, rows) if idle_of else ()
+        if idle:
+            out['inapplicable'] = ' '.join(idle)
     return out

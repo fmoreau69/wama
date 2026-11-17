@@ -2307,6 +2307,25 @@
         // (`_show_if_met`) juge des VALEURS, pas un rendu : il n'a rien à changer.
         row.style.display = (cond && judged(cond)) ? '' : 'none';
       });
+      // Les réglages SANS OBJET pour la card que montre ce conteneur (2026-11-17, Fabien : une
+      // piste séparée ne propose plus séparation ni refusion) : le serveur les nomme
+      // (`process_pipeline.inapplicable_settings` → `data-inapplicable` de la card), la ⚙ et le
+      // volet les posent sur leur conteneur (`setInapplicable`). Retirés, pas grisés : ils n'ont
+      // pas d'objet ici, quel que soit le reste.
+      // Un volet passe d'une card à l'autre : ce qu'il avait retiré pour la précédente revient (le
+      // marqueur `data-wp-idle` dit ce que CETTE règle a retiré, rien d'autre n'est touché).
+      const idle = (container.getAttribute && container.getAttribute('data-inapplicable') || '')
+        .split(/\s+/).filter(Boolean);
+      container.querySelectorAll('[data-param-row]').forEach(function (row) {
+        if (!row.getAttribute || !row.style) return;
+        if (idle.indexOf(row.getAttribute('data-param-row')) >= 0) {
+          row.style.display = 'none';
+          row.setAttribute('data-wp-idle', '1');
+        } else if (row.hasAttribute && row.hasAttribute('data-wp-idle')) {
+          row.removeAttribute('data-wp-idle');
+          if (!row.hasAttribute('data-show-if')) row.style.display = '';
+        }
+      });
       // Un groupe dont TOUS les réglages sont cachés par leur condition se cache aussi (2026-10-22) :
       // sinon un « Avancé » replié s'ouvrait sur un corps vide (la qualité JPEG du converter, sous
       // un format qui n'est pas une image). Sa propre condition, jugée plus haut, prime.
@@ -2326,6 +2345,24 @@
       container.addEventListener('change', function () { apply(); });
       container.addEventListener('input', function () { apply(); });
     }
+  }
+
+  // Les réglages SANS OBJET pour une card (2026-11-17) : lus sur la card (`data-inapplicable` de son
+  // ⚙, `card_gear`), posés sur le conteneur qui la montre — sa ⚙, le volet quand elle y est
+  // choisie —, puis la visibilité rejugée (`_bindConditional`). Sans card (le volet sur le dépôt,
+  // le lot) : rien n'est retiré.
+  function setInapplicable(container, card) {
+    if (!container || !container.setAttribute) return;
+    let names = '';
+    if (card && card.querySelectorAll) {
+      const gear = Array.prototype.find.call(
+        card.querySelectorAll('.settings-btn, [data-action="settings"]'),
+        function (b) { return !(b.dataset && b.dataset.process); });
+      names = (gear && gear.dataset.inapplicable) || (card.dataset && card.dataset.inapplicable) || '';
+    }
+    if (names) container.setAttribute('data-inapplicable', names);
+    else container.removeAttribute('data-inapplicable');
+    _bindConditional(container);
   }
 
   function _fieldValue(el) {
@@ -2586,6 +2623,7 @@
         const card = document.querySelector('.wama-card[data-id="' + String(cfg.id) + '"]');
         const group = card && card.closest ? card.closest('.batch-group[data-batch-id]') : null;
         if (group) batchAlignment(host, group, card);
+        setInapplicable(host, card);
       }
       if (typeof cfg.decorate === 'function') cfg.decorate(host, data || {}, res);
 
@@ -2685,6 +2723,8 @@
                         // La visibilité `show_if` — exposée pour la garde de PARITÉ avec son
                         // jumeau serveur `param_schema._show_if_met` (`tests_cap_from_js`).
                         bindConditional: _bindConditional,
+                        // Les réglages sans objet pour une card, retirés de sa ⚙ et du volet.
+                        setInapplicable: setInapplicable,
                         // Libellé d'une valeur (`display_format`) — appelé par l'`oninput` du
                         // curseur rendu ; `proposedValue`/`bindDefaultFrom` : la règle de
                         // `default_from`, exposée pour sa garde V8.

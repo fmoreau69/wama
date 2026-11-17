@@ -111,11 +111,14 @@ def _separate_available() -> bool:
 
 
 def _remix_applies(gen, model_key) -> bool:
-    """La REFUSION (2026-11-16) : des pistes séparées existent sur la card d'origine (son index,
-    `stems_index`), et ce n'est pas une piste elle-même."""
-    if getattr(gen, 'derived_role', ''):
-        return False
-    return bool(getattr(getattr(gen, 'stems_index', None), 'name', ''))
+    """La REFUSION (2026-11-16) : jamais sur une card dérivée (une piste, une refusion) — c'est ce
+    que l'ÉLÉMENT exclut, pour toujours. Les pistes qu'elle lit ne se jugent pas ici (2026-11-17) :
+    son port `stems` est rendu par « Pistes séparées », que le pipeline joue avant elle ; coupée, la
+    refusion est privée de son entrée (`starved`) et la bande le dit. Ce test exigeait l'index des
+    pistes : une card pas encore séparée tenait la refusion pour « sans objet », donc ses réglages
+    disparaissaient de sa ⚙ (`process_pipeline.inapplicable_settings`) — on ne pouvait pas demander
+    « séparer, puis refusionner sans la batterie » d'un seul lancement."""
+    return not getattr(gen, 'derived_role', '')
 
 
 def _lyrics_available() -> bool:

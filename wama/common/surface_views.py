@@ -192,6 +192,11 @@ def surface_page(request, app: str, key: str, pk: int):
             'process_url': _url(f'{app}:start_process', pk, PROCESS_SLOT),
             'process_slot': PROCESS_SLOT,
             'toggles': _toggles_of(item),
+            # Les étapes que l'ÉLÉMENT exclut, avec leur raison (2026-11-17 : une piste séparée n'a
+            # ni séparation ni refusion) — une brique qui lance l'une d'elles le dit au lieu de
+            # proposer de la lancer ; et la card d'ORIGINE d'une card dérivée, où ce geste a lieu.
+            'excluded': _excluded_steps(item),
+            'origin': _origin_of(app, key, item),
             'revisions_url': base + 'revisions/',
             # La page de l'app telle que son IDENTITÉ la déclare (2026-10-29) : `<app>:index` ne
             # se résout pas pour une app du Lab, montée sous `wama_lab:`.
@@ -229,6 +234,37 @@ def _toggles_of(item) -> dict:
     except Exception:
         return {}
     return {spec.key: spec.toggle for spec in (pipeline.specs if pipeline else ()) if spec.toggle}
+
+
+def _excluded_steps(item) -> dict:
+    """`{étape: raison}` des étapes que l'ÉLÉMENT exclut (`AppPipeline.step_state`, cause
+    `element` — la règle qui retire leurs réglages de la ⚙, `inapplicable_settings`). `{}` sans
+    pipeline."""
+    from wama.common.services.process_pipeline import AppPipeline, pipeline_of
+    pipeline = pipeline_of(item)
+    if pipeline is None:
+        return {}
+    model = pipeline.requested_model(item)
+    out = {}
+    for spec in pipeline.specs:
+        state, reason = pipeline.step_state(spec, item, model)
+        if state == 'na' and AppPipeline.CAUSE_OF.get(reason) == 'element':
+            out[spec.key] = reason
+    return out
+
+
+def _origin_of(app: str, key: str, item) -> dict:
+    """La card d'ORIGINE d'une card dérivée (`derived_cards.origin_of` : une piste séparée, une
+    refusion) — `{id, role, url}`, l'adresse étant la même page sur l'origine ; `{}` pour une card
+    qui n'est pas dérivée."""
+    if not getattr(item, 'derived_from_id', None):
+        return {}
+    from wama.common.utils.derived_cards import origin_of
+    origin = origin_of(item)
+    if origin is None or origin.pk == item.pk:
+        return {}
+    return {'id': origin.pk, 'role': getattr(item, 'derived_role', '') or '',
+            'url': f'/common/surface/{app}/{key}/{origin.pk}/'}
 
 
 def _requested_field(found, item, requested: str) -> str:

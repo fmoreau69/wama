@@ -78,6 +78,42 @@ def _inventaire_catalogue(options_query: dict) -> list:
     return valeur
 
 
+def catalog_name(model_key: str) -> str:
+    """Le NOM lisible d'un modèle du catalogue (`AIModel.name`) — '' s'il n'y est pas. Mémoïsé
+    comme les inventaires ci-dessus : la bande des process d'une file le demande pour chaque étape
+    de chaque card (2026-11-17, Fabien : « je devrais connaître le modèle utilisé par chaque
+    sous-process qui porte un modèle »), une clé ne coûte qu'une requête par 30 s."""
+    if not model_key:
+        return ''
+    return catalog_names([model_key]).get(model_key, '')
+
+
+def catalog_names(model_keys) -> dict:
+    """`{clé: nom}` de plusieurs modèles en UNE requête pour ceux que le mémo n'a pas — ce que lit
+    une page de cards (`process_pipeline.preload`, la règle « une page, pas une requête par card »).
+    Un modèle absent du catalogue vaut ''."""
+    import time
+
+    now = time.monotonic()
+    out, missing = {}, []
+    for model_key in {k for k in model_keys or () if k}:
+        entry = _CATALOGUE_MEMO.get(('name', model_key))
+        if entry and (now - entry[0]) < _CATALOGUE_TTL:
+            out[model_key] = entry[1]
+        else:
+            missing.append(model_key)
+    if missing:
+        try:
+            from wama.model_manager.models import AIModel
+            found = dict(AIModel.objects.filter(model_key__in=missing).values_list('model_key', 'name'))
+        except Exception:
+            return out                 # catalogue indisponible : rien plutôt qu'un nom inventé
+        for model_key in missing:
+            out[model_key] = found.get(model_key) or ''
+            _CATALOGUE_MEMO[('name', model_key)] = (now, out[model_key])
+    return out
+
+
 def field_unit(field) -> str:
     """L'UNITÉ d'un champ numérique : `unit` s'il est déclaré, sinon un `chip_label` COURT en
     minuscules — c'est une déclaration d'unité (idiome imager : « s », « fps », « steps » ;

@@ -296,14 +296,9 @@ def _model_label(model_key: str) -> str:
         return 'Modèle inconnu'
     if model_key.startswith(EXTERNAL_PREFIX):
         return f"Résultat externe · {model_key[len(EXTERNAL_PREFIX):] or 'sans nom'}"
-    try:
-        from wama.model_manager.models import AIModel
-        found = AIModel.objects.filter(model_key=model_key).values_list('name', flat=True).first()
-        if found:
-            return found
-    except Exception:
-        pass
-    return model_key.split(':', 1)[-1]
+    from wama.common.utils import card_chips
+    catalog_name = getattr(card_chips, 'catalog_name', None)      # service d'avant : absente
+    return (catalog_name(model_key) if catalog_name else '') or model_key.split(':', 1)[-1]
 
 
 def _configurations(spec: EvaluationSpec, items: list) -> Dict[int, Tuple[str, str]]:

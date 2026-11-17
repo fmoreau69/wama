@@ -4834,6 +4834,73 @@ ses dépendances et ses poids par la route ; **bloqué par la licence de ses poi
 selon la source) — décision de Fabien.
 ⏳ La jumelle `composer_01` ne reçoit pas le process (sa liste de fonctions est figée à sa création).
 
+#### Cohérence des cards de pistes — questions, constats, concile, décisions (2026-11-17)
+
+Session d5 (organisatrice, à la demande de Fabien), avec la session 2a (tâches bornées) et le concile
+de WAMA. Fabien : *« il faudrait cartographier exactement tout ce que porte chaque card […] distinguer
+ce qui est possible de ce qui est impossible pour établir un plan d'attaque pour un réalignement de
+cohérence »*.
+
+**Constats MESURÉS** (lecture seule, base réelle) :
+- *#1632 « Pistes séparées » périmé* : la séparation a tourné le 14/11 à 20 h 48 avec
+  `demucs:htdemucs_6s` choisi sur la card ; à 21 h 49, le ⚙ du lot 904 (`POST
+  /composer/batch/904/update/` ×2, journal gunicorn) a écrit `separation_model = auto` sur les SEPT
+  cards — réglage surveillé, d'où la péremption. Les lots 903 et 880 ont gardé le modèle. Le ⚙ de lot
+  actuel montre bien la valeur enregistrée (lot témoin, rien enregistré) : un choix, pas une perte.
+- *Relancer la séparation* : même lot ; une piste existante garde sa card, son fichier est remplacé
+  (`derived_cards.py:98-107`) — aucun lot empilé. Trous : un modèle qui rend MOINS de pistes laisse les
+  anciennes cards ; le nom de ligne garde le modèle d'avant (`…_htdemucs_6s_…`).
+- *La refusion relance une séparation périmée* : `steps_to_run(only=…)` rejoue les amonts qui ne sont
+  plus à jour (`process_pipeline.py:1227-1236`) — « Rendre le mixage » sur #1632 relancerait Demucs.
+- *Reproductibilité* : NON au bit près — Demucs décale l'audio d'un temps ALÉATOIRE (≤ 0,5 s) à chaque
+  passage, même à `SHIFTS = 1` (`demucs/apply.py:214`) ; effet non mesuré ici (sa doc : ~0,2 dB). Une
+  mesure de reproductibilité reste à faire (Fabien : « pour plus tard »).
+- *Une card piste propose séparation et refusion* : le pipeline les savait sans objet (`applies`
+  faux), mais rien ne reliait l'applicabilité d'une étape à ses réglages ni aux écritures de lot.
+- *Card ≠ volet* : la card lit les champs `chip=True` du schéma (`card_chips.chips_for`), le volet la
+  liste `extra` de sa spec de détail (`detail_registry`) — card témoin #1754 : « 1:35 » en Réglages
+  contre « Durée 95s » en Entrée, « MusicGen Small » contre la clé `composer:musicgen-small`, Sortie
+  vide contre « Format original » ; sur 12 apps, aucun réglage commun chez l'anonymizer,
+  l'avatarizer, le converter, le synthesizer et le composer.
+- *Le modèle de chaque étape* : connu par sa ligne d'exécution (`ProcessRun.model_key`), montré au
+  seul survol de la bande, en clé brute.
+- *La page d'édition sur une card sans partition* : proposée puis RETIRÉE (Fabien : « je ne vois pas
+  pourquoi ») — la page s'ouvre déjà dès que des pistes existent (`opens_with`).
+
+**Concile** (un tour de l'assistant, Albert gemma-4-31b, délégation `review`) : identité « Piste : rôle »
+en tête de card ; réglages impossibles retirés ; une seule card de refusion, remplacée ; péremption
+explicite, mais jamais de rejeu SILENCIEUX d'un amont coûteux et non reproductible (le dire, demander) ;
+cards de pistes disparues gardées, marquées « orphelines » ; partition réduite selon l'instrument
+(percussions), complète par défaut ; card = vue réduite du volet, une source ; modèle de chaque étape
+visible et cliquable. ⚠ Avis général, à confronter : il proposait que le ⚙ de lot écrive partout
+(« best-effort ») — écarté, c'est ce qui a rendu #1632 ambigu.
+
+✅ **Livré (2026-11-17)** :
+- Les réglages d'une étape que l'ÉLÉMENT exclut quittent sa card (`process_pipeline.inapplicable_settings`,
+  lu sur les lignes de sa bande, `excluded`) : sa ⚙ et le volet les retirent (`card_gear` →
+  `data-inapplicable`, `WamaParams.setInapplicable`), son étape repliée n'a plus ni case ni ⚙, et la
+  ⚙ du lot, promouvoir et réaligner ne les écrivent pas sur elle (`batch_views`). Un réglage qu'une
+  autre étape lit reste ; une étape coupée garde les siens. Générique, mais seulement sur une card
+  DÉRIVÉE (toute app qui en fait) : sa nature est fixée. Ailleurs, l'exclusion suit le CONTENU
+  (entrée pas encore téléchargée, type de média), qui change — la 1ʳᵉ version, sur toute card, a fait
+  rougir le contrat « le lot écrit ce qu'écrit la route d'un élément » chez trois apps.
+- La refusion n'est plus « sans objet » sur une card pas encore séparée (`_remix_applies` : seule une
+  card dérivée l'exclut) — séparer puis refusionner se demande d'un seul lancement ; sans
+  séparation, elle est privée de son entrée (`starved`), dite, pas retirée.
+- La bande écrit le modèle EMPLOYÉ par chaque étape, par son nom (`card_chips.catalog_name`, lecture
+  commune mémoïsée, que `result_evaluation` emprunte désormais).
+- Le mixeur d'une card dérivée dit où le mixage a lieu et y mène (`config.excluded` / `config.origin`
+  de la page d'édition).
+
+⏳ **Confié à 2a** : T1 le lot visible à la fin de la séparation sans F5 (le mécanisme du 13/11,
+`queue-actions.js:371`, ne joue pas) ; T2 la partition complète par défaut ; T3 la borne de niveau
+déclarée une fois ; T4 la hauteur gardée au changement de vitesse et l'audio entendu à l'envers
+(conception d'abord : elle touche le contrat de l'axe).
+⏳ **Décisions de Fabien** : nom de l'originale et place de « Piste : … » ; une card de refusion ou une
+par combinaison ; péremption sur « auto » qui tirerait le même modèle, et rejeu d'un amont coûteux
+(dire / demander) ; cards de pistes disparues ; partition réduite sur une piste de percussions.
+⏳ **Card = volet, une source** : chantier commun, toutes les apps (mesure ci-dessus).
+
 **Suite** : validation des trois propositions par Fabien (dacvae et perception_models d'abord, leurs
 manifestes résolvent le `requires` de sam_audio), puis `install_library` (requises d'abord) ;
 correctifs `torchcodec` exportés sous `patches/` et déclarés ; backend `SourceSeparationBackend` en sous-processus (le patron des moteurs vendorisés), capacité `stems: open`
