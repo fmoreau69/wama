@@ -4785,7 +4785,14 @@ commune `common/utils/stem_mix.py` — mélange = original + Σ (gain − 1) · 
 EXACT, une piste à 0 retranchée, seuls ses défauts touchent le reste ; lecture stéréo
 (`audio_decode.decode_stereo`). Composer : process optionnel `remix` après `separate`, « Refusion des
 pistes » + « Pistes à retirer » (aussi dans la ⚙ du LOT), sortie `remix_audio` + une card du lot (rôle
-`remix`, sa copie). ✅ **Le second accès, même jour** : sélectionner des cards de pistes, clic droit,
+`remix`, sa copie). ⚠ *Écart relevé le 2026-11-17 (Fabien : « dans wama, il n'y a pas de copie de
+fichier ») : cette copie (`composer/tasks.py:602-606`, `shutil.copyfile`) contredit la règle du pointage
+(`MEDIA_STORAGE_TIERING §8`, `media_paths.reference_or_copy` : un fichier déjà dans l'arbre de
+l'utilisateur se POINTE), et son motif — « retirer l'une ne libère jamais le fichier de l'autre » — est
+déjà tenu par le commun (`queue_duplication.release_card_file` : un fichier qu'une autre ligne désigne
+n'est jamais libéré, `is_shared_elsewhere`). Les PISTES, elles, suivent la règle : un fichier chacune,
+désigné par l'index et par sa card (mesuré sur le lot 904, chemins identiques). ⏳ Corrigé avec la
+décision « card de refusion » ci-dessous.* ✅ **Le second accès, même jour** : sélectionner des cards de pistes, clic droit,
 « Refusion des pistes (N) » — les pistes choisies restent, les autres partent. Générique : un process
 DÉCLARE ce qu'il prend d'une sélection de cards dérivées de sa card (`ProcessSpec.from_selection`,
 ici `composer.tasks:remix_from_selection`), la route commune `common:api_process_on_selection`
@@ -4807,10 +4814,20 @@ d'où le décodage PARESSEUX (l'original, puis une piste seulement quand elle qu
 de 1,5 Go, dite). Les niveaux sont des réglages de la card (`remix_levels`, mapping ; les pistes à 0 dans
 `remix_without`), lus par `tasks.remix_gains` : ce qu'on entend est ce que « Rendre le mixage » écrit
 (le noyau lance l'étape en cochant sa case, `ctx.run`). Une card qui n'a que ses pistes ouvre la page
-(`Surface.opens_with`). Joué au navigateur (serveur jetable, lancement intercepté) : lecture continue
+(`Surface.opens_with`) — ⏳ *à retirer, décision de Fabien du 2026-11-17 : le mixeur va dans l'onglet
+« Pistes séparées » de l'APERÇU de la card originale (la face du process `separate`, qui sert
+aujourd'hui l'index JSON brut — mesuré) ; la page d'édition reste aux cards qui ont une partition.*
+Joué au navigateur (serveur jetable, lancement intercepté) : lecture continue
 sur l'axe, une piste qui rejoint pendant la lecture, niveaux écrits sur la card. ⚠ Une vitesse autre que
 ×1 change aussi la hauteur du mixage (un tampon n'a pas l'étirement d'un `<audio>`). La séparation reste
-à la demande (coût GPU).
+à la demande (coût GPU). ✅ *Mesuré par 2a le 2026-11-17 : 440 Hz lus 439 Hz à ×0,5/×1/×2 par un
+`<audio>`, 220/439/880 Hz par le mixage. **Décision de Fabien (même jour)** — Signalsmith Stretch
+écarté, trois cas : aucune piste baissée ni retirée → l'ORIGINAL, à toute vitesse ; pistes touchées à ×1
+→ le mixage exact (retrait) ; pistes touchées hors ×1 → l'ADDITION des pistes, un `<audio>` par piste
+(hauteur gardée par le navigateur), suivis par l'axe comme plusieurs vidéos (tolérance 20 ms,
+`wama-axis.js:87`). Le retrait ne survit pas à un étirement fait lecteur par lecteur (annulation de
+phase) ; l'addition, si. Confié à 2a : mesure d'abord, code ensuite. L'audio à l'envers (option
+`reverse` de l'axe) attend sa décision.*
 ✅ /reverif du 2026-11-17 (soir) : 577 tests verts (surfaces, pipeline, générateur, composer et les gardes
 transverses) ; trois recopies ramenées — le marqueur d'étape de `ctx.run` est SERVI
 (`config.process_slot`, plus écrit dans le JS), l'état « en cours » de `start_on_selection` lu de
@@ -4865,7 +4882,29 @@ cohérence »*.
 - *Le modèle de chaque étape* : connu par sa ligne d'exécution (`ProcessRun.model_key`), montré au
   seul survol de la bande, en clé brute.
 - *La page d'édition sur une card sans partition* : proposée puis RETIRÉE (Fabien : « je ne vois pas
-  pourquoi ») — la page s'ouvre déjà dès que des pistes existent (`opens_with`).
+  pourquoi ») — la page s'ouvre déjà dès que des pistes existent (`opens_with`), parce que le mixeur y
+  vivait ; il passe dans l'onglet « Pistes séparées » de l'aperçu (décision du 2026-11-17).
+
+**Constats MESURÉS, seconde passe** (2026-11-17, lecture seule ; Fabien : « on ne suppose pas, on ne
+devine pas ») — sondes `probe_lot_truth*.py` sur le lot 904 (« Plus d'eau ») :
+- *Vocabulaire* : la **card mère** est la card du LOT (`CARD_DESIGN`, `MODES_QUEUE_UX §5ter`) ; la card
+  ORIGINALE est sa première FILLE (ligne 0, #1632, sans rôle), les pistes les lignes 1 à 6 (rôles
+  `drums`…`piano`, `derived_from=1632`). La séparation ne crée pas de card mère : elle enveloppe
+  l'originale dans un lot s'il n'y en a pas (`derived_cards.py:94-97`, `wrap_in_batch` → ligne 0).
+- *Qui porte quoi* : les réglages de séparation et de refusion sont des champs de l'ORIGINALE
+  (`separate_stems=True`, `remix_without='Voix'`) ; la mère RETIENT une référence (`BatchSettings`) que
+  sa ⚙ pose et que « ↓ réaligner » repose — celle du lot 904 porte le modèle, la durée, les partitions,
+  `separation_model`, mais ni `separate_stems` ni aucun `remix_*`.
+- *Défaut trouvé* : 2 des 3 références de lot de la base portent `csrfmiddlewaretoken` — quand le schéma
+  de l'app est calculé par élément, la ⚙ de lot retient le formulaire BRUT (`batch_views.py:826`,
+  `read_settings_payload(request)` sans schéma). ⏳ À corriger au commun (ne retenir que les réglages).
+- *L'aperçu de l'originale* : onglets « Pistes séparées », « Partition réduite », « Partition
+  complète », « Paroles de l'entrée », « Paroles écrites ». L'onglet « Pistes séparées » sert
+  l'index JSON (`application/json`) — un fichier interne montré à l'utilisateur. Celui d'une piste :
+  « Partition réduite », « Paroles écrites » (les paroles héritées de l'originale par la copie de card).
+- *Refusion* : AUCUNE n'a encore tourné sur la base (aucun `remix_audio`, aucune card `remix`) —
+  l'onglet « Refusion des pistes » se DÉDUIT du code (`preview_utils._process_faces` : une face par
+  étape qui a une sortie, `outputs=('remix_audio',)`), il n'a jamais été vu sur une card réelle.
 
 **Concile** (un tour de l'assistant, Albert gemma-4-31b, délégation `review`) : identité « Piste : rôle »
 en tête de card ; réglages impossibles retirés ; une seule card de refusion, remplacée ; péremption
@@ -4892,13 +4931,30 @@ visible et cliquable. ⚠ Avis général, à confronter : il proposait que le �
 - Le mixeur d'une card dérivée dit où le mixage a lieu et y mène (`config.excluded` / `config.origin`
   de la page d'édition).
 
-⏳ **Confié à 2a** : T1 le lot visible à la fin de la séparation sans F5 (le mécanisme du 13/11,
-`queue-actions.js:371`, ne joue pas) ; T2 la partition complète par défaut ; T3 la borne de niveau
-déclarée une fois ; T4 la hauteur gardée au changement de vitesse et l'audio entendu à l'envers
-(conception d'abord : elle touche le contrat de l'axe).
-⏳ **Décisions de Fabien** : nom de l'originale et place de « Piste : … » ; une card de refusion ou une
-par combinaison ; péremption sur « auto » qui tirerait le même modèle, et rejeu d'un amont coûteux
-(dire / demander) ; cards de pistes disparues ; partition réduite sur une piste de percussions.
+✅ **Confié à 2a, livré** : T1 le lot visible à la fin de la séparation sans F5 (`1d1a7d4d8` : la card
+devenue lot revenait dans un lot REPLIÉ ; `WamaQueue.focusCard` le déplie — non revu au navigateur par
+d5) ; T2 la partition complète par défaut (`a0b4d67eb`) ; T3 la borne de niveau déclarée une fois
+(`01e397f67`). T4 (hauteur, envers) : mesuré, tranché pour la hauteur (ci-dessus), en cours chez 2a.
+✅ **Décisions de Fabien (2026-11-17, soir)** : (1) le mixage en trois cas ci-dessus ; (2) le cover
+peut reprendre l'original OU la refusion — une option de la card originale, la refusion devenant
+alors un amont du rendu ; (3) le mixeur dans l'onglet « Pistes séparées » de l'aperçu, plus de page
+d'édition sans partition.
+⏳ **Question ouverte (reformulée)** : la refusion vit sur la card ORIGINALE (sortie, onglet, entrée du
+cover) — faut-il ENCORE créer une card « refusion » dans le lot (morceau à travailler à part), ou
+plus ? Si oui, elle POINTE la sortie (aucune copie). Piste de fond notée, non lancée : fondre la card
+originale dans la card mère du lot (Fabien : « ça pourrait avoir sa logique […] une révision de la
+card mère ») — elle changerait ce qu'est une card de lot pour toutes les apps.
+⏳ **Partition d'une refusion** (Fabien : « composable par addition ou soustraction des pistes »,
+ordonnée par l'ordre des cards filles — geste commun `reorder`, `set_batch_order`) : (a) ASSEMBLER les
+partitions des pistes gardées — exact, chaque instrument transcrit seul ; (b) transcrire l'audio
+refusionné, en repli. Alignée par construction sur la refusion (les pistes tiennent le temps de
+l'originale à l'échantillon) ; le cover garde sa « partition jouée ». La grille de temps commune
+EXISTE pour la partition complète : celle d'une piste prend les temps de l'ORIGINALE
+(`composer/tasks.py:631-636` → `_full_score`, `beat_grid(pulse_abs)` l.689, depuis le 2026-11-15) —
+les parties assemblées tombent sur les mêmes mesures. Non vérifié pour la partition réduite.
+⏳ **Décisions de Fabien** : nom de l'originale et place de « Piste : … » ; péremption sur « auto » qui
+tirerait le même modèle, et rejeu d'un amont coûteux (dire / demander) ; cards de pistes disparues ;
+partition réduite sur une piste de percussions.
 ⏳ **Card = volet, une source** : chantier commun, toutes les apps (mesure ci-dessus).
 
 **Suite** : validation des trois propositions par Fabien (dacvae et perception_models d'abord, leurs
