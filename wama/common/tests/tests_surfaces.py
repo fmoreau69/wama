@@ -3518,12 +3518,18 @@ class StemMixTest(SimpleTestCase):
         self.assertEqual(3000 * 48000 * 8, out['bytes'], 'the original alone : no stem beyond the bound')
 
     def test_the_axis_follows_the_mix_the_transport_plays_live(self):
-        """The real axis (`wama-axis.js`) and the transport brick : choosing the mix version
-        attaches the MIX as a follower of the axis (no player, no file) ; the axis plays it, pauses
-        it, and the mix asks the soft re-timing (`SYNC`)."""
-        # The stand-in DOM of the transport run, without its stand-in axis : the real one here.
+        """The real axis (`wama-axis.js`), the real common player and the transport brick : choosing
+        the mix version puts the MIX on the axis THROUGH the common player (`followLive`, no file) —
+        its exclusive playback both ways, the rule every sound of WAMA follows (the guard of
+        `tests_editor_axis` : no `axis.attach(media` in the brick) ; the axis plays it, pauses it,
+        and the mix asks the soft re-timing (`SYNC`)."""
+        # The stand-in DOM of the transport run, without its stand-in axis nor its stand-in player :
+        # the real ones here.
         self.engine.eval(RegistryTest._FAKE_DOM.split('var axis = {')[0]
                          + 'window.WamaStemMix = WamaStemMix;'
+                         + 'document.addEventListener = function () {};'
+                         + 'document.getElementById = function () { return null; };'
+                         + (self.SERVED / 'wama-audio-player.js').read_text(encoding='utf-8')
                          + (self.SERVED / 'wama-axis.js').read_text(encoding='utf-8')
                          + (self.SERVED / 'surfaces' / 'wama-surface.js').read_text(encoding='utf-8')
                          + (self.SERVED / 'surfaces' / 'brick-media-transport.js').read_text(encoding='utf-8'))
@@ -3541,17 +3547,30 @@ class StemMixTest(SimpleTestCase):
             log.length = 0;
             ctx.setSource('audio', 'live-mix');
         """)
-        out = self._eval("""var attached = realAxis.medias()[0] === mix.media;
-            realAxis.play(); var playing = !mix.media.paused;
+        out = self._eval("""var P = window.WamaAudioPlayer;
+            var attached = realAxis.medias()[0] === mix.media;
+            // Another sound of the page, playing on its own axis : the mix starting cuts it.
+            var other = {paused: false, pause: function () { this.paused = true; },
+                         play: function () { this.paused = false; return Promise.resolve(); },
+                         addEventListener: function () {}, removeEventListener: function () {}};
+            P.followLive('other', other, window.WamaAxis.create({}), 0);
+            other.paused = false;
+            realAxis.play();
+            var playing = !mix.media.paused, cut = other.paused, counted = P.isPlaying();
             realAxis.pause();
-            return {attached: attached, followers: realAxis.medias().length, log: log.slice(),
-                    playing: playing, paused: mix.media.paused, started: ac.started.length,
-                    duration: realAxis.duration()};""")
+            var paused = mix.media.paused;
+            // And the other way : a sound that cuts every player (`pauseAll`) cuts the mix too.
+            realAxis.play(); var again = !mix.media.paused; P.pauseAll();
+            return {attached: attached, followers: realAxis.medias().length, playing: playing,
+                    cut: cut, counted: counted, paused: paused, again: again, stopped: mix.media.paused,
+                    started: ac.started.length, duration: realAxis.duration()};""")
         self.assertTrue(out['attached'], 'the mix is the medium the axis follows')
         self.assertEqual(1, out['followers'], 'the file player left the axis')
-        self.assertEqual(['drop view-7-audio', 'destroy view-7-audio'], out['log'])
         self.assertEqual((True, True), (out['playing'], out['paused']), 'the axis plays it and pauses it')
-        self.assertEqual(2, out['started'], 'the original and the stem at 50 %')
+        self.assertTrue(out['cut'], 'the mix starting cuts the other sounds (exclusive playback)')
+        self.assertTrue(out['counted'], 'the common player knows a sound plays (`isPlaying`)')
+        self.assertEqual((True, True), (out['again'], out['stopped']), 'cutting every player cuts the mix')
+        self.assertEqual(4, out['started'], 'twice the original and the stem at 50 %')
         self.assertEqual(200, out['duration'], 'the axis covers the song')
 
 

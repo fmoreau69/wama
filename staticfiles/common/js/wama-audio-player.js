@@ -16,6 +16,7 @@
  *   .destroy(id)                   → stoppe + supprime du DOM
  *   .play(id)                      → démarre EN EXCLUSIVITÉ (players + DOM + voix)
  *   .follow(id, axis, offset)      → pose l'audio sur un axe de temps (wama-axis.js)
+ *   .followLive(id, media, axis, offset, sync) → idem pour un média SANS fichier (mixage)
  *   .pauseAll()                    → met en pause tous les players
  *   .isPlaying()                   → un player joue-t-il ? (son de notification, 2026-10-06)
  */
@@ -474,8 +475,9 @@
         /** Pose l'audio du player sur l'axe de temps `axis` (`wama-axis.js`), décalé de `offset` :
          *  il y joue et s'y positionne PAR le lecteur — sa lecture exclusive (`play`) et sa
          *  position reposée quand le fichier devient positionnable (`seek`), que l'axe ne refait
-         *  pas. Rend la fonction qui l'en détache ; null sans lecteur ou sans axe. */
-        follow: function(playerId, axis, offset) {
+         *  pas. `sync` (option) : le recalage que CE média demande à l'axe (`axis.attach`). Rend la
+         *  fonction qui l'en détache ; null sans lecteur ou sans axe. */
+        follow: function(playerId, axis, offset, sync) {
             var id = String(playerId), self = this, a = this.getAudio(id);
             if (!a || !axis) return null;
             var s = registry.get(id);
@@ -483,9 +485,23 @@
                 offset: Number(offset) || 0,
                 play: function() { return self.play(id); },
                 seek: function(t) { self.seek(id, t, false); },
+                sync: sync,
             });
             s.onAxis = true;
             return function() { s.onAxis = false; drop(); };
+        },
+
+        /** Pose sur l'axe un média SANS FICHIER, fait dans la page (le mixage des pistes,
+         *  `wama-stem-mix.js`, 2026-11-17) : il prend la place du lecteur `playerId` — donc sa lecture
+         *  EXCLUSIVE dans les deux sens (il coupe les autres sons en partant ; un autre son, `pauseAll`
+         *  ou un `destroy` le coupent) et `isPlaying` —, puis il est suivi par `follow`, avec le
+         *  recalage qu'il demande. Pas d'onde ni de conteneur : le lecteur n'en dessine aucun. */
+        followLive: function(playerId, media, axis, offset, sync) {
+            var id = String(playerId);
+            if (!media || !axis) return null;
+            this.destroy(id);
+            registry.set(id, { audio: media, canvas: null, channelData: null, container: null });
+            return this.follow(id, axis, offset, sync);
         },
 
         /** Positionne la lecture à `seconds` (init si nécessaire) + joue optionnellement. */

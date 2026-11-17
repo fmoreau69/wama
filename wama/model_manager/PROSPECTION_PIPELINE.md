@@ -4818,6 +4818,13 @@ transverses) ; trois recopies ramenées — le marqueur d'étape de `ctx.run` es
 rattache `wama-stem-mix.js` et la brique. ⏳ Le noyau de la page (« Appliquer », `ctx.run`) n'a aucun banc
 V8 : il n'est tenu que par les tests de sa configuration et la sonde navigateur. Curseur borné à 200 %
 quand la refusion accepte jusqu'à 400 % (`MAX_STEM_GAIN`) : un choix d'interface, pas un écart.
+⚠ Trouvé APRÈS, par la session d5 (garde `transcriber.tests_editor_axis`, rouge depuis `84e311cc2`, que
+cette revérification n'avait pas lancée) : le transport posait le mixage sur l'axe à CÔTÉ du lecteur
+commun (`axis.attach(media`), hors de sa lecture exclusive — le mixage ne coupait pas les autres sons,
+et eux ne le coupaient pas. ✅ Porté le soir même : `WamaAudioPlayer.followLive` inscrit un média sans
+fichier au lecteur (exclusivité dans les deux sens, `isPlaying`) puis le suit par `follow`, qui transmet
+le recalage demandé (`sync`) ; `attachLive` passe par lui. Garde `StemMixTest` sur le VRAI lecteur,
+deux contre-épreuves rouges.
 ⏳ **BS-RoFormer SW** (six pistes, meilleur que Demucs en guitare et piano) : intégrable comme second
 modèle du même contrat (`separate_sources`), Demucs restant le défaut ; coût : `audio-separator` sans
 ses dépendances et ses poids par la route ; **bloqué par la licence de ses poids** (CC-BY-NC-SA ou MIT

@@ -104,17 +104,17 @@
         }
 
         /** Une version EN DIRECT (2026-11-17, le mixage des pistes, `wama-stem-mix.js`) : un média
-         *  sans fichier, fait dans la page, que l'axe suit comme les autres (`axis.attach`, avec le
-         *  recalage qu'il demande, `sync`) — pas de lecteur ni d'onde : le lecteur se le dit. */
+         *  sans fichier, fait dans la page, posé sur l'axe PAR le lecteur commun comme les autres
+         *  (`Player.followLive` : sa lecture exclusive, et le recalage que le média demande, `sync`)
+         *  — pas d'onde : le lecteur se le dit. */
         function attachLive(version) {
-            if (!axis) return;
+            if (!Player || !axis) { playerHost.textContent = 'Lecteur commun indisponible.'; return; }
             var keep = axis.time();
             drop();
-            if (Player) Player.destroy(playerId);
             playerHost.textContent = version.from ? 'En direct : ' + version.from : 'En direct';
-            var media = version.media;
-            dropMedia = axis.attach(media, { offset: (Number(options.offset) || 0) - (Number(version.start) || 0),
-                                             sync: version.sync });
+            dropMedia = Player.followLive(playerId, version.media, axis,
+                                          (Number(options.offset) || 0) - (Number(version.start) || 0),
+                                          version.sync);
             if (keep && !axis.playing()) axis.seek(keep);
         }
 
