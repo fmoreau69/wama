@@ -1699,7 +1699,8 @@ MECHANISMS = (
                        'wama/common/manifests/builtin/model.py',
                        'wama/common/manifests/builtin/pipeline.py',
                        'wama/common/manifests/builtin/project.py',
-                       # La porte du corpus à chaud (2026-10-12) et sa garde « une seule porte ».
+                       # La porte du corpus à chaud (2026-10-12) et sa garde « une seule porte » ;
+                       # sa LECTURE aussi (`corpus_folder`, `corpus_manifests`, 2026-11-17).
                        'wama/common/manifests/corpus.py',
                        'wama/common/tests/tests_manifest_corpus.py',
                        # La garde des deux sens d'écriture (2026-11-08, Fabien).

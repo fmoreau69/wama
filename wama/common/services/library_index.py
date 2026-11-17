@@ -201,14 +201,9 @@ def platform_libraries() -> frozenset[str]:
     vocabulaire — le rôle déclaré — doublait. Ranger une librairie au socle se fait donc à son
     manifeste ; c'est une décision d'ARCHITECTURE, pas un réglage. (torch/transformers n'y sont
     PAS : capacités ML citées là où elles sont importées — la génération de backends en a besoin.)"""
-    import json
-    folder = _base_dir() / 'manifests' / 'libraries'
+    from wama.common.manifests.corpus import corpus_manifests
     platform = set()
-    for path in folder.glob('*.json') if folder.is_dir() else ():
-        try:
-            manifest = json.loads(path.read_text(encoding='utf-8'))
-        except (OSError, ValueError):
-            continue
+    for path, manifest in corpus_manifests('library'):
         if ((manifest.get('body') or {}).get('identity') or {}).get('role') == 'platform':
             platform.add(_normalise(manifest.get('key') or path.stem))
     return frozenset(platform)
@@ -217,7 +212,8 @@ def platform_libraries() -> frozenset[str]:
 @lru_cache(maxsize=1)
 def semees() -> frozenset[str]:
     """Clés déjà semées au corpus `manifests/libraries/*.json` (nom normalisé)."""
-    dossier = _base_dir() / 'manifests' / 'libraries'
+    from wama.common.manifests.corpus import corpus_folder
+    dossier = corpus_folder('library')
     if not dossier.is_dir():
         return frozenset()
     return frozenset(_normalise(p.stem) for p in dossier.glob('*.json'))
@@ -266,12 +262,14 @@ def non_resolus() -> list[str]:
 def _served_file_world(path: Path, base: Path):
     """Le monde du code SERVI qu'est `path` — celui de l'app Django qui le contient
     (`app_registry.app_world`, sinon transverse) ; None pour un fichier de test, qui ne dit rien de
-    l'usage. Aucun dossier de monde n'est cité ici : c'est l'app qui déclare le sien."""
+    l'usage. Aucun dossier de monde n'est cité ici : c'est l'app qui déclare le sien. Un fichier de
+    test se reconnaît par la lecture commune (`sandbox.is_test_module`)."""
     from django.apps import apps
 
     from wama.common.app_registry import app_world
+    from wama.common.sandbox import is_test_module
     rel = path.relative_to(base)
-    if any(part in ('tests', 'test') for part in rel.parts) or path.name.startswith(('tests', 'test_')):
+    if is_test_module(rel.parts):
         return None
     module = '.'.join(rel.with_suffix('').parts)
     config = apps.get_containing_app_config(module)
@@ -279,18 +277,47 @@ def _served_file_world(path: Path, base: Path):
 
 
 @lru_cache(maxsize=1)
-def served_worlds() -> dict:
-    """Distribution (nom normalisé) → les mondes du code SERVI qui l'importe (tests exclus)."""
-    base, mapping = _base_dir(), _distributions()
+def _served_module_worlds() -> dict:
+    """Module tiers importé → les mondes du code SERVI qui l'importe (tests exclus)."""
+    base = _base_dir()
     worlds: dict = {}
     for path in code_files():
         world = _served_file_world(path, base)
         if world is None:
             continue
         for module in _third_party(_modules_du_fichier(path)):
-            for dist in mapping.get(module) or ():
-                worlds.setdefault(_normalise(dist), set()).add(world)
+            worlds.setdefault(module, set()).add(world)
     return worlds
+
+
+def distribution_modules(dist: str) -> frozenset[str]:
+    """Les noms d'import qu'une distribution INSTALLÉE fournit — la règle de
+    `importlib.metadata.packages_distributions`, appliquée à CETTE distribution seule : son
+    `top_level.txt`, sinon les noms de tête de ses fichiers. Vide si elle n'est pas installée.
+
+    Pourquoi pas `_distributions()` : sa table lit les fichiers de TOUTES les distributions — 71 s
+    dans un processus neuf sous WSL (mesuré le 2026-11-17) —, et l'extraction d'UNE librairie la
+    payait pour son monde, dans le geste « Valider » d'une proposition (délai gunicorn : 120 s)."""
+    import importlib.metadata as im
+    import inspect
+    try:
+        found = im.distribution(dist)
+    except im.PackageNotFoundError:
+        return frozenset()
+    declared = (found.read_text('top_level.txt') or '').split()
+    if declared:
+        return frozenset(declared)
+    names = set()
+    for file in found.files or ():
+        top, *rest = file.parts
+        names.add(top if rest else (inspect.getmodulename(file) or str(file)))
+    return frozenset(n for n in names if '.' not in n)
+
+
+def served_worlds(dist: str) -> set:
+    """Les mondes du code SERVI qui importe la distribution `dist` (tests exclus)."""
+    table = _served_module_worlds()
+    return set().union(*(table.get(module, ()) for module in distribution_modules(dist)))
 
 
 def measured_world(dist: str) -> str:
@@ -299,7 +326,7 @@ def measured_world(dist: str) -> str:
     `lab`), sinon `transverse`. Un usage, donc une mesure, jamais une déclaration : la frontière du
     kind `library` interdit d'y écrire l'usage qu'une app en fait (SPEC §7.1) — c'est le code qui le
     dit, et `manifest_export --check` voit la dérive quand il change."""
-    worlds = served_worlds().get(_normalise(dist)) or set()
+    worlds = served_worlds(dist)
     return next(iter(worlds)) if len(worlds) == 1 else 'transverse'
 
 
@@ -425,7 +452,8 @@ def seeded_libraries(distributions=(), modules=()) -> list[str]:
     pendante invalide le manifeste entier (`ingest.valider`). Une distribution non semée ne se
     cite pas ; le SOCLE PLATEFORME jamais.
     """
-    corpus = _base_dir() / 'manifests' / 'libraries'
+    from wama.common.manifests.corpus import corpus_folder
+    corpus = corpus_folder('library')
     canon = {_normalise(p.stem): p.stem for p in corpus.glob('*.json')} if corpus.is_dir() else {}
     dists = {_distribution_name(d) for d in distributions or ()}
     if modules:

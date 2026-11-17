@@ -293,8 +293,8 @@ class ModelLibrariesSinglePathTest(TestCase):
 
 
 class LibraryRoleTest(TestCase):
-    """2026-11-16 (décision de Fabien) : le rôle d'une librairie — socle, moteur, app, brique — est
-    une étiquette de lecture DÉCLARÉE à son manifeste (`identity.role`), gardée par l'extraction et
+    """2026-11-16 (décision de Fabien), six rôles depuis le 2026-11-17 (`LIBRARY_ROLES`) : le rôle
+    d'une librairie est une étiquette de lecture DÉCLARÉE à son manifeste (`identity.role`), gardée par l'extraction et
     projetée au registre ; il ne se calcule pas (un moteur isolé ne se voit pas d'ici)."""
 
     @staticmethod
@@ -339,20 +339,21 @@ class LibraryRoleTest(TestCase):
     def test_every_library_of_the_corpus_states_a_role_of_the_vocabulary(self):
         """Un rôle se déclare à la naissance d'une librairie (2026-11-17, « que ce fonctionnement
         soit pérenne ») : une librairie semée sans rôle rougit ici — la déclarer, jamais la laisser."""
-        import json
         from wama.common.manifests.builtin.library import LIBRARY_ROLES
-        for path in (Path(settings.BASE_DIR) / 'manifests' / 'libraries').glob('*.json'):
-            role = ((json.loads(path.read_text(encoding='utf-8')).get('body') or {})
-                    .get('identity') or {}).get('role')
+        from wama.common.manifests.corpus import corpus_manifests
+        read = 0
+        for path, manifest in corpus_manifests('library'):
+            read += 1
+            role = ((manifest.get('body') or {}).get('identity') or {}).get('role')
             self.assertIn(role, LIBRARY_ROLES, f'{path.name} : identity.role à déclarer')
+        self.assertTrue(read, 'corpus vide : la garde ne mesurerait rien')
 
     def test_an_app_library_serves_one_world(self):
         """Une librairie de PLUSIEURS mondes n'est pas une librairie d'app (concile, 2026-11-17) : son
         monde mesuré, écrit dans l'enveloppe par l'extraction, dit laquelle — jamais transverse."""
-        import json
+        from wama.common.manifests.corpus import corpus_manifests
         apps = 0
-        for path in (Path(settings.BASE_DIR) / 'manifests' / 'libraries').glob('*.json'):
-            manifest = json.loads(path.read_text(encoding='utf-8'))
+        for path, manifest in corpus_manifests('library'):
             if ((manifest.get('body') or {}).get('identity') or {}).get('role') == 'app':
                 apps += 1
                 self.assertIn(manifest.get('world'), ('media', 'data', 'lab'), path.name)
@@ -366,7 +367,8 @@ class PlatformFromManifestsTest(SimpleTestCase):
     def test_the_platform_is_what_the_manifests_state(self):
         import json
         import tempfile
-        from unittest import mock
+
+        from django.test import override_settings
 
         from wama.common.services import library_index
         with tempfile.TemporaryDirectory() as root:
@@ -378,7 +380,7 @@ class PlatformFromManifestsTest(SimpleTestCase):
                                                     encoding='utf-8')
             library_index.platform_libraries.cache_clear()
             self.addCleanup(library_index.platform_libraries.cache_clear)
-            with mock.patch.object(library_index, '_base_dir', lambda: Path(root)):
+            with override_settings(BASE_DIR=Path(root)):
                 self.assertEqual(frozenset({'some-base'}), library_index.platform_libraries())
 
 
@@ -390,13 +392,27 @@ class LibraryWorldTest(TestCase):
         from unittest import mock
 
         from wama.common.services import library_index
-        served = {'only-lab': {'lab'}, 'lab-and-substrate': {'lab', 'transverse'},
-                  'two-worlds': {'media', 'lab'}}
-        with mock.patch.object(library_index, 'served_worlds', lambda: served):
+        served = {'only_lab': {'lab'}, 'lab_and_substrate': {'lab', 'transverse'},
+                  'two_worlds': {'media', 'lab'}}
+        modules = {'Only_Lab': {'only_lab'}, 'lab-and-substrate': {'lab_and_substrate'},
+                   'two-worlds': {'two_worlds'}}
+        with mock.patch.object(library_index, '_served_module_worlds', lambda: served), \
+                mock.patch.object(library_index, 'distribution_modules', lambda dist: modules.get(dist, ())):
             self.assertEqual('lab', library_index.measured_world('Only_Lab'))
             self.assertEqual('transverse', library_index.measured_world('lab-and-substrate'))
             self.assertEqual('transverse', library_index.measured_world('two-worlds'))
             self.assertEqual('transverse', library_index.measured_world('never-imported'))
+
+    def test_a_distribution_gives_its_import_names_without_reading_every_distribution(self):
+        """Le monde d'UNE librairie se lit aux noms d'import de CETTE distribution — pas à la table
+        de toutes (`_distributions`, 71 s dans un processus neuf), que le geste « Valider » payait."""
+        from unittest import mock
+
+        from wama.common.services import library_index
+        with mock.patch.object(library_index, '_distributions', side_effect=AssertionError('table complète lue')):
+            self.assertIn('yaml', library_index.distribution_modules('PyYAML'))
+            self.assertIn('PIL', library_index.distribution_modules('pillow'))
+            self.assertEqual(frozenset(), library_index.distribution_modules('no-such-distribution-wama'))
 
     def test_a_file_has_the_world_its_app_states_and_a_test_has_none(self):
         from wama.common.app_registry import APP_CATALOG, app_world

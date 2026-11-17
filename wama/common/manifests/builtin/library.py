@@ -194,16 +194,9 @@ def _corpus_vendor_engines() -> dict:
     """`{moteur: clé}` des librairies vendorisées du corpus — lu UNE fois par processus (la
     disponibilité d'un backend se demande à chaque rendu de page) ; l'installation vendor l'oublie
     (`forget_vendor_engines`)."""
-    import json
-    from pathlib import Path
-
-    from django.conf import settings
+    from wama.common.manifests.corpus import corpus_manifests
     engines = {}
-    for path in sorted((Path(settings.BASE_DIR) / 'manifests' / 'libraries').glob('*.json')):
-        try:
-            manifest = json.loads(path.read_text(encoding='utf-8'))
-        except (OSError, ValueError):
-            continue
+    for _path, manifest in corpus_manifests('library'):
         vendor = ((manifest.get('body') or {}).get('install') or {}).get('vendor') or {}
         if vendor.get('engine') and manifest.get('key'):
             engines.setdefault(vendor['engine'], manifest['key'])
@@ -319,11 +312,9 @@ def author_name(meta) -> Optional[str]:
 def corpus_manifest(key: str) -> Optional[dict]:
     """Le manifeste `library` du corpus pour `key`, ou None (absent, illisible)."""
     import json
-    from pathlib import Path
 
-    from django.conf import settings
-
-    path = Path(settings.BASE_DIR) / 'manifests' / 'libraries' / f'{key}.json'
+    from wama.common.manifests.corpus import corpus_folder
+    path = corpus_folder('library') / f'{key}.json'
     try:
         return json.loads(path.read_text(encoding='utf-8'))
     except (OSError, ValueError):

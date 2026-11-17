@@ -11,6 +11,10 @@ coupe la porte (`MANIFEST_CORPUS_SYNC = False`, `wama/common/runners.py`), comme
 On passe par la commande plutôt que de réécrire la règle de nommage du corpus (`_nom_fichier`) :
 une seconde graphie rendrait le glob inverse faux. La commande décide aussi du RETRAIT (modèle
 désinstallé ou hors catalogue, `_gone_model_keys`).
+
+Et la LECTURE du corpus (2026-11-17) : `corpus_folder(kind)` et `corpus_manifests(kind)` lisent le
+dossier d'un kind à la table de l'export (`manifest_export.DOSSIERS`) — chaque lecteur réécrivait
+`manifests/libraries` et sa boucle de lecture (le socle, les moteurs vendorisés, les clés semées).
 """
 from django.conf import settings
 
@@ -57,6 +61,28 @@ def follow_apps(model_key: str) -> list:
     for app_id in apps:
         call_command('manifest_export', app_id, kind='app', verbosity=0)
     return apps
+
+
+def corpus_folder(kind: str):
+    """Le dossier du corpus d'un kind, lu à la table de l'export (`manifest_export.DOSSIERS`, le
+    domicile de la correspondance kind → dossier) — jamais un chemin réécrit par chaque lecteur."""
+    from pathlib import Path
+
+    from wama.common.management.commands.manifest_export import DOSSIERS
+    return Path(settings.BASE_DIR) / DOSSIERS[kind]
+
+
+def corpus_manifests(kind: str):
+    """Chaque manifeste LISIBLE du corpus d'un kind, par ordre de nom : `(chemin, manifeste)`. Un
+    fichier illisible ou un JSON invalide est sauté — l'export et sa garde le disent, pas un
+    lecteur."""
+    import json
+    folder = corpus_folder(kind)
+    for path in sorted(folder.glob('*.json')) if folder.is_dir() else ():
+        try:
+            yield path, json.loads(path.read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            continue
 
 
 def apps_concerned(model_key: str) -> list:

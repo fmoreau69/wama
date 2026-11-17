@@ -373,20 +373,10 @@ def transitives(installed=None, registry_keys=None) -> dict:
 
 def _requires_par_app() -> dict:
     """`{app_id: [(kind, key), …]}` lu dans le corpus de manifestes d'app."""
-    import json
-    from pathlib import Path
+    from wama.common.manifests.corpus import corpus_manifests
 
-    from django.conf import settings
-
-    dossier = Path(settings.BASE_DIR) / 'manifests' / 'apps'
     resultat = {}
-    if not dossier.is_dir():
-        return resultat
-    for fichier in sorted(dossier.glob('*.json')):
-        try:
-            manifeste = json.loads(fichier.read_text(encoding='utf-8'))
-        except Exception:
-            continue
+    for fichier, manifeste in corpus_manifests('app'):
         besoins = [(r.get('kind'), r.get('key'))
                    for r in (manifeste.get('requires') or [])
                    if isinstance(r, dict) and r.get('kind') and r.get('key')]
