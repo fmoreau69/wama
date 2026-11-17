@@ -2003,18 +2003,11 @@ def api_manifest_proposal_decide(request):
 def _integration_next_step(model_key) -> dict:
     """L'étape suivante de la route d'intégration après une validation (2026-11-08) — celle que
     dit `tool_api.plan_model_integration`, la seule qui la dise : le manifeste d'ACE-Step validé,
-    rien n'annonçait qu'il restait à faire écrire son backend."""
-    if not model_key:
-        return {}
-    try:
-        from wama.tool_api import plan_model_integration
-        plan = plan_model_integration(None, model_key)
-    except Exception:
-        logger.debug('[proposals] étape suivante illisible pour %s', model_key, exc_info=True)
-        return {}
-    if not plan.get('human_gesture'):
-        return {}
-    return {'next_step': plan.get('next_step'), 'human_gesture': plan['human_gesture']}
+    rien n'annonçait qu'il restait à faire écrire son backend. La même lecture que la fin d'une
+    installation (`model_installer.integration_steps`, 2026-11-17)."""
+    from .services.model_installer import integration_steps
+    step = next(iter(integration_steps([model_key] if model_key else [])), None)
+    return {'next_step': step['next_step'], 'human_gesture': step['human_gesture']} if step else {}
 
 
 @login_required

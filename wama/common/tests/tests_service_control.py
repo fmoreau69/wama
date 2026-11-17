@@ -390,18 +390,25 @@ class ProcessOrdersTest(_WithLogs):
                 self.assertTrue(accepted)
                 self.assertIn(flag, self._files())
 
-    def test_the_developer_reload_tool_drops_the_web_order_and_signals_no_process(self):
-        """2026-11-17 : `dev_reload_web` signalait TOUS les processus gunicorn (`pkill -f`), workers
-        compris — celui qui servait l'assistant est mort avec sa réponse (« Erreur réseau »). Il
-        passe par l'ordre de la page, que la surveillance exécute au maître seul."""
-        from wama.common.services import dev_tools
-        with mock.patch('subprocess.run', side_effect=AssertionError('aucun processus signalé d’ici')), \
-                mock.patch('os.kill', side_effect=AssertionError('aucun processus signalé d’ici')):
-            self.assertIn('error', dev_tools.dev_reload_web(None))          # pas de surveillance
-            self.assertEqual(set(), self._files())
-            self._watchdog_alive()
-            self.assertTrue(dev_tools.dev_reload_web(None)['reloaded'])
-        self.assertEqual({'service_launch.web'}, self._files())
+    def test_the_code_of_wama_signals_no_process_by_name(self):
+        """2026-11-17 : un outil de l'assistant rechargeait gunicorn par `pkill -HUP -f`, motif que
+        la ligne de commande des WORKERS porte aussi — celui qui servait l'appel est mort avec sa
+        réponse (« Erreur réseau »). Une relance DÉPOSE l'ordre (`control_process`), la surveillance
+        l'exécute au bon processus : aucun code Python ne signale un processus par son nom."""
+        import ast
+        found = []
+        for root in ('wama', 'wama_data', 'wama_lab', 'wama-dev-ai'):
+            for path in (BASE / root).rglob('*.py'):
+                rel = path.relative_to(BASE)
+                if 'vendor' in rel.parts or path.name.startswith('tests') or 'tests' in rel.parts:
+                    continue
+                try:
+                    tree = ast.parse(path.read_text(encoding='utf-8'))
+                except (SyntaxError, UnicodeDecodeError):
+                    continue
+                found += [f'{rel}:{node.lineno}' for node in ast.walk(tree)
+                          if isinstance(node, ast.Constant) and node.value in ('pkill', 'killall')]
+        self.assertEqual([], found)
 
     def test_all_the_workers_are_restarted_by_one_order(self):
         """2026-11-12 : le serveur web, puis tous les workers — deux gestes pour servir du code neuf."""

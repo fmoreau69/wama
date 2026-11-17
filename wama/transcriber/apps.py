@@ -164,7 +164,7 @@ class TranscriberConfig(AppConfig):
             # change le cpWER et le DER (2026-09-30) : deux pipelines = deux configurations.
             # wama:redondance-ok — les réglages qui changent les MOTS transcrits : une sélection, pas une copie
             config_params=('preprocess_audio', 'level_speech', 'vad_mode', 'language_mode',
-                           'hotwords', 'diarization_model'),
+                           'hotwords', 'clean_mode', 'diarization_model'),
             disagreement=_disagreement,
             # Langue ENTENDUE par le moteur (posée par le worker) : `text_v2` y écrit les nombres
             # en chiffres des deux côtés (« vingt_quatre » d'un corpus contre « 24 »).

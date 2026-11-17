@@ -215,6 +215,21 @@
               "args": [],
               "class": "django.db.models.BooleanField",
               "kwargs": {
+                "db_default": {
+                  "expr": "False",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "False",
+                  "imports": []
+                }
+              },
+              "name": "clean_mode"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.BooleanField",
+              "kwargs": {
                 "default": {
                   "expr": "True",
                   "imports": []
@@ -1193,6 +1208,7 @@
     },
     "models": {
       "catalog_keys": [
+        "huggingface:FluidVoice-Labs/fluid-speech-pro",
         "huggingface:aihpi/FrWhisper",
         "huggingface:kyutai/stt-1b-en_fr-trfs",
         "huggingface:linagora/linto_stt_fr_fastconformer_pc",
@@ -1407,6 +1423,62 @@
             ],
             "step": null,
             "type": "textarea",
+            "unit": "",
+            "write_from": null
+          },
+          {
+            "advanced": false,
+            "cap_from": {
+              "capability": "supports_clean_mode",
+              "field": "backend",
+              "mode": "reads",
+              "reason": "Ce modèle ne rend qu'une transcription verbatim."
+            },
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": false,
+            "default_from": null,
+            "display_format": "",
+            "dom_id": "",
+            "group": "",
+            "help": "Retire les répétitions et les mots de remplissage (« euh », « ben »…) : un texte à lire plutôt qu'un verbatim. Seuls certains modèles le savent (Fluid Speech).",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-broom",
+            "inline": false,
+            "label": "Texte édité (mode propre)",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "clean_mode",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "remember": null,
+            "section": "settings",
+            "show_if": null,
+            "stales": [
+              "transcribe"
+            ],
+            "step": null,
+            "type": "toggle",
             "unit": "",
             "write_from": null
           },
@@ -2419,6 +2491,7 @@
           "params_fields": [
             "backend",
             "hotwords",
+            "clean_mode",
             "preprocess_audio",
             "level_speech",
             "use_prepared_audio",
@@ -2649,6 +2722,7 @@
         "add_to_transcriber": {
           "args": {
             "backend": "select — Modèle de transcription (défaut : 'auto')",
+            "clean_mode": "toggle — Retire les répétitions et les mots de remplissage (« euh », « ben »…) : un texte à lire plutôt qu'un verbatim. Seuls certains modèles le savent (Fluid Speech). (défaut : False)",
             "diarization_model": "select — community-1 succède à 3.1 (mêmes auteurs). En cours d'évaluation sur des réunions annotées : le meilleur des deux n'est pas encore établi. (choix : speaker-diarization-3.1 | speaker-diarization-community-1) (défaut : 'speaker-diarization-3.1')",
             "enable_diarization": "toggle — Séparation des locuteurs (pyannote) (défaut : True)",
             "file_path": "str (requis)",
@@ -2727,6 +2801,10 @@
   "name": "Transcriber",
   "projects": [],
   "requires": [
+    {
+      "key": "huggingface:FluidVoice-Labs/fluid-speech-pro",
+      "kind": "model"
+    },
     {
       "key": "huggingface:aihpi/FrWhisper",
       "kind": "model"

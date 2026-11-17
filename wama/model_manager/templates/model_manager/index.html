@@ -1413,9 +1413,12 @@ document.addEventListener('DOMContentLoaded', function() {
                             if (mmInstalls[row.model_key]) {
                                 delete mmInstalls[row.model_key];
                                 ended = true;
+                                // Installé mais pas encore utilisable : l'étape suivante est
+                                // dite (`remaining`, `install_history.integration_text`).
                                 WamaApp.toast(row.ok ? `${row.label} : terminée`
+                                                       + (row.remaining ? ` — ${row.remaining}` : '')
                                                      : `${row.label} : échec — ${row.error || 'inconnu'}`,
-                                              row.ok ? 'success' : 'danger');
+                                              row.ok ? (row.remaining ? 'warning' : 'success') : 'danger');
                             }
                             return;
                         }

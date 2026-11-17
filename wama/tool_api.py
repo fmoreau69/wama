@@ -3571,6 +3571,15 @@ def plan_model_integration(user, model: str) -> dict:
         geste = (f"rôle `model` (dev_run_role, ou python wama-dev-ai/run_model_manifest.py "
                  f"--catalog {row.model_key}) — la proposition arrive au model manager, "
                  "section « Propositions » : relire le plan, puis un administrateur Valide")
+    elif sans_backend and (serving := _engine_already_served(moteur, row)):
+        # Le moteur a DÉJÀ son backend pour cette tâche, qui ne nomme pas ce modèle (2026-11-17,
+        # Fluid Speech sous `nemo`) : le rôle `backend` aurait écrit un SECOND module du même
+        # moteur ; le geste est d'ajouter le modèle à celui qui existe.
+        etape = (f"{sans_backend} : le moteur « {moteur} » est déjà servi par {', '.join(serving)}, "
+                 "qui ne nomme pas ce modèle")
+        geste = (f"ajouter {row.model_key} au SUPPORTED_MODELS de {serving[0]} — avec son "
+                 "chargement s'il diffère de ses voisins —, une modification de code "
+                 "(dev_claude_code), puis l'éprouver ; pas le rôle `backend`, qui écrit un module neuf")
     elif sans_backend:
         etape = f"{sans_backend} : le modèle est proposé GRISÉ et refusé au lancement"
         # Le rôle qui l'écrit, pas « l'écrire » (2026-11-07) : ce geste renvoyait l'assistant à une
@@ -3591,6 +3600,23 @@ def plan_model_integration(user, model: str) -> dict:
         etape, geste = ("rien à faire : catalogué, poids présents, "
                         + (f"chargé par {loader}" if loader else "moteur servi"), None)
     return {'model': row.model_key, 'state': etat, 'next_step': etape, 'human_gesture': geste}
+
+
+def _engine_already_served(engine: str, row) -> list:
+    """Le backend qui pilote DÉJÀ `engine` pour la tâche du modèle (`backend_inventory.
+    engine_candidates`, le filtre même de la résolution) — `[nom]` quand il est UNIQUE, sinon [] :
+    entre plusieurs (`diffusers` en a huit), désigner celui qui accueillerait le modèle serait
+    deviner, et le rôle `backend` reste le geste."""
+    if not engine:
+        return []
+    try:
+        from wama.common.services.backend_inventory import engine_candidates
+        task = (row.capabilities or {}).get('task') or ''
+        names = [e.name for e in engine_candidates(engine, task=task) if e.name]
+        return names if len(names) == 1 else []
+    except Exception:
+        logger.debug("[plan_model_integration] backends du moteur %s illisibles", engine, exc_info=True)
+        return []
 
 
 def _awaiting_decision(model_key: str) -> dict:

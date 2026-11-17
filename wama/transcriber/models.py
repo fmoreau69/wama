@@ -61,6 +61,11 @@ class Transcript(ProcessingTimeMixin, ScopedVisibility):
 
     # VibeVoice-specific options
     hotwords = models.TextField(blank=True, default='')  # Domain-specific terms
+    # Texte ÉDITÉ plutôt que verbatim (2026-11-17, décision de Fabien : « mode propre en réglage du
+    # transcriber ») — sans répétitions ni mots de remplissage, pour le modèle qui le sait
+    # (capacité `supports_clean_mode`, Fluid Speech) ; grisé pour les autres. `db_default` : le
+    # code en service avant le redémarrage insère sans lui.
+    clean_mode = models.BooleanField(default=False, db_default=False)
     enable_diarization = models.BooleanField(default=True)
     # Pipeline de diarisation (2026-09-30) : pyannote 3.1 ou son successeur community-1. Les
     # choix viennent du diariseur (`pipeline_choices`), jamais recopiés ici. Sans effet quand le

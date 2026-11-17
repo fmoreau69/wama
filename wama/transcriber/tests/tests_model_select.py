@@ -72,6 +72,28 @@ class TheSchemaStatesTheCatalogueTest(TestCase):
         self.assertFalse(NemoASRBackend.supports_hotwords, 'vacuous: nothing would be greyed')
         self.assertTrue(WhisperBackend.supports_hotwords, 'vacuous: everything would be greyed')
 
+    def test_the_clean_mode_follows_the_chosen_model_not_its_engine(self):
+        """2026-11-17 (Fabien : « mode propre en réglage du transcriber »): an edited, non-verbatim
+        text is what ONE model of the shared NeMo engine knows (Fluid Speech), not Parakeet served
+        by the same class. The engine says it per model (`SUPPORTED_MODELS[…]['capabilities']`),
+        the sync writes it on each row (`apply_engine_flags`), the field greys on the rest."""
+        from wama.common.backends.nemo_asr_backend import NemoASRBackend
+        from wama.common.backends.whisper_backend import WhisperBackend
+        from wama.common.utils.model_capabilities import apply_engine_flags
+        from wama.transcriber.params import PARAMS_JSON
+        field = next(p for p in PARAMS_JSON if p['name'] == 'clean_mode')
+        self.assertEqual(('backend', 'supports_clean_mode', 'reads'),
+                         tuple(field['cap_from'][k] for k in ('field', 'capability', 'mode')))
+        self.assertIn('transcribe', field['stales'])
+        for key, engine, expected in (
+                ('huggingface:FluidVoice-Labs/fluid-speech-pro', NemoASRBackend, True),
+                ('transcriber:parakeet-tdt-0.6b-v3', NemoASRBackend, False),
+                ('transcriber:whisper', WhisperBackend, False)):
+            with self.subTest(model=key):
+                self.assertIs(expected, apply_engine_flags({}, engine, key)['supports_clean_mode'])
+        self.assertIs(False, apply_engine_flags({}, NemoASRBackend)['supports_clean_mode'],
+                      'without the row, only what the class says — the per-model fact needs the key')
+
     def test_the_apps_own_engine_endpoint_is_gone(self):
         with self.assertRaises(NoReverseMatch):
             reverse('transcriber:backends')

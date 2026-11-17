@@ -28,6 +28,7 @@ PARAMS = derive_from_model(
         # « Whisper d'abord » (`options_resolution` du select), il ne la remplace pas.
         "quality_intent",
         "hotwords",
+        "clean_mode",
         "preprocess_audio",
         "level_speech",
         "use_prepared_audio",
@@ -117,6 +118,17 @@ PARAMS = derive_from_model(
             # les mots-clés dans tous les cas).
             cap_from={"field": "backend", "capability": "supports_hotwords", "mode": "reads",
                       "reason": "Ce modèle ne tient pas compte des mots-clés contextuels."},
+        ),
+        "clean_mode": dict(
+            label="Texte édité (mode propre)", icon="fa-broom",
+            help="Retire les répétitions et les mots de remplissage (« euh », « ben »…) : un texte "
+                 "à lire plutôt qu'un verbatim. Seuls certains modèles le savent (Fluid Speech).",
+            stales=("transcribe",),
+            # Lu par le modèle choisi ? Sa capacité `supports_clean_mode` : FAUSSE pour tout moteur
+            # de transcription (`SpeechToTextBackend`), vraie pour le modèle qui la déclare
+            # (`SUPPORTED_MODELS[…]['capabilities']`) — grisé sinon, raison dite (motif des mots-clés).
+            cap_from={"field": "backend", "capability": "supports_clean_mode", "mode": "reads",
+                      "reason": "Ce modèle ne rend qu'une transcription verbatim."},
         ),
         "preprocess_audio": dict(
             label="Prétraitement audio", icon="fa-wand-magic-sparkles",

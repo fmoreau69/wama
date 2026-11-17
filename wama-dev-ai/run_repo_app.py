@@ -173,9 +173,12 @@ def main():
     if rc != 0 or 'ÉCHEC' in out:
         return finish(args, summary, log, f"naissance en échec — `app_sandbox remove {label}` "
                                           "pour tout retirer, la raison est dans `steps`")
-    from wama.common.services.dev_tools import dev_reload_web
-    summary['reload'] = dev_reload_web(user)
-    return finish(args, summary, log, f'app née au bac à sable : /{label}/ (dev seulement)')
+    # Le rechargement qui la SERT est un geste d'administrateur (décision du 2026-11-11), par la route
+    # des relances (`tool_api.control_service`, service='web') : la chaîne le DIT, elle ne le fait pas.
+    summary['reload'] = ("à faire : recharger le serveur web — un administrateur, depuis la page "
+                         "Exploitation ou par l'assistant (control_service, service='web')")
+    return finish(args, summary, log, f'app née au bac à sable : /{label}/ (dev seulement) — '
+                                      'servie après le rechargement du serveur web')
 
 
 def finish(args, summary: dict, log: list, outcome: str):

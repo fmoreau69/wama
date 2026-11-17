@@ -393,17 +393,13 @@ class Command(BaseCommand):
 
     def with_retry(self, call, attempts=5):
         """Le Hub limite les appels (429, vécu le 2026-09-29 au 2ᵉ fichier, jeton compris) : on
-        attend et on reprend, plutôt que d'abandonner une préparation à moitié faite."""
-        import time
-        for attempt in range(1, attempts + 1):
-            try:
-                return call()
-            except Exception as exc:
-                if attempt == attempts or '429' not in repr(exc.__cause__ or exc) + repr(exc):
-                    raise
-                wait = 60 * attempt
-                self.stdout.write(f"    429 du Hub — nouvel essai dans {wait} s")
-                time.sleep(wait)
+        attend et on reprend, plutôt que d'abandonner une préparation à moitié faite. La règle de
+        reprise est la commune (`network_retry`, 2026-11-17) ; ici, des attentes longues."""
+        from wama.common.utils.network_retry import with_retries
+        waits = tuple(60 * n for n in range(1, attempts))
+        return with_retries(call, 'Hub', waits=waits, max_wait_s=waits[-1] if waits else 60,
+                            on_retry=lambda n, total, wait, reason: self.stdout.write(
+                                f"    {reason} du Hub — nouvel essai {n}/{total} dans {wait:g} s"))
 
     # ── SUMM-RE : plan et préparation d'une réunion MIXÉE ─────────────────────────────────
     def plan_meetings(self, source, split, count):

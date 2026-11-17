@@ -1,0 +1,117 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "work_audio"
+      ],
+      "languages": [
+        "en",
+        "bg",
+        "hr",
+        "cs",
+        "da",
+        "nl",
+        "et",
+        "fi",
+        "fr",
+        "de",
+        "el",
+        "hu",
+        "it",
+        "lv",
+        "lt",
+        "mt",
+        "pl",
+        "pt",
+        "ro",
+        "sk",
+        "sl",
+        "es",
+        "sv",
+        "ru",
+        "uk"
+      ],
+      "modalities": [
+        "audio"
+      ],
+      "supports_clean_mode": true,
+      "task": "transcription"
+    },
+    "composition": {
+      "runtime": {
+        "engine": "nemo"
+      }
+    },
+    "extra_info": {
+      "category": "speech",
+      "family": "fluid-speech-pro",
+      "vram_provenance": "estimated"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "safetensors"
+    },
+    "identity": {
+      "author": "FluidVoice-Labs",
+      "description_short": "Snapshot HF fluid-speech-pro",
+      "gated": "no",
+      "license": "cc-by-4.0",
+      "model_type": "speech",
+      "platform_ref": "huggingface:FluidVoice-Labs/fluid-speech-pro",
+      "publications": [
+        "2305.05084",
+        "2304.06795"
+      ],
+      "source": "huggingface"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 4.786988285370171,
+      "ram_gb": 0.0,
+      "vram_gb": 6.2
+    }
+  },
+  "description": "Installed HuggingFace snapshot (speech/fluid-speech-pro), catalogued by the generic scan of installed models.",
+  "key": "huggingface:FluidVoice-Labs/fluid-speech-pro",
+  "manifest_kind": "model",
+  "name": "fluid-speech-pro",
+  "projects": [],
+  "requires": [
+    {
+      "key": "lhotse",
+      "kind": "library"
+    },
+    {
+      "key": "librosa",
+      "kind": "library"
+    },
+    {
+      "key": "nemo-toolkit",
+      "kind": "library"
+    },
+    {
+      "key": "soundfile",
+      "kind": "library"
+    },
+    {
+      "key": "text2num",
+      "kind": "library"
+    }
+  ],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:huggingface:FluidVoice-Labs/fluid-speech-pro",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

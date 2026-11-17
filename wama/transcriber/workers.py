@@ -690,6 +690,9 @@ def _transcribe_step(t, ctx):
         transcribe_kwargs = {}
         if t.hotwords:
             transcribe_kwargs['hotwords'] = t.hotwords
+        # Texte édité (2026-11-17) : passé comme les mots-clés, le moteur qui ne le sait pas l'ignore.
+        if getattr(t, 'clean_mode', False):
+            transcribe_kwargs['clean_mode'] = True
         # Filtre de parole : par CAPACITÉ déclarée (`supports_vad_filter`), plus par le nom
         # `whisper` — Albert le reçoit depuis le 2026-10-01 (même jumeau que la diarisation).
         if getattr(backend, 'supports_vad_filter', False):
@@ -1226,8 +1229,10 @@ def write_channel(transcript_id):
     return Channel('transcriber_write', transcript_id)
 
 
-def _transcribe_span(backend, audio_path: str, start: float, end: float, language: str = None):
-    """Les mots horodatés (temps ABSOLUS) qu'entend `backend` dans [start, end] de l'audio."""
+def _transcribe_span(backend, audio_path: str, start: float, end: float, language: str = None,
+                     clean_mode: bool = False):
+    """Les mots horodatés (temps ABSOLUS) qu'entend `backend` dans [start, end] de l'audio — au
+    texte édité si la card le demande, comme sa transcription (`clean_mode`)."""
     import tempfile
     import soundfile as sf
     from wama.common.utils.audio_decode import decode_window
@@ -1240,6 +1245,8 @@ def _transcribe_span(backend, audio_path: str, start: float, end: float, languag
     try:
         sf.write(path, wave, rate)
         kwargs = {'language': language} if language else {}
+        if clean_mode:
+            kwargs['clean_mode'] = True
         result = backend.transcribe(audio_path=path, **kwargs)
     finally:
         try:
@@ -1311,7 +1318,8 @@ def live_write_task(self, transcript_id: int):
         at = float(cursor.get('t') or 0.0)
         a, b = min(missing, key=lambda r: (r[1] < at, abs(r[0] - at)))   # devant d'abord
         b = min(b, a + WRITE_SLICE_SECONDS)
-        words = _transcribe_span(state['backend'], t.audio.path, a, b, t.language or None)
+        words = _transcribe_span(state['backend'], t.audio.path, a, b, t.language or None,
+                                 clean_mode=getattr(t, 'clean_mode', False))
         append_result(channel, {'mode': mode, 'start': round(a, 3), 'end': round(b, 3),
                                 'words': words, 'text': spoken_text(words)}, WRITE_TTL)
         done[mode] = merge_intervals((done.get(mode) or []) + [[a, b]])

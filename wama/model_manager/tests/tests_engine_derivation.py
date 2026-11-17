@@ -77,16 +77,44 @@ class DerivationDuMoteurTest(TestCase):
             self.assertNotIn('runtime', r._models['huggingface:m-a-p/YuE2-3B'].composition)
 
     def test_remote_code_whose_class_transformers_knows_keeps_transformers(self):
-        """Contre-épreuves : une classe que transformers CONNAÎT, ou un config sans `auto_map`,
-        gardent la dérivation d'avant."""
+        """Contre-épreuves : une classe que transformers CONNAÎT garde la dérivation d'avant, code
+        distant ou non."""
         for name, config in (('known', {'architectures': ['BertModel'], 'auto_map': {'x': 'y'}}),
-                             ('plain', {'architectures': ['SomethingCustom']})):
+                             ('plain', {'architectures': ['BertModel']})):
             with self.subTest(name), TemporaryDirectory() as d:
                 p = _snapshot(Path(d) / f'models--o--{name}', 'config.json', config)
                 r = self._registre(f'huggingface:o/{name}', p)
                 r._overlay_engines_derived_from_disk()
                 self.assertEqual('transformers',
                                  r._models[f'huggingface:o/{name}'].composition['runtime']['engine'])
+
+    def test_classes_the_installed_transformers_lacks_derive_no_engine(self):
+        """2026-11-17, fluid-speech-pro : `ParakeetForTDT` (transformers 5.23 en développement,
+        absente de celui du venv) dérivait `transformers` sans code distant — un moteur qui ne
+        l'exécute pas. Le trou noté le 2026-10-01 (« vérifier contre la librairie installée »)."""
+        with TemporaryDirectory() as d:
+            p = _snapshot(Path(d) / 'models--o--custom', 'config.json',
+                          {'architectures': ['SomethingNoTransformersHas']})
+            r = self._registre('huggingface:o/custom', p)
+            r._overlay_engines_derived_from_disk()
+            self.assertNotIn('runtime', r._models['huggingface:o/custom'].composition)
+
+    def _nemo_and_port(self, d: str, architecture: str) -> Path:
+        p = _snapshot(Path(d) / 'models--Org--speech', 'config.json', {'architectures': [architecture]})
+        rev = p / 'snapshots' / 'abc123'
+        (rev / 'speech.nemo').write_bytes(b'\x00')
+        (rev / 'model.safetensors').write_bytes(b'\x00')
+        return p
+
+    def test_a_nemo_archive_next_to_a_port_transformers_cannot_run_derives_nemo(self):
+        """fluid-speech-pro publie l'archive `.nemo` ET un portage transformers que le venv
+        n'exécute pas : le format qui prouve un moteur le dit. Contre-épreuve : un portage que
+        transformers exécute garde `transformers`."""
+        for architecture, engine in (('ParakeetForNothingInstalled', 'nemo'), ('BertModel', 'transformers')):
+            with self.subTest(architecture), TemporaryDirectory() as d:
+                r = self._registre('huggingface:Org/speech', self._nemo_and_port(d, architecture))
+                r._overlay_engines_derived_from_disk()
+                self.assertEqual(engine, r._models['huggingface:Org/speech'].composition['runtime']['engine'])
 
     def test_an_onnx_only_snapshot_derives_onnxruntime_despite_its_config(self):
         """Swin2SR from Optimum (2026-10-06): `config.json` copied from the original model, the
@@ -188,6 +216,25 @@ class ARefutedEngineIsNoFactTest(TestCase):
         self.assertEqual({'runtime': {'engine': None}}, discovered)
         self.assertEqual({'components': [{'role': 'dit'}]}, merged_composition(prior, discovered),
                          "the retraction takes the engine only — the anatomy stays")
+
+    def test_a_refuted_engine_is_replaced_by_the_engine_the_weights_prove(self):
+        """2026-11-17, fluid-speech-pro: catalogued `transformers` (a class the venv lacks), its
+        `.nemo` archive proves `nemo` — the sync writes that one, not a void to fill later."""
+        from wama.model_manager.models import AIModel
+        from wama.model_manager.services.model_sync import merged_composition
+        key = 'huggingface:Org/speech'
+        prior = {'runtime': {'engine': 'transformers'}}
+        AIModel.objects.create(model_key=key, name='speech', model_type='speech',
+                               source='huggingface', composition=prior)
+        with TemporaryDirectory() as d:
+            path = _snapshot(Path(d) / 'models--Org--speech', 'config.json',
+                             {'architectures': ['ParakeetForNothingInstalled']})
+            rev = path / 'snapshots' / 'abc123'
+            (rev / 'speech.nemo').write_bytes(b'\x00')
+            (rev / 'model.safetensors').write_bytes(b'\x00')
+            r = self._registry(key, path)
+            r._overlay_engines_derived_from_disk()
+        self.assertEqual({'runtime': {'engine': 'nemo'}}, merged_composition(prior, r._models[key].composition))
 
     def test_an_engine_a_backend_serves_or_the_snapshot_does_not_refute_is_kept(self):
         """Counter-proofs, measured on the real catalogue: LocateAnything-3B is remote code that

@@ -605,7 +605,8 @@ Découverte unifiée des modèles (apps + sources externes), synchronisée vers 
 
 - **Domicile** : `wama/model_manager/services/model_registry.py`
 - **Module** : Model Registry - Unified model discovery across all WAMA apps and external sources.
-- **API publique** (7) :
+- **API publique** (8) :
+  - `transformers_class_known(class_name) -> bool` — Vrai si `class_name` est exporté par le `transformers` INSTALLÉ — lecture paresseuse
   - `snapshot_engine_verdict(path) -> Optional[tuple]` — Ce que le SNAPSHOT d'un modèle dit de son moteur : `(prouvé, classe lue, réfuté)`, ou None
   - `refuted_engine(path, model_key: str, engine: str, task: str='') -> str` — La RAISON pour laquelle `engine` n'est PAS un fait pour ce modèle, ou '' s'il en est un.
   - `is_ollama_runner_alias(name: str) -> bool` — Ce nom Ollama désigne-t-il un manifeste INTERNE du démon plutôt qu'un modèle ?
@@ -661,13 +662,14 @@ Ordonne les modèles autrement que par la taille (params EFFECTIFS √(totaux×a
 
 ### Installation de modèles
 
-Pipeline accept→download→register : télécharge au bon endroit puis enregistre au catalogue. UNE route depuis l'extérieur, `request_install` (bouton, assistant, `pull_model <clé|org/dépôt|nom Ollama>` — un nom se PROPOSE d'abord (`seed_hf_search`, `seed_ollama_candidate`) —, marcheur d'app `install_requirements` ; garde d'espace disque, tâche Celery, journal — seule à appeler `dispatch_install`) ; `AIModel.is_installable` en dit la règle à la page. Un pilote INTERNE (`install_from_spec`), un par source : ollama, hf, yolo, github (poids d'une VERSION GitHub, tag exact + empreinte épinglée, disposition calquée sur HF, 2026-10-07), files (les fichiers qu'une app DÉCLARE, chacun avec son ORIGINE parmi les sources déclarées — dépôt du Hub figé au commit, version GitHub, adresse fixe d'une source « poids » — taille et empreinte épinglées, 2026-10-11 : CodeFormer, MuseTalk, enhancer, Face Analyzer, DeepFace le 12/10, MuScriptor le 16/10 — le jeton d'un dépôt du Hub à accès contrôlé n'est envoyé qu'aux origines `huggingface` ; la désinstallation retire ces fichiers-là seulement, `remove_declared_files`) ; `download_asset` = le téléchargement contrôlé commun aux pilotes à fichier (empreinte d'un fichier en place : `provenance.sha256_of`). L'EMPREINTE de ce qu'un pilote pose se vérifie QUELLE QUE SOIT LA SOURCE (2026-11-05) : épinglée (files, github), publiée par le Hub pour la révision tirée (hf, `verify_hf_snapshot` — sha256 d'un fichier LFS, blob git des autres ; la librairie ne contrôlait que la taille), publiée par l'API GitHub pour l'asset de la version (yolo, `prospector.published_asset`), vérifiée par le démon (ollama) — et le levier B d'`hf_weights` quand il télécharge ; le résultat le dit (`verified`), le journal des installations le garde et l'assistant le dit (`install_history.verified_text`). Dépôt à ACCÈS CONTRÔLÉ (`AIModel.gated`) : le jeton est celui du compte qui lance (`api_keys.download_token`), sinon celui de l'instance (`HF_TOKEN`, `.env`). Route `library` (`install_library`) : PyPI par nom, pin exact — refuse URL, `git+`, `file:`, `-e` et contrainte lâche ; `constraints.pip` (pins passés par `-c`) et `constraints.no_deps` (installer SANS les dépendances quand leur résolution déplacerait le venv, 2026-10-01 ; pendant backend : `PIP_NO_DEPS`) ; voie VENDOR pour un dépôt épinglé au commit ; depuis la page des librairies et l'assistant, un seul corps (`request_library_action`, 2026-11-08) dispatche les mêmes pilotes en tâche — simuler, installer (la demande d'un administrateur pose l'allowlist), retirer. AUCUNE DÉRIVE (`AGENTS.md`, 2026-10-16) : rien ne télécharge un poids ni ne lance pip à côté — contrôle `tests_install_route` (appels nommés, pip, et depuis le 2026-11-06 tout corps de réponse écrit dans un fichier), budget des dérives existantes qui ne peut que descendre. Une ligne de poids YOLO OFFICIEL (origine `github:ultralytics/assets`) se dérive au pilote `yolo` (`spec_for_catalog_row`, 2026-11-06 : les lignes de l'anonymizer n'avaient aucun geste « Installer »). L'ANATOMIE est complète ou refusée (2026-11-06) : chaque poids de ce que l'installation apporte est réclamé par un composant, reconnu comme variante, ou écarté avec sa raison (`composition.excluded`) — `anatomy_gaps`, joué avant de tirer, au « Valider » d'une proposition (`ManifestKind.confront`) et par `check_model_completeness`. Les options d'installation disent ce qui TOURNE ici et la recommandation (la plus précise qui tient sur la carte), pour la page et l'assistant ; une désinstallation retire des choix des apps (option cochée), une MISE À JOUR installée succède à l'ancienne version partout où elle était choisie (`succession.py`, 2026-10-29) ; le MÊME modèle sous une autre clé (un poids renommé, 2026-11-06) y emporte aussi ses mesures et ses faits déclarés (`rekey`). L'AVANCEMENT (2026-11-06) : une mesure pour tous les pilotes (`InstallMeter`) — octets comptés par `download_asset`, dossier `blobs/` mesuré pendant `snapshot_download`, `completed/total` d'Ollama —, rapportés au poids de la garde d'espace (`install_weight_gb`), publiés avec l'événement de l'installation
+Pipeline accept→download→register : télécharge au bon endroit puis enregistre au catalogue. UNE route depuis l'extérieur, `request_install` (bouton, assistant, `pull_model <clé|org/dépôt|nom Ollama>` — un nom se PROPOSE d'abord (`seed_hf_search`, `seed_ollama_candidate`) —, marcheur d'app `install_requirements` ; garde d'espace disque, tâche Celery, journal — seule à appeler `dispatch_install`) ; `AIModel.is_installable` en dit la règle à la page. Un pilote INTERNE (`install_from_spec`), un par source : ollama, hf, yolo, github (poids d'une VERSION GitHub, tag exact + empreinte épinglée, disposition calquée sur HF, 2026-10-07), files (les fichiers qu'une app DÉCLARE, chacun avec son ORIGINE parmi les sources déclarées — dépôt du Hub figé au commit, version GitHub, adresse fixe d'une source « poids » — taille et empreinte épinglées, 2026-10-11 : CodeFormer, MuseTalk, enhancer, Face Analyzer, DeepFace le 12/10, MuScriptor le 16/10 — le jeton d'un dépôt du Hub à accès contrôlé n'est envoyé qu'aux origines `huggingface` ; la désinstallation retire ces fichiers-là seulement, `remove_declared_files`) ; `download_asset` = le téléchargement contrôlé commun aux pilotes à fichier (empreinte d'un fichier en place : `provenance.sha256_of`). L'EMPREINTE de ce qu'un pilote pose se vérifie QUELLE QUE SOIT LA SOURCE (2026-11-05) : épinglée (files, github), publiée par le Hub pour la révision tirée (hf, `verify_hf_snapshot` — sha256 d'un fichier LFS, blob git des autres ; la librairie ne contrôlait que la taille), publiée par l'API GitHub pour l'asset de la version (yolo, `prospector.published_asset`), vérifiée par le démon (ollama) — et le levier B d'`hf_weights` quand il télécharge ; le résultat le dit (`verified`), le journal des installations le garde et l'assistant le dit (`install_history.verified_text`). Dépôt à ACCÈS CONTRÔLÉ (`AIModel.gated`) : le jeton est celui du compte qui lance (`api_keys.download_token`), sinon celui de l'instance (`HF_TOKEN`, `.env`). Route `library` (`install_library`) : PyPI par nom, pin exact — refuse URL, `git+`, `file:`, `-e` et contrainte lâche ; `constraints.pip` (pins passés par `-c`) et `constraints.no_deps` (installer SANS les dépendances quand leur résolution déplacerait le venv, 2026-10-01 ; pendant backend : `PIP_NO_DEPS`) ; voie VENDOR pour un dépôt épinglé au commit ; depuis la page des librairies et l'assistant, un seul corps (`request_library_action`, 2026-11-08) dispatche les mêmes pilotes en tâche — simuler, installer (la demande d'un administrateur pose l'allowlist), retirer. AUCUNE DÉRIVE (`AGENTS.md`, 2026-10-16) : rien ne télécharge un poids ni ne lance pip à côté — contrôle `tests_install_route` (appels nommés, pip, et depuis le 2026-11-06 tout corps de réponse écrit dans un fichier), budget des dérives existantes qui ne peut que descendre. Une ligne de poids YOLO OFFICIEL (origine `github:ultralytics/assets`) se dérive au pilote `yolo` (`spec_for_catalog_row`, 2026-11-06 : les lignes de l'anonymizer n'avaient aucun geste « Installer »). L'ANATOMIE est complète ou refusée (2026-11-06) : chaque poids de ce que l'installation apporte est réclamé par un composant, reconnu comme variante, ou écarté avec sa raison (`composition.excluded`) — `anatomy_gaps`, joué avant de tirer, au « Valider » d'une proposition (`ManifestKind.confront`) et par `check_model_completeness`. Les options d'installation disent ce qui TOURNE ici et la recommandation (la plus précise qui tient sur la carte), pour la page et l'assistant ; une désinstallation retire des choix des apps (option cochée), une MISE À JOUR installée succède à l'ancienne version partout où elle était choisie (`succession.py`, 2026-10-29) ; le MÊME modèle sous une autre clé (un poids renommé, 2026-11-06) y emporte aussi ses mesures et ses faits déclarés (`rekey`). L'AVANCEMENT (2026-11-06) : une mesure pour tous les pilotes (`InstallMeter`) — octets comptés par `download_asset`, dossier `blobs/` mesuré pendant `snapshot_download`, `completed/total` d'Ollama —, rapportés au poids de la garde d'espace (`install_weight_gb`), publiés avec l'événement de l'installation. La REPRISE d'une panne passagère de la source (2026-11-17, `network_retry`) dans chaque pilote ; et la FIN d'une installation dit ce qui reste à faire pour que le modèle serve (`integration_steps` ← `tool_api.plan_model_integration`) — au journal, à la notification et au message de la page
 
 - **Domicile** : `wama/model_manager/services/model_installer.py`
 - **Module** : Pipeline accept→download→register — installation de modèles dans WAMA.
-- **API publique** (61) :
+- **API publique** (63) :
   - `pull_ollama_model(name: str, timeout: int=1800, progress=None)` — Télécharge un modèle Ollama via le démon LOCAL (`POST /api/pull`, stream).
   - `delete_ollama_model(name: str, timeout: int=60) -> dict` — Désinstalle un modèle Ollama (`DELETE /api/delete`) — libère sa place sur le volume.
+  - `retrying(call, label: str, meter=None)` — `call()` repris après une panne PASSAGÈRE de la source (`network_retry.with_retries` : deux
   - `pull_hf_model(repo_id: str, category: str, family: str | None=None, dry_run: bool=False, allow_patterns=None, meter=None, token=None)` — Télécharge un modèle HuggingFace DANS LE BON DOSSIER (catégorie WAMA) via l'API officielle
   - `verify_hf_snapshot(repo_id: str, snapshot, *, token=None) -> dict` — Chaque fichier d'un snapshot du Hub confronté à ce que le Hub PUBLIE pour cette révision :
   - `duplicate_weight_files(files) -> list` — Fichiers de poids à NE PAS tirer parce que leur jumeau `.safetensors` existe — même
@@ -715,6 +717,7 @@ Pipeline accept→download→register : télécharge au bon endroit puis enregis
   - `install_owner(user_id)` — À qui revient un modèle que l'installation fait NAÎTRE (`ROADMAP §29` étape 3, décision de
   - `install_from_spec(spec: dict, token=None, owner=None, meter=None) -> dict` — Point d'entrée UNIQUE d'installation — DESCRIPTEUR déclaratif au lieu de mécanismes
   - `record_provenance(spec: dict, res: dict, owner=None) -> dict` — Après un téléchargement réussi : sync du catalogue, puis provenance des lignes apparues.
+  - `integration_steps(keys) -> list` — Ce qui reste à faire pour que chaque modèle installé SERVE, dit à qui l'a installé
   - `queue_benchmarks(res: dict, appeared_keys) -> None` — Met en file le BANC TIERS des modèles qu'on vient d'installer (2026-10-10).
   - `pip_spec_error(spec: str)` — Motif de refus d'un spécificateur pip, ou None s'il passe les verrous syntaxiques.
   - `pip_constraint_errors(constraints) -> list` — Motifs de refus des contraintes pip — mêmes verrous qu'un spécificateur.
@@ -734,8 +737,9 @@ Date chaque installation et désinstallation (modèle, librairie) avec son issue
 
 - **Domicile** : `wama/model_manager/services/install_history.py` · **doc** : [docs/construction/ia/WAMA_MEMORY.md](../construction/ia/WAMA_MEMORY.md)
 - **Module** : Journal DATÉ des installations — l'écriture (`opened`/`record`) et la couche du calendrier.
-- **API publique** (17) :
+- **API publique** (18) :
   - `verified_text(detail) -> str` — Ce que dit `detail['verified']`, en une phrase — '' quand rien n'a été vérifié ou que la
+  - `integration_text(detail) -> str` — Ce qui reste à faire pour qu'un modèle installé SERVE (`detail['integration']`,
   - `opened(kind, key, *, name='', action='install', via='')` — Ouvre un événement `RUNNING` ; le bloc remplit `outcome` avec le résultat du driver.
   - `record(kind, key, *, name='', action='install', via='', result=None, started_at=None)` — Un événement déjà TERMINÉ (désinstallation : un geste court et synchrone).
   - `class Outcome(dict)` — Le résultat que le bloc d'une installation remplit (`opened`, `resumed`), et l'événement
@@ -1380,7 +1384,7 @@ Rôles wama-dev-ai (librarian, model, scout, integrator, codegen) et bac à sabl
 
 - **Domicile** : `wama/common/services/dev_tools.py` · **doc** : [docs/construction/suivi/ROADMAP.md §8d](../construction/suivi/ROADMAP.md)
 - **Module** : Outils de DÉVELOPPEMENT de WAMA — la surface du serveur MCP « wama-dev » (ROADMAP §8d Phase 3, étape 3).
-- **API publique** (30) :
+- **API publique** (29) :
   - `class DevToolError(ValueError)` — Refus LISIBLE — rendu comme `{'error': …}`, jamais comme une trace.
   - `base_dir() -> Path`
   - `jobs_dir() -> Path`
@@ -1401,7 +1405,6 @@ Rôles wama-dev-ai (librarian, model, scout, integrator, codegen) et bac à sabl
   - `dev_run_role(user, role: str, args: dict=None, provider: str='', model: str='') -> dict` — Lance un rôle wama-dev-ai en tâche de fond ; il écrit une PROPOSITION en attente de validation, n'applique rien.
   - `dev_sandbox(user, action: str, app: str='', target: str='', manifest: str='') -> dict` — Bac à sable d'apps en tâche de fond : create, substitute, revert, remove, list — l'app d'origine n'est jamais modifiée.
   - `dev_regen_check(user, app: str) -> dict` — Harnais de régénération d'une app (app_regen_check) en tâche de fond — refusé sur dev/main par sa propre garde.
-  - `dev_reload_web(user) -> dict` — Recharge gunicorn (signal HUP, rechargement gracieux) — nécessaire après la création, la restauration ou le retrait d'une jumelle.
   - `running_write_job()` — La tâche Claude Code EN ÉCRITURE qui tourne en ce moment (sa fiche), ou None — lue parmi les
   - `dev_claude_code(user, task: str, write: bool=False, model: str='', confirm: bool=False) -> dict` — Confie une tâche de développement à Claude Code (abonnement du demandeur) en TÂCHE DE FOND : audit, explication, ou modification du dépôt avec write=true. Réponds aussitôt à l'utilisateur ; la réponse de Claude Code arrive dans le fil à la…
   - `dev_job_status(user, job_id: str) -> dict` — État d'une tâche de développement : en cours, terminée, échouée ou interrompue ; fin du journal et propositions écrites.
@@ -1517,6 +1520,18 @@ UNE brique pour tout service externe qui limite son débit : la NOTE de saturati
   - `index(addresses=None, *, limit: int=512) -> dict` — Vectorise ce qui attend (`pending`), par lots. Rend un résumé.
   - `purge() -> int` — Retire les vecteurs dont l'élément n'existe plus, ou dont le fichier a disparu. Rend le
   - `search(user, query: str, addresses) -> dict` — Les éléments, parmi `addresses` (les cards que la page montre), dont une image répond à
+
+### Reprise après une panne passagère d'une source
+
+UNE règle pour reprendre un appel à une source externe : ce qui se reprend (connexion impossible, coupée ou trop lente ; `LocalEntryNotFoundError` du Hub ; HTTP 408, 425, 429, 5xx) et ce qui ne se reprend JAMAIS (401, 403, 404, une faute de la demande) ; des pauses courtes et croissantes (10 s puis 30 s) ou l'attente que la source demande (`Retry-After`, plafonnée) ; la dernière erreur remonte telle quelle. Adoptée par chaque pilote de la route d'installation (`model_installer.retrying`, qui dit l'attente à la mesure), la lecture du Hub de la prospection (une reprise) et la préparation des corpus d'évaluation
+
+- **Domicile** : `wama/common/utils/network_retry.py` · **doc** : [wama/model_manager/PROSPECTION_PIPELINE.md](../../wama/model_manager/PROSPECTION_PIPELINE.md)
+- **Module** : Reprendre un appel à une source externe après une panne PASSAGÈRE — une règle, tous les appelants.
+- **API publique** (4) :
+  - `status_of(exc)` — Le statut HTTP que porte l'erreur (ou celle qu'elle enveloppe), sinon None.
+  - `transient_reason(exc) -> str` — Pourquoi l'échec est PASSAGER (« HTTP 503 », « ConnectTimeout »), ou '' s'il ne l'est pas.
+  - `asked_wait_s(exc)` — L'attente que la source DEMANDE (`Retry-After`, en secondes), plafonnée — None si elle ne dit rien.
+  - `with_retries(call, label: str, *, waits=RETRY_WAITS_S, on_retry=None, retry_if=None, max_wait_s: float=MAX_WAIT_S)` — `call()`, repris après chaque attente de `waits` tant que l'échec est PASSAGER ; la dernière
 
 ### Révisions d'un élément (historique DANS la card)
 
@@ -2377,7 +2392,7 @@ Inventaire des moteurs de WAMA, dérivé À CHAQUE AFFICHAGE des déclarations `
 
 - **Domicile** : `wama/common/services/backend_inventory.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Registre des BACKENDS — vue DÉRIVÉE du vivier de moteurs de WAMA (demande Fabien 2026-09-03).
-- **API publique** (13) :
+- **API publique** (14) :
   - `class BackendEntry` — UN backend exécutable — la maille que le LLM compare pour trouver « le plus approchant ».
   - `class AppBackends`
   - `inventory() -> List[AppBackends]` — Le vivier, DÉRIVÉ à l'appel. Une app = une entrée ; jamais de nom d'app en dur ici.
@@ -2388,6 +2403,7 @@ Inventaire des moteurs de WAMA, dérivé À CHAQUE AFFICHAGE des déclarations `
   - `resolvable_entries() -> List[BackendEntry]` — Le vivier que la résolution consulte — jumelles de bac à sable exclues. Un appelant qui
   - `contract_engines(task: str) -> dict` — Moteur → `(module, classe)` des backends CONCRETS du contrat de `task`, lus par AST dans
   - `resolve_entry(engine: str, model_id: str='', entries=None, task: str='') -> Optional[BackendEntry]` — ENTRÉE du vivier qui sait exécuter `model_id` avec `engine` — ou None. STATIQUE :
+  - `engine_candidates(engine: str, entries=None, task: str='') -> List[BackendEntry]` — Les backends qui PILOTENT `engine` pour un modèle de `task` — avant que ses
   - `resolve_backend(engine: str, model_id: str='', entries=None, task: str='')` — Classe de backend qui sait exécuter `model_id` avec `engine` — ou None.
   - `app_backend_entries(app: str) -> List[BackendEntry]` — Backends que `app` RÉSOUT réellement, par le lien du catalogue — STATIQUE, dédoublonnés
   - `app_backend_paths(app: str) -> List[Path]` — Fichiers source des backends résolus par `app` (cf. `app_backend_entries`), n'existant

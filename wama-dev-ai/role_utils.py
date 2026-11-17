@@ -122,12 +122,11 @@ def diffusers_pipeline_class(repo_id):
 
 
 def transformers_class_known(class_name) -> bool:
-    """Vrai si `class_name` est exporté par le `transformers` INSTALLÉ (même lecture paresseuse
-    que `diffusers_class_known` : `dir()` d'un `_LazyModule` n'importe aucun sous-module)."""
-    if not class_name:
-        return False
-    import transformers
-    return str(class_name) in dir(transformers)
+    """Vrai si `class_name` est exporté par le `transformers` INSTALLÉ — la lecture de la
+    découverte (`model_registry.transformers_class_known`), qui dérive le moteur d'un snapshot par
+    la même preuve (2026-11-17) : un seul « transformers l'exécute-t-il ? » pour les deux."""
+    from wama.model_manager.services.model_registry import transformers_class_known as known
+    return known(class_name)
 
 
 def transformers_architectures(repo_id):

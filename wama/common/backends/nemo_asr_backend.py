@@ -66,9 +66,22 @@ class NemoASRBackend(SpeechToTextBackend):
             'platform_ref': 'huggingface:linagora/linto_stt_fr_fastconformer_pc',
             'model_key': 'huggingface:linagora/linto_stt_fr_fastconformer_pc',
             'multitask': False, 'max_audio_seconds': 30},
+        # Fluid Speech Pro (FluidVoice-Labs, CC-BY 4.0, 2026-11-17) — installé par la prospection.
+        # Parakeet TDT 0.6B v3 plus UN bloc entre le sous-échantillonnage et la 1ʳᵉ couche
+        # Conformer (`frame_cleaner` : sa forme est lue dans l'archive, `cfg.fluid_speech`), et un
+        # MODE PROPRE (texte édité, sans répétitions ni mots de remplissage) livré comme un
+        # adaptateur de rang faible DANS le même point de contrôle. Le chargement ordinaire de NeMo
+        # le refuse (« Unexpected key(s) … encoder.fv_insert ») : `_restore_fluid_speech`.
+        # Passe de 600 s : celle de Parakeet v3, dont il garde l'encodeur et l'attention.
+        'FluidVoice-Labs/fluid-speech-pro': {
+            'platform_ref': 'huggingface:FluidVoice-Labs/fluid-speech-pro',
+            'model_key': 'huggingface:FluidVoice-Labs/fluid-speech-pro',
+            'multitask': False, 'max_audio_seconds': 600, 'frame_cleaner': True,
+            # Ce que CE modèle sait de plus que son moteur (`model_capabilities.apply_engine_flags`).
+            'capabilities': {'supports_clean_mode': True}},
     }
     name = "nemo"
-    display_name = "NVIDIA NeMo (Canary / Parakeet / LinTO)"
+    display_name = "NVIDIA NeMo (Canary / Parakeet / LinTO / Fluid Speech)"
     description = "NVIDIA NeMo — Canary 1B v2 / Parakeet TDT v3, 25 European languages, word timing."
     description_long = (
         "NVIDIA ASR engines: Canary 1B v2 (the most accurate in French among open models, the "
@@ -110,6 +123,8 @@ class NemoASRBackend(SpeechToTextBackend):
         super().__init__()
         self._model = None
         self._model_id = None
+        self._clean_deltas = None      # {nom de tenseur: écart} du mode propre, si le modèle en a un
+        self._clean_on = False
 
     # ------------------------------------------------------------------
     # Helpers
@@ -192,7 +207,11 @@ class NemoASRBackend(SpeechToTextBackend):
             import nemo.collections.asr as nemo_asr
             device = 'cuda' if torch.cuda.is_available() else 'cpu'
             logger.info(f"[NeMo] Loading '{model_id}' on {device} from {archive}")
-            self._model = nemo_asr.models.ASRModel.restore_from(str(archive), map_location=device)
+            if spec.get('frame_cleaner'):
+                self._model, self._clean_deltas = _restore_fluid_speech(nemo_asr, archive, device)
+            else:
+                self._model = nemo_asr.models.ASRModel.restore_from(str(archive), map_location=device)
+            self._clean_on = False
             self._model.eval()
             self._disable_cuda_graph_decoding()
 
@@ -245,6 +264,25 @@ class NemoASRBackend(SpeechToTextBackend):
             self._loaded = False
             self._model_id = None
             self._current_model = None
+            self._clean_deltas, self._clean_on = None, False
+
+    def _set_clean_mode(self, wanted: bool) -> None:
+        """Le MODE PROPRE (Fluid Speech) : ses écarts de poids ajoutés au modèle chargé, ou retirés
+        — un geste en place, sans recharger, d'une card à l'autre. Un modèle qui n'en a pas
+        l'ignore (comme les mots-clés pour un moteur qui ne les lit pas : `workers.py` passe
+        le réglage, la capacité au catalogue grise le champ)."""
+        wanted = bool(wanted) and bool(self._clean_deltas)
+        if wanted == self._clean_on:
+            return
+        import torch
+        state = self._model.state_dict()
+        with torch.no_grad():
+            for name, delta in self._clean_deltas.items():
+                target = state[name]
+                change = clean_mode_delta(delta, target)
+                target.add_(change if wanted else -change)
+        self._clean_on = wanted
+        logger.info(f"[NeMo] mode propre {'activé' if wanted else 'retiré'}")
 
     # ------------------------------------------------------------------
     # Transcription
@@ -295,6 +333,7 @@ class NemoASRBackend(SpeechToTextBackend):
             if not self.load():
                 return TranscriptionResult(success=False, text='', error="Failed to load NeMo model")
         try:
+            self._set_clean_mode(kwargs.get('clean_mode'))
             audio = self._load_audio(audio_path)
             options = {'timestamps': True}
             # Langue : donnée, sinon ENTENDUE — pour Canary qui l'exige, et pour tous parce que
@@ -314,3 +353,101 @@ class NemoASRBackend(SpeechToTextBackend):
         except Exception as e:
             logger.error(f"[NeMo] Transcription failed: {e}", exc_info=True)
             return TranscriptionResult(success=False, text='', error=str(e))
+
+
+# ── Fluid Speech : le bloc de plus et le mode propre (2026-11-17) ──────────────────────────────
+# Réécrit d'après le chargeur que l'auteur publie dans son dépôt (`fluid_speech.py`, CC-BY 4.0) —
+# jamais exécuté depuis le snapshot : le code d'un dépôt n'entre pas dans un processus de WAMA.
+#: Préfixe des tenseurs de l'adaptateur du mode propre dans le point de contrôle.
+CLEAN_MODE_PREFIX = 'clean_mode.'
+
+
+def _frame_cleaner(width: int, dim: int, kernel: int):
+    """Le bloc résiduel posé sur les trames sous-échantillonnées : LayerNorm, projection,
+    convolution temporelle en profondeur, GELU, projection — la forme qu'en donne l'archive."""
+    import torch.nn as nn
+
+    class FrameCleaner(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.ln = nn.LayerNorm(width)
+            self.down = nn.Linear(width, dim)
+            self.mix = nn.Conv1d(dim, dim, kernel, padding=kernel // 2, groups=dim)
+            self.up = nn.Linear(dim, width)
+
+        def forward(self, x):                                     # x : [lot, temps, largeur]
+            h = self.down(self.ln(x)).transpose(1, 2)
+            return x + self.up(nn.functional.gelu(self.mix(h)).transpose(1, 2))
+    return FrameCleaner()
+
+
+def _clean_mode_deltas(state: dict, adapter: dict, scale: float) -> dict:
+    """Les ÉCARTS que le mode propre ajoute au modèle — `{nom du tenseur: écart}`, sur le processeur.
+    Ses deux vecteurs d'entrée rejoignent les biais qu'ils rencontrent (le LSTM du décodeur, la
+    jointure) ; chaque poids adapté de l'encodeur reçoit `scale · B @ A`, gardé sous sa forme de
+    RANG FAIBLE `(B, A, scale)` et calculé à l'application (les écarts pleins de l'encodeur
+    pèseraient autant que lui). Tous ADDITIFS : les retirer rend le modèle d'avant (aux arrondis
+    du calcul près), d'où un mode qui se pose et se retire par card."""
+    adapter = dict(adapter)
+    lstm = 'decoder.prediction.dec_rnn.lstm'
+    deltas = {f'{lstm}.bias_ih_l0': state[f'{lstm}.weight_ih_l0'] @ adapter.pop('decoder_input'),
+              'joint.pred.bias': adapter.pop('joint_hidden')}
+    for name in sorted({k.rsplit('.', 1)[0] for k in adapter}):
+        key = f'encoder.{name}.weight'
+        if key not in state:
+            raise KeyError(f"le mode propre adapte {key}, que le modèle n'a pas")
+        deltas[key] = (adapter[f'{name}.B'], adapter[f'{name}.A'], scale)
+    return deltas
+
+
+def clean_mode_delta(delta, target):
+    """L'écart à ajouter à `target` (même forme, même appareil, même type) : un tenseur tel quel,
+    ou `scale · B @ A` d'un adaptateur de rang faible."""
+    if isinstance(delta, tuple):
+        b, a, scale = delta
+        full = scale * (b.to(target.device, target.dtype) @ a.to(target.device, target.dtype))
+        return full.view_as(target)
+    return delta.to(device=target.device, dtype=target.dtype)
+
+
+def _restore_fluid_speech(nemo_asr, archive, device: str):
+    """`(modèle, écarts du mode propre)` : l'archive restaurée SANS ses clés propres, le bloc posé
+    après le sous-échantillonnage, puis TOUS les tenseurs chargés strictement — un tenseur manquant
+    ou en trop lève, jamais un modèle qui tourne sans son bloc.
+
+    L'archive n'est lue qu'UNE fois : extraite dans un dossier jetable, que NeMo restaure
+    (`model_extracted_dir`) et dont le point de contrôle se relit. Mesuré le 2026-11-17 sur le
+    processeur : 250 s de chargement, contre 266 s quand NeMo puis ce chargeur l'extrayaient
+    chacun (Parakeet : 143 s) — l'essentiel est la lecture des 2,6 Go à travers `/mnt/d`."""
+    import tarfile
+    import tempfile
+
+    import torch
+    from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
+    with tempfile.TemporaryDirectory(prefix='wama_nemo_') as tmp:
+        with tarfile.open(archive) as tar:
+            tar.extractall(tmp, filter='data')
+        connector = SaveRestoreConnector()
+        connector.model_extracted_dir = tmp
+        model = nemo_asr.models.ASRModel.restore_from(str(archive), map_location=device, strict=False,
+                                                      save_restore_connector=connector)
+        checkpoint = next(Path(tmp).rglob('model_weights.ckpt'))
+        state = torch.load(checkpoint, map_location='cpu', weights_only=True)
+    spec = model.cfg.fluid_speech
+    encoder = model.encoder
+    encoder.fv_insert = _frame_cleaner(encoder.d_model, int(spec.insert_dim),
+                                       int(spec.insert_kernel)).to(next(encoder.parameters()).device)
+
+    def clean_frames(module, args, out):
+        if isinstance(out, tuple):
+            return (encoder.fv_insert(out[0]),) + tuple(out[1:])
+        return encoder.fv_insert(out)
+    encoder.pre_encode.register_forward_hook(clean_frames)
+
+    adapter ={k[len(CLEAN_MODE_PREFIX):]: state.pop(k) for k in list(state)
+               if k.startswith(CLEAN_MODE_PREFIX)}
+    model.load_state_dict(state, strict=True)
+    clean = spec.get('clean_mode') if hasattr(spec, 'get') else None
+    deltas = (_clean_mode_deltas(state, adapter, float(clean.alpha) / int(clean.rank))
+              if adapter and clean is not None else None)
+    return model, deltas

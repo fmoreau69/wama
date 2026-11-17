@@ -61,6 +61,16 @@ def verified_text(detail) -> str:
     return f"{f'{count} fichier(s) ' if count else ''}vérifié(s) contre {against}{by}"
 
 
+def integration_text(detail) -> str:
+    """Ce qui reste à faire pour qu'un modèle installé SERVE (`detail['integration']`,
+    `model_installer.integration_steps`), en clair — '' quand il sert déjà (2026-11-17 : une
+    installation « terminée » d'un modèle qu'aucun moteur n'exécute ne le disait nulle part)."""
+    steps = (detail or {}).get('integration') or []
+    return ' '.join(f"{step.get('model')} n'est pas encore utilisable : {step.get('next_step')}. "
+                    f"Étape suivante : {step.get('human_gesture')}."
+                    for step in steps if isinstance(step, dict) and step.get('human_gesture'))
+
+
 #: Facette du calendrier (barre de filtrage commune) et son libellé.
 CALENDAR_LAYER = 'installation'
 CALENDAR_LAYER_LABEL = 'Installations'
@@ -217,8 +227,9 @@ def _close(event_id, result):
     ok = bool((result or {}).get('ok'))
     # `verified` (2026-11-05) : contre quelle empreinte le pilote a vérifié ce qu'il a posé —
     # épinglée, publiée par la source, ou la seule taille (`model_installer`, en-tête des pilotes).
+    # `integration` (2026-11-17) : ce qui reste à faire pour que le modèle installé serve.
     detail = {k: result[k] for k in ('error', 'reason', 'freed_gb', 'version', 'size_gb', 'disk_gb',
-                                     'already_satisfied', 'installed', 'verified')
+                                     'already_satisfied', 'installed', 'verified', 'integration')
               if k in (result or {}) and result[k] not in (None, '')}
     try:
         InstallEvent.objects.filter(pk=event_id).update(
@@ -283,6 +294,9 @@ def progress_row(row, now=None) -> dict:
             out[key] = live[key]
     if error:
         out['error'] = error
+    remaining = integration_text(row.detail) if out.get('ok') else ''
+    if remaining:
+        out['remaining'] = remaining        # installé, pas encore utilisable : l'étape suivante
     return out
 
 
@@ -348,7 +362,8 @@ def notify_end(user_id, event_id, name: str, result: dict) -> None:
         if user is None or row is None:
             return
         ok = bool((result or {}).get('ok'))
-        detail = (result or {}).get('error') or ('' if not ok else verified_text(result))
+        detail = (result or {}).get('error') or ('' if not ok else ' — '.join(
+            text for text in (verified_text(result), integration_text(result)) if text))
         notify_job_end(row, FAMILY, row.get_action_display(), name or row.name or row.key, ok,
                        detail=detail or '', user=user)
     except Exception:

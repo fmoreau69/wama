@@ -268,6 +268,35 @@ class TheProgressRowTest(TestCase):
         self.assertEqual(('SUCCESS', True, True, 100),
                          (row['status'], row['terminal'], row['ok'], row['progress']))
 
+    def test_an_installed_model_nothing_serves_yet_says_the_next_step(self):
+        """2026-11-17 : fluid-speech-pro s'est installé « terminé » sans moteur qui l'exécute, et
+        rien ne le disait. L'étape que rend `plan_model_integration` voyage jusqu'au journal, à la
+        ligne de suivi (le message de la page) et à la notification."""
+        step = {'model': 'test:row', 'next_step': 'aucun backend',
+                'human_gesture': 'rôle `backend`, puis Valider'}
+        install_history._close(self.event.pk, {'ok': True, 'integration': [step]})
+        self.event.refresh_from_db()
+        row = install_history.progress_row(self.event)
+        self.assertIn('rôle `backend`, puis Valider', row['remaining'])
+        self.assertIn('aucun backend', install_history.integration_text(self.event.detail))
+        install_history._close(self.event.pk, {'ok': True})
+        self.event.refresh_from_db()
+        self.assertNotIn('remaining', install_history.progress_row(self.event),
+                         'counter-proof: a model that serves says nothing more')
+
+    def test_the_install_route_reads_the_next_step_where_the_validation_reads_it(self):
+        """Une lecture, deux moments : la fin d'une installation et le « Valider » d'une proposition
+        (`views._integration_next_step`) disent la même étape, celle du plan."""
+        plan = {'model': 'test:row', 'next_step': 'aucun moteur déclaré', 'human_gesture': 'rôle `model`'}
+        with mock.patch('wama.tool_api.plan_model_integration', return_value=plan):
+            self.assertEqual([plan], mi.integration_steps(['test:row', 'test:row', '']))
+            from wama.model_manager.views import _integration_next_step
+            self.assertEqual({'next_step': 'aucun moteur déclaré', 'human_gesture': 'rôle `model`'},
+                             _integration_next_step('test:row'))
+        with mock.patch('wama.tool_api.plan_model_integration',
+                        return_value={'model': 'test:row', 'next_step': 'rien à faire', 'human_gesture': None}):
+            self.assertEqual([], mi.integration_steps(['test:row']))
+
     def test_a_finished_install_says_its_outcome(self):
         InstallEvent.objects.filter(pk=self.event.pk).update(
             status='FAILURE', finished_at=timezone.now(), detail={'error': 'disque'})

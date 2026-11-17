@@ -77,7 +77,7 @@ from wama.transcriber.params import PARAMS_JSON as _SCHEMA
 #: et `max_tokens` sont hors schéma depuis leur retrait des réglages, gardés pour un client qui
 #: les posterait encore (JSON déjà typé).
 # wama:redondance-ok — sous-ensemble DÉCIDÉ du schéma : sans le curseur `quality_intent`, sans les réglages d'un seul élément, plus deux réglages hors schéma gardés pour un client ancien
-SETTINGS_FIELDS = ('backend', 'hotwords', 'preprocess_audio', 'level_speech', 'use_prepared_audio',
+SETTINGS_FIELDS = ('backend', 'hotwords', 'clean_mode', 'preprocess_audio', 'level_speech', 'use_prepared_audio',
                    'vad_mode',
                    'language_mode',
                    'enable_diarization', 'diarization_model',

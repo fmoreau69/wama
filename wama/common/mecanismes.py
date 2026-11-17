@@ -823,7 +823,11 @@ MECHANISMS = (
               "L'AVANCEMENT (2026-11-06) : une mesure pour tous les pilotes (`InstallMeter`) — "
               "octets comptés par `download_asset`, dossier `blobs/` mesuré pendant "
               "`snapshot_download`, `completed/total` d'Ollama —, rapportés au poids de la garde "
-              "d'espace (`install_weight_gb`), publiés avec l'événement de l'installation",
+              "d'espace (`install_weight_gb`), publiés avec l'événement de l'installation. "
+              "La REPRISE d'une panne passagère de la source (2026-11-17, `network_retry`) dans "
+              "chaque pilote ; et la FIN d'une installation dit ce qui reste à faire pour que le "
+              "modèle serve (`integration_steps` ← `tool_api.plan_model_integration`) — au journal, "
+              "à la notification et au message de la page",
               'wama/model_manager/services/model_installer.py', '',
               # Route `library` (install_library) : voie pip ici, voie VENDOR (dépôt épinglé au
               # commit + correctif, ROADMAP D-a, 2026-09-30) dans son exécuteur délégué.
@@ -1270,6 +1274,22 @@ MECHANISMS = (
               'wama/common/services/source_quota.py',
               'docs/construction/suivi/ROADMAP.md §8d',
               annexes=('wama/common/tests/tests_source_quota.py',)),
+    # 2026-11-17 (Fabien : « une nouvelle tentative automatique à l'installation […] avec une courte
+    # pause pour ne pas surcharger les requêtes vers les sources ») : trois boucles de reprise
+    # vivaient chacune à sa façon, aucune dans les pilotes d'installation.
+    Mechanism('network_retry', 'Reprise après une panne passagère d\'une source',
+              "UNE règle pour reprendre un appel à une source externe : ce qui se reprend (connexion "
+              "impossible, coupée ou trop lente ; `LocalEntryNotFoundError` du Hub ; HTTP 408, 425, "
+              "429, 5xx) et ce qui ne se reprend JAMAIS (401, 403, 404, une faute de la demande) ; "
+              "des pauses courtes et croissantes (10 s puis 30 s) ou l'attente que la source "
+              "demande (`Retry-After`, plafonnée) ; la dernière erreur remonte telle quelle. "
+              "Adoptée par chaque pilote de la route d'installation (`model_installer.retrying`, "
+              "qui dit l'attente à la mesure), la lecture du Hub de la prospection (une reprise) et "
+              "la préparation des corpus d'évaluation",
+              'wama/common/utils/network_retry.py',
+              'wama/model_manager/PROSPECTION_PIPELINE.md',
+              annexes=('wama/common/tests/tests_network_retry.py',),
+              depends_on=('model_installer',)),
     Mechanism('secret_crypto', "Chiffrement RÉVERSIBLE des secrets d'utilisateur",
               "Les clés d'API de fournisseurs cloud sont chiffrées en base, pas hachées : WAMA doit "
               "les RELIRE pour appeler le fournisseur à la place de l'utilisateur. Clé DÉRIVÉE de "

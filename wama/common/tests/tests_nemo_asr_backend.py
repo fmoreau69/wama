@@ -76,20 +76,60 @@ class DeclarationTest(SimpleTestCase):
         self.assertEqual('parakeet-tdt-0.6b-v3', B.model_id_for(None))
         self.assertEqual('parakeet-tdt-0.6b-v3', B.model_id_for('nemo'))
 
-    def test_linto_is_served_under_its_catalogue_key(self):
-        """LinTO (2026-10-01) was installed by prospection: its catalogue key, and the rule of
-        `backend_for_model` (last segment of the key), both name it — never the default."""
+    def test_a_prospected_model_is_served_under_its_catalogue_key(self):
+        """LinTO (2026-10-01) and Fluid Speech (2026-11-17) were installed by prospection: their
+        catalogue key, and the rule of `backend_for_model` (last segment of the key), both name
+        them — never the default (Parakeet would have loaded in Fluid Speech's place)."""
         from wama.common.services.backend_proposals import model_id_of
         from wama.transcriber.backends.manager import TranscriberBackendManager
-        key = 'huggingface:linagora/linto_stt_fr_fastconformer_pc'
-        self.assertEqual(model_id_of(key), NemoASRBackend.model_id_for(key))
-        self.assertEqual(model_id_of(key),
-                         TranscriberBackendManager.model_for_request(NemoASRBackend, key))
-        spec = NemoASRBackend.SUPPORTED_MODELS[model_id_of(key)]
-        self.assertEqual(key, spec['model_key'])
-        self.assertNotIn('settings_key', spec, 'its folder comes from the catalogue, not MODEL_PATHS')
+        for key in ('huggingface:linagora/linto_stt_fr_fastconformer_pc',
+                    'huggingface:FluidVoice-Labs/fluid-speech-pro'):
+            with self.subTest(key):
+                self.assertEqual(model_id_of(key), NemoASRBackend.model_id_for(key))
+                self.assertEqual(model_id_of(key),
+                                 TranscriberBackendManager.model_for_request(NemoASRBackend, key))
+                spec = NemoASRBackend.SUPPORTED_MODELS[model_id_of(key)]
+                self.assertEqual(key, spec['model_key'])
+                self.assertNotIn('settings_key', spec, 'its folder comes from the catalogue, not MODEL_PATHS')
         self.assertIsNone(TranscriberBackendManager.model_for_request(
             NemoASRBackend, 'huggingface:linagora/another-model'), 'counter-check')
+
+    def test_the_clean_mode_is_added_then_taken_back_in_place(self):
+        """Fluid Speech's edited text is a low-rank adapter folded into the weights: added for a
+        card that asks for it, taken back for the next one — the model it gives back is the one
+        it got (`_set_clean_mode`). The low-rank form equals the full delta it stands for."""
+        import torch
+
+        from wama.common.backends.nemo_asr_backend import _clean_mode_deltas, clean_mode_delta
+        torch.manual_seed(0)
+        lstm = 'decoder.prediction.dec_rnn.lstm'
+        model = torch.nn.Module()
+        model.register_parameter('w', torch.nn.Parameter(torch.randn(6, 4)))
+        state = {f'{lstm}.weight_ih_l0': torch.randn(5, 3), f'{lstm}.bias_ih_l0': torch.zeros(5),
+                 'joint.pred.bias': torch.zeros(2), 'encoder.layer.weight': torch.randn(6, 4)}
+        adapter = {'decoder_input': torch.randn(3), 'joint_hidden': torch.randn(2),
+                   'layer.A': torch.randn(2, 4), 'layer.B': torch.randn(6, 2)}
+        deltas = _clean_mode_deltas(state, adapter, 0.5)
+        self.assertTrue(torch.allclose(clean_mode_delta(deltas['encoder.layer.weight'], state['encoder.layer.weight']),
+                                       0.5 * adapter['layer.B'] @ adapter['layer.A']))
+        self.assertTrue(torch.allclose(deltas[f'{lstm}.bias_ih_l0'],
+                                       state[f'{lstm}.weight_ih_l0'] @ adapter['decoder_input']))
+        backend = NemoASRBackend()
+        backend._model, backend._clean_deltas = model, {'w': deltas['encoder.layer.weight']}
+        before = model.w.detach().clone()
+        backend._set_clean_mode(True)
+        self.assertFalse(torch.allclose(before, model.w), 'the mode changed nothing')
+        backend._set_clean_mode(True)                      # asked twice: added once
+        backend._set_clean_mode(False)
+        self.assertTrue(torch.allclose(before, model.w, atol=1e-6))
+        parakeet = NemoASRBackend()
+        parakeet._model, parakeet._clean_deltas = model, None
+        parakeet._set_clean_mode(True)                     # a model without the mode ignores it
+        self.assertTrue(torch.allclose(before, model.w, atol=1e-6))
+
+    def test_only_fluid_speech_loads_its_extra_block(self):
+        self.assertEqual(['FluidVoice-Labs/fluid-speech-pro'],
+                         [k for k, spec in NemoASRBackend.SUPPORTED_MODELS.items() if spec.get('frame_cleaner')])
 
     def test_linto_loads_from_the_folder_its_catalogue_row_designates(self):
         from pathlib import Path

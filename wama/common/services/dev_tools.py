@@ -365,8 +365,9 @@ def cut_with_notice(text: str, limit: int, job_id: str) -> str:
 #: proposition : ses changements sont déjà dans les fichiers.
 CLAUDE_CODE_WRITE_NOTE = (
     "Rien à valider ni à appliquer : ce que Claude Code a modifié est DÉJÀ dans les fichiers du "
-    "dépôt, non commité. Pour le servir : dev_reload_web (gunicorn) ; les workers, la passerelle "
-    "et le serveur MCP chargent le code à leur démarrage et se relancent par un humain. Une "
+    "dépôt, non commité. Pour le servir, chaque processus se relance par control_service, après "
+    "l'accord de l'utilisateur : 'web' (gunicorn), 'workers', 'gateway_discord', 'wama_mcp_dev' "
+    "— un geste d'administrateur, exécuté par la surveillance des services. Une "
     "revérification (/reverif) ou un commit se confient à dev_claude_code.")
 
 
@@ -587,7 +588,8 @@ def dev_sandbox(user, action: str, app: str = '', target: str = '', manifest: st
     `*.manifest.json` du rôle app, ou un brouillon de manifests/app_drafts/ ; ses trous de glu se
     remplissent ensuite par le rôle codegen. substitute / revert app=<jumelle>
     target=<apps|urls|models|params|tasks|views|templates>. remove app=<jumelle>. Après create,
-    revert ou remove : dev_reload_web pour servir le changement.
+    revert ou remove, le serveur web se recharge pour servir le changement : control_service
+    (service='web', action='restart'), un geste d'administrateur confirmé par l'utilisateur.
     """
     owner = getattr(user, 'username', '') if action == 'create' else ''
     if action in ('substitute', 'revert', 'remove') and app:
@@ -605,18 +607,12 @@ def dev_regen_check(user, app: str) -> dict:
     return start_job(user, 'regen_check', regen_check_command(app))
 
 
-def dev_reload_web(user) -> dict:
-    """Recharge gunicorn à chaud (les pages restent servies, la réponse en cours aussi) — nécessaire après la création, la restauration ou le retrait d'une jumelle, ou une modification de code."""
-    # Par l'ORDRE de la page Exploitation (`service_supervision.control_process`), jamais par un
-    # signal envoyé d'ici (2026-11-17). Un `pkill -HUP -f 'gunicorn wama.wsgi'` atteignait AUSSI
-    # les workers, dont la ligne de commande est celle du maître : chacun mourait du signal
-    # (« Worker … was sent SIGHUP! »), celui qui servait l'appel compris — l'assistant, appelé à
-    # 21:40:09 pour « relancer gunicorn », a coupé sa propre réponse (« Erreur réseau »).
-    # L'ordre est exécuté par la surveillance au passage suivant : `HUP` au seul maître, les
-    # anciens workers finissent leurs requêtes (`graceful_timeout`).
-    from wama.common.utils import service_supervision as supervision
-    accepted, message = supervision.control_process(supervision.WEB, 'restart')
-    return {'reloaded': True, 'detail': message} if accepted else {'error': message}
+# Recharger le serveur web n'est PAS un outil de développement (retiré le 2026-11-17) : toute relance
+# passe par `tool_api.control_service` (service='web'), la route de la page Exploitation — un
+# administrateur, une confirmation, l'ordre exécuté par la surveillance (`service_supervision`).
+# L'ancien `dev_reload_web` en était un second chemin : ouvert aux développeurs contre la décision
+# du 2026-11-11 (« uniquement pour l'admin »), sans confirmation, et par un `pkill -HUP -f` qui
+# tuait aussi les workers de gunicorn — l'assistant a coupé sa propre réponse le 2026-11-17.
 
 
 #: Préfixe du nom de tâche Claude Code (`claude_code` ou `claude_code:write`).
@@ -823,7 +819,7 @@ from wama.common.services.dev_inspect import (  # noqa: E402 — après DevToolE
     dev_db_query, dev_db_schema, dev_list_code, dev_list_operations, dev_read_code, dev_read_log,
     dev_run_operation, dev_search_code)
 
-DEV_TOOLS = {fn.__name__: fn for fn in (dev_run_role, dev_sandbox, dev_regen_check, dev_reload_web,
+DEV_TOOLS = {fn.__name__: fn for fn in (dev_run_role, dev_sandbox, dev_regen_check,
                                          dev_claude_code, dev_job_status, dev_read_report,
                                          dev_list_jobs, dev_read_output, dev_db_query, dev_db_schema,
                                          dev_read_log, dev_read_code, dev_list_code,

@@ -164,6 +164,23 @@ class LoadedByTest(TestCase):
         self.assertIn('rôle `backend`', gesture)
         self.assertIn('--catalog unservedprobe:m', gesture)
 
+    def test_an_engine_whose_backend_does_not_name_the_model_joins_that_backend(self):
+        """2026-11-17 (Fluid Speech) : sous le moteur `nemo`, la transcription a UN backend, qui ne
+        sert que les modèles qu'il nomme — le rôle `backend` en aurait écrit un SECOND. Le geste est
+        d'ajouter le modèle à son `SUPPORTED_MODELS`. Contre-épreuve : un modèle qu'il nomme n'a
+        rien à faire."""
+        from wama.model_manager.models import AIModel
+        from wama.tool_api import plan_model_integration
+        for key in ('huggingface:Probe/unnamed-nemo', 'huggingface:FluidVoice-Labs/fluid-speech-pro'):
+            AIModel.objects.update_or_create(model_key=key, defaults=dict(
+                name=key, model_type='speech', source='huggingface', is_downloaded=True,
+                composition={'runtime': {'engine': 'nemo'}}, capabilities={'task': 'transcription'}))
+        plan = plan_model_integration(None, 'huggingface:Probe/unnamed-nemo')
+        self.assertIn('déjà servi par NemoASRBackend', plan['next_step'])
+        self.assertIn('SUPPORTED_MODELS de NemoASRBackend', plan['human_gesture'])
+        self.assertNotIn('--catalog', plan['human_gesture'], 'never the role that writes a new module')
+        self.assertIsNone(plan_model_integration(None, 'huggingface:FluidVoice-Labs/fluid-speech-pro')['human_gesture'])
+
     def test_a_waiting_proposal_is_the_next_step_on_the_route(self):
         """2026-11-07 (ACE-Step) : le plan ignorait la file — il renvoyait au rôle déjà joué, sans
         dire que « Valider » refuserait sa proposition. Refusée : relancer le rôle ; acceptable :

@@ -69,7 +69,7 @@ def _engine_flags(config: dict, model_id: str, caps: dict) -> dict:
     from wama.common.utils.model_capabilities import apply_engine_flags
     engine = config.get('engine') or ((config.get('composition') or {}).get('runtime') or {}).get('engine')
     cls = backend_for_engine(engine, model_id) if engine else None
-    return apply_engine_flags(caps, cls) if cls is not None else caps
+    return apply_engine_flags(caps, cls, model_id) if cls is not None else caps
 
 
 def _ollama_family(name: str) -> str:
@@ -81,6 +81,20 @@ def _ollama_family(name: str) -> str:
     return base.rsplit('/', 1)[-1] if base.startswith('hf.co/') else base
 
 
+def transformers_class_known(class_name) -> bool:
+    """Vrai si `class_name` est exporté par le `transformers` INSTALLÉ — lecture paresseuse
+    (`dir()` d'un `_LazyModule` n'importe aucun sous-module ; `hasattr` l'aurait importé). UNE
+    lecture pour deux consommateurs (2026-11-17) : la dérivation du moteur ici, et la preuve du
+    rôle `model` (`role_utils.ENGINE_PROOFS`), qui la tenait seul."""
+    if not class_name:
+        return False
+    try:
+        import transformers
+    except Exception:
+        return False
+    return str(class_name) in dir(transformers)
+
+
 def _remote_only(config: dict) -> bool:
     """Le `config.json` ne décrit QUE du code distant : `auto_map` déclaré et aucune de ses
     `architectures` dans le transformers installé. La même preuve que celle du rôle `model`
@@ -89,23 +103,45 @@ def _remote_only(config: dict) -> bool:
     if not config.get('auto_map'):
         return False
     names = config.get('architectures') or []
-    if not names:
-        return True
-    try:
-        import transformers
-    except Exception:
-        return True
-    return not any(hasattr(transformers, name) for name in names)
+    return not any(transformers_class_known(name) for name in names)
+
+
+def _classes_not_installed(config: dict) -> bool:
+    """Le `config.json` nomme des classes dont AUCUNE n'est dans le transformers installé — sans
+    code distant (`_remote_only` couvre l'autre cas). Le transformers du venv ne l'exécute pas :
+    la signature ne prouve pas son moteur (2026-11-17, `fluid-speech-pro` : `ParakeetForTDT`, une
+    classe de transformers 5.23 en développement, absente de la 4.57 installée — dérivé
+    `transformers`, le modèle n'avait aucun moteur qui l'exécute). C'est le trou que notait
+    `PROSPECTION_PIPELINE` le 2026-10-01 : « l'installation devrait vérifier `library_name`
+    contre la librairie réellement installée »."""
+    names = config.get('architectures') or []
+    return bool(names) and not any(transformers_class_known(name) for name in names)
+
+
+def _weight_formats(snapshot: Path) -> set:
+    from wama.model_manager.services.prospector import _WEIGHT_EXTS
+    exts = {next((e for e in _WEIGHT_EXTS if p.name.lower().endswith(e)), None)
+            for p in snapshot.rglob('*') if p.is_file() or p.is_symlink()}
+    exts.discard(None)
+    return exts
 
 
 def _engine_proven_by_format(snapshot: Path):
     """Le moteur que PROUVE le format des poids du snapshot, quand ils sont TOUS d'un seul
     format de `prospector.WEIGHT_FORMAT_ENGINES` (la table des rôles) ; sinon None."""
-    from wama.model_manager.services.prospector import _WEIGHT_EXTS, WEIGHT_FORMAT_ENGINES
-    exts = {next((e for e in _WEIGHT_EXTS if p.name.lower().endswith(e)), None)
-            for p in snapshot.rglob('*') if p.is_file() or p.is_symlink()}
-    exts.discard(None)
+    from wama.model_manager.services.prospector import WEIGHT_FORMAT_ENGINES
+    exts = _weight_formats(snapshot)
     return WEIGHT_FORMAT_ENGINES.get(exts.pop()) if len(exts) == 1 else None
+
+
+def _engine_of_a_proving_format(snapshot: Path):
+    """Parmi des poids de PLUSIEURS formats, le moteur du seul format qui en prouve un
+    (`prospector.WEIGHT_FORMAT_ENGINES`) — None si aucun ou plusieurs. Ne sert que quand la
+    signature des fichiers de config ne prouve rien : un dépôt qui publie l'archive `.nemo` ET un
+    portage transformers que le venv n'exécute pas est un modèle NeMo (fluid-speech-pro)."""
+    from wama.model_manager.services.prospector import WEIGHT_FORMAT_ENGINES
+    engines = {WEIGHT_FORMAT_ENGINES[e] for e in _weight_formats(snapshot) if e in WEIGHT_FORMAT_ENGINES}
+    return engines.pop() if len(engines) == 1 else None
 
 
 def snapshot_engine_verdict(path) -> Optional[tuple]:
@@ -149,9 +185,11 @@ def snapshot_engine_verdict(path) -> Optional[tuple]:
                 # installé : la signature ne PROUVE pas le moteur (2026-10-01, YuE2-3B
                 # dérivé `transformers` alors que son moteur est le pipeline vendorisé
                 # `yue`). Le vide reste un vide — une déclaration validée le comblera ; un
-                # moteur faux, lui, aurait bloqué cette déclaration.
-                if _remote_only(data):
-                    return None, class_name, 'transformers'
+                # moteur faux, lui, aurait bloqué cette déclaration. De même des classes
+                # NOMMÉES qu'aucun transformers installé ne porte (2026-11-17) — et alors, un
+                # format de poids qui prouve un moteur le dit (`.nemo` à côté du portage).
+                if _remote_only(data) or _classes_not_installed(data):
+                    return _engine_of_a_proving_format(rev), class_name, 'transformers'
                 return 'transformers', class_name, None
         except (OSError, ValueError) as e:          # illisible : on ne conclut pas
             logger.debug(f"[engines] signature illisible pour {rev} : {e}")
@@ -185,7 +223,8 @@ def refuted_engine(path, model_key: str, engine: str, task: str = '') -> str:
     from wama.common.utils.model_keys import backend_model_id
     if backend_for_engine(engine, backend_model_id(model_key or ''), task=task) is not None:
         return ''
-    return (f"le snapshot ne porte que du code distant ({verdict[1] or 'classe non nommée'}) et "
+    return (f"le transformers installé n'exécute pas la signature du snapshot "
+            f"({verdict[1] or 'classe non nommée'} : code distant, ou classes absentes) et "
             f"aucun backend du moteur {engine!r} ne sert ce modèle")
 
 
@@ -826,10 +865,14 @@ class ModelRegistry:
                 reason = refuted_engine(chemin, cle, deja_declares[cle],
                                         (getattr(info, 'capabilities', None) or {}).get('task') or '')
                 if reason:                     # … sauf ce que la mesure contredit
+                    # Retiré, et remplacé par ce que le disque PROUVE quand il prouve quelque
+                    # chose (2026-11-17 : le `.nemo` de fluid-speech-pro) — sinon le vide.
+                    proven = (snapshot_engine_verdict(chemin) or (None,))[0]
                     composition = dict(getattr(info, 'composition', None) or {})
-                    composition['runtime'] = {**(composition.get('runtime') or {}), 'engine': None}
+                    composition['runtime'] = {**(composition.get('runtime') or {}), 'engine': proven}
                     info.composition = composition
-                    logger.info(f"[engines] {cle} : moteur « {deja_declares[cle]} » RETIRÉ — {reason}")
+                    logger.info(f"[engines] {cle} : moteur « {deja_declares[cle]} » RETIRÉ — {reason}"
+                                + (f" ; « {proven} » prouvé par le disque" if proven else ''))
                 continue
             verdict = snapshot_engine_verdict(chemin)
             moteur, classe = (verdict or (None, '', None))[:2]

@@ -656,7 +656,7 @@ class ModelSyncService:
         if cls is None:
             return False
         avant = dict(obj.capabilities or {})
-        apres = apply_engine_flags(avant, cls)
+        apres = apply_engine_flags(avant, cls, obj.model_key)
         if apres == avant:
             return False
         obj.capabilities = apres

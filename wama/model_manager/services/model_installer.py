@@ -40,9 +40,10 @@ def pull_ollama_model(name: str, timeout: int = 1800, progress=None):
     from wama.common.utils.ollama_host import ollama_base, ollama_kwargs
 
     base = ollama_base()
-    last = None
-    verifying = False
-    try:
+
+    def pull():
+        last = None
+        verifying = False
         with requests.post(f"{base}/api/pull", json={"name": name, "stream": True},
                            stream=True, **ollama_kwargs(timeout=timeout)) as r:
             r.raise_for_status()
@@ -71,6 +72,10 @@ def pull_ollama_model(name: str, timeout: int = 1800, progress=None):
                         progress.say(status)
         return {'ok': True, 'status': last or 'success',
                 **({'verified': {'against': 'published', 'by': 'ollama'}} if verifying else {})}
+
+    try:
+        # Une coupure du flux se reprend (`network_retry`) : le démon reprend la couche entamée.
+        return retrying(pull, name, progress)
     except Exception as e:
         return {'ok': False, 'error': f"{type(e).__name__}: {e}"}
 
@@ -139,6 +144,20 @@ def _is_access_refusal(exc) -> bool:
     return status in (401, 403)
 
 
+def retrying(call, label: str, meter=None):
+    """`call()` repris après une panne PASSAGÈRE de la source (`network_retry.with_retries` : deux
+    reprises, 10 s puis 30 s, ou l'attente que la source demande) — la règle commune, pour CHAQUE
+    pilote de la route. La mesure de l'installation dit l'attente : l'utilisateur voit « source
+    injoignable — nouvelle tentative 2/3 dans 10 s », pas un voile immobile."""
+    from wama.common.utils.network_retry import with_retries
+
+    def told(attempt, total, wait, reason):
+        if meter is not None:
+            meter.say(f"{label} : source injoignable ({reason}) — nouvelle tentative "
+                      f"{attempt}/{total} dans {wait:g} s…")
+    return with_retries(call, label, on_retry=told)
+
+
 def pull_hf_model(repo_id: str, category: str, family: str | None = None,
                   dry_run: bool = False, allow_patterns=None, meter=None, token=None):
     """
@@ -174,9 +193,12 @@ def pull_hf_model(repo_id: str, category: str, family: str | None = None,
         # la convention que relit la découverte, `model_registry._snapshot_to_model`).
         blobs = Path(target) / f"models--{repo_id.replace('/', '--')}" / 'blobs'
         with (meter.measuring(blobs) if meter is not None else nullcontext()):
-            path = snapshot_download(repo_id=repo_id, cache_dir=target,
-                                     allow_patterns=allow_patterns,
-                                     ignore_patterns=ignore or None, token=token)
+            # Reprise d'une panne PASSAGÈRE du Hub (`network_retry`, 2026-11-17) : la librairie
+            # reprend un `.incomplete` et saute un fichier complet, une tentative ne refait rien.
+            path = retrying(lambda: snapshot_download(repo_id=repo_id, cache_dir=target,
+                                                      allow_patterns=allow_patterns,
+                                                      ignore_patterns=ignore or None, token=token),
+                            repo_id, meter)
     except Exception as e:
         if _is_access_refusal(e):
             return {'ok': False, 'error': GATED_REFUSAL, 'reason': 'gated'}
@@ -1699,17 +1721,30 @@ def download_asset(url: str, target: str, *, timeout: int = 600, min_bytes: int 
     import requests
 
     tmp = target + '.part'
+
+    def fetch():
+        # Une tentative repart de ZÉRO (`.part` réécrit) : ce qu'elle avait compté à la mesure est
+        # rendu avant la reprise, sinon la barre compterait deux fois les mêmes octets.
+        digest, counted = hashlib.sha256(), 0
+        try:
+            with requests.get(url, stream=True, timeout=timeout, allow_redirects=True,
+                              proxies=proxies, headers=headers) as r:
+                r.raise_for_status()
+                with open(tmp, 'wb') as fh:
+                    for chunk in r.iter_content(chunk_size=1 << 20):
+                        fh.write(chunk)
+                        digest.update(chunk)
+                        if meter is not None:
+                            meter.add(len(chunk))
+                            counted += len(chunk)
+        except Exception:
+            if meter is not None and counted:
+                meter.add(-counted)
+            raise
+        return digest
+
     try:
-        digest = hashlib.sha256()
-        with requests.get(url, stream=True, timeout=timeout, allow_redirects=True,
-                          proxies=proxies, headers=headers) as r:
-            r.raise_for_status()
-            with open(tmp, 'wb') as fh:
-                for chunk in r.iter_content(chunk_size=1 << 20):
-                    fh.write(chunk)
-                    digest.update(chunk)
-                    if meter is not None:
-                        meter.add(len(chunk))
+        digest = retrying(fetch, url.rsplit('/', 1)[-1] or url, meter)
         received = os.path.getsize(tmp)
         if received < min_bytes:
             os.remove(tmp)
@@ -2223,7 +2258,8 @@ def install_candidate(cand, meter=None, token=None, owner=None) -> dict:
         installed_name = cand.name
         cand.delete()
         return {'ok': True, 'installed': installed_name, 'path': res.get('path'),
-                **({'superseded': superseded} if superseded else {})}
+                **({'superseded': superseded} if superseded else {}),
+                **({'integration': res['integration']} if res.get('integration') else {})}
 
     rollback = None
     remplace, _ = replaced_model(cand)
@@ -2299,7 +2335,8 @@ def install_candidate(cand, meter=None, token=None, owner=None) -> dict:
     installed_name = pull_name
     cand.delete()
     return {'ok': True, 'installed': installed_name,
-            **({'superseded': superseded} if superseded else {})}
+            **({'superseded': superseded} if superseded else {}),
+            **({'integration': recorded['integration']} if recorded.get('integration') else {})}
 
 
 def weights_dir_of(model, index: dict | None = None) -> Path | None:
@@ -2911,7 +2948,33 @@ def record_provenance(spec: dict, res: dict, owner=None) -> dict:
         logger.warning("provenance non enregistrée après installation : %s", e, exc_info=True)
         res['provenance'] = {'erreur': f"{type(e).__name__}: {e}"}
     queue_benchmarks(res, getattr(sync, 'added_keys', None) or [])
+    from .succession import installed_keys
+    steps = integration_steps(installed_keys(res) or getattr(sync, 'added_keys', None) or [])
+    if steps:
+        res['integration'] = steps
     return res
+
+
+def integration_steps(keys) -> list:
+    """Ce qui reste à faire pour que chaque modèle installé SERVE, dit à qui l'a installé
+    (2026-11-17) — l'étape que rend `tool_api.plan_model_integration`, la seule qui la dise.
+
+    Vécu : `fluid-speech-pro` s'est installé « terminé », sans moteur qui l'exécute ; rien ne le
+    disait, ni la notification ni la page — on l'apprenait en le cherchant dans le transcriber.
+    L'étape suivante n'était dite qu'après un « Valider » (`views._integration_next_step`). Un
+    modèle qui sert déjà ne rend rien. Best-effort : une lecture manquée ne fait jamais échouer
+    une installation réussie."""
+    out = []
+    try:
+        from wama.tool_api import plan_model_integration
+        for key in dict.fromkeys(k for k in keys or () if k):
+            plan = plan_model_integration(None, key)
+            if plan.get('human_gesture'):
+                out.append({'model': plan.get('model') or key, 'next_step': plan.get('next_step'),
+                            'human_gesture': plan['human_gesture']})
+    except Exception:
+        logger.warning("étape d'intégration illisible après installation", exc_info=True)
+    return out
 
 
 def queue_benchmarks(res: dict, appeared_keys) -> None:

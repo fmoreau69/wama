@@ -137,6 +137,14 @@ class SpeechToTextBackend(BaseModelBackend):
     # est purement TTS. Les moteurs concrets (whisper/qwen/vibevoice) continuent de les déclarer :
     # c'est leur rôle. Ne pas les re-poser ici — ce serait rouvrir la divergence.
 
+    #: Le moteur rend, sur demande (`clean_mode`), un texte ÉDITÉ plutôt que verbatim — sans
+    #: répétitions ni mots de remplissage. Une notion de TRANSCRIPTION (2026-11-17), donc déclarée
+    #: ici, FAUSSE pour tous : c'est ce qui grise le réglage du transcriber pour un modèle qui ne
+    #: l'a pas (`cap_from`). Un moteur partagé la dit par MODÈLE (`SUPPORTED_MODELS[…]
+    #: ['capabilities']`, lu par `model_capabilities.apply_engine_flags`) : Fluid Speech l'a,
+    #: Parakeet, servi par le même moteur, non.
+    supports_clean_mode: bool = False
+
     # Resource requirements
     min_vram_gb: float = 0
     # `recommended_vram_gb` est HÉRITÉ du contrat commun : c'est la valeur de repli que le

@@ -524,8 +524,31 @@ def _engine_voice(caps: Dict[str, Any], cls) -> Dict[str, Any]:
 #: (`ocr_process.positioned_ocr_keys`) : il entrera ici avec son portage.
 ENGINE_STEP_FLAGS = ("supports_score_planning",)
 
+#: Ce qu'un moteur DÉCLARE et qu'UN de ses modèles peut dire autrement (2026-11-17) : la valeur de
+#: la classe vaut pour tous ses modèles, `SUPPORTED_MODELS[<id>]['capabilities']` la précise pour
+#: l'un d'eux — un moteur PARTAGÉ (NeMo sert Parakeet, sans texte édité, et Fluid Speech, avec).
+MODEL_FLAGS = ("supports_clean_mode",)
 
-def apply_engine_flags(caps: Dict[str, Any], cls) -> Dict[str, Any]:
+
+def declared_model_capabilities(cls, model_key: str = "") -> Dict[str, Any]:
+    """Les capacités qu'un moteur déclare pour UN de ses modèles (`SUPPORTED_MODELS[…]
+    ['capabilities']`), désigné par sa clé de catalogue — `{}` sinon. L'entrée se reconnaît comme
+    la résolution la reconnaît : la clé entière (`model_key` de l'entrée) ou son dernier segment
+    (`model_keys.backend_model_id`, la règle de `backend_for_model`)."""
+    supported = getattr(cls, "SUPPORTED_MODELS", None)
+    if not model_key or not isinstance(supported, dict):
+        return {}
+    from wama.common.utils.model_keys import backend_model_id
+    short = backend_model_id(model_key)
+    for key, spec in supported.items():
+        if not isinstance(spec, dict):
+            continue
+        if model_key in (spec.get("model_key"), key) or key == short:
+            return dict(spec.get("capabilities") or {})
+    return {}
+
+
+def apply_engine_flags(caps: Dict[str, Any], cls, model_key: str = "") -> Dict[str, Any]:
     """Réaligne `caps` sur ce que la classe de moteur DÉCLARE — rend un NOUVEAU dict.
 
     Règle, dans le vocabulaire du dépôt (`merged_capabilities`, ex-`_capabilities_projectable`, 2026-08-31) : *« c'est la
@@ -538,13 +561,19 @@ def apply_engine_flags(caps: Dict[str, Any], cls) -> Dict[str, Any]:
     d'autre que « ce moteur accepte une voix à imiter » (INPUT_MODEL_MATCHING.md). Et la
     TEMPÉRATURE depuis le 2026-10-21 (`_engine_temperature`) : le moteur dit s'il la lit ; la
     graine et le top_p depuis le 2026-10-22 (`_engine_seed_top_p`). Les ÉTAPES qu'un process
-    exige du moteur depuis le 2026-11-06 (`ENGINE_STEP_FLAGS`).
+    exige du moteur depuis le 2026-11-06 (`ENGINE_STEP_FLAGS`). Et ce qu'il dit de UN de ses
+    modèles depuis le 2026-11-17 (`MODEL_FLAGS`, `model_key` : la clé de la ligne réalignée).
     Les autres flags (`supports_timestamps`…) restent posés « seulement s'ils sont vrais » par la
     découverte — sémantique différente, hors de cette règle.
     """
     caps = _engine_voice(_engine_seed_top_p(_engine_temperature(dict(caps or {}), cls), cls), cls)
     for flag in ENGINE_STEP_FLAGS:
         declared = declared_engine_flag(cls, flag)
+        if declared is not None:
+            caps[flag] = declared
+    for_model = declared_model_capabilities(cls, model_key)
+    for flag in MODEL_FLAGS:
+        declared = bool(for_model[flag]) if flag in for_model else declared_engine_flag(cls, flag)
         if declared is not None:
             caps[flag] = declared
     declare = declared_engine_flag(cls, "supports_cloning")

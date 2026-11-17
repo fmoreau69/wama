@@ -1743,22 +1743,18 @@ def _hub_call(call, label: str):
     demande (`Retry-After`, plafonnée) ; lève `HubRateLimited` si le refus persiste. ⚠ `call`
     doit rendre une valeur MATÉRIALISÉE : `list_models` rend un générateur dont la requête part
     à l'itération, donc HORS de cette garde (vécu le 2026-11-05 — le 429 de la recherche des
-    variantes quantisées a arrêté une passe d'évaluation entière)."""
-    import time
-    for attempt in (1, 2):
-        try:
-            return call()
-        except Exception as exc:
-            response = getattr(exc, 'response', None)
-            if getattr(response, 'status_code', None) != 429:
-                raise
-            if attempt == 2:
-                raise HubRateLimited(label) from exc
-            try:
-                wait = float((response.headers or {}).get('Retry-After') or 10)
-            except (TypeError, ValueError, AttributeError):
-                wait = 10.0
-            time.sleep(min(max(wait, 1.0), HUB_RETRY_MAX_WAIT_S))
+    variantes quantisées a arrêté une passe d'évaluation entière).
+
+    La reprise est la règle COMMUNE (`network_retry.with_retries`, 2026-11-17) : une panne
+    passagère du Hub (connexion, 5xx) se reprend comme un 429 — une fois, la passe garde son
+    rythme ; la vérification d'empreinte d'une installation passe par ici (`hub_files`)."""
+    from wama.common.utils.network_retry import status_of, with_retries
+    try:
+        return with_retries(call, label, waits=(10,), max_wait_s=HUB_RETRY_MAX_WAIT_S)
+    except Exception as exc:
+        if status_of(exc) == 429:
+            raise HubRateLimited(label) from exc
+        raise
 
 
 def _board_label(entry: dict) -> str:
@@ -2392,14 +2388,19 @@ def github_release(ref: str):
     token = api_key('github_api').strip()
     if token:
         headers['Authorization'] = f'Bearer {token}'
-    try:
-        path = 'releases/latest' if tag == 'latest' else f'releases/tags/{tag}'
+    from wama.common.utils.network_retry import with_retries
+    path = 'releases/latest' if tag == 'latest' else f'releases/tags/{tag}'
+
+    def read():
         r = requests.get(f"{base_url('github_api')}/repos/{repo}/{path}",
                          headers=headers, proxies=proxies_for('github_api'), timeout=30)
         if r.status_code == 404:
             return {}
         r.raise_for_status()
         return r.json()
+    try:
+        # Une panne passagère de l'API (`network_retry`) se reprend, une fois, avant de dire « illisible ».
+        return with_retries(read, f'version {ref}', waits=(10,))
     except Exception as e:
         logger.warning("[github] version %s illisible : %s", ref, e)
         return None
