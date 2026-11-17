@@ -357,6 +357,27 @@
         _styleInjected = true;
     }
 
+    // Une card rangée dans un lot REPLIÉ n'a pas de boîte : on ne la centre ni ne la voit. Le lot
+    // s'ouvre d'abord (2026-11-17, relevé par Fabien : une card devenue lot par ses pistes séparées
+    // revenait, après le rechargement, en lot FERMÉ — sans son contenu ; mesuré au navigateur sur un
+    // lot témoin). Par Bootstrap quand il est là : l'ouverture passe par `show.bs.collapse`, donc la
+    // mémoire de l'état (`initBatchCollapse`) et « une pile ouverte à la fois » la suivent ; la mise
+    // au point attend que le lot soit ouvert (`shown`).
+    function revealInLot(el, then) {
+        var fold = el.closest ? el.closest('.collapse[data-wama-batch-key]') : null;
+        if (!fold || fold.classList.contains('show')) { then(); return; }
+        if (window.bootstrap && bootstrap.Collapse && fold.addEventListener) {
+            fold.addEventListener('shown.bs.collapse', function opened() {
+                fold.removeEventListener('shown.bs.collapse', opened);
+                then();
+            });
+            bootstrap.Collapse.getOrCreateInstance(fold, { toggle: false }).show();
+            return;
+        }
+        fold.classList.add('show');
+        then();
+    }
+
     function focusCard(idOrEl, opts) {
         opts = opts || {};
         injectStyle();
@@ -364,6 +385,11 @@
             ? (document.getElementById(idOrEl) || document.querySelector(idOrEl))
             : idOrEl;
         if (!el) return null;
+        revealInLot(el, function () { bringIntoView(el, opts); });
+        return el;
+    }
+
+    function bringIntoView(el, opts) {
         if (opts.scroll !== false) {
             var block = (typeof opts.scroll === 'string') ? opts.scroll : 'center';
             try { el.scrollIntoView({ block: block, behavior: opts.smooth === false ? 'auto' : 'smooth' }); }
@@ -380,7 +406,6 @@
             // Best-effort : sans effet si l'app ne gère pas la sélection.
             try { el.click(); } catch (e) {}
         }
-        return el;
     }
 
     // Reprise après rechargement : une app peut poser sessionStorage['wama_focus_card'] = id avant

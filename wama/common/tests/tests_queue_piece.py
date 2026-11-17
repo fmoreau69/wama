@@ -255,3 +255,42 @@ class EmptyStateToggleTest(SimpleTestCase):
         self.assertTrue(ctx.eval('empty.hidden'), 'a card arrived : the message must go')
         ctx.eval('queue.hasCard = false; observed[0]();')
         self.assertFalse(ctx.eval('empty.hidden'), 'the last card left : the message must come back')
+
+
+class FocusOpensTheLotOfTheCardTest(SimpleTestCase):
+    """`WamaQueue.focusCard` on a card kept in a FOLDED lot opens the lot first, then centres the
+    card (2026-11-17, relevé par Fabien : a card that became a lot through its separated stems came
+    back after the reload as a CLOSED lot, its content out of sight — measured in the browser on a
+    witness lot). Opened through Bootstrap, so the remembered state and the one-open-pile rule see
+    it; the card is centred once the lot is open. Same served file, same fake page."""
+
+    LOT = r'''
+    var scrolled = [], shows = 0, listeners = {};
+    var fold = { classList: { set: {}, contains: function (c) { return !!this.set[c]; },
+                              add: function (c) { this.set[c] = true; } },
+        addEventListener: function (n, f) { listeners[n] = f; },
+        removeEventListener: function (n) { delete listeners[n]; } };
+    var bootstrap = { Collapse: { getOrCreateInstance: function (el) { return { show: function () {
+        shows++; el.classList.add('show'); if (listeners['shown.bs.collapse']) listeners['shown.bs.collapse'](); } }; } } };
+    function card(inLot) { return { classList: { add: function () {}, remove: function () {} },
+        get offsetWidth() { return 0; }, click: function () {},
+        closest: function (sel) { return inLot && sel === '.collapse[data-wama-batch-key]' ? fold : null; },
+        scrollIntoView: function () { scrolled.push(fold.classList.contains('show')); } }; }
+    function setTimeout() {}
+    '''
+
+    SERVED = ROOT / 'staticfiles' / 'common' / 'js' / 'wama-queue.js'
+    FAKE_PAGE = EmptyStateToggleTest.FAKE_PAGE
+    _run = EmptyStateToggleTest._run
+
+    def test_a_card_in_a_folded_lot_is_shown_with_its_lot(self):
+        served = self.SERVED.read_text(encoding='utf-8')
+        ctx = self._run(self.LOT + served)
+        ctx.eval('WamaQueue.focusCard(card(true), {scroll: "center"})')
+        self.assertEqual(1, ctx.eval('shows'), 'the folded lot must open')
+        self.assertEqual('[true]', ctx.eval('JSON.stringify(scrolled)'),
+                         'the card is centred once its lot is open')
+        ctx.eval('WamaQueue.focusCard(card(true), {scroll: "center"})')
+        self.assertEqual(1, ctx.eval('shows'), 'an open lot is not opened again')
+        ctx.eval('WamaQueue.focusCard(card(false), {scroll: "center"})')
+        self.assertEqual(3, ctx.eval('scrolled.length'), 'a card outside any lot is centred at once')
