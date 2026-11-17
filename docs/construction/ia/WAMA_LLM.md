@@ -2989,18 +2989,37 @@ Fabien. Mesuré d'abord :
      suivre) sont mesurés à côté (`tool_api.triad_coverage`, lue aussi par le test). Une app à
      « 0 / 1 » se lisait comme une app sans outil.
 
-   ⏳ **Non étendu, à décider** : `filemanager:api_import`. L'envoi vers une app a DEUX chemins de
-   naissance — les importeurs du gestionnaire (`filemanager.views.IMPORTERS` : porte
-   `accepts_file`, provenance, regroupement à l'arrivée en lot) et les créateurs de l'assistant
-   (`add_to_<app>`). Donner le dossier entier aux créateurs en ferait un troisième ; un outil
-   « envoyer vers » qui appelle la vue de l'import suivrait la route, à côté des créateurs.
+   ~~⏳ Non étendu, à décider : `filemanager:api_import`. L'envoi vers une app a DEUX chemins de
+   naissance […]~~ — **constat FAUX, corrigé le 2026-11-17 (relevé par Fabien : « il n'y a qu'un
+   importer commun […] seule la façon de l'utiliser diffère »)**. Chaque app a UNE fonction de
+   naissance, appelée par le dépôt de sa card, par son importeur et par son outil de création
+   (`WAMA_APP_CONVENTIONS §8.3`, commit `18925bb0b` : `new_media_settings`,
+   `new_transcript_settings`, `services.create_synthesis`…) ; l'import du gestionnaire n'en est
+   qu'une ENTRÉE, qui ajoute ses gardes, la provenance, le domaine et le regroupement à l'arrivée
+   (`filemanager/views.py:1326-1412`). Rien à décider. Ce qui restait vrai : **l'assistant, app
+   sans page, n'était pas une destination d'« Envoyer vers »** (aucun importeur) — fermé le jour
+   même : `register_pageless_tool(receives_designations=True)`, destination dérivée par
+   `send_to.designation_receivers` (déclaration + accès + `check_designation`), livrée par la page
+   à la cible déclarée `data-fm-designate="assistant"` par l'événement du glisser ; le volet se
+   dévoile (`WamaAvatarPanel.reveal`). Le tour web reçoit les chemins par la même règle
+   (`views._turn_message` → `send_to.designable` : la sortie d'une card REÇUE en partage était
+   jetée par la garde de l'arbre seule). Gardes : `tests_send_to.DesignationReceiversTest`,
+   `DesignationDeliveryUnderV8Test`, `AssistantSectionRevealsWhatItReceivesUnderV8Test`,
+   `tests_assistant_deposit_settings.WebTurnTakesDepositedFilesTest`.
+   ⚠ Écart mesuré le même jour, non soldé : les créateurs des 11 apps réelles prennent UN fichier
+   par appel (`tool_api.add_to_anonymizer` : `file_path: str`) et rien ne range en lot des
+   fichiers ajoutés ensemble par l'assistant, quand le créateur d'une app née d'un manifeste prend
+   une LISTE par port et poste la vue de dépôt de la card (`tool_api._born_creator`), et que le
+   Studio regroupe après coup (`studio/tasks._consolidate_lot_cards`).
 
-   ⏳ **Les routes d'app ne sont pas toutes des gestes** : `avatarizer:api_avatar_gallery` et
-   `common:api_voices` sont des SOURCES D'OPTIONS d'un réglage (`OPTION_SOURCES` de
-   `wama-params.js`, comme `catalog` que fait `list_model_choices`) — un outil « les choix d'un
-   réglage » les ferait toutes ; `converter:api_presets` sert la conversion rapide du
-   gestionnaire avec la table des préréglages, que le curseur commun (`quality_intent`) a
-   remplacée dans le schéma (`quality_preset` n'y est plus qu'une trace, `converter/params.py:80-84`).
+   ~~⏳ Les routes d'app ne sont pas toutes des gestes […] un outil « les choix d'un réglage » les
+   ferait toutes~~ — **sans objet, mesuré le 2026-11-17** : `list_media_assets` rend les voix et
+   les avatars du système depuis le 16/11 (la vue de la médiathèque, `tool_api.py:1285`),
+   `synthesize_text` dit la forme d'une voix (`'sa_<id>'`, `'ua_<id>'`, `tool_api.py:680`),
+   `add_to_avatarizer` prend `avatar_gallery_name`, `list_model_choices` le catalogue. Reste un
+   portage, pas une décision : la conversion rapide du gestionnaire lit encore la table des
+   préréglages (`converter:api_presets`, `filemanager.js:357-378`), que le curseur commun
+   (`quality_intent`) a remplacée dans le schéma (`converter/params.py:80-84`).
 
 8. **L'AUTO-DIAGNOSTIC : la trace des outils devient une mesure** (même jour, demande de Fabien :
    « améliorer l'auto-diagnostic de WAMA […] qu'il sache débuguer lui-même sous la supervision de

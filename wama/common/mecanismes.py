@@ -1036,7 +1036,11 @@ MECHANISMS = (
               "extension déclarée, accès) et jamais listées : c'est la leçon du Geste 14, où le "
               "menu offrait trois apps que le serveur refusait. Une app qui ne prendrait qu'une "
               "PARTIE des fichiers n'est pas offerte — un envoi partiel silencieux ferait croire "
-              "le résultat entier transmis. Porte aussi l'INVERSE (2026-09-18) : "
+              "le résultat entier transmis. Une app SANS PAGE qui déclare recevoir des fichiers "
+              "DÉSIGNÉS (`register_pageless_tool(receives_designations=True)` — l'assistant, "
+              "2026-11-17) est offerte par déclaration, accès et règle de la désignation "
+              "(`check_designation`) : la page lui livre les chemins par l'événement du glisser "
+              "(`filemanager:designate`), rien n'est importé. Porte aussi l'INVERSE (2026-09-18) : "
               "`item_for_output_path` — de quel élément un chemin de `media/` est la SORTIE "
               "(candidats par requête, CONFIRMATION par l'adapter), route "
               "`api/element-pour-chemin/` — ce qui donne à l'arbre les gestes d'élément",

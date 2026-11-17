@@ -24,6 +24,7 @@
  *   WamaAvatarPanel.setEnabled(bool)   → affiche/masque ET mémorise (Promise)
  *   WamaAvatarPanel.toggleCollapsed()  → replie/déplie ET mémorise (Promise)
  *   WamaAvatarPanel.refresh()          → ré-applique l'état (après un changement de mode d'UI)
+ *   WamaAvatarPanel.reveal()           → rend la section visible (volet, section, accordéon)
  */
 (function (global) {
   'use strict';
@@ -124,6 +125,10 @@
                                             lang: config.lang, settingsUrl: config.settingsUrl });
     }
     collapseBtn.addEventListener('click', function () { api.toggleCollapsed(); });
+    // Un fichier CONFIÉ au mini-chat de la section (« Envoyer vers » l'assistant, 2026-11-17) doit
+    // se voir : la section se dévoile. EN CAPTURE — l'événement du glisser ne remonte pas
+    // (`bubbles: false`), et le chat n'a pas à connaître le volet qui le porte.
+    section.addEventListener('filemanager:designate', function () { api.reveal(); }, true);
     render();
     return true;
   }
@@ -145,6 +150,18 @@
       return persist({ avatar_collapsed: state.collapsed });
     },
     refresh: function () { if (mount()) render(); },
+    // Rendre la section VISIBLE : le volet droit rouvert (`WamaPanels`), la section affichée,
+    // l'accordéon déplié — chacun par le geste qu'il remplace, donc mémorisé comme lui.
+    reveal: function () {
+      if (!mount()) return Promise.resolve();
+      if (global.WamaPanels && global.WamaPanels.isCollapsed('right')) {
+        global.WamaPanels.setCollapsed('right', false);
+      }
+      var done = [];
+      if (!state.enabled) done.push(api.setEnabled(true));
+      if (state.collapsed) done.push(api.toggleCollapsed());
+      return Promise.all(done);
+    },
   };
 
   // Le conteneur (dans l'<aside> de base.html) précède les scripts : montage immédiat, avec

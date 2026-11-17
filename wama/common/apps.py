@@ -158,10 +158,13 @@ class CommonConfig(AppConfig):
             # connecteurs, conversation vocale) — outil sans page, gardé sur ses routes web
             # (`permissions.PATH_APP_MAP`) ET dans `conversation_turn`, le tour commun à toutes
             # ses surfaces (2026-10-13).
+            # Il reçoit des fichiers DÉSIGNÉS (son chat, cible de l'arbre) : « Envoyer vers »
+            # l'offre comme destination (2026-11-17).
             register_pageless_tool('assistant', world='transverse', label='Assistant',
                                    icon='fa-robot', probe='/api/ai-chat/thread/',
                                    description="La conversation avec WAMA : web, API, connecteurs, "
-                                               "conversation vocale.")
+                                               "conversation vocale.",
+                                   receives_designations=True)
         except Exception:
             import logging
             logging.getLogger(__name__).warning(

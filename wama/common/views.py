@@ -3242,7 +3242,7 @@ def api_envoyer_vers_chemins(request):
         if not is_path_allowed(dossier, request.user):
             return JsonResponse({'error': 'Access denied'}, status=403)
         return JsonResponse({'ok': True, 'folder': dossier, 'chemins': [],
-                             'destinations': destinations_dossier(request.user),
+                             'destinations': destinations_dossier(request.user, dossier),
                              'endpoint': endpoint})
 
     chemins = [c for c in (data.get('paths') or []) if isinstance(c, str) and c] \

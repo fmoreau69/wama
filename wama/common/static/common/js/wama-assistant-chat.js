@@ -201,7 +201,9 @@
         self.deposit(files);
       });
     }
-    root.setAttribute('data-fm-designate', '');
+    // La valeur NOMME l'app qui reçoit (2026-11-17) : « Envoyer vers » livre ici ce qu'on confie
+    // à l'assistant (`WamaSendTo.deliver`, app déclarée `receives_designations`).
+    root.setAttribute('data-fm-designate', 'assistant');
     root.addEventListener('filemanager:designate', function (e) {
       self.designate((e.detail && e.detail.files) || []);
     });

@@ -46,20 +46,39 @@ class WebTurnTakesDepositedFilesTest(TestCase):
         self.user = User.objects.create_user('deposit_web', password='x')
         self.client.force_login(self.user)
 
-    def test_only_readable_files_enter_the_message(self):
+    def _file(self, rel):
+        """Un vrai fichier sous le `MEDIA_ROOT` de TEST (le lanceur WAMA le redirige), effacé par
+        le chemin créé ici."""
+        path = Path(settings.MEDIA_ROOT) / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b'x')
+        self.addCleanup(path.unlink, missing_ok=True)
+        return rel
+
+    def test_only_designable_files_enter_the_message(self):
+        """LA règle de la désignation (`send_to.designable`), celle par laquelle « Envoyer vers »
+        offre l'assistant : son fichier oui, celui d'un autre compte non."""
         from wama import views
-        mine = f'users/{self.user.pk}/temp/a.png'
-        with mock.patch('wama.filemanager.services.resoudre_chemin_lisible',
-                        side_effect=lambda u, p: ('/x', None) if p == mine else (None, ('no', 403))):
-            message = views._turn_message(self.user, {'message': '', 'files': [mine, 'users/999/b.png']})
+        mine = self._file(f'users/{self.user.pk}/temp/a.png')
+        other = self._file('users/999999/temp/b.png')
+        message = views._turn_message(self.user, {'message': '', 'files': [mine, other]})
         self.assertIn(f'`{mine}`', message)
-        self.assertNotIn('users/999', message, "un chemin posté n'est pas un chemin à soi")
+        self.assertNotIn('users/999999', message, "un chemin posté n'est pas un chemin à soi")
         self.assertTrue(message.endswith('Que puis-je en faire ?'))
+
+    def test_a_file_readable_by_designation_outside_ones_tree_enters(self):
+        """La sortie d'une card REÇUE en partage (`readable_by`) : la garde de l'arbre seule la
+        jetait sans un mot, alors que le menu peut la confier à l'assistant (2026-11-17)."""
+        from wama import views
+        shared = self._file('users/999999/converter/output/shared.png')
+        with mock.patch('wama.common.utils.media_paths.readable_by',
+                        side_effect=lambda rel, user: rel == shared):
+            message = views._turn_message(self.user, {'message': 'Décris-la', 'files': [shared]})
+        self.assertIn(f'`{shared}`', message)
 
     def test_a_turn_with_only_files_is_accepted(self):
         """Contre-épreuve de « Message is required » : un dépôt seul est un message."""
-        with mock.patch('wama.filemanager.services.resoudre_chemin_lisible',
-                        return_value=('/x', None)), \
+        with mock.patch('wama.common.services.send_to.designable', return_value=True), \
                 mock.patch('wama.common.services.resource_governor.release_in_progress',
                            return_value=False), \
                 mock.patch('wama.common.services.assistant_engine.conversation_turn',

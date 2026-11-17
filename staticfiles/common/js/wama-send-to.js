@@ -139,11 +139,49 @@
         });
     }
 
+    // ── Les apps qui reçoivent par DÉSIGNATION (2026-11-17) ─────────────────────────────────
+    // Une app SANS PAGE peut déclarer qu'elle reçoit des fichiers désignés
+    // (`register_pageless_tool(receives_designations=True)` — l'assistant, devenu une app) : le
+    // serveur l'offre avec `designate: true`, et la page lui LIVRE les chemins sans rien importer,
+    // par l'événement du glisser depuis l'arbre (`filemanager:designate`) sur la cible qu'elle
+    // déclare (`data-fm-designate="<app>"`). Aucune app n'est nommée ici.
+
+    function designationTarget(app) {
+        return document.querySelector('[data-fm-designate="' + app + '"]');
+    }
+
+    function designer(app, paths, libelle) {
+        var target = designationTarget(app);
+        if (!target) { dire(libelle + ' n’est pas sur cette page', 'warning'); return null; }
+        target.dispatchEvent(new CustomEvent('filemanager:designate', {
+            detail: { files: paths.map(function (p) {
+                return { path: p, name: String(p).split('/').pop() };
+            }) },
+        }));
+        dire(paths.length + ' élément(s) confié(s) à ' + libelle, 'success');
+        return { designated: paths };
+    }
+
+    /** UNE livraison pour toute entrée de menu : importer chez l'app, ou lui désigner. */
+    function deliver(endpoint, charge, dest) {
+        if (dest.designate) {
+            return designer(dest.app, Array.isArray(charge) ? charge : [charge.folder], dest.libelle);
+        }
+        return envoyer(endpoint, charge, dest.app, dest.libelle);
+    }
+
+    /** Ce que CETTE page sait livrer : une app qui reçoit par désignation n'est offerte que si sa
+     *  cible y est (ce qu'on n'offre pas ne peut pas décevoir). */
+    function deliverable(dests) {
+        return (dests || []).filter(function (d) { return !d.designate || !!designationTarget(d.app); });
+    }
+
     /**
      * Rend les `formats` d'une card ou d'un lot LATE-BINDING (`renderUrl`, `api_send_rendered`),
-     * puis envoie les fichiers rendus par l'import de toujours (2026-11-03).
+     * puis livre les fichiers rendus à `dest` — par l'import de toujours, ou par désignation
+     * (2026-11-03).
      */
-    function renderAndSend(renderUrl, formats, app, label) {
+    function renderAndSend(renderUrl, formats, dest) {
         return fetch(renderUrl, {
             method: 'POST', credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
@@ -151,7 +189,7 @@
         }).then(function (r) {
             return r.json().catch(function () { return {}; }).then(function (d) {
                 if (!r.ok || !d.chemins) throw new Error((d && d.error) || ('HTTP ' + r.status));
-                return envoyer(d.endpoint, d.chemins, app, label);
+                return deliver(d.endpoint, d.chemins, dest);
             });
         }).catch(function (err) {
             dire('Envoi impossible — ' + err.message, 'error');
@@ -168,7 +206,7 @@
     function formatEntries(d, renderUrl) {
         var byApp = {}, order = [];
         (d.formats || []).forEach(function (f) {
-            (f.destinations || []).forEach(function (dest) {
+            deliverable(f.destinations).forEach(function (dest) {
                 if (!byApp[dest.app]) { byApp[dest.app] = { dest: dest, formats: [] }; order.push(dest.app); }
                 byApp[dest.app].formats.push(f);
             });
@@ -176,7 +214,7 @@
         return order.map(function (app) {
             var dest = byApp[app].dest, formats = byApp[app].formats;
             var send = function (values) {
-                return function () { renderAndSend(renderUrl, values, dest.app, dest.libelle); };
+                return function () { renderAndSend(renderUrl, values, dest); };
             };
             var sub = formats.map(function (f) {
                 return { icone: f.icon || 'fas fa-file', libelle: f.label, agir: send([f.format]) };
@@ -195,7 +233,7 @@
     function entreesPourChemins(chemins) {
         return resoudreChemins({ paths: chemins }).then(function (d) {
             var total = (d.chemins || []).length;
-            return (d.destinations || []).map(function (dest) {
+            return deliverable(d.destinations).map(function (dest) {
                 var acceptes = dest.acceptes || d.chemins;
                 return {
                     icone: dest.icone || 'fas fa-cube',
@@ -204,7 +242,7 @@
                     libelle: total > 1
                         ? dest.libelle + ' (' + acceptes.length + '/' + total + ' fichiers)'
                         : dest.libelle,
-                    agir: function () { envoyer(d.endpoint, acceptes, dest.app, dest.libelle); },
+                    agir: function () { deliver(d.endpoint, acceptes, dest); },
                 };
             });
         });
@@ -213,11 +251,11 @@
     /** Sous-menu pour un DOSSIER entier — l'expansion et le filtre d'extensions sont à l'import. */
     function entreesPourDossier(dossier) {
         return resoudreChemins({ folder: dossier }).then(function (d) {
-            return (d.destinations || []).map(function (dest) {
+            return deliverable(d.destinations).map(function (dest) {
                 return {
                     icone: dest.icone || 'fas fa-cube',
                     libelle: dest.libelle,
-                    agir: function () { envoyer(d.endpoint, { folder: d.folder }, dest.app, dest.libelle); },
+                    agir: function () { deliver(d.endpoint, { folder: d.folder }, dest); },
                 };
             });
         });
@@ -238,13 +276,11 @@
                                         + '/' + encodeURIComponent(c.pk) + '/rendu/');
             }
             if (!d || !d.chemins || !d.chemins.length) return [];
-            return (d.destinations || []).map(function (dest) {
+            return deliverable(d.destinations).map(function (dest) {
                 return {
                     icone: dest.icone || 'fas fa-cube',
                     libelle: dest.libelle,
-                    agir: function () {
-                        envoyer(d.endpoint, d.chemins, dest.app, dest.libelle);
-                    },
+                    agir: function () { deliver(d.endpoint, d.chemins, dest); },
                 };
             });
         });
@@ -281,14 +317,14 @@
             var entries = rendered
                 ? formatEntries(d, '/common/api/envoyer-vers/' + encodeURIComponent(c.surface)
                                    + '/lot/' + encodeURIComponent(c.pk) + '/rendu/')
-                : (d.destinations || []).map(function (dest) {
+                : deliverable(d.destinations).map(function (dest) {
                 var accepted = dest.acceptes || paths;
                 return {
                     icone: dest.icone || 'fas fa-cube',
                     libelle: accepted.length < paths.length
                         ? dest.libelle + ' (' + accepted.length + '/' + paths.length + ' fichiers)'
                         : dest.libelle,
-                    agir: function () { envoyer(d.endpoint, accepted, dest.app, dest.libelle); },
+                    agir: function () { deliver(d.endpoint, accepted, dest); },
                 };
             });
             var missing = d.without_output || 0;
@@ -302,7 +338,7 @@
     }
 
     global.WamaSendTo = { entrees: entrees, coordonnees: coordonnees,
-                          resoudre: resoudre, envoyer: envoyer,
+                          resoudre: resoudre, envoyer: envoyer, deliver: deliver,
                           resoudreChemins: resoudreChemins,
                           entreesPourChemins: entreesPourChemins,
                           entreesPourDossier: entreesPourDossier,

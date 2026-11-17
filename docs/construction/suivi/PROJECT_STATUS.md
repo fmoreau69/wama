@@ -31929,3 +31929,17 @@ mes changements) — sept rouges et quatre « non mesuré » d'avant.
 **Incidents de la session, réparés** : (1) double renommage de `enhancer_01` (`wama.enhancer_01_01`) —
 Django ne démarrait plus, ~10 min, sessions prévenues ; (2) un commentaire JS de `enhancer/index.html`
 portait une balise `url` — page de l'enhancer en erreur ~15 min (gabarit lu à chaud).
+
+## §PALIER 2026-11-17 (après-midi), « ENVOYER VERS L'ASSISTANT : l'app sans page reçoit par désignation » — commit local, non poussé — 🔴 relancer gunicorn (registre, résolveur, tour web) et resynchroniser `staticfiles/` déjà fait — 🔚 décision de Fabien sur l'écart des créateurs de l'assistant (un fichier par appel pour les 11 apps réelles, aucun regroupement en lot)
+
+Demande de Fabien : « l'assistant est devenu une app et envoyer vers depuis le filemanager ne permet pas d'atteindre l'assistant. C'est un trou. »
+
+- Déclaration : `app_registry.register_pageless_tool(receives_designations=True)`, posée par l'assistant (`common/apps.py`). Aucune app nommée dans le substrat.
+- Serveur : `send_to.designation_receivers` (déclaration + accès) et `send_to.designable` (LA règle de la désignation, `media_paths.check_designation`) ; les destinations portent `designate: true` — fichier, sélection (partiel annoncé), sortie de card, sortie de lot, dossier (`destinations_dossier(user, dossier)`), format rendu d'une card late-binding.
+- Page : `WamaSendTo.deliver` livre l'événement du glisser (`filemanager:designate`) à la cible déclarée (`data-fm-designate="assistant"`, le chat) ; une page sans la cible ne l'offre pas ; la section de l'assistant se dévoile en capture (`WamaAvatarPanel.reveal` : volet, section, accordéon, mémorisés).
+- Tour web : `views._turn_message` reçoit les chemins par la même règle (`send_to.designable`) — la garde de l'arbre seule jetait la sortie d'une card reçue en partage.
+- Constat corrigé (`WAMA_LLM` fil n° 46 point 7) : il n'y a pas « deux chemins de naissance » — une fonction de naissance par app, appelée par la card, l'import et l'outil (`WAMA_APP_CONVENTIONS §8.3`). L'outil « choix d'un réglage » est sans objet (`list_media_assets`, `list_model_choices`).
+- Même jour : `dev_inspect._unknown`, un refus des noms devinés pour tables, colonnes et journaux (`104af5dd9`).
+- Concile consulté (`/concile`, fil API dédié, Albert gemma-4-31b, 636 s) : il confirme le piège de la garde de réception (déjà fermé : une seule règle) et l'alignement des créateurs au point d'exécution unique ; deux de ses objections réfutées au code — le drapeau n'est pas une table de secours (`REMOVAL_LEDGER R130` retirait une SECONDE table chemin → outil), et `list_media_assets` rend déjà assets partagés et du système.
+
+Vérifié : sous WSL, 473 tests (envoyer vers, dépôt du chat, catalogues, points d'accès, domaine d'arrivée, file, gestionnaire de fichiers), puis 91 après renommage ; gardes transverses vertes, budget des identifiants tenu sans marge (quatre noms français de ma main renommés) ; contre-épreuve en processus : 6 neutralisations, 6 rouges. `check_docs` 0 cassée sur 4166. La suite complète n'a pas tourné.

@@ -161,10 +161,14 @@ def rendered_formats(surface: str, instance) -> list:
 
 def format_destinations(user, formats) -> list:
     """Chaque format, avec les apps qui reçoivent son extension (`destinations` : les trois
-    conditions de toujours) ; un format que personne ne prend n'est pas offert."""
+    conditions de toujours) ; un format que personne ne prend n'est pas offert. Une app qui reçoit
+    par DÉSIGNATION prend tout format : le fichier rendu naît dans l'arbre de ce compte
+    (`render_for_sending`), donc il passera la règle de la désignation."""
     offered = []
+    receivers = [_destination(app, {}, designate=True) for app in designation_receivers(user)]
     for entry in formats:
-        dests = destinations(user, [f'rendu.{entry["format"]}'])
+        dests = [d for d in destinations(user, [f'rendu.{entry["format"]}'])
+                 if not d.get('designate')] + receivers
         if dests:
             offered.append({**entry, 'destinations': [{k: v for k, v in d.items() if k != 'acceptes'}
                                                       for d in dests]})
@@ -317,6 +321,43 @@ def _apps_receveuses(user):
         yield app, (APP_CATALOG.get(app) or {})
 
 
+def designation_receivers(user) -> list:
+    """Les apps SANS PAGE qui reçoivent des fichiers DÉSIGNÉS (`register_pageless_tool(
+    receives_designations=True)` — l'assistant) et que CE compte ouvre (`accessible`, le portier de
+    toujours). Rien n'y est importé ni créé : la page livre les chemins à la cible que l'app
+    déclare (`data-fm-designate="<app>"`, l'événement du glisser depuis l'arbre). Aucune app n'est
+    nommée ici (2026-11-17)."""
+    from wama.accounts.permissions import accessible
+    from wama.common.app_registry import pageless_tools
+    return [tool['app'] for tool in pageless_tools()
+            if tool.get('receives_designations') and accessible(user, 'app', tool['app'])]
+
+
+def designable(user, path) -> bool:
+    """Ce chemin passe-t-il LA règle d'une désignation (`media_paths.check_designation` :
+    confinement, existence, lisible par ce compte — son arbre, un dossier connecté, un asset ou
+    une card qu'on lui partage) ? La garde du tour qui reçoit les fichiers confiés à l'assistant
+    (`views._turn_message`) est la même : on n'offre pas ce que la réception jetterait."""
+    from wama.common.utils.media_paths import InputRefused, check_designation
+    try:
+        check_designation(path, user)
+    except (InputRefused, ValueError):
+        return False
+    return True
+
+
+def _receiving(user, paths, partial: bool) -> list:
+    """Les destinations par DÉSIGNATION pour ces chemins — la règle de `destinations` (tout, ou
+    une partie annoncée), la porte étant celle de la désignation au lieu des extensions."""
+    found = []
+    for app in designation_receivers(user):
+        accepted = [p for p in paths if designable(user, p)]
+        if not accepted or (not partial and len(accepted) < len(paths)):
+            continue
+        found.append(_destination(app, {}, acceptes=accepted, designate=True))
+    return found
+
+
 def _destination(app, spec, **extra) -> dict:
     """Ce que le menu affiche d'une app : son nom et son icône, lus de son identité commune
     (`app_registry.app_identity`). `spec` (son entrée de catalogue) ne sert qu'aux extensions."""
@@ -339,6 +380,9 @@ def destinations(user, chemins, partiel: bool = False) -> list:
     de l'arbre de fichiers, 2026-09-14) : une app qui en prend une partie est offerte, et le menu
     DIT combien — un envoi partiel ANNONCÉ n'est plus silencieux.
 
+    Viennent ensuite les apps qui reçoivent par DÉSIGNATION (`designation_receivers`, 2026-11-17 —
+    l'assistant) : `designate: true`, la page leur livre les chemins au lieu de les importer.
+
     Rien n'est offert pour une extension qu'aucune app ne prend : la liste vide est une réponse,
     et l'UI doit la dire au lieu d'ouvrir un sous-menu creux.
     """
@@ -356,10 +400,10 @@ def destinations(user, chemins, partiel: bool = False) -> list:
         if not partiel and len(acceptes) < len(avec_extension):
             continue
         sortie.append(_destination(app, spec, acceptes=acceptes))
-    return sortie
+    return sortie + _receiving(user, avec_extension, partiel)
 
 
-def destinations_dossier(user) -> list:
+def destinations_dossier(user, folder: str = '') -> list:
     """Apps qui savent recevoir un DOSSIER entier : importeur + accès (`_apps_receveuses`).
 
     L'extension d'un fichier précis ne se juge PAS ici : l'import étend le dossier et filtre par
@@ -369,6 +413,10 @@ def destinations_dossier(user) -> list:
     ⚠ Mais une app qui ne DÉCLARE aucune extension n'est pas offerte : son import ne retiendrait
     jamais rien. Mesuré à la sonde du 2026-09-14 — `cam_analyzer` et `face_analyzer` (importeur,
     aucune `input_extensions`) apparaissaient au sous-menu, sous leur nom brut.
+
+    `folder` (2026-11-17) : une app qui reçoit par DÉSIGNATION reçoit le dossier lui-même, s'il
+    passe la règle de la désignation — l'assistant le liste alors (`list_user_files`).
     """
-    return [_destination(app, spec) for app, spec in _apps_receveuses(user)
-            if spec.get('input_extensions')]
+    return ([_destination(app, spec) for app, spec in _apps_receveuses(user)
+             if spec.get('input_extensions')]
+            + (_receiving(user, [folder], False) if folder else []))

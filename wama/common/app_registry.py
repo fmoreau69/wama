@@ -1056,12 +1056,19 @@ _PAGELESS_TOOLS: dict = {}
 
 
 def register_pageless_tool(app_id: str, *, world: str, label: str, icon: str, probe: str,
-                           description: str = '') -> None:
+                           description: str = '', receives_designations: bool = False) -> None:
     """Déclare un outil gardé SANS PAGE : son monde et son identité. Idempotent, comme
-    `register_surface`."""
+    `register_surface`.
+
+    `receives_designations` (2026-11-17) : l'outil REÇOIT des fichiers DÉSIGNÉS par leur chemin,
+    sans import ni élément créé — sa cible dans la page se déclare `data-fm-designate="<app_id>"`
+    et reçoit l'événement `filemanager:designate`, celui du glisser depuis l'arbre. « Envoyer
+    vers » l'offre alors comme une destination (`send_to.designation_receivers`) : l'assistant,
+    devenu une app, n'avait pas d'importeur et n'y apparaissait jamais."""
     register_app_world(app_id, world)
     _PAGELESS_TOOLS[app_id] = {'app': app_id, 'gate': app_id, 'world': world, 'label': label,
-                               'icon': icon, 'description': description, 'probe': probe}
+                               'icon': icon, 'description': description, 'probe': probe,
+                               'receives_designations': bool(receives_designations)}
 
 
 def pageless_tools() -> list:

@@ -251,14 +251,17 @@ _RELEASE_WAIT_MESSAGE = ("Un traitement lourd libère la carte graphique en ce m
 
 
 def _turn_message(user, data) -> str:
-    """Le message d'un tour web : le texte, et les fichiers GLISSÉS sur le chat (2026-10-18) — la
-    graphie de la passerelle (`assistant_engine.message_with_deposits`). Seuls les fichiers que
-    l'utilisateur peut LIRE entrent (`filemanager.services.resoudre_chemin_lisible`, la garde du
-    gestionnaire de fichiers) : un chemin posté n'est pas un chemin à soi."""
+    """Le message d'un tour web : le texte, et les fichiers GLISSÉS sur le chat ou CONFIÉS par
+    « Envoyer vers » (2026-10-18 ; 2026-11-17) — la graphie de la passerelle
+    (`assistant_engine.message_with_deposits`). Seuls les fichiers que l'utilisateur peut DÉSIGNER
+    entrent : la règle de la désignation (`send_to.designable` → `media_paths.check_designation`),
+    celle par laquelle le menu offre l'assistant et que les outils appliquent à la réception — un
+    chemin posté n'est pas un chemin à soi. (C'était la garde de l'arbre seule,
+    `resoudre_chemin_lisible` : la sortie d'une card REÇUE en partage était jetée sans un mot.)"""
     from wama.common.services.assistant_engine import message_with_deposits
-    from wama.filemanager.services import resoudre_chemin_lisible
+    from wama.common.services.send_to import designable
     paths = [p for p in (data.get('files') or [])[:20]
-             if isinstance(p, str) and resoudre_chemin_lisible(user, p)[0] is not None]
+             if isinstance(p, str) and designable(user, p)]
     return message_with_deposits(str(data.get('message') or ''), paths)
 
 

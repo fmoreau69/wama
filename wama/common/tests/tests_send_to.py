@@ -9,9 +9,11 @@ REFUSAIT, avec un critère de grille vert au-dessus (`WAMA_VERIFICATION §Geste 
 destination n'est donc offerte que si un importeur existe, que l'extension est DÉCLARÉE
 acceptée, et que l'utilisateur a accès à l'app. *Ce qu'on n'offre pas ne peut pas décevoir.*
 """
+from pathlib import Path
+
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 
 from wama.common.services.send_to import destinations, sorties_de
@@ -109,9 +111,15 @@ class DestinationsTest(TestCase):
 
     def test_une_app_est_offerte_seulement_si_elle_a_un_IMPORTEUR(self):
         """`avatarizer` et `composer` n'en ont pas (prompt-primaires) : ils ne doivent pas
-        apparaître, même si leurs extensions correspondent. Ils ne mentent plus, c'est tout."""
+        apparaître, même si leurs extensions correspondent. Ils ne mentent plus, c'est tout.
+        Seule autre voie : une app sans page qui DÉCLARE recevoir par désignation (2026-11-17),
+        livrée par la page, jamais importée."""
+        from wama.common.services.send_to import designation_receivers
         from wama.filemanager.views import importer_for
         for d in destinations(self.u, ['converter/1/output/x.png']):
+            if d.get('designate'):
+                self.assertIn(d['app'], designation_receivers(self.u))
+                continue
             self.assertIsNotNone(importer_for(d['app']),
                                  f"{d['app']} offerte sans importeur")
 
@@ -842,3 +850,179 @@ class LateBindingSendToTest(TestCase):
         paths = self._render(reverse('common:api_send_batch_rendered',
                                      args=['transcriber', batch.pk]), ['txt']).json()['chemins']
         self.assertEqual(2, len(paths))
+
+
+class DesignationReceiversTest(TestCase):
+    """« Envoyer vers » une app SANS PAGE qui reçoit des fichiers DÉSIGNÉS (2026-11-17, Fabien :
+    « l'assistant est devenu une app, et envoyer vers depuis le filemanager ne permet pas de
+    l'atteindre »). La règle est DÉCLARÉE (`register_pageless_tool(receives_designations=True)`)
+    et lue sans nommer d'app : déclaration, accès, et les chemins que LA règle de la désignation
+    admet (`media_paths.check_designation`) — celle du tour qui les reçoit."""
+
+    def setUp(self):
+        from pathlib import Path
+
+        from django.conf import settings
+        self.u = _utilisateur('envoi_designation')
+        self.media = Path(settings.MEDIA_ROOT)
+
+    def _file(self, rel):
+        """Un vrai fichier sous le `MEDIA_ROOT` de TEST, effacé par le chemin créé ici."""
+        path = self.media / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b'x')
+        self.addCleanup(path.unlink, missing_ok=True)
+        return rel
+
+    @staticmethod
+    def _declared():
+        from wama.common.app_registry import pageless_tools
+        return {t['app'] for t in pageless_tools() if t.get('receives_designations')}
+
+    @staticmethod
+    def _designated(dests):
+        return {d['app']: d for d in dests if d.get('designate')}
+
+    def test_a_declared_receiver_is_offered_for_any_file_the_account_may_designate(self):
+        self.assertTrue(self._declared(), "aucune app sans page ne déclare recevoir par désignation")
+        mine = self._file(f'users/{self.u.id}/temp/note.xyz')   # un format qu'aucune app ne déclare
+        offered = self._designated(destinations(self.u, [mine]))
+        self.assertEqual(self._declared(), set(offered))
+        for dest in offered.values():
+            self.assertEqual([mine], dest['acceptes'])
+            self.assertTrue(dest['libelle'] and dest['icone'], dest)
+
+    def test_what_the_account_may_not_designate_is_not_offered_and_a_mix_is_announced(self):
+        mine = self._file(f'users/{self.u.id}/temp/a.png')
+        other = self._file('users/999999/temp/b.png')
+        self.assertFalse(self._designated(destinations(self.u, [other])))
+        self.assertFalse(self._designated(destinations(self.u, [mine, other])))
+        partial = self._designated(destinations(self.u, [mine, other], partiel=True))
+        self.assertEqual(self._declared(), set(partial))
+        self.assertTrue(all(d['acceptes'] == [mine] for d in partial.values()))
+
+    def test_an_account_without_access_is_not_offered_the_receiver(self):
+        from unittest import mock
+        mine = self._file(f'users/{self.u.id}/temp/a.png')
+        with mock.patch('wama.accounts.permissions.accessible', return_value=False):
+            self.assertFalse(self._designated(destinations(self.u, [mine])))
+
+    def test_a_folder_and_a_rendered_format_reach_the_receiver(self):
+        from wama.common.services.send_to import destinations_dossier, format_destinations
+        self._file(f'users/{self.u.id}/temp/sub/a.png')
+        folder = f'users/{self.u.id}/temp/sub'
+        self.assertEqual(self._declared(), set(self._designated(destinations_dossier(self.u, folder))))
+        self.assertFalse(self._designated(destinations_dossier(self.u)))
+        formats = format_destinations(self.u, [{'format': 'txt', 'label': 'TXT', 'icon': 'fa-file'}])
+        self.assertEqual(self._declared(), set(self._designated(formats[0]['destinations'])))
+
+    def test_the_tree_resolver_offers_the_receiver_for_a_folder(self):
+        import json
+        self.client.force_login(self.u)
+        self._file(f'users/{self.u.id}/temp/sub/a.png')
+        data = self.client.post(reverse('common:api_envoyer_vers_chemins'),
+                                json.dumps({'folder': f'users/{self.u.id}/temp/sub'}),
+                                content_type='application/json').json()
+        self.assertEqual(self._declared(), set(self._designated(data['destinations'])))
+
+
+_V8 = __import__('importlib').util.find_spec('py_mini_racer') is not None
+_JS = Path(__file__).resolve().parents[1] / 'static' / 'common' / 'js'
+
+
+class DesignationDeliveryUnderV8Test(SimpleTestCase):
+    """`WamaSendTo` (la SOURCE) livre à une app qui reçoit par désignation l'événement du GLISSER
+    (`filemanager:designate`) sur la cible qu'elle déclare, sans rien importer — et ne l'offre pas
+    sur une page qui ne porte pas cette cible."""
+
+    PAGE = """
+    var window = this, __events = [], __posts = [], __toasts = [], __target = null, __resolved = null;
+    function CustomEvent(t, o) { this.type = t; this.detail = (o || {}).detail; }
+    var document = { cookie: '', addEventListener: function () {}, dispatchEvent: function () {},
+      querySelector: function (sel) {
+        return sel === '[data-fm-designate="receiver"]' ? __target : null; } };
+    var WamaApp = { toast: function (m, t) { __toasts.push([t, m]); } };
+    function fetch(url, init) {
+      if (url !== '/common/api/envoyer-vers/chemins/') __posts.push(String(url));
+      return Promise.resolve({ ok: true, json: function () { return Promise.resolve(__resolved); } });
+    }
+    var TARGET = { dispatchEvent: function (e) { __events.push({ type: e.type, detail: e.detail }); } };
+    """
+    RESOLVED = {'chemins': ['users/1/temp/a.png'], 'endpoint': '/import/',
+                'destinations': [
+                    {'app': 'reader', 'libelle': 'Reader', 'icone': 'fa-r'},
+                    {'app': 'receiver', 'libelle': 'Receiver', 'icone': 'fa-x', 'designate': True,
+                     'acceptes': ['users/1/temp/a.png']}]}
+
+    def setUp(self):
+        if not _V8:
+            self.skipTest('py_mini_racer absent de ce venv : pas de V8 pour exécuter la brique')
+        from py_mini_racer import MiniRacer
+        self.v8 = MiniRacer()
+        self.v8.eval(self.PAGE)
+        self.v8.eval((_JS / 'wama-send-to.js').read_text(encoding='utf-8'))
+
+    def _read(self, expression):
+        import json
+        return json.loads(self.v8.eval('JSON.stringify(' + expression + ')'))
+
+    def _entries(self, target):
+        import json
+        self.v8.eval(f'__target = {target}; __resolved = {json.dumps(self.RESOLVED)};'
+                     ' var __entries = null; WamaSendTo.entreesPourChemins(["users/1/temp/a.png"])'
+                     '.then(function (l) { __entries = l; });')
+        return self._read('__entries.map(function (e) { return e.libelle; })')
+
+    def test_the_receiver_gets_the_drag_event_on_its_declared_target_and_nothing_is_imported(self):
+        self.assertEqual(['Reader', 'Receiver'], self._entries('TARGET'))
+        self.v8.eval('__entries[1].agir();')
+        self.assertEqual([{'type': 'filemanager:designate',
+                           'detail': {'files': [{'path': 'users/1/temp/a.png', 'name': 'a.png'}]}}],
+                         self._read('__events'))
+        self.assertEqual([], self._read('__posts'), "une désignation n'importe rien")
+
+    def test_a_page_without_the_target_does_not_offer_the_receiver(self):
+        self.assertEqual(['Reader'], self._entries('null'))
+
+
+class AssistantSectionRevealsWhatItReceivesUnderV8Test(SimpleTestCase):
+    """Ce qu'on confie au mini-chat du volet doit SE VOIR : la section de l'assistant écoute
+    l'événement en CAPTURE (il ne remonte pas) et rouvre volet, section et accordéon — chacun
+    mémorisé comme le geste de l'utilisateur qu'il remplace (`WamaAvatarPanel.reveal`)."""
+
+    PAGE = """
+    var window = this, __persisted = [], __panels = [];
+    window.addEventListener = function () {}; window.requestIdleCallback = function () {};
+    function el() { return { dataset: {}, style: {}, hidden: false, title: '', listeners: {},
+      addEventListener: function (t, f, capture) { this.listeners[t + (capture ? ':capture' : '')] = f; },
+      querySelector: function () { return { classList: { toggle: function () {} } }; } }; }
+    var nodes = { 'assistant-avatar-section': el(), 'assistant-avatar': el(), 'avatar-status': el(),
+                  'assistant-body': el(), 'avatar-collapse': el() };
+    nodes['assistant-avatar-section'].dataset = { enabled: '0', collapsed: '1', voice: '1',
+                                                  settingsUrl: '/settings/' };
+    var document = { cookie: '', addEventListener: function () {},
+      body: { classList: { contains: function () { return true; } } },
+      getElementById: function (id) { return nodes[id] || null; } };
+    function fetch(url, init) { __persisted.push(JSON.parse(init.body)); return Promise.resolve({}); }
+    var WamaPanels = { isCollapsed: function () { return true; },
+                       setCollapsed: function (side, collapsed) { __panels.push([side, collapsed]); } };
+    """
+
+    def setUp(self):
+        if not _V8:
+            self.skipTest('py_mini_racer absent de ce venv : pas de V8 pour exécuter la brique')
+        from py_mini_racer import MiniRacer
+        self.v8 = MiniRacer()
+        self.v8.eval(self.PAGE)
+        self.v8.eval((_JS / 'wama-avatar-panel.js').read_text(encoding='utf-8'))
+
+    def _read(self, expression):
+        import json
+        return json.loads(self.v8.eval('JSON.stringify(' + expression + ')'))
+
+    def test_a_designation_reveals_the_section_and_remembers_it(self):
+        self.v8.eval("nodes['assistant-avatar-section'].listeners['filemanager:designate:capture']();")
+        self.assertEqual([['right', False]], self._read('__panels'))
+        self.assertEqual([{'avatar': True}, {'avatar_collapsed': False}], self._read('__persisted'))
+        self.assertEqual('', self._read("nodes['assistant-avatar-section'].style.display"))
+        self.assertFalse(self._read("nodes['assistant-body'].hidden"))
