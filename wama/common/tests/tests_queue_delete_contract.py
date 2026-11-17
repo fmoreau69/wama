@@ -1301,7 +1301,10 @@ class BatchActionsOwnedByTheBrickTest(SimpleTestCase):
     buttons itself (handlers of April, older than the brick) — every click left TWICE, a ⧉ made
     two copies of the lot, a ▶ launched it twice. Held on every app's script, never on one."""
 
-    OWNED = ('start', 'delete', 'duplicate', 'realign')
+    #: `settings` since 2026-11-17: the brick holds the ⚙ click and calls the opener an app declares
+    #: (`onBatchSettings`, per domain) — three apps listened to it themselves as well (enhancer,
+    #: imager, avatarizer), and the brick warned « no opener declared » on each click.
+    OWNED = ('start', 'delete', 'duplicate', 'realign', 'settings')
     BRICK = Path('wama/common/static/common/js/queue-actions.js')
 
     @staticmethod
@@ -1341,5 +1344,5 @@ class BatchActionsOwnedByTheBrickTest(SimpleTestCase):
         self.assertFalse(self._bindings("// document.querySelectorAll('.batch-delete-btn')"))
         # The card menu PROXIES a click to the brick's button: that is no second binding.
         self.assertFalse(self._bindings("var dup = env.querySelector('.batch-duplicate-btn');"))
-        # The ⚙ of a lot is not owned: the brick dispatches it to the opener the app declares.
-        self.assertFalse(self._bindings("const b = e.target.closest('.batch-settings-btn');"))
+        # The ⚙ of a lot is the brick's too: it dispatches it to the opener the app declares.
+        self.assertTrue(self._bindings("const b = e.target.closest('.batch-settings-btn');"))

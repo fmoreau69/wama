@@ -155,15 +155,16 @@ def index(request):
                       item_model=GenerationBatchItem, fk_name='generation',
                       batch_extra=_batch_domain)
 
-    from wama.common.utils.app_modes import domain_schema
+    from wama.common.utils.app_modes import element_schema
     from wama.common.utils.card_chips import common_chips_for_items
     batches_all = build_batches_list(
         user, batch_model=GenerationBatch, work_attr='generation',
         # Réglages COMMUNS aux filles (slot meta_template — porté le 31/08) : imager a
-        # DEUX schémas, celui du DOMAINE du lot s'applique (fabrique scopée par onglet).
+        # DEUX schémas, celui du DOMAINE du lot s'applique — le domaine de son premier élément
+        # (`app_modes.element_schema`), la règle de `batches_by_domain` ; le champ `domain` du lot
+        # et un repli « image » en dur la doublaient (2026-11-17, comme l'anonymizer).
         extra=lambda b, items, gens: {
-            'common_chips': common_chips_for_items(
-                gens, domain_schema('imager', getattr(b, 'domain', '') or 'image'))})
+            'common_chips': common_chips_for_items(gens, element_schema(gens[0]) if gens else [])})
     # Chips schéma-driven sur chaque card ; les lignes d'exécution de TOUTES les cards de la page
     # sont lues en une requête (bande des process).
     from wama.common.services.process_pipeline import decorate_cards

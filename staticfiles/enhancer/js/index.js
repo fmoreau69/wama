@@ -325,8 +325,10 @@ document.addEventListener('DOMContentLoaded', function () {
   const resetBtn = document.getElementById('resetOptions');
   if (resetBtn && window.WamaParams) {
     resetBtn.addEventListener('click', () => {
-      const audioSettings = document.getElementById('audioSettings');
-      const audioActive = audioSettings && audioSettings.style.display !== 'none';
+      // Le domaine de la PAGE, lu par la lecture commune (`WamaApp.pageDomain`) — il se
+      // déduisait de l'affichage CSS du volet audio.
+      const page = (window.WamaApp && WamaApp.pageDomain) ? WamaApp.pageDomain() : null;
+      const audioActive = !!page && page.domain === 'audio';
       const host = document.getElementById(audioActive ? 'audioPanelFields' : 'mediaPanelFields');
       const schema = audioActive ? window.ENHANCER_AUDIO_SCHEMA : window.ENHANCER_MEDIA_SCHEMA;
       const vals = WamaParams.applyDefaults(host, schema || [], 'panel');
@@ -387,35 +389,41 @@ document.addEventListener('DOMContentLoaded', function () {
   // ── ⚙ Batch settings : modale BATCH commune (WamaParams context:'batch') ──
   // Pour les DEUX files (2026-10-28) : le ⚙ de la card mère AUDIO était rendu sans que rien ne
   // l'écoute. La modale rend le schéma du domaine de la card cliquée et poste vers SA route de lot.
+  // Le CLIC est tenu par la brique commune (`WamaQueueActions.onBatchSettings`, un ouvreur par
+  // DOMAINE déclaré, comme l'anonymizer) ; elle choisit l'ouvreur par le `data-domain` du volet de
+  // la card mère. Un écouteur d'app le doublait, et la brique signalait « aucun ouvreur déclaré ».
   const BATCH_DOMAINS = {
-    'enhancer-queue':       { schema: () => window.ENHANCER_MEDIA_SCHEMA,
-                              update: () => config.batchUpdateUrlTemplate,
-                              start: () => config.batchStartUrlTemplate },
-    'audio-enhancer-queue': { schema: () => window.ENHANCER_AUDIO_SCHEMA,
-                              update: () => (window.AUDIO_ENHANCER_APP || {}).audioBatchUpdateUrlTemplate,
-                              start: () => (window.AUDIO_ENHANCER_APP || {}).audioBatchStartUrlTemplate },
+    image_video: { schema: () => window.ENHANCER_MEDIA_SCHEMA,
+                   update: () => config.batchUpdateUrlTemplate,
+                   start: () => config.batchStartUrlTemplate },
+    audio:       { schema: () => window.ENHANCER_AUDIO_SCHEMA,
+                   update: () => (window.AUDIO_ENHANCER_APP || {}).audioBatchUpdateUrlTemplate,
+                   start: () => (window.AUDIO_ENHANCER_APP || {}).audioBatchStartUrlTemplate },
   };
   let _batchParamsRenderedFor = '';
-  document.addEventListener('click', function(e) {
-    const bs = e.target.closest('.batch-settings-btn');
-    const queue = bs && bs.closest('#enhancer-queue, #audio-enhancer-queue');
-    if (!queue) return;
+  function openBatchSettings(domain, batchId, bs) {
     const modal = document.getElementById('batchSettingsModal');
     if (!modal || !window.WamaParams) return;
-    if (_batchParamsRenderedFor !== queue.id) {
+    if (_batchParamsRenderedFor !== domain) {
       WamaParams.render(document.getElementById('enhancerBatchParams'),
-                        BATCH_DOMAINS[queue.id].schema() || [], { context: 'batch', values: {} });
-      _batchParamsRenderedFor = queue.id;
+                        BATCH_DOMAINS[domain].schema() || [], { context: 'batch', values: {} });
+      _batchParamsRenderedFor = domain;
     }
     // Ouverte jusqu'ici sur les défauts du schéma, qu'elle postait sur toutes les filles.
     WamaParams.fillFromBatch(document.getElementById('enhancerBatchParams'), bs.closest('.batch-group'),
-                             BATCH_DOMAINS[queue.id].schema() || []);
-    modal.dataset.queue = queue.id;
-    modal.dataset.batchId = bs.dataset.batchId;
+                             BATCH_DOMAINS[domain].schema() || []);
+    modal.dataset.domain = domain;
+    modal.dataset.batchId = batchId;
     const idBadge = document.getElementById('batchSettingsBatchId');
-    if (idBadge) idBadge.textContent = '#' + bs.dataset.batchId;
+    if (idBadge) idBadge.textContent = '#' + batchId;
     new bootstrap.Modal(modal).show();
-  });
+  }
+  if (window.WamaQueueActions) {
+    Object.keys(BATCH_DOMAINS).forEach(function (domain) {
+      WamaQueueActions.onBatchSettings(function (batchId, bs) { openBatchSettings(domain, batchId, bs); },
+                                       { domain: domain });
+    });
+  }
 
   async function saveBatchSettings(andStart) {
     const modal = document.getElementById('batchSettingsModal');
@@ -424,7 +432,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const vals = WamaParams.read(document.getElementById('enhancerBatchParams'));
     const fd = new FormData();
     Object.keys(vals).forEach(k => fd.append(k, vals[k]));
-    const domain = BATCH_DOMAINS[modal.dataset.queue] || BATCH_DOMAINS['enhancer-queue'];
+    const domain = BATCH_DOMAINS[modal.dataset.domain] || BATCH_DOMAINS.image_video;
     try {
       await fetch(getUrl(domain.update(), bid), {
         method: 'POST', headers: csrfHeaders(), body: fd,

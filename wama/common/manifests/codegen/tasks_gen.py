@@ -436,7 +436,7 @@ def render_tasks(manifest: dict) -> tuple:
         # la clé de l'app reste celle du pipeline et des modules.
         proc = _body.get('processing') or {}
         item_model = proc.get('item_model')
-        taches = [t for t in (proc.get('tasks') or []) if t.get('lifecycle')]
+        element_tasks = [t for t in (proc.get('tasks') or []) if t.get('lifecycle')]
         run_id = _surface or app_id
         manifest_element = {**manifest, 'body': _body}
         routes = (proc.get('backend_routes') or {})
@@ -462,9 +462,9 @@ def render_tasks(manifest: dict) -> tuple:
         # `app`). Une tâche, des glus : `run_item_task(pipeline=, processes=, only=)` joue les process
         # retenus, `process=` borne le lancement (▶ d'un process, `steps_to_run(only=)`) — défaut
         # `None` : un worker en service qui ne connaît pas l'argument reste compatible.
-        if len(_steps) >= 2 and len(taches) == 1:
-            fn = taches[0]['function']
-            name_kw = f", name='{taches[0]['task_name']}'" if taches[0].get('task_name') else ''
+        if len(_steps) >= 2 and len(element_tasks) == 1:
+            fn = element_tasks[0]['function']
+            name_kw = f", name='{element_tasks[0]['task_name']}'" if element_tasks[0].get('task_name') else ''
             glus = ', '.join(f"'{s['key']}': _process_{fn}_{s['key']}" for s in _steps)
             lignes += [
                 '',
@@ -530,7 +530,7 @@ def render_tasks(manifest: dict) -> tuple:
             emitted |= {fn} | {f'_process_{fn}_{s["key"]}' for s in _steps}
             continue
 
-        for t in taches:
+        for t in element_tasks:
             fn = t['function']
             name_kw = f", name='{t['task_name']}'" if t.get('task_name') else ''
             lignes += [
@@ -661,7 +661,7 @@ def render_tasks(manifest: dict) -> tuple:
                     '    c\'est exactement ce que cette brique vient de résorber (ROADMAP §23.2bis)."""',
                     f"    raise NotImplementedError('{mark} corps de backend non généré (marche B)')",
                 ]
-        emitted |= {n for t in taches for n in (t['function'], f"_process_{t['function']}")}
+        emitted |= {n for t in element_tasks for n in (t['function'], f"_process_{t['function']}")}
     lignes.extend(declared_glue_holes(manifest, _steps, mark, emitted))
     lignes.extend(_instant_hole(manifest, mark))
     lignes.append('')

@@ -148,15 +148,19 @@
         wireCycle('videoGenerationsQueue');
         sync();
 
+        // ⚙ de LOT : le clic est tenu par la brique commune, un ouvreur par DOMAINE déclaré
+        // (`WamaQueueActions.onBatchSettings`, choisi par le `data-domain` du volet — comme
+        // l'anonymizer). Un écouteur d'app le doublait, avec « image » en repli écrit ici.
+        if (window.WamaQueueActions) {
+            // Les domaines de la page : ses volets, rendus depuis la déclaration (`app_modes`).
+            Array.from(document.querySelectorAll('.tab-pane[data-domain]'), function (p) {
+                return p.dataset.domain;
+            }).forEach(function (domain) {
+                WamaQueueActions.onBatchSettings(function (batchId) { openBatchSettings(batchId, domain); },
+                                                 { domain: domain });
+            });
+        }
         document.addEventListener('click', function (e) {
-            const b = e.target.closest('.batch-settings-btn');
-            if (b) {
-                const group = b.closest('.batch-group');
-                const child = group && group.querySelector('.imager-card[data-domain]');
-                openBatchSettings(b.getAttribute('data-batch-id'),
-                                  child ? child.dataset.domain : 'image');
-                return;
-            }
             if (e.target.closest('#imagerSaveBatchSettingsBtn')) saveBatchSettings(false);
             else if (e.target.closest('#imagerSaveBatchSettingsAndStartBtn')) saveBatchSettings(true);
         });

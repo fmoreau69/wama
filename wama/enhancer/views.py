@@ -318,7 +318,8 @@ def upload(request):
         # l'adresse dit d'avance — la brique commune `surface_source_nature`.
         from wama.common.utils.app_modes import surface_source_nature
         nature = surface_source_nature('enhancer', 'enhancer', media_url)
-        if nature is None or nature not in ('', 'image', 'video'):
+        # La porte de la surface refuse d'elle-même une nature que ses domaines ne prennent pas.
+        if nature is None:
             return JsonResponse({'error': 'Format non supporté'}, status=400)
         enhancement = Enhancement.objects.create(
             user=user, media_type=nature, source_url=media_url,
@@ -431,7 +432,11 @@ start_all = _iv['start_all']
 clear_all = _iv['clear_all']
 stop, delete, duplicate = _iv['stop'], _iv['delete'], _iv['duplicate']
 download, update_settings = _iv['download'], _iv['update_settings']
-_aiv = make_item_views(work_model=AudioEnhancement, app_id='audio_enhancer',
+# La SURFACE du domaine audio (`app_modes.domain_surface`) : la clé de ses registres, de sa
+# progression et de sa tâche, lue à la déclaration — elle était écrite ici à la main, quatre fois.
+from wama.common.utils.app_modes import domain_surface  # noqa: E402
+AUDIO_SURFACE = domain_surface('enhancer', 'audio')
+_aiv = make_item_views(work_model=AudioEnhancement, app_id=AUDIO_SURFACE,
                        task_for=lambda a: _audio_task(a),
                        reset_on_start={'progress': 0, 'error_message': ''}, pending={},
                        queue_settings=_queue_panel,
@@ -451,7 +456,7 @@ from wama.common.utils.progress_views import make_progress_views  # noqa: E402
 
 _pv = make_progress_views(work_model=Enhancement, app_id='enhancer')
 progress, global_progress = _pv['progress'], _pv['global_progress']
-_apv = make_progress_views(work_model=AudioEnhancement, app_id='audio_enhancer')
+_apv = make_progress_views(work_model=AudioEnhancement, app_id=AUDIO_SURFACE)
 audio_progress, audio_global_progress = _apv['progress'], _apv['global_progress']
 
 
@@ -674,7 +679,7 @@ batch_realign = _bv['batch_realign']
 # d'élargir — soundfile (vers qui torchaudio est patché) écrit et relit l'AIFF.
 def _takes_audio(name) -> bool:
     from wama.common.utils.app_modes import surface_file_nature
-    return bool(surface_file_nature('enhancer', 'audio_enhancer', name))
+    return bool(surface_file_nature('enhancer', AUDIO_SURFACE, name))
 
 
 @require_POST
@@ -799,7 +804,7 @@ def audio_batch_template(request):
     liste était recopiée ici). Écrit à la main jusqu'au 2026-11-02."""
     from wama.common.utils.batch_parsers import batch_template_response
     return batch_template_response(
-        'audio_enhancer', ['source'], {'source': 'https://example.com/voice.wav'},
+        AUDIO_SURFACE, ['source'], {'source': 'https://example.com/voice.wav'},
         label='Enhancer audio (une URL ou un chemin audio par ligne)',
         app='enhancer', domain='audio')
 

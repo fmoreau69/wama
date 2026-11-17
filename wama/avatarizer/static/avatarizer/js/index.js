@@ -641,10 +641,9 @@
         } catch (e) { WamaApp.toast(e.message || 'Erreur', 'error'); }
     }
 
-    document.addEventListener('click', (e) => {
-        const b = e.target.closest('.batch-settings-btn');
-        if (!b) return;
-        e.preventDefault();
+    // ⚙ de LOT : le clic est tenu par la brique commune, qui appelle l'ouvreur DÉCLARÉ
+    // (`WamaQueueActions.onBatchSettings`) — un écouteur d'app le doublait (2026-11-17).
+    if (window.WamaQueueActions) WamaQueueActions.onBatchSettings(function (_batchId, b) {
         const m = ensureBatchSettingsModal();
         const idInput = document.getElementById('batchSettingsBatchId');
         if (idInput) idInput.value = b.dataset.batchId || '';

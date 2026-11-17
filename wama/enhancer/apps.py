@@ -34,8 +34,11 @@ class EnhancerConfig(AppConfig):
         )
 
         from .models import AudioEnhancement
+        # La surface du domaine audio, lue à la déclaration (`app_modes.domain_surface`).
+        from wama.common.utils.app_modes import domain_surface
+        audio_surface = domain_surface('enhancer', 'audio')
         register_app_preview(
-            app_name='audio_enhancer',
+            app_name=audio_surface,
             model_class=AudioEnhancement,
             file_field='input_file',
             user_field='user',
@@ -64,7 +67,7 @@ class EnhancerConfig(AppConfig):
         # est celui du DOMAINE `audio` (`app_modes`, `params_schema`), que la surface
         # `audio_enhancer` sert — la spec le recopiait en constante jusqu'au 2026-10-21. Pas de
         # `result_role` : un audio amélioré peut être une voix, une musique ou un bruitage.
-        register_app_detail_spec('audio_enhancer', AudioEnhancement, {
+        register_app_detail_spec(audio_surface, AudioEnhancement, {
             'source_file': 'input_file',
             'source_type': {'const': 'audio'},
             'engine': 'engine',

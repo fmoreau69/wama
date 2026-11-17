@@ -60,7 +60,8 @@ def enhance_audio(self, audio_enhancement_id: int, process: str = None):
     from wama.common.utils.task_skeleton import run_item_task
     from .function_specs import PIPELINE
     _forget_lost(AudioEnhancement, audio_enhancement_id)
-    run_item_task(self, app_id='audio_enhancer', model=AudioEnhancement,
+    from wama.common.utils.app_modes import domain_surface
+    run_item_task(self, app_id=domain_surface('enhancer', 'audio'), model=AudioEnhancement,
                   item_id=audio_enhancement_id,
                   pipeline=PIPELINE, processes={'generate': _enhance_audio, 'output': _output},
                   # Le moteur résolu EST une clé de catalogue (route F4b ⑤, 2026-10-07) : le

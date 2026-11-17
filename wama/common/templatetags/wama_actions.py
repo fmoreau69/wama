@@ -237,6 +237,15 @@ def domain_route_prefix(app, domain=None):
 
 
 @register.simple_tag
+def domain_surface(app, domain):
+    """La SURFACE de ce domaine (`app_modes.domain_surface` : `audio_enhancer`), la clé sous
+    laquelle l'app enregistre son élément (aperçu, détail). Une card l'écrivait en dur ; copiée
+    dans une jumelle, elle visait l'élément de la SOURCE (2026-11-17)."""
+    from wama.common.utils.app_modes import domain_surface as _surface
+    return _surface(app, domain)
+
+
+@register.simple_tag
 def queue_context(app, domain=None):
     """Ce que la FILE commune (`common/_queue.html`, 2026-10-20) lit de la déclaration de l'app :
     les URLs de ses trois actions globales et l'icône de son état vide.

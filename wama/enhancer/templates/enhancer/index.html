@@ -347,7 +347,11 @@ document.addEventListener('DOMContentLoaded', function () {
         itemLabel: function (id) { return "l'audio #" + id + ' (⚙ pour éditer)'; },
         // cardSettings DÉFAUT (dérivé du schéma) : gear data-action="settings" + data-*
         // de la brique card_gear ; custom supprimé le 18/08.
-        saveItem: function (id, fd) { return postPanel('/enhancer/audio/update/' + id + '/', fd); },
+        // L'adresse de la route DÉCLARÉE (balise url du gabarit, servie par AUDIO_ENHANCER_APP) —
+        // écrite à la main, elle visait l'enhancer source depuis une copie de jumelle.
+        saveItem: function (id, fd) {
+            return postPanel(AUDIO_ENHANCER_APP.audioUpdateUrlTemplate.replace('/0/', '/' + id + '/'), fd);
+        },
         renderItemActions: function (host, card) {
             WamaInspector.cloneActions(host, card.querySelector('.btn-group-actions'),
                 '<i class="fas fa-crosshairs text-info"></i> Actions — élément #' + card.dataset.id);
