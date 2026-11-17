@@ -351,7 +351,8 @@ class OneFaceSwitchTest(SimpleTestCase):
         """2026-11-16 (step 3) : the video shown in the viewer loses its native controls ; the thin
         strip of the common transport takes their place, on the axis held by its box, WITHOUT
         registering keys on the page (the viewer gives them, a layer). A click on the picture plays
-        or pauses, as the native controls did. No transport module : the native controls stay."""
+        or pauses, as the native controls did — the attach carries it (`toggle`), one listener, not
+        a second one written here. No transport module : the native controls stay, and do it."""
         self.v8.eval('window.requestAnimationFrame = function () { return 1; };'
                      'window.cancelAnimationFrame = function () {};'
                      + (JS / 'wama-axis.js').read_text(encoding='utf-8'))
@@ -371,8 +372,11 @@ class OneFaceSwitchTest(SimpleTestCase):
                      JSON.stringify(mounted[0].options), box.children.length];
             v.on.click[0](); r.push(axis.playing());
             v.on.click[0](); r.push(axis.playing());
+            r.push(v.on.click.length);
             delete window.WamaTransport;
-            var bare = video(); P.videoWithStrip(bare); r.push(bare.controls);
+            var bare = video(), bareBox = P.videoWithStrip(bare), bareAxis = P.axisOf(bareBox);
+            r.push(bare.controls);
+            bare.on.click.forEach(function (fn) { fn(); }); r.push(bareAxis.playing());
             return r;
         })()"""))
         self.assertEqual([False, True, 1, 1, False, True], out[:6],
@@ -382,7 +386,9 @@ class OneFaceSwitchTest(SimpleTestCase):
                          'the commands of the native controls (play, position, time, speed, volume) and more')
         self.assertEqual(2, out[7], 'the video, then its strip')
         self.assertEqual([True, False], out[8:10], 'a click on the picture plays, then pauses')
-        self.assertTrue(out[10], 'without the transport module the native controls stay')
+        self.assertEqual(1, out[10], 'one listener : the gesture is not written twice')
+        self.assertTrue(out[11], 'without the transport module the native controls stay')
+        self.assertFalse(out[12], 'and the click is theirs : no second toggle from the axis')
 
     def test_a_sound_of_a_card_or_of_the_panel_joins_an_axis_when_it_first_starts(self):
         """The common player announces the first start of a sound nobody put on an axis

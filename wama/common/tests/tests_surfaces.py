@@ -1593,6 +1593,26 @@ class AxisTest(SimpleTestCase):
         self.assertAlmostEqual(1.0, out[0])
         self.assertEqual([True, True], out[1:], 'the axis depends on nothing')
 
+    def test_a_click_on_the_picture_plays_or_pauses_the_axis_when_the_attach_asks_for_it(self):
+        """The gesture of a video whose commands live elsewhere (strip, surface) is carried by its
+        attach (`toggle`), not rewritten by each viewer : silent with native controls, gone with
+        the medium."""
+        out = self._eval('''
+            var axis = window.WamaAxis.create(Object.assign({duration: 30}, opts));
+            var v = fakeMedia(30), plain = fakeMedia(30), seen = [];
+            var drop = axis.attach(v, {toggle: true}); axis.attach(plain);
+            v.fire('click'); seen.push(axis.playing());
+            v.fire('click'); seen.push(axis.playing());
+            plain.fire('click'); seen.push(axis.playing());
+            v.controls = true; v.fire('click'); seen.push(axis.playing());
+            v.controls = false; drop(); v.fire('click'); seen.push(axis.playing());
+            return seen;
+        ''')
+        self.assertEqual([True, False], out[:2], 'a click plays, the next one pauses')
+        self.assertFalse(out[2], 'a medium attached without the option ignores clicks')
+        self.assertFalse(out[3], 'native controls do it themselves : no double toggle')
+        self.assertFalse(out[4], 'the gesture leaves with the medium')
+
     def test_the_step_is_one_period_of_the_finest_declared_cadence(self):
         out = self._eval('''
             var axis = window.WamaAxis.create(Object.assign({duration: 60}, opts));
@@ -3319,7 +3339,7 @@ class DataPluginBricksTest(SimpleTestCase):
             var axis = {pause: function () { calls.push('pause'); },
                         detach: function () { calls.push('detach-all'); },
                         setDuration: function () { calls.push('setDuration'); },
-                        attach: function (el, o) { calls.push(['attach', o.offset, o.fps]);
+                        attach: function (el, o) { calls.push(['attach', o.offset, o.fps, o.toggle]);
                                                    return function () { calls.push('drop'); }; }};
             var url = '/v1.mp4', handlers = {};
             var ctx = {axis: function () { return axis; },
@@ -3332,8 +3352,9 @@ class DataPluginBricksTest(SimpleTestCase):
             url = '/v2.mp4'; handlers.source({role: 'video'});
             JSON.stringify(calls)
         '''))
-        self.assertEqual(['pause', ['attach', 2, 25], 'drop', 'pause', ['attach', 2, 25]], out,
-                         'its own follower dropped, never every medium ; no duration set by hand')
+        self.assertEqual(['pause', ['attach', 2, 25, True], 'drop', 'pause', ['attach', 2, 25, True]],
+                         out, 'its own follower dropped, never every medium ; no duration set by hand ;'
+                              ' the click on the picture asked of the attach')
 
     def test_a_transport_without_media_mounts_only_the_commands(self):
         """`options.media: false` : the axis holds the clock on its own — no player is injected."""

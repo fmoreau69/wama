@@ -406,7 +406,9 @@
         const box = document.createElement('div');
         box.className = 'wama-viewer-video';
         box.appendChild(video);
-        const axis = playOnAxis(box, [{ el: video }]);
+        // Le clic sur l'image (lecture/pause) est porté par l'attache ; il se tait quand la vidéo
+        // retombe sur ses contrôles natifs.
+        const axis = playOnAxis(box, [{ el: video, opts: { toggle: true } }]);
         if (!axis || !window.WamaTransport) {
             video.controls = true;
             return box;
@@ -442,7 +444,6 @@
             fullBtn.querySelector('i').className = 'fas '
                 + (document.fullscreenElement === box ? 'fa-compress' : 'fa-expand');
         });
-        video.addEventListener('click', function () { axis.toggle(); });
         video.addEventListener('dblclick', full);
         box.appendChild(strip);
         return box;

@@ -43,6 +43,7 @@
  *   var axis = WamaAxis.create({duration: 0});
  *   var off  = axis.subscribe(function (s) { … s.time, s.duration, s.playing, s.rate, s.reason });
  *   var drop = axis.attach(audioElement, {offset: 0});   // un suiveur ; `drop()` le détache
+ *   axis.attach(video, {toggle: true});            // + un clic sur l'image = lecture/pause
  *   axis.play(); axis.pause(); axis.toggle(); axis.seek(12.5); axis.jump(-5);
  *   axis.seek(83, 'goto');                         // un temps NOMMÉ : les vues le montrent
  *   axis.playFrom(20);                             // écouter depuis : le shuttle se rend
@@ -55,7 +56,8 @@
  *
  * L'APERÇU (2026-11-05) : chaque vidéo qu'il montre suit un axe (`WamaMediaPreview.playOnAxis`),
  * les deux de Comparer le même ; leurs contrôles NATIFS restent — lecture, pause, position et
- * VITESSE choisies dessus sont des commandes à l'axe.
+ * VITESSE choisies dessus sont des commandes à l'axe. (Une vidéo seule a depuis le 2026-11-16 la
+ * bande fine du transport, et le clic sur l'image par son attache, `toggle`.)
  *
  * VITESSE ET SHUTTLE (2026-10-20, portage de l'éditeur du transcriber) : la vitesse choisie et le
  * cran du shuttle sont deux choses. Le shuttle l'emporte tant qu'il est engagé (`shuttling`) ;
@@ -520,8 +522,10 @@
              *  une commande. `o.offset` le décale ; `o.play` et `o.seek(t)` le font jouer et le
              *  positionnent à la place de `el.play()` / `el.currentTime` — le lecteur qui le
              *  possède garde ainsi SES règles (lecture exclusive, position reposée quand le fichier
-             *  devient positionnable) ; `o.sync` règle SON recalage ; `o.fps` déclare sa cadence.
-             *  Rend la fonction qui le détache, lui seul. */
+             *  devient positionnable) ; `o.sync` règle SON recalage ; `o.fps` déclare sa cadence ;
+             *  `o.toggle` : un clic sur l'image lance ou arrête l'axe — le geste d'une vidéo dont
+             *  les commandes sont ailleurs (bande du transport, surface) ; tant qu'elle montre ses
+             *  contrôles natifs, c'est eux qui le font. Rend la fonction qui le détache, lui seul. */
             attach: function (el, o) {
                 if (!el) return function () {};
                 axis.detach(el);
@@ -597,6 +601,7 @@
                         notify('sound');
                     },
                 };
+                if (o.toggle) handlers.click = function () { if (!el.controls) axis.toggle(); };
                 Object.keys(handlers).forEach(function (k) { el.addEventListener(k, handlers[k]); });
                 f.drop = function () {
                     Object.keys(handlers).forEach(function (k) { el.removeEventListener(k, handlers[k]); });

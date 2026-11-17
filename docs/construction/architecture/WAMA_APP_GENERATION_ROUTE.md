@@ -1755,6 +1755,17 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       `common.preview_layout` (la bande présente et entière sous une vidéo). ⏳ Reste : les deux
       vidéos de Comparer (contrôles natifs sur chacune), la vidéo en ligne du volet et des
       cards, et une bande sous le son du volet et des cards.
+    - ✅ **2026-11-17 — le clic sur l'image rentre dans l'axe** (accord de Fabien, écart relevé
+      à la revérification du troisième pas : le geste était écrit deux fois, dans la vue vidéo
+      d'une surface et dans la visionneuse). Il est une option de l'attache,
+      `axis.attach(video, {toggle: true})` (`wama-axis.js`) : un clic lance ou arrête l'axe,
+      se tait tant que la vidéo montre ses contrôles natifs (sinon double bascule), part avec
+      le média. `brick-video-view.js` et `_videoWithStrip` le demandent ; plus aucun
+      `addEventListener('click'` sur une vidéo hors de l'axe. Gardes :
+      `AxisTest.test_a_click_on_the_picture_plays_or_pauses_the_axis_when_the_attach_asks_for_it`,
+      `test_the_video_view_attaches_its_video_as_a_follower_and_drops_only_it` (l'option
+      demandée), `OneFaceSwitchTest.test_a_video_of_the_viewer_has_the_thin_strip_instead_of_its_native_controls`
+      (un seul écouteur ; muet sous les contrôles natifs).
   - ✅ **2026-10-21 — LE VOLET DEVIENT UNE ZONE DE BRIQUES, étape 1 : les surfaces** (décision de
     Fabien : *« on passe tout WAMA progressivement en briques UI »*, verrouillé par défaut pour
     tous, le volet en colonne, les réglages en deux colonnes gardés). Domicile : `WAMA_VOLETS

@@ -8,8 +8,8 @@
  * décision de Fabien : jusque-là elle DEVENAIT l'horloge en jouant). Les autres vues (courbes,
  * segments) suivent l'axe, jamais elle. Elle n'a pas de commandes à elle : ce sont celles du
  * transport commun (la brique `media_transport`, posée sans média : `media: false`). Un clic sur
- * l'image lance ou arrête la lecture — une COMMANDE à l'axe, le geste de toute vidéo. Sa durée et
- * sa cadence (`options.fps`) entrent à l'axe par son attache.
+ * l'image lance ou arrête la lecture — une COMMANDE à l'axe, le geste de toute vidéo, que l'attache
+ * porte (`toggle`). Sa durée et sa cadence (`options.fps`) entrent à l'axe par son attache.
  */
 (function (global) {
     'use strict';
@@ -39,9 +39,8 @@
             axis.pause();
             video.src = url;
             dropVideo = axis.attach(video, { offset: Number(options.offset) || 0,
-                                             fps: Number(options.fps) || 0 });
+                                             fps: Number(options.fps) || 0, toggle: true });
         }
-        video.addEventListener('click', function () { if (axis) axis.toggle(); });
 
         ctx.on('source', function (p) {
             if (p && p.role === role) load(ctx.source(role).url);
