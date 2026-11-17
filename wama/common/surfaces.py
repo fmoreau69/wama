@@ -544,6 +544,12 @@ class Surface:
     #: les mixer avant d'avoir une partition) — la page montre alors ses autres briques, rien ne
     #: s'écrit dans le champ édité tant qu'on ne l'édite pas. Une DONNÉE (elle passe au manifeste).
     opens_with: tuple = ()
+    #: Des champs de `also_edits` que la page ouvre AVANT le principal quand ils sont remplis
+    #: (2026-11-17, demande de Fabien : « si on a demandé la partition complète, c'est elle qu'on veut
+    #: voir ») — dans l'ordre. La brique qui montre plusieurs versions ouvre sur le champ édité
+    #: (`ctx.target`) : la déclaration suffit, aucune règle d'app dans le JS. Les autres restent à
+    #: un choix. Une DONNÉE (elle passe au manifeste).
+    edits_first: tuple = ()
 
     def concerns(self, item) -> bool:
         """L'élément est-il de ceux auxquels la surface se réserve (`only`) ?"""
@@ -631,7 +637,9 @@ class Surface:
 
         Sans champ demandé, un principal VIDE cède au premier `also_edits` rempli (2026-11-13 : une
         card qui n'a que sa partition complète — une piste séparée, « partitions seules » — ne
-        s'ouvrait pas, « rien à éditer », alors que la surface la déclare corrigeable)."""
+        s'ouvrait pas, « rien à éditer », alors que la surface la déclare corrigeable).
+        ⚠ Sans champ demandé, c'est le PRINCIPAL qu'on lit et qu'on écrit (le noyau de page n'envoie
+        `field` que pour un autre champ) : le champ d'OUVERTURE se décide à part (`opening_field`)."""
         if not requested:
             main = self.edited(item)
             if self.text_value and not _file_name(item, main):
@@ -640,6 +648,15 @@ class Surface:
         if requested not in self.also_edits:
             raise ValueError(f"surface {self.id} : « {requested} » ne s'édite pas ici")
         return requested
+
+    def opening_field(self, item) -> str:
+        """Le champ sur lequel la page s'OUVRE quand l'adresse n'en demande aucun : le premier
+        `edits_first` rempli (2026-11-17), '' sinon — la page ouvre alors sur `target`. Servi comme
+        un champ demandé (`config.field`) : revenir au principal reste un choix de la page."""
+        if not self.text_value:
+            return ''
+        return next((name for name in self.edits_first
+                     if name in self.also_edits and _file_name(item, name)), '')
 
     @property
     def text_value(self) -> bool:

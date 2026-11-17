@@ -122,6 +122,9 @@ register_surface(Surface(
     texts=('rendered', 'rendered_score', 'lyrics_in', 'lyrics_out'),
     edits=INPUT_SCORE_FIELDS,
     also_edits=ALSO_EDITED,
+    # La COMPLÈTE d'abord quand elle existe (2026-11-17, demande de Fabien : « si on l'a demandée,
+    # c'est elle qu'on veut voir ») ; la réduite reste au choix « Partition ».
+    edits_first=ALSO_EDITED,
     # Les niveaux du mixage et les pistes retirées : les réglages de la refusion (`params.py`).
     settings=('remix_levels', 'remix_without'),
     # L'original et ses pistes, servis avec le niveau que la refusion leur donnerait.

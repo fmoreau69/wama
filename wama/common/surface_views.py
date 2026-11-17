@@ -180,8 +180,10 @@ def surface_page(request, app: str, key: str, pk: int):
             'title': f"{found.label} — #{pk}",
             'data_url': base + 'data/',
             # Le champ à éditer d'emblée (`?field=`, un `also_edits` : la visionneuse ouvre la page
-            # sur la partition qu'elle montre, 2026-11-15) — validé par la surface, sinon le principal.
-            'field': _requested_field(found, item, request.GET.get('field') or ''),
+            # sur la partition qu'elle montre, 2026-11-15) — validé par la surface, sinon celui qu'elle
+            # ouvre d'abord (`edits_first`, 2026-11-17), sinon le principal.
+            'field': (_requested_field(found, item, request.GET.get('field') or '')
+                      or found.opening_field(item)),
             'save_url': base + 'save/',
             'run_url': _url(f'{app}:start_process', pk, found.reruns) if found.reruns else '',
             # Lancer une AUTRE étape que celle qu'« Appliquer » rejoue (2026-11-17, « Rendre le

@@ -142,6 +142,20 @@ class RegistryTest(SimpleTestCase):
                                          'counterproof : nothing to edit, the page stays closed')
                         self.assertFalse(bare.can_open(model(pk=1))[0], 'nothing there, nothing opens')
 
+    def test_what_a_page_edits_first_is_one_of_its_other_edited_fields(self):
+        """`Surface.edits_first` (2026-11-17) names fields the page opens BEFORE its main one :
+        each must be one of its `also_edits` (a field the page may edit at all), and the declaration
+        is data, rendered by the generator like the others."""
+        from wama.common.manifests.codegen.surfaces_gen import _data_fields
+        from wama.common.surfaces import SURFACES, load_all
+        load_all()
+        declaring = [s for s in SURFACES.values() if s.edits_first]
+        self.assertTrue(declaring, 'the contract is held on real declarations')
+        self.assertIn('edits_first', _data_fields())
+        for found in declaring:
+            with self.subTest(surface=found.id):
+                self.assertFalse(set(found.edits_first) - set(found.also_edits))
+
     def test_the_video_review_page_is_the_image_one_on_the_shared_axis(self):
         """2026-11-15 : correcting the detections of a VIDEO is the same brick of zones, put on the
         shared axis (it attaches its video and follows the frame PRESENTED — the rule of the
@@ -2986,6 +3000,22 @@ class ComposerScoreSurfaceTest(TestCase):
         empty = ComposerGeneration.objects.create(user=self.user, prompt='', extract_parts=True,
                                                   melody_reference='users/1/temp/stem.wav')
         self.assertEqual(score.edited(empty), score.target(empty))
+        # 2026-11-17 (Fabien : « si on l'a demandée, c'est elle qu'on veut voir ») : BOTH scores
+        # filled, the PAGE opens on the full one (`edits_first` → `config.field`) ; without a field
+        # the main one is still what is read and written — the reduced one stays a choice away.
+        (get_app_media_path('composer', self.user.id, 'output') / 'plan.abc').write_text(ABC)
+        both = ComposerGeneration.objects.create(
+            user=self.user, prompt='', parts_score=rel,
+            planned_score=app_media_dir('composer', self.user.id, 'output') + '/plan.abc')
+        page = f'/common/surface/composer/score/{both.pk}/'
+        self.assertEqual('parts_score', self.client.get(page).context['config']['field'])
+        self.assertEqual('planned_score', self.client.get(page + 'data/').json()['field'],
+                         'no field asked : the main score, never the full one')
+        self.assertEqual('planned_score', score.target(both))
+        import dataclasses
+        self.assertEqual('', dataclasses.replace(score, edits_first=()).opening_field(both),
+                         'counterproof : undeclared, the page opens on the main score')
+        self.assertEqual('', score.opening_field(empty), 'no full score : the main one')
 
     def test_someone_else_neither_reads_nor_writes(self):
         other = get_user_model().objects.create_user('score_other', password='x')
