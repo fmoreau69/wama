@@ -2228,6 +2228,7 @@
           "file": "workers.py",
           "function": "describe_content",
           "lifecycle": true,
+          "model": "Description",
           "task_name": null
         }
       ]

@@ -1977,6 +1977,7 @@
           "file": "workers.py",
           "function": "synthesize_voice",
           "lifecycle": true,
+          "model": "VoiceSynthesis",
           "task_name": null
         }
       ]

@@ -1917,6 +1917,7 @@
           "file": "workers.py",
           "function": "generate_avatar",
           "lifecycle": true,
+          "model": "AvatarJob",
           "task_name": null
         }
       ]

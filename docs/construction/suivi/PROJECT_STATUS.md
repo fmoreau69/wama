@@ -31894,3 +31894,38 @@ Demande de Fabien : « corrige les outils désignés par le relevé, puis /rever
 - `install_model` : un modèle distant n'est plus « téléchargé au premier usage » — servi par son fournisseur, rien à télécharger.
 
 Vérifié : sous WSL, 206 tests du périmètre, puis 804 (gardes transverses, couverture d'API, Studio, composer, model manager) ; contre-épreuve en processus (rien sur le disque) : 7 neutralisations, 7 rouges. Rejeu en lecture seule des appels réels qui avaient échoué : chacun aboutit ou dit la voie. `check_docs` 0 cassée sur 4158. ⚠ `tests_identifier_language` rouge de 1 (code 2552 > 2551) : le même qu'au palier précédent, `taches` dans `wama/common/manifests/codegen/tasks_gen.py` (autre session) — aucun identifiant de mes fichiers au relevé détaillé. ⚠ `doc_facts --check` : 4 blocs périmés, aucun par ce palier (bloc « outils » : 129 → 130 outils d'une autre session ; `WAMA_MECANISMES`, `briques`, `roundtrip` co-édités). La suite complète n'a pas tourné.
+
+## §PALIER 2026-11-17, « DOMAINES : l'élément d'un domaine à routes propres GÉNÉRÉ ; l'enhancer et l'imager réels alignés ; revérification » — commits locaux, non poussés — gunicorn relancé (fait) — 🔚 nœud du Studio par domaine (session fraîche) ; restes nommés ci-dessous ; dix autres jumelles
+
+**Livré** :
+- `43aa9055d`, `f296fb245` — ⑦ reste ii : l'élément du domaine audio de l'enhancer est généré comme dans
+  l'app réelle (tâche, registres, vues, volet de page, card) ; règle de copie des jumelles corrigée
+  (surfaces renommées) ; l'extraction refuse un élément dont le modèle n'est pas de l'app.
+- `fc5123632`, `b950abbd2` — l'enhancer et l'imager réels lisent leurs domaines à la déclaration :
+  surface audio par `app_modes.domain_surface` (vues, tâche, registres, card ; balise
+  `domain_surface`), porte de dépôt sans liste de natures recopiée, adresse de mise à jour audio par
+  sa route, « Réinitialiser » par `WamaApp.pageDomain`, domaine d'un lot de l'imager par son premier
+  élément. Le ⚙ de lot passe par la brique commune (`onBatchSettings`, un ouvreur par domaine) dans
+  l'enhancer, l'imager et l'avatarizer ; `BatchActionsOwnedByTheBrickTest` le couvre (mutation rouge).
+- `tool_api` : la porte audio de l'outil lit la surface déclarée.
+
+**Revérification** : une relecture indépendante du chantier (lecture seule, tout le parc) a relevé les
+écritures du domaine à la main ; vérifiées ligne à ligne, les principales sont ramenées ci-dessus.
+**Restes nommés, non ramenés** (petits, consignés ; ceux de l'anonymizer et du commun sont ceux de la
+relecture, NON revérifiés ligne à ligne — à lire avant d'y toucher) : enhancer — schéma choisi par constante importée
+(acceptable : un modèle par domaine), appariement d'entrée écrit dans la vue (`select_match_meta(…,
+domain=)` existe), `batch_key='enhancer_audio'` (clé de repli d'affichage) ; imager — domaine →
+workflow écrit à la main (aucun inverse déclaré) ; anonymizer — quelques lectures par nom de schéma
+(`views.py:645, 761-774, 952`), `tasks.py:185` ; commun — les liens d'un élément vers sa file sans
+`?domain=` (`journal.family_queue_url`), `app_identity` ne connaît pas une surface de domaine,
+`assistant_engine` (liste d'apps à la main, à vérifier : signalé, non lu en entier).
+
+**Gestes** : `enhancer_01` 46 scénarios joués, verts sauf `processing`/`batch_processing` (glu de
+tâche : `input_filename` absent du modèle généré), `tree_drop` (motif connu des jumelles),
+`inspector_actions` (volet Actions vide à la sélection — peut venir de la page par élément, NON
+établi : la sonde n'avait pas de card). Enhancer réel : mêmes échecs qu'au rapport de 07:14 (avant
+mes changements) — sept rouges et quatre « non mesuré » d'avant.
+
+**Incidents de la session, réparés** : (1) double renommage de `enhancer_01` (`wama.enhancer_01_01`) —
+Django ne démarrait plus, ~10 min, sessions prévenues ; (2) un commentaire JS de `enhancer/index.html`
+portait une balise `url` — page de l'enhancer en erreur ~15 min (gabarit lu à chaud).

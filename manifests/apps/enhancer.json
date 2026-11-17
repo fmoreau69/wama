@@ -2463,6 +2463,64 @@
         "video": "backends.media_backend.enhance_video"
       },
       "batch_link_model": "BatchEnhancementItem",
+      "elements": {
+        "audio_enhancer": {
+          "batch_link_model": "BatchAudioEnhancementItem",
+          "domains": [
+            "audio"
+          ],
+          "inspector": {
+            "detail_registered": true,
+            "detail_spec": {
+              "engine": "engine",
+              "extra_from_params": true,
+              "result_file": "output_file",
+              "source_file": "input_file",
+              "source_type": {
+                "const": "audio"
+              }
+            },
+            "preview": {
+              "file_field": "input_file",
+              "user_field": "user"
+            },
+            "preview_registered": true
+          },
+          "item_model": "AudioEnhancement",
+          "model_spec": {
+            "batch": {
+              "link_batch_field": "batch",
+              "link_batch_related": "items",
+              "link_item_field": "audio_enhancement",
+              "link_item_related": "batch_item",
+              "link_name": "BatchAudioEnhancementItem",
+              "name": "BatchAudioEnhancement",
+              "user_related_name": "batch_audio_enhancements",
+              "verbose_name": "Batch d'améliorations audio",
+              "verbose_name_plural": "Batchs d'améliorations audio"
+            },
+            "item": {
+              "input_field": "input_file",
+              "name": "AudioEnhancement",
+              "ordering": [
+                "-created_at"
+              ],
+              "params_fields": [
+                "engine",
+                "quality_intent",
+                "mode",
+                "denoising_strength",
+                "quality",
+                "output_format",
+                "output_quality"
+              ],
+              "user_related_name": "audio_enhancements"
+            }
+          },
+          "params_schema": "AUDIO_PARAMS_JSON",
+          "route_prefix": "audio"
+        }
+      },
       "endpoints": [
         "about",
         "audio_batch_create",
@@ -2805,12 +2863,14 @@
           "file": "tasks.py",
           "function": "enhance_media",
           "lifecycle": true,
+          "model": "Enhancement",
           "task_name": null
         },
         {
           "file": "tasks.py",
           "function": "enhance_audio",
           "lifecycle": true,
+          "model": "AudioEnhancement",
           "task_name": null
         }
       ]

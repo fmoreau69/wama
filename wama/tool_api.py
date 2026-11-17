@@ -609,7 +609,8 @@ def add_to_audio_enhancer(
         received = _receive(file_path, user, 'enhancer', 'input/audio', mode='audio')
     except InputRefused as e:
         return {'error': str(e)}
-    if not surface_file_nature('enhancer', 'audio_enhancer', received.name):
+    from wama.common.utils.app_modes import domain_surface
+    if not surface_file_nature('enhancer', domain_surface('enhancer', 'audio'), received.name):
         return {'error': f'Format audio non supporté : {Path(received.name).suffix}'}
 
     try:

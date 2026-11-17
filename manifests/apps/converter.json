@@ -2398,6 +2398,7 @@
           "file": "tasks.py",
           "function": "convert_media_task",
           "lifecycle": true,
+          "model": "ConversionJob",
           "task_name": null
         }
       ]

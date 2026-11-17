@@ -2532,6 +2532,7 @@
           "file": "tasks.py",
           "function": "process_single_media",
           "lifecycle": true,
+          "model": "Media",
           "task_name": null
         },
         {

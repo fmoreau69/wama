@@ -1844,12 +1844,14 @@
           "file": "tasks.py",
           "function": "read_document_task",
           "lifecycle": true,
+          "model": "ReadingItem",
           "task_name": "wama.reader.tasks.read_document_task"
         },
         {
           "file": "tasks.py",
           "function": "analyze_document_task",
           "lifecycle": true,
+          "model": "ReadingItem",
           "task_name": "wama.reader.tasks.analyze_document_task"
         }
       ]
