@@ -92,6 +92,29 @@ def _clamp(value, low: int, high: int, default: int) -> int:
         return default
 
 
+#: Ressemblance minimale (`difflib`) d'un nom deviné avec un nom réel pour que le refus le cite.
+NEAR_CUTOFF = 0.4
+NEAR_LIMIT = 8
+
+
+def _unknown(what: str, given: str, names, way: str, core=lambda name: name) -> DevToolError:
+    """LE refus d'un nom deviné, pour tout ce que ces outils lisent par nom (table, colonne,
+    journal) : il cite les noms RÉELS proches et dit la voie qui les liste. Proches : ceux dont le
+    CŒUR contient le cœur deviné (`wama.Model` → `model_manager.AIModel`, `gunicorn.log` →
+    `gunicorn-error.log`), puis les ressemblants. Une seule lecture depuis le 2026-11-17 : les
+    tables et les journaux en avaient chacun une, à seuils différents."""
+    import difflib
+    names = list(names)
+    wanted = core(given).lower()
+    near = [n for n in names if wanted and wanted in core(n).lower()]
+    by_lower = {n.lower(): n for n in names}
+    near += [by_lower[c] for c in difflib.get_close_matches(given.lower(), list(by_lower),
+                                                            n=NEAR_LIMIT, cutoff=NEAR_CUTOFF)
+             if by_lower[c] not in near]
+    return DevToolError(f"{what} : {given!r} — "
+                        + (f"proches : {', '.join(near[:NEAR_LIMIT])} ; " if near else '') + way)
+
+
 # ── Base de données ──────────────────────────────────────────────────────────────────────────
 
 def _queryable(model) -> bool:
@@ -104,18 +127,6 @@ def _queryable(model) -> bool:
 TABLES_HINT = "dev_db_schema sans `table` liste celles qu'on peut lire"
 
 
-def _close_tables(label: str) -> str:
-    """Les tables interrogeables proches d'un nom inconnu — par le nom du modèle d'abord
-    (`wama.Model` → `model_manager.AIModel`), puis par le libellé entier."""
-    import difflib
-    labels = sorted(m._meta.label for m in apps.get_models() if _queryable(m))
-    wanted = label.rsplit('.', 1)[-1].lower()
-    by_name = [lb for lb in labels if wanted and wanted in lb.rsplit('.', 1)[-1].lower()]
-    close = difflib.get_close_matches(label.lower(), [lb.lower() for lb in labels], n=8, cutoff=0.5)
-    picked = by_name + [lb for lb in labels if lb.lower() in close and lb not in by_name]
-    return ', '.join(picked[:8])
-
-
 def _model_for(table: str):
     label = (table or '').strip()
     # Le refus dit la VOIE (2026-11-17, relevé de `tool_usage` : 3 appels sur 3 en échec le
@@ -125,9 +136,9 @@ def _model_for(table: str):
     try:
         model = apps.get_model(label)
     except LookupError:
-        close = _close_tables(label)
-        raise DevToolError(f"table inconnue : {label!r} — "
-                           + (f"proches : {close} ; " if close else '') + TABLES_HINT)
+        raise _unknown('table inconnue', label,
+                       sorted(m._meta.label for m in apps.get_models() if _queryable(m)),
+                       TABLES_HINT, core=lambda name: name.rsplit('.', 1)[-1])
     if not _queryable(model):
         raise DevToolError(f"table non interrogeable : {label!r}")
     return model
@@ -186,7 +197,8 @@ def dev_db_query(user, table: str, filter: str = '', fields: str = '', limit: in
     wanted = [f.strip() for f in (fields or '').split(',') if f.strip()]
     for name in wanted:
         if name not in columns:
-            raise DevToolError(f"colonne inconnue : {name!r}")
+            raise _unknown('colonne inconnue', name, columns,
+                           f"dev_db_schema table={table} les donne")
     shown = [n for n in (wanted or list(columns)) if not SENSITIVE_COLUMN.search(n)]
     if not shown:
         raise DevToolError("aucune colonne lisible")
@@ -255,12 +267,9 @@ def dev_read_log(user, path: str = '', grep: str = '', lines: int = 100, start_l
     if not p.is_file() or not LOG_NAME.search(p.name):
         # Le refus dit ce qui EXISTE (2026-11-12 : l'assistant a demandé « gunicorn.log », que
         # l'aide de cet outil citait en exemple et qui n'existe pas — il a renoncé au diagnostic).
-        import difflib
-        names = [j['name'] for j in _journals()]
-        close = difflib.get_close_matches(Path(path).name, names, n=5, cutoff=0.4)
-        raise DevToolError(f"journal introuvable dans logs/ : {path!r} — "
-                           + (f"proches : {', '.join(close)}" if close
-                              else f"existants : {', '.join(names[:20]) or 'aucun'}"))
+        raise _unknown('journal introuvable dans logs/', Path(path).name,
+                       [j['name'] for j in _journals()], "dev_read_log sans `path` les liste",
+                       core=lambda name: name.split('.')[0])
     size = p.stat().st_size
     with open(p, 'rb') as fh:
         if size > LOG_WINDOW_BYTES:

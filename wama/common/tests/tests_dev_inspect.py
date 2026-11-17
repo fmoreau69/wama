@@ -87,6 +87,11 @@ class DatabaseTest(_Base):
         listed = {row['table'] for row in self._call(self.admin, 'dev_db_schema')['tables']}
         self.assertIn('model_manager.AIModel', listed)
         self.assertFalse(listed & {'auth.User', 'accounts.UserProfile', 'common.CalendarFeed'})
+        # Une colonne devinée suit LE MÊME refus (une seule lecture des noms proches).
+        error = self._call(self.admin, 'dev_db_query', table='model_manager.AIModel',
+                           fields='modelkey')['error']
+        self.assertIn('model_key', error)
+        self.assertIn('dev_db_schema', error)
 
     def test_a_filter_on_a_sensitive_column_or_a_relation_is_refused(self):
         for flt in ('token__startswith="a"', 'user__password__startswith="a"',
@@ -129,6 +134,7 @@ class FilesTest(_Base):
         (self.root / 'logs' / 'gunicorn-error.log').write_text('x', encoding='utf-8')
         error = self._call(self.admin, 'dev_read_log', path='gunicorn.log')['error']
         self.assertIn('gunicorn-error.log', error)
+        self.assertIn('dev_read_log sans `path`', error)
 
     def test_dev_search_code_finds_lines_and_skips_denied_places(self):
         (self.root / 'pkg' / 'a.py').write_text('x = 1\nraise Boom("no export")\n', encoding='utf-8')
