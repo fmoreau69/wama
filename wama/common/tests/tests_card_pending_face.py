@@ -17,7 +17,10 @@ from django.conf import settings
 from django.test import SimpleTestCase
 
 ROOT = Path(settings.BASE_DIR)
-SURFACE = re.compile(r"\{% url 'common:unified_preview' '(\w+)' elem\.id")
+#: La surface d'une card : écrite (`'imager'`), ou lue à la déclaration par la balise commune
+#: (`{% domain_surface 'enhancer' 'audio' as audio_surface %}`, 2026-11-17) et nommée ensuite.
+SURFACE = re.compile(r"\{% url 'common:unified_preview' (?:'(\w+)'|(\w+)) elem\.id")
+DECLARED = re.compile(r"\{% domain_surface '(\w+)' '(\w+)' as (\w+) %\}")
 
 
 #: Une jumelle générée (`<app>_01`, bac à sable) a la card du générateur, qui pose un hôte
@@ -32,10 +35,23 @@ def _app_dirs():
 
 def _card_templates():
     """Les gabarits de card du parc : ceux qui rendent un aperçu commun de leur élément."""
+    from wama.common.utils.app_modes import domain_surface
     for path in (p for d in _app_dirs() for p in sorted(d.glob('templates/*/_*card*.html'))):
-        found = SURFACE.findall(path.read_text(encoding='utf-8'))
+        text = path.read_text(encoding='utf-8')
+        found = SURFACE.findall(text)
         if found:
-            yield path, found[0]
+            written, named = found[0]
+            declared = {var: domain_surface(app, dom) for app, dom, var in DECLARED.findall(text)}
+            yield path, written or declared.get(named, named)
+
+
+def _surface_expr(text, surface):
+    """Comment la card nomme sa surface dans ses balises : écrite, ou la variable déclarée."""
+    for app, dom, var in DECLARED.findall(text):
+        from wama.common.utils.app_modes import domain_surface
+        if domain_surface(app, dom) == surface:
+            return var
+    return f"'{surface}'"
 
 
 class EveryCardFollowsThePendingFaceTest(SimpleTestCase):
@@ -48,10 +64,11 @@ class EveryCardFollowsThePendingFaceTest(SimpleTestCase):
 
     def test_every_card_lays_out_its_pending_host(self):
         for path, surface in _card_templates():
+            text = path.read_text(encoding='utf-8')
             with self.subTest(card=path.name, surface=surface):
-                self.assertIn("{%% url 'common:unified_preview' '%s' elem.id as pv_during %%}"
-                              'data-card-during="{{ pv_during }}"' % surface,
-                              path.read_text(encoding='utf-8'))
+                self.assertIn("{%% url 'common:unified_preview' %s elem.id as pv_during %%}"
+                              'data-card-during="{{ pv_during }}"' % _surface_expr(text, surface),
+                              text)
 
     def test_no_app_writes_the_text_being_built_into_its_card(self):
         """The describer's own path (its progress `partial_text` written into `.result-preview`,
