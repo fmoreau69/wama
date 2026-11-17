@@ -100,9 +100,15 @@ def read_settings_payload(request, schema=None, schema_names=(), empty_is_value=
 #: réglage, ni dans les filles ni dans la référence du lot.
 GESTURE_FIELDS = ('scope', 'replace_own')
 
+#: Ce que DJANGO poste pour lui-même dans un formulaire (le jeton de `{% csrf_token %}`) : jamais un
+#: réglage non plus. Mesuré le 2026-11-17 : deux références de lot sur trois le retenaient (la ⚙ de lot
+#: du composer l'ajoute à son FormData, la référence gardait le posté brut).
+TRANSPORT_FIELDS = ('csrfmiddlewaretoken',)
+
 
 def _settings_only(data: dict) -> dict:
-    return {k: v for k, v in (data or {}).items() if k not in GESTURE_FIELDS}
+    return {k: v for k, v in (data or {}).items()
+            if k not in GESTURE_FIELDS and k not in TRANSPORT_FIELDS}
 
 
 def _within_choices(item, name, value) -> bool:
@@ -824,7 +830,8 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
         # ce qu'elle tait n'en sort pas — ni n'y entre : un réglage où les filles divergent reste
         # hors de la référence, « réaligner » ne l'écrase pas.
         posted = _settings_only(shared if shared is not None else read_settings_payload(request))
-        batch_settings.remember(b, {**(batch_settings.stored(b) or {}), **posted})
+        # La référence d'avant passe AUSSI par le filtre : une ligne écrite avant lui s'en nettoie.
+        batch_settings.remember(b, _settings_only({**(batch_settings.stored(b) or {}), **posted}))
         return JsonResponse({'success': True, 'updated': written, 'batch_id': pk})
 
     @require_POST
@@ -869,6 +876,7 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
                                           "réglez-le (⚙) ou promouvez une de ses cards"},
                                 status=400)
         scope, replace = _gesture(request, batch_settings.KEEP_COMPUTED)
+        reference = _settings_only(reference)
         written, refusal = _apply_to_elements(request, b, lambda item: _typed(item, reference),
                                               scope=scope, replace=replace)
         if refusal is not None:

@@ -400,6 +400,21 @@ class PromotionBetweenChildAndMotherTest(TestCase):
         self._post('batch_update', {'media_type': 'video'})
         self.assertEqual(batch_settings.stored(self.lot), {'output_format': 'mkv', 'media_type': 'video'})
 
+    def test_the_form_token_is_never_kept_as_a_setting_of_the_batch(self):
+        """2026-11-17, measured on the real base: two batch references out of three kept the form
+        token, which the composer's batch ⚙ appends to its FormData. The token never enters the
+        reference, an older reference that holds it is cleaned by the next ⚙, and realign never
+        hands it to the children."""
+        from wama.common.services import batch_settings
+        batch_settings.remember(self.lot, {'output_format': 'mp4', 'csrfmiddlewaretoken': 'old'})
+        captured = []
+        views = self._views(apply_settings=lambda item, data: captured.append(dict(data)) or [])
+        self._post('batch_realign', views=views)
+        self.assertTrue(captured)
+        self.assertTrue(all('csrfmiddlewaretoken' not in data for data in captured), captured)
+        self._post('batch_update', {'output_format': 'mkv', 'csrfmiddlewaretoken': 'new'})
+        self.assertEqual(batch_settings.stored(self.lot), {'output_format': 'mkv'})
+
     def test_a_setting_without_object_on_a_child_is_written_on_none_of_its_gestures(self):
         """2026-11-17, Fabien : « si on réaligne toutes les filles sur la card mère […] les pistes
         séparées ne prendraient-elles pas le réglage ? ». A setting a child's pipeline excludes
