@@ -7,6 +7,7 @@
       "author": "Max Bachmann <pypi@maxbachmann.de>",
       "license": "MIT",
       "repository": "https://github.com/rapidfuzz/RapidFuzz.git",
+      "role": "brick",
       "summary": "rapid fuzzy string matching",
       "version": "3.14.3"
     },

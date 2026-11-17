@@ -9,6 +9,7 @@
       "author": "PyAV contributors",
       "license": "BSD-3-Clause",
       "repository": "https://github.com/PyAV-Org/PyAV",
+      "role": "brick",
       "summary": "Pythonic bindings for FFmpeg's libraries.",
       "version": "16.0.1"
     },

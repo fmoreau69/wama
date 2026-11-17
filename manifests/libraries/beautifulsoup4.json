@@ -10,6 +10,7 @@
       "author": "Leonard Richardson <leonardr@segfault.org>",
       "license": "MIT License",
       "repository": "https://www.crummy.com/software/BeautifulSoup/bs4/",
+      "role": "brick",
       "summary": "Screen-scraping library",
       "version": "4.13.5"
     },

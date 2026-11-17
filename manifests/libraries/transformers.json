@@ -23,6 +23,7 @@
       "author": "The Hugging Face team (past and future) with the help of all our contributors (https://github.com/huggingface/transformers/graphs/contributors)",
       "license": "Apache 2.0 License",
       "repository": "https://github.com/huggingface/transformers",
+      "role": "engine",
       "summary": "State-of-the-art Machine Learning for JAX, PyTorch and TensorFlow",
       "version": "4.57.6"
     },

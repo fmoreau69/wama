@@ -10,6 +10,7 @@
       "author": "Shangchen Zhou (S-Lab, Nanyang Technological University)",
       "license": "S-Lab License 1.0",
       "repository": "https://github.com/sczhou/CodeFormer",
+      "role": "engine",
       "summary": "Restauration de visages — code lancé en sous-processus par codeformer_backend (licence non commerciale)",
       "version": "b33cc7d639d6"
     },

@@ -28,6 +28,7 @@
       "author": "Sefik Ilkin Serengil",
       "license": "MIT",
       "repository": "https://github.com/serengil/deepface",
+      "role": "engine",
       "summary": "A Lightweight Face Recognition and Facial Attribute Analysis Framework (Age, Gender, Emotion, Race) for Python",
       "version": "0.0.96"
     },

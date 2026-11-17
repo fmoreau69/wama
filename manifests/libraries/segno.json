@@ -13,6 +13,7 @@
       "author": "Lars Heuer <heuer@semagia.com>",
       "license": "BSD License",
       "repository": "https://github.com/heuer/segno/",
+      "role": "brick",
       "summary": "QR Code and Micro QR Code generator for Python",
       "version": "1.6.6"
     },

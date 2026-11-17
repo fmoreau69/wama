@@ -25,6 +25,7 @@
       "author": "Glenn Jocher <glenn.jocher@ultralytics.com>, Jing Qiu <jing.qiu@ultralytics.com>",
       "license": "AGPL-3.0",
       "repository": "https://github.com/ultralytics/ultralytics",
+      "role": "engine",
       "summary": "Ultralytics YOLO 🚀 for SOTA object detection, multi-object tracking, instance segmentation, pose estimation and image classification.",
       "version": "8.4.14"
     },

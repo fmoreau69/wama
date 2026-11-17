@@ -11,6 +11,7 @@
       "author": "PyTorch Core Team",
       "license": "BSD",
       "repository": "https://github.com/pytorch/vision",
+      "role": "engine",
       "summary": "image and video datasets and models for torch deep learning",
       "version": "0.24.1+cu128"
     },

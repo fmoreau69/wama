@@ -18,6 +18,7 @@
       "author": "hexgrad <hello@hexgrad.com>",
       "license": "Apache Software License",
       "repository": "https://github.com/hexgrad/kokoro",
+      "role": "engine",
       "summary": "TTS",
       "version": "0.9.4"
     },

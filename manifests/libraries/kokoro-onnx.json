@@ -12,6 +12,7 @@
       "author": "thewh1teagle <61390950+thewh1teagle@users.noreply.github.com>",
       "license": null,
       "repository": "https://github.com/thewh1teagle/kokoro-onnx",
+      "role": "engine",
       "summary": "TTS with kokoro and onnx runtime",
       "version": "0.6.1"
     },

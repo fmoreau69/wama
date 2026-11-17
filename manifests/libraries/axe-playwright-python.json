@@ -11,6 +11,7 @@
       "author": "Ruslan Iskov, Pamela Fox",
       "license": "MIT AND MPL-2.0",
       "repository": "https://github.com/pamelafox/axe-playwright-python",
+      "role": "brick",
       "summary": "Automated web accessibility testing using axe-core engine and Playwright.",
       "version": "0.1.8"
     },

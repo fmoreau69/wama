@@ -11,6 +11,7 @@
       "author": "Gradium",
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/gradium-ai/xn-ptts",
+      "role": "engine",
       "summary": "Text to 24 kHz speech, on device. No PyTorch.",
       "version": "0.5.0"
     },

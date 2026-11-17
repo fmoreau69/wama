@@ -13,6 +13,7 @@
       "author": "Richard Zhang",
       "license": "UNKNOWN",
       "repository": "https://github.com/richzhang/PerceptualSimilarity",
+      "role": "engine",
       "summary": "LPIPS Similarity metric",
       "version": "0.1.4"
     },

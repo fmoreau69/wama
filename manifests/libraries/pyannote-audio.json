@@ -33,6 +33,7 @@
       "author": "Hervé BREDIN <herve@pyannote.ai>",
       "license": null,
       "repository": null,
+      "role": "engine",
       "summary": "State-of-the-art speaker diarization toolkit",
       "version": "4.0.4"
     },

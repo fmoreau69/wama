@@ -7,6 +7,7 @@
       "author": "lxml dev team",
       "license": "BSD-3-Clause",
       "repository": "https://github.com/lxml/lxml",
+      "role": "brick",
       "summary": "Powerful and Pythonic XML processing library combining libxml2/libxslt with the ElementTree API.",
       "version": "6.0.2"
     },

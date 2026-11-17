@@ -21,6 +21,7 @@
       "author": "Ask Solem",
       "license": "BSD-3-Clause",
       "repository": "https://docs.celeryq.dev/",
+      "role": "platform",
       "summary": "Distributed Task Queue.",
       "version": "5.5.3"
     },

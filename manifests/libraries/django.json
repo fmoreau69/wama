@@ -15,6 +15,7 @@
       "author": "Django Software Foundation <foundation@djangoproject.com>",
       "license": "BSD-3-Clause",
       "repository": "https://github.com/django/django",
+      "role": "platform",
       "summary": "A high-level Python web framework that encourages rapid development and clean, pragmatic design.",
       "version": "5.2.6"
     },

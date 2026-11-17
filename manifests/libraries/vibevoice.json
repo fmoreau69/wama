@@ -27,6 +27,7 @@
       "author": "vibevoice team <VibeVoice@microsoft.com>",
       "license": null,
       "repository": "https://github.com/microsoft/VibeVoice",
+      "role": "engine",
       "summary": "Open-Source Frontier Voice AI.",
       "version": "1.0.0"
     },

@@ -38,6 +38,7 @@
       "author": "Eren Gölge <egolge@coqui.ai>",
       "license": "MPL-2.0",
       "repository": "https://github.com/idiap/coqui-ai-TTS",
+      "role": "engine",
       "summary": "Deep learning for Text to Speech.",
       "version": "0.27.3"
     },

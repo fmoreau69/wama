@@ -42,6 +42,7 @@
       "author": "Bryce Drennan",
       "license": null,
       "repository": "https://github.com/brycedrennan/imaginAIry",
+      "role": "engine",
       "summary": "AI imagined images. Pythonic generation of images.",
       "version": "15.0.0"
     },

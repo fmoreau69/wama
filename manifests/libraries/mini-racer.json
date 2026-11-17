@@ -7,6 +7,7 @@
       "author": "bpcreech <mini-racer@bpcreech.com>, Sqreen <support@sqreen.com>",
       "license": "ISC",
       "repository": "https://github.com/bpcreech/PyMiniRacer",
+      "role": "brick",
       "summary": "Minimal, modern embedded V8 for Python.",
       "version": "0.14.1"
     },

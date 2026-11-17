@@ -30,6 +30,7 @@
       "author": "Resemble AI",
       "license": null,
       "repository": "https://github.com/resemble-ai/resemble-enhance",
+      "role": "engine",
       "summary": "Speech denoising and enhancement with deep learning",
       "version": "0.0.1"
     },

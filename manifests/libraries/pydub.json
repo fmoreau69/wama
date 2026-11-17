@@ -7,6 +7,7 @@
       "author": "James Robert",
       "license": "MIT",
       "repository": "http://pydub.com",
+      "role": "app",
       "summary": "Manipulate audio with an simple and easy high level interface",
       "version": "0.25.1"
     },

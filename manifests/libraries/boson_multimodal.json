@@ -29,6 +29,7 @@
       "author": "Boson AI",
       "license": "MIT License",
       "repository": "https://github.com/yourusername/boson_multimodal",
+      "role": "engine",
       "summary": "Boson Multimodal - A multimodal AI framework",
       "version": "0.1.1"
     },

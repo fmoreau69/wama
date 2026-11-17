@@ -19,6 +19,7 @@
       "author": "Meta AI Research",
       "license": "MIT License",
       "repository": "https://github.com/facebookresearch/sam3",
+      "role": "engine",
       "summary": "SAM3 (Segment Anything Model 3) implementation",
       "version": "0.1.2"
     },

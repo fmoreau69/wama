@@ -16,6 +16,7 @@
       "author": "Alexandre Défossez, Jade Copet, Yossi Adi, Gabriel Synnaeve",
       "license": "Creative Commons Attribution-NonCommercial 4.0 International",
       "repository": "https://github.com/facebookresearch/encodec",
+      "role": "engine",
       "summary": "High fidelity neural audio codec",
       "version": "0.1.1"
     },

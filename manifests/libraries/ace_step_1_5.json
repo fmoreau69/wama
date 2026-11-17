@@ -48,6 +48,7 @@
       "author": "ACEStep",
       "license": "MIT",
       "repository": "https://github.com/ace-step/ACE-Step-1.5",
+      "role": "engine",
       "summary": "ACE-Step 1.5",
       "version": "ca1e85fe9430"
     },

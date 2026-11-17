@@ -34,6 +34,7 @@
       "author": "Piero Toffanin",
       "license": "AGPL-3.0",
       "repository": "https://github.com/LibreTranslate/LibreTranslate",
+      "role": "engine",
       "summary": "Free and Open Source Machine Translation API",
       "version": "89e8a56b9324"
     },

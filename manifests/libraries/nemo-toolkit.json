@@ -23,6 +23,7 @@
       "author": "NVIDIA",
       "license": "Apache Software License",
       "repository": "https://github.com/NVIDIA-NeMo/NeMo",
+      "role": "engine",
       "summary": "NeMo - a toolkit for Conversational AI",
       "version": "3.0.0"
     },

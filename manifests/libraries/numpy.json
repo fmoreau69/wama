@@ -12,6 +12,7 @@
       "author": "Travis E. Oliphant et al.",
       "license": "BSD License",
       "repository": "https://github.com/numpy/numpy",
+      "role": "platform",
       "summary": "Fundamental package for array computing in Python",
       "version": "2.3.5"
     },

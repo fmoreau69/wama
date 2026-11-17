@@ -12,6 +12,7 @@
       "author": "The Pandas Development Team <pandas-dev@python.org>",
       "license": "BSD License",
       "repository": "https://github.com/pandas-dev/pandas",
+      "role": "brick",
       "summary": "Powerful data structures for data analysis, time series, and statistics",
       "version": "2.3.3"
     },

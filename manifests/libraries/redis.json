@@ -11,6 +11,7 @@
       "author": "Redis Inc.",
       "license": "MIT",
       "repository": "https://github.com/redis/redis-py",
+      "role": "platform",
       "summary": "Python client for Redis database and key-value store",
       "version": "5.0.8"
     },

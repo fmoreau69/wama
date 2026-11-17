@@ -25,6 +25,7 @@
       "author": "Alibaba Qwen Team",
       "license": "Apache-2.0",
       "repository": "https://github.com/Qwen/Qwen3-ASR",
+      "role": "engine",
       "summary": "Qwen-ASR python package",
       "version": "0.0.6"
     },

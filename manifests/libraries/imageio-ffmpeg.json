@@ -7,6 +7,7 @@
       "author": "imageio contributors",
       "license": "BSD-2-Clause",
       "repository": "https://github.com/imageio/imageio-ffmpeg",
+      "role": "brick",
       "summary": "FFMPEG wrapper for Python",
       "version": "0.6.0"
     },

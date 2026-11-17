@@ -12,6 +12,7 @@
       "author": "Kenneth Reitz",
       "license": "Apache-2.0",
       "repository": "https://github.com/psf/requests",
+      "role": "platform",
       "summary": "Python HTTP for Humans.",
       "version": "2.32.5"
     },

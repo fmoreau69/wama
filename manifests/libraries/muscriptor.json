@@ -23,6 +23,7 @@
       "author": "Kyutai x Mirelo",
       "license": "MIT",
       "repository": "https://github.com/muscriptor/muscriptor",
+      "role": "engine",
       "summary": "Audio-to-MIDI transcription using a transformer language model",
       "version": "0.3.0"
     },

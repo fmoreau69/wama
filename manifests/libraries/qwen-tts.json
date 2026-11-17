@@ -21,6 +21,7 @@
       "author": "Alibaba Qwen Team",
       "license": "Apache-2.0",
       "repository": "https://github.com/Qwen/Qwen3-TTS",
+      "role": "engine",
       "summary": "Qwen-TTS python package",
       "version": "0.1.1"
     },

@@ -40,6 +40,7 @@
       "author": "Meta AI Research, FAIR",
       "license": "Apache-2.0 AND FAIR Noncommercial Research License",
       "repository": "https://github.com/facebookresearch/perception_models",
+      "role": "engine",
       "summary": "Models of the Perception family.",
       "version": "e72b6810b113"
     },

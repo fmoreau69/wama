@@ -15,6 +15,7 @@
       "author": "=?utf-8?q?Sebasti=C3=A1n_Ram=C3=ADrez?= <tiangolo@gmail.com>",
       "license": "MIT License",
       "repository": "https://github.com/fastapi/fastapi",
+      "role": "brick",
       "summary": "FastAPI framework, high performance, easy to learn, fast to code, ready for production",
       "version": "0.115.14"
     },

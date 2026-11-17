@@ -11,6 +11,7 @@
       "author": "Saurabh Kumar",
       "license": "BSD-3-Clause",
       "repository": "https://github.com/theskumar/python-dotenv",
+      "role": "brick",
       "summary": "Read key-value pairs from a .env file and set them as environment variables",
       "version": "1.0.1"
     },

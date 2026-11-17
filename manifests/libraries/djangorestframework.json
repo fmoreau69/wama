@@ -9,6 +9,7 @@
       "author": "Tom Christie",
       "license": "BSD",
       "repository": "https://github.com/encode/django-rest-framework",
+      "role": "brick",
       "summary": "Web APIs for Django, made easy.",
       "version": "3.16.1"
     },

@@ -14,6 +14,7 @@
       "author": "KobiMusic",
       "license": "Apache-2.0",
       "repository": "https://github.com/kobimusic/copisteria",
+      "role": "engine",
       "summary": "Lecture optique de partitions imprimées (OMR) : une page → MusicXML — code lancé par copisteria_backend (détecteur de symboles v7 + modèle d'évidence)",
       "version": "c685f280914d"
     },

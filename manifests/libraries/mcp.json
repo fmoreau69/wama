@@ -26,6 +26,7 @@
       "author": "Anthropic, PBC.",
       "license": "MIT",
       "repository": "https://github.com/modelcontextprotocol/python-sdk",
+      "role": "brick",
       "summary": "Model Context Protocol SDK",
       "version": "1.30.0"
     },

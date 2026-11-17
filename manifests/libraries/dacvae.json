@@ -16,6 +16,7 @@
       "author": "Yi-Chiao Wu",
       "license": "Apache-2.0",
       "repository": "https://github.com/facebookresearch/dacvae",
+      "role": "engine",
       "summary": "A high-quality general neural audio codec with a continuous latent space (VAE version of Descript Audio Codec)",
       "version": "414c20785fc3"
     },

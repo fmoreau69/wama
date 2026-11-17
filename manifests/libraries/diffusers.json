@@ -21,6 +21,7 @@
       "author": "The Hugging Face team (past and future) with the help of all our contributors (https://github.com/huggingface/diffusers/graphs/contributors)",
       "license": "Apache 2.0 License",
       "repository": "https://github.com/huggingface/diffusers",
+      "role": "engine",
       "summary": "State-of-the-art diffusion in PyTorch and JAX.",
       "version": "0.37.0"
     },

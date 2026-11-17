@@ -16,6 +16,7 @@
       "author": "CPJKU (Johannes Kepler University Linz)",
       "license": "MIT",
       "repository": "https://github.com/CPJKU/beat_this",
+      "role": "engine",
       "summary": "Beat This! beat tracker",
       "version": "1.1.0"
     },

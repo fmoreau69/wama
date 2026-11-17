@@ -24,6 +24,7 @@
       "author": "Andros Tjandra, Ann Lee, Bowen Shi, Julius Richter, Matt Le, Yi-Chiao Wu",
       "license": "SAM License",
       "repository": "https://github.com/facebookresearch/sam-audio",
+      "role": "engine",
       "summary": "Segment Anything Audio",
       "version": "bb4c6999d267"
     },

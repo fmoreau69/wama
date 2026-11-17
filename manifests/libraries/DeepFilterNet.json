@@ -20,6 +20,7 @@
       "author": "Hendrik Schröter",
       "license": "MIT",
       "repository": "https://github.com/Rikorose/DeepFilterNet",
+      "role": "engine",
       "summary": "Noise supression using deep filtering",
       "version": "0.5.6"
     },

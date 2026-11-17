@@ -26,6 +26,7 @@
       "author": "Resemble AI",
       "license": "MIT",
       "repository": "https://github.com/resemble-ai/chatterbox",
+      "role": "engine",
       "summary": "Chatterbox: Open Source TTS and Voice Conversion by Resemble AI",
       "version": "0.1.7"
     },

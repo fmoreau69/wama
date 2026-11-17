@@ -20,6 +20,7 @@
       "author": null,
       "license": "Apache-2.0",
       "repository": "https://github.com/multimodal-art-projection/YuE",
+      "role": "engine",
       "summary": "YuE2 music generation with editable symbolic plans",
       "version": "18a07bb628f0"
     },

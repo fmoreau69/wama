@@ -19,6 +19,7 @@
       "author": "Tencent Music Entertainment Lyra Lab",
       "license": "MIT",
       "repository": "https://github.com/TMElyralab/MuseTalk",
+      "role": "engine",
       "summary": "Synchronisation labiale temps réel (MuseTalk v1.5) — code lancé en sous-processus par musetalk_backend",
       "version": "0a89dec45a01"
     },
