@@ -661,9 +661,11 @@ class ModelSyncService:
             return False
         obj.capabilities = apres
         obj.save(update_fields=['capabilities'])
-        logger.info(f"[ModelSync] {obj.model_key}: capacités réalignées sur {cls.__name__} "
-                    f"(supports_cloning {avant.get('supports_cloning')!r} → "
-                    f"{apres.get('supports_cloning')!r})")
+        # Les clés qui ont CHANGÉ (2026-11-17) : le journal ne nommait que `supports_cloning`, et
+        # disait « None → None » quand c'était le mode propre ou la température qui bougeait.
+        changed = sorted(k for k in set(avant) | set(apres) if avant.get(k) != apres.get(k))
+        logger.info(f"[ModelSync] {obj.model_key}: capacités réalignées sur {cls.__name__} ("
+                    + ', '.join(f"{k} {avant.get(k)!r} → {apres.get(k)!r}" for k in changed) + ")")
         return True
 
     def sync_file_change(
