@@ -1033,7 +1033,7 @@ class GeneratedPageByDomainTest(SimpleTestCase):
 
     def test_a_page_with_one_queue_keeps_its_ids_and_names_no_domain(self):
         for app, doms, index, views in self.pages:
-            if doms:
+            if doms or 'element_pages.' in index:
                 continue
             with self.subTest(app=app):
                 self.assertIn(f"queue_id='{app}Queue' batches=batches_list", index)
@@ -1129,6 +1129,24 @@ class GeneratedPageByDomainTest(SimpleTestCase):
                     self.assertIn(f"app_id='{surface}'", views)
                     self.assertIn((surface, model), skeleton)
                     self.assertIn(f"register_app_detail_spec('{surface}', {model}", apps)
+                    # The page: a pane of ITS domain, fed by ITS context, its routes, its card.
+                    files, why = render_index(manifest)
+                    self.assertTrue(files, why)
+                    dom = own['modes']['domains'][0]['id']
+                    index, card = files['index.html'], files.get(f'_generic_{prefix}_card.html', '')
+                    markup, _, script = index.partition('{% block app_scripts %}')
+                    self.assertEqual(1, markup.count(f'data-domain="{dom}"'))
+                    self.assertEqual(1, markup.count(f'data-domain-settings="{dom}"'))
+                    self.assertIn(f'batches=element_pages.{prefix}.batches_list', markup)
+                    self.assertIn(f"card_template='{key}/_generic_{prefix}_card.html'", markup)
+                    self.assertIn(f"url '{key}:{prefix}_batch_create'", index,
+                                  re.findall(r"url '[^']*(?:upload|batch_create)[^']*'", index))
+                    self.assertIn(f"url 'common:unified_preview' '{surface}' elem.id", card)
+                    self.assertNotIn(f"unified_preview' '{key}'", card)
+                    self.assertIn(f"'{prefix}': {prefix}__page(request)", views)
+                    # …and the page view hands it to the template the pane reads.
+                    self.assertIn("'element_pages': _element_pages(request),", views)
+                    self.assertIn(f'// ── Domaine `{dom}` ──\n    (function () {{\n', script)
                     seen += 1
             with self.subTest(app=app):
                 self.assertIn((manifest.get('key'), body['processing']['item_model']), skeleton)

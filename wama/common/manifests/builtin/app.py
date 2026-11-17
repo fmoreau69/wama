@@ -713,6 +713,11 @@ def _elements(app_id: str) -> dict:
         surface = domain_surface(app_id, domain.get('id')) if prefix else None
         if not surface or surface in out or not DetailRegistry.is_registered(surface):
             continue
+        # Le modèle d'une surface est un modèle de l'APP : un enregistrement venu d'ailleurs
+        # (une jumelle qui s'inscrivait sous la surface de sa source, 2026-11-17) n'est pas le sien.
+        model = (DetailRegistry.get(surface) or {}).get('model')
+        if model is None or model._meta.app_label != app_id:
+            continue
         spec = _model_spec(app_id, surface) or {}
         entry = {'domains': surface_domains(app_id, surface), 'route_prefix': prefix,
                  'inspector': _inspector(surface)}

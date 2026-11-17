@@ -1114,3 +1114,37 @@ class BornAppSubstitutionTest(SimpleTestCase):
             with self.assertRaisesRegex(CommandError, 'manifest read'):
                 cmd_sandbox.Command()._substitute('ghost_01', 'templates')
         born.assert_called_once()
+
+
+class TwinRenameCarriesTheSurfacesTest(SimpleTestCase):
+    """A twin is a renamed copy: the surfaces its domains derive from the app key
+    (`app_modes.surface_name`) are renamed with it. Kept, the twin registered under its SOURCE's
+    surface and, in one process, took the place of the real domain (2026-11-17)."""
+
+    def test_every_declared_surface_follows_the_twin_name(self):
+        from wama.common.management.commands.app_sandbox import _rename_text
+        from wama.common.utils.app_modes import APP_MODES, domain_surface, surface_name
+        seen = 0
+        for app, decl in sorted(APP_MODES.items()):
+            for domain in decl.get('domains', []):
+                prefix = domain.get('route_prefix')
+                if not prefix:
+                    continue
+                source = domain_surface(app, domain['id'])
+                twin = surface_name(f'{app}_01', prefix)
+                for q in ("'", '"'):
+                    with self.subTest(app=app, surface=source, quote=q):
+                        self.assertEqual(f'x({q}{twin}{q}, {q}{app}_01{q})',
+                                         _rename_text(f'x({q}{source}{q}, {q}{app}{q})',
+                                                      app, f'{app}_01'))
+                seen += 1
+        self.assertGreater(seen, 0, 'no domain of the park declares a route prefix')
+
+    def test_a_longer_name_that_merely_contains_a_surface_is_left_alone(self):
+        from wama.common.management.commands.app_sandbox import _rename_text
+        from wama.common.utils.app_modes import APP_MODES, domain_surface
+        for app, decl in sorted(APP_MODES.items()):
+            for domain in decl.get('domains', []):
+                if domain.get('route_prefix'):
+                    text = f"'{domain_surface(app, domain['id'])}_progress_'"
+                    self.assertEqual(text, _rename_text(text, app, f'{app}_01'))

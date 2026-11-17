@@ -390,9 +390,16 @@ def render_views(manifest: dict) -> tuple:
     de l'enhancer réel. Un élément qu'on ne sait pas rendre laisse ses routes en bouchons VISIBLES."""
     app = manifest.get('key')
     elements = element_bodies(manifest.get('body') or {}, app)
-    src, why = _render_element({**manifest, 'body': elements[0][2]})
+    src, why = _render_element({**manifest, 'body': elements[0][2]},
+                               with_elements=len(elements) > 1)
     if src is None:
         return None, why
+    if len(elements) > 1:
+        src += ('\n\ndef _element_pages(request):\n'
+                '    """Le contexte de la page de chaque élément de domaine à routes propres — son volet\n'
+                '    sur la page de l\'app (`templates_gen`, `element_pages.<préfixe>`)."""\n'
+                '    return {' + ', '.join(f"'{p}': {p}__page(request)" for _s, p, _b in elements[1:])
+                + '}\n')
     for surface, prefix, body in elements[1:]:
         own, own_why = _render_element({**manifest, 'body': body}, surface=surface, prefix=prefix)
         if own is None:
@@ -461,7 +468,8 @@ def prefixed_names(src: str, prefix: str) -> str:
     return ''.join(lines)
 
 
-def _render_element(manifest: dict, surface: str = '', prefix: str = '') -> tuple:
+def _render_element(manifest: dict, surface: str = '', prefix: str = '',
+                    with_elements: bool = False) -> tuple:
     """Le module de vues d'UN élément. `surface` : celle de l'élément d'un domaine à routes
     propres (ses fabriques, sa porte, sa card, son aperçu la nomment) ; sans elle, l'app."""
     from ..builtin.app import _GEN_MARK
@@ -479,6 +487,14 @@ def _render_element(manifest: dict, surface: str = '', prefix: str = '') -> tupl
     surface = surface or app
     # La card d'un élément de domaine est la sienne (le gabarit la rend : `templates_gen`).
     card_template = f'{app}/_generic_{prefix}_card.html' if prefix else f'{app}/_generic_card.html'
+    # L'appariement de la card d'un élément de domaine est celui de SON domaine (`card_match`).
+    _element_domains = [dd.get('id') for dd in (((manifest.get('body') or {}).get('modes') or {})
+                                                .get('domains') or [])]
+    match_scope = (f", domain='{_element_domains[0]}'" if prefix and len(_element_domains) == 1
+                   else '')
+    # La page de l'app montre aussi ses éléments de domaine : sa vue leur demande leur contexte.
+    element_keys = ("\n            'element_pages': _element_pages(request)," if with_elements
+                    else '')
     progress = d['progress_field']
     fk, row, task = d['batch_fk'], d['row_field'], d['tasks'][0]
     is_link, link, link_fk = d['form'] == 'link', d['link'], d['link_fk']
@@ -807,7 +823,7 @@ _SETTING_NAMES = list(dict.fromkeys(p['name'] for _dom, _sch in _app_schemas('{a
             from wama.common.app_registry import studio_node_ports
             from wama.common.utils.input_match import card_match
             input_match = json.dumps(card_match(
-                '{app}', (studio_node_ports('{app}') or {{}}).get('inputs') or []))
+                '{app}', (studio_node_ports('{app}') or {{}}).get('inputs') or []{match_scope}))
         except Exception:
             input_match = '{{}}'{domain_context}
         # TROU DE GLU {mark} — contexte SPÉCIFIQUE d'app (profils, formats…) non généré :
@@ -815,11 +831,21 @@ _SETTING_NAMES = list(dict.fromkeys(p['name'] for _dom, _sch in _app_schemas('{a
         return render(request, '{app}/index.html', {{
             'batches_list': batches_list, 'queue_count': queue_count,
             'q_sort': q_sort, 'q_filter': q_filter, 'params_json': params_json,
-            'panel_defaults': panel_defaults, 'input_match': input_match,{domain_keys}
+            'panel_defaults': panel_defaults, 'input_match': input_match,{domain_keys}{element_keys}
         }})
 
 
 index = IndexView.as_view()   # la même vue sous forme de FONCTION (route `views.index`)'''
+    if prefix:
+        # L'élément d'un domaine à routes propres n'a pas de page : la page de l'app le montre dans
+        # le volet de SON domaine, et sa vue lui demande ce contexte (`_element_pages`, `render_views`).
+        get_body = vues['index'].split('\n', 2)[2].split("\n        return render(request,")[0]
+        vues['page_context'] = ('def _page(request):\n'
+                                + '\n'.join(line[4:] if line.startswith('    ') else line
+                                            for line in get_body.split('\n'))
+                                + "\n    return {'batches_list': batches_list, 'queue_count': queue_count,"
+                                "\n            'params_json': params_json, 'panel_defaults': panel_defaults,"
+                                "\n            'input_match': input_match}")
 
     # Le dépôt ENVELOPPE à la création sur la forme à liaison (idiome des 9 apps réelles :
     # `wrap_in_batch` après `create`) ; la forme directe laisse `_auto_wrap_orphans` le faire
@@ -1465,6 +1491,8 @@ consolidate       = _qm['consolidate']'''
                                                            'batch_create', 'consolidate',
                                                            'profile_list', 'profile_save')
                          else stub(nom))
+    if 'page_context' in vues:
+        blocs.append(vues['page_context'])
     blocs.insert(0, decorateur)
     # La nature AVANT la fabrique : c'est elle qui la consomme (`group_key`), et le module
     # généré est lu de haut en bas — `_nature_de_lot` doit exister au moment de l'appel.

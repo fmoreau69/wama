@@ -160,6 +160,16 @@ _CATALOG_KEY_PATTERNS = (
 )
 
 
+def _surface_renames(src: str, dst: str) -> list:
+    """`[(surface de la source, surface de la jumelle)]` — une par préfixe de routes que des
+    domaines DÉCLARENT (`app_modes.route_prefixes`), par LA règle `app_modes.surface_name`."""
+    try:
+        from wama.common.utils.app_modes import route_prefixes, surface_name
+        return [(surface_name(src, p), surface_name(dst, p)) for p in route_prefixes()]
+    except Exception:
+        return []
+
+
 def _rename_text(text: str, src: str, dst: str) -> str:
     """Les 4 familles de renommage — quotes simples ET doubles, ordre du plus spécifique
     au plus général (le `wama.` d'abord, sinon le quoté exact le casserait).
@@ -184,6 +194,12 @@ def _rename_text(text: str, src: str, dst: str) -> str:
         frozen = frozen.replace(f'{q}{src}.', f'{q}{dst}.')    # réfs par app_label ('converter.Model'
                                                                #  des FK sérialisées — facette data S2)
         frozen = re.sub(rf'{q}{re.escape(src)}{q}', f'{q}{dst}{q}', frozen)  # app id exact
+        # Les SURFACES que ses domaines à routes propres en dérivent (`app_modes.surface_name` :
+        # `audio_enhancer`) — clés de registres (détail, aperçu), de progression, de tâche. Non
+        # renommées, la jumelle s'inscrivait sous la surface de sa source et, dans un même
+        # processus, prenait la place du vrai domaine audio (2026-11-17).
+        for surface_src, surface_dst in _surface_renames(src, dst):
+            frozen = re.sub(rf'{q}{re.escape(surface_src)}{q}', f'{q}{surface_dst}{q}', frozen)
 
     for token, original in tokens.items():                     # démasquage à l'identique
         frozen = frozen.replace(token, original)

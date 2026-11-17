@@ -37,11 +37,24 @@ from __future__ import annotations
 from wama.common.manifests.codegen.urls_gen import resolve_route
 
 
-def render_index(manifest: dict) -> tuple:
-    """(source, raison) — templates/<app>/index.html conventionnel, jamais partiel."""
+def render_index(manifest: dict, element: tuple = None) -> tuple:
+    """(source, raison) — templates/<app>/index.html conventionnel, jamais partiel.
+
+    `element` — `(surface, préfixe)` de l'élément d'un domaine à routes propres
+    (`views_gen.element_bodies`, `ROUTE §11 #42` reste ii, 2026-11-16) : on rend alors, sur SON corps,
+    les pièces de son volet de page (réglages, card d'entrée, barre, file, câblage) et sa card —
+    ses routes sous son préfixe, son aperçu sous sa surface, son contexte `element_pages.<préfixe>`
+    —, que la page de l'app range dans le volet de SON domaine, comme l'enhancer réel."""
     from ..builtin.app import _GEN_MARK
     app = manifest.get('key')
     body = manifest.get('body') or {}
+    surface, prefix = element or (app, '')
+    rp = f'{prefix}_' if prefix else ''       # le préfixe des NOMS de routes de l'élément
+    card_template = f'{app}/_generic_{prefix}_card.html' if prefix else f'{app}/_generic_card.html'
+    own_domain = next((str(d.get('id')) for d in ((body.get('modes') or {}).get('domains') or [])
+                       if isinstance(d, dict) and d.get('id')), '') if prefix else ''
+    from wama.common.manifests.codegen.views_gen import element_bodies
+    elements = [] if prefix else element_bodies(body, app)[1:]
     ident = body.get('identity') or {}
     label = ident.get('verbose_name') or (manifest.get('name') or app)
     # `file_accept` — RÉTRÉCI aux catégories du PORT TRAVAIL (moitié TRAVAIL de §S2bis.6 (b),
@@ -81,12 +94,26 @@ def render_index(manifest: dict) -> tuple:
         'pid', 'params', 'defaults', 'match', 'opener', 'batch_var', 'batch_base', 'import_var',
         'card_scope', 'progress_scope', 'queue_scope'))
 
-    def _scoped(text, dom=None):
-        """Le texte d'UN domaine — ou, sans domaine, celui de la page à une file."""
+    def _scoped(text, dom=None, home=None):
+        """Le texte d'UN domaine — ou, sans domaine, celui de la page à une file. `home` : le
+        domaine de l'élément de l'app quand la page a aussi des éléments de domaine (ses ids et son
+        contexte restent ceux de la page à une file, ses pièces disent leur domaine)."""
+        if prefix:
+            return _element_scoped(text)
         pid = app if dom is None else f'{app}_{dom}'
         # Le premier domaine garde la barre de lot et l'instance d'import par défaut ; les suivants
         # ont les leurs (règle des pages réelles : deux cards d'entrée = deux jeux d'ids).
         own = dom is not None and dom != doms[0]['id']
+        if home:
+            table = {PID: app, V_PARAMS: 'params_json', V_DEFAULTS: 'panel_defaults',
+                     V_MATCH: 'input_match', OPENER: f", {{ domain: '{home}' }}",
+                     BATCH_VAR: 'window._batchImport', BATCH_BASE: '', IMPORT_VAR: 'window._import',
+                     CARD_SCOPE: f" card_domain='{home}' card_id='{app}NewItem'",
+                     PROGRESS_SCOPE: f" domain='{home}' queue_id='{app}Queue'",
+                     QUEUE_SCOPE: f" domain='{home}' queue_id='{app}Queue' batches=batches_list"}
+            for token, value in table.items():
+                text = text.replace(token, value)
+            return text
         table = {
             PID: pid,
             V_PARAMS: 'params_json' if dom is None else f'domain_pages.{dom}.params_json',
@@ -101,6 +128,25 @@ def render_index(manifest: dict) -> tuple:
             PROGRESS_SCOPE: '' if dom is None else f" domain='{dom}' queue_id='{pid}Queue'",
             QUEUE_SCOPE: (f" queue_id='{pid}Queue' batches=batches_list" if dom is None else
                           f" domain='{dom}' queue_id='{pid}Queue' batches=domain_batches.{dom}"
+                          f" collapse_prefix='{pid}BatchItems'"),
+        }
+        for token, value in table.items():
+            text = text.replace(token, value)
+        return text
+
+    def _element_scoped(text):
+        """Le texte du volet de l'élément d'un domaine à routes propres : ses ids et son contexte
+        (`element_pages.<préfixe>`, posé par la vue de page de l'app)."""
+        pid, ctx = f'{app}_{own_domain}', f'element_pages.{prefix}'
+        table = {
+            PID: pid, V_PARAMS: f'{ctx}.params_json', V_DEFAULTS: f'{ctx}.panel_defaults',
+            V_MATCH: f'{ctx}.input_match', OPENER: f", {{ domain: '{own_domain}' }}",
+            BATCH_VAR: f'window._batchImport_{own_domain}',
+            BATCH_BASE: f"\n        idBase:          '{pid}Batch',",
+            IMPORT_VAR: f'window._import_{own_domain}',
+            CARD_SCOPE: f" card_domain='{own_domain}' card_id='{pid}NewItem' batch_bid='{pid}Batch'",
+            PROGRESS_SCOPE: f" domain='{own_domain}' queue_id='{pid}Queue'",
+            QUEUE_SCOPE: (f" domain='{own_domain}' queue_id='{pid}Queue' batches={ctx}.batches_list"
                           f" collapse_prefix='{pid}BatchItems'"),
         }
         for token, value in table.items():
@@ -365,9 +411,9 @@ def render_index(manifest: dict) -> tuple:
         poll_js = f'''
     var qp = document.getElementById('{PID}Queue');
     if (qp && window.WamaApp && WamaApp.Poller) {{
-        var _cardUrl = "{{% url '{app}:{route_card_html}' 0 %}}";
+        var _cardUrl = "{{% url '{app}:{rp}{route_card_html}' 0 %}}";
         var _poller = new WamaApp.Poller({{
-            urlTemplate: "{{% url '{app}:{route_progress}' 0 %}}",
+            urlTemplate: "{{% url '{app}:{rp}{route_progress}' 0 %}}",
             interval: 1500,
             onData: function (id, data) {{
                 var card = qp.querySelector('.wama-card[data-id="' + id + '"]');
@@ -411,7 +457,7 @@ def render_index(manifest: dict) -> tuple:
                     if cle and cle in noms_routes]
     routes_js = ''
     if routes_dispo:
-        lignes = '\n'.join(f"""        {nom + ':':8} "{{% url '{app}:{cle}' 0 %}}","""
+        lignes = '\n'.join(f"""        {nom + ':':8} "{{% url '{app}:{rp}{cle}' 0 %}}","""
                            for nom, cle in routes_dispo)
         routes_js = f'''
     var U = {{
@@ -533,7 +579,7 @@ def render_index(manifest: dict) -> tuple:
     // AJOUT À LA FILE — brique commune : consigne + réglages du volet + fichier joint ou
     // désigné ; rien n'est lancé — on ajoute, on règle, puis ▶.
     WamaApp.addToQueue({{
-        url:          "{{% url '{app}:{route_upload}' %}}",
+        url:          "{{% url '{app}:{rp}{route_upload}' %}}",
         csrfToken:    CSRF,
         button:       '{PID}AddBtn',
         prompt:       {{ inputId: '{PID}Prompt', field: '{prompt_field or 'prompt'}' }},
@@ -541,7 +587,7 @@ def render_index(manifest: dict) -> tuple:
         ports:        {ports_js},
         // Plusieurs fichiers = un lot. Forme `as` : une app sans cette route reste rendue, ses cards
         // restent unitaires (une balise url sans `as` lèverait NoReverseMatch et l'index tomberait).
-        consolidateUrl: "{{% url '{app}:{route_consolidate}' as {app}_consolidate_url %}}{{{{ {app}_consolidate_url }}}}",
+        consolidateUrl: "{{% url '{app}:{rp}{route_consolidate}' as {app}_{rp}consolidate_url %}}{{{{ {app}_{rp}consolidate_url }}}}",
     }});
 '''
 
@@ -556,8 +602,8 @@ def render_index(manifest: dict) -> tuple:
     if entry['drop_creates']:
         import_js = f'''    // Fichier ORDINAIRE (dépôt, clic, médiathèque) : le maillon qu'aucune brique ne portait.
     {IMPORT_VAR} = WamaImport({{
-        uploadUrl:      "{{% url '{app}:{route_upload}' %}}",
-        consolidateUrl: "{{% url '{app}:{route_consolidate}' %}}",
+        uploadUrl:      "{{% url '{app}:{rp}{route_upload}' %}}",
+        consolidateUrl: "{{% url '{app}:{rp}{route_consolidate}' %}}",
         csrfToken:      CSRF,
         dropZoneId:     '{PID}DropZone',
         fileInputId:    '{PID}FileInput',
@@ -598,7 +644,7 @@ def render_index(manifest: dict) -> tuple:
     démarre seule (2026-11-01) : le gabarit n'écrit plus `WAMA_GLOBAL_PROGRESS_URL`.{{% endcomment %}}
     {{% include 'common/_global_progress.html' with app='{app}'{PROGRESS_SCOPE} %}}
 
-    {{% url '{app}:{route_batch_template}' as batch_tpl_url %}}
+    {{% url '{app}:{rp}{route_batch_template}' as batch_tpl_url %}}
     {{% comment %}}Card d'entrée v4 (CARD_DESIGN §11.11 B) — DÉRIVÉE de la v3, mêmes ids, mêmes
     contrats : onglets = PORTS déclarés (tag `input_slots`), modalités du port actif toutes
     visibles dans la preview, bascule sur les fichiers attachés à hauteur constante. Le
@@ -616,18 +662,56 @@ def render_index(manifest: dict) -> tuple:
     qui se réplique : le 09/09 déjà, un correctif y avait recopié l'enrobage d'entrée que la
     brique posait. `{PID}Queue` reste l'id du conteneur : le JS ci-dessous le lit. La card
     générée lit `elem` (`_decorer` pose `item.elem = item`, FK directe).{{% endcomment %}}
-    {{% include 'common/_queue.html' with app='{app}'{QUEUE_SCOPE} card_template='{app}/_generic_card.html' card_class='job-card' meta_template='common/_batch_meta_chips.html' empty_text='Aucun élément dans la file.' %}}'''
+    {{% include 'common/_queue.html' with app='{app}'{QUEUE_SCOPE} card_template='{card_template}' card_class='job-card' meta_template='common/_batch_meta_chips.html' empty_text='Aucun élément dans la file.' %}}'''
     piece_js = f'''    // Fichier de LOT : détection structurelle + aperçu AVANT création (brique commune).
     {BATCH_VAR} = WamaBatchImport({{{BATCH_BASE}
-        batchPreviewUrl: "{{% url '{app}:{route_batch_preview}' %}}",
-        batchCreateUrl:  "{{% url '{app}:{route_batch_create}' %}}",
+        batchPreviewUrl: "{{% url '{app}:{rp}{route_batch_preview}' %}}",
+        batchCreateUrl:  "{{% url '{app}:{rp}{route_batch_create}' %}}",
         csrfToken:       CSRF,
         afterCreate:     function () {{ location.reload(); }},
     }});
 
 {import_js}
 {url_js}{ref_js}{attach_js}{insp_js}{params_js}{batch_js}{poll_js}'''
-    if not doms:
+    if prefix:
+        # Les pièces de l'élément, rendues ici (sa portée a déjà ses ids) ; ses routes de card dans
+        # SA portée JS — la page de l'app les range (`render_index` sans `element`).
+        element_pieces = (_scoped(piece_panel), _scoped(piece_content),
+                          routes_js + _scoped(piece_js))
+    if elements:
+        # L'élément de l'app dans le volet de SON domaine, puis celui de chaque domaine à routes
+        # propres, rendu sur son corps (`views_gen.element_bodies`) — la page de l'enhancer réel.
+        home = next((str(d.get('id')) for d in ((body.get('modes') or {}).get('domains') or [])
+                     if isinstance(d, dict) and d.get('id') and not d.get('route_prefix')), '')
+        parts = [(home, _scoped(piece_panel, home=home), _scoped(piece_content, home=home),
+                  _scoped(piece_js, home=home))]
+        extra_cards = {}
+        for el_surface, el_prefix, el_body in elements:
+            rendered, why = render_index({**manifest, 'body': el_body}, element=(el_surface, el_prefix))
+            if rendered is None:
+                return None, f'élément `{el_surface}` : {why}'
+            el_domain = next((str(d.get('id')) for d in ((el_body.get('modes') or {}).get('domains')
+                                                        or []) if d.get('id')), el_prefix)
+            parts.append((el_domain, *rendered['pieces']))
+            extra_cards[f'_generic_{el_prefix}_card.html'] = rendered['_card']
+        panel_html = '\n'.join(f'<div data-domain-settings="{d}">\n{panel}\n</div>'
+                                for d, panel, _c, _j in parts)
+        panes = '\n'.join(
+            f'''<div class="tab-pane fade{' show active' if i == 0 else ''}" id="{app}_{d}Tab" role="tabpanel" data-domain="{d}">
+{content}
+</div>''' for i, (d, _p, content, _j) in enumerate(parts))
+        content_html = f'''    {{% comment %}}Le domaine de la page : pièce commune (`_domain_tabs.html`) — l'élément de l'app
+    et celui de chaque domaine à routes propres ont leur card d'entrée, leur barre et leur file.{{% endcomment %}}
+    {{% include 'common/_domain_tabs.html' with app='{app}' %}}
+<div class="tab-content">
+{panes}
+</div>'''
+        wiring_js = '\n'.join(
+            f'''    // ── Domaine `{d}` ──
+    (function () {{
+{js}    }})();''' for d, _p, _c, js in parts)
+        modes_bit = ' with_modes=True'
+    elif not doms:
         panel_html, content_html, wiring_js = (_scoped(p) for p in (piece_panel, piece_content, piece_js))
         modes_bit = ''
     else:
@@ -739,15 +823,15 @@ document.addEventListener('DOMContentLoaded', function () {{
     route_duplicate = resolve_route('duplicate', noms_routes)
     route_delete = resolve_route('delete', noms_routes)
     bouton_dl = (f'''
-        {{% url '{app}:{route_download}' elem.id as url_dl %}}
+        {{% url '{app}:{rp}{route_download}' elem.id as url_dl %}}
         {{% if elem.status == 'SUCCESS' %}}{{% download_button '{app}' url_dl True %}}{{% else %}}{{% download_button '{app}' url_dl False %}}{{% endif %}}''' if route_download else f'''
         {{% comment %}}TROU {mark} — aucune route de téléchargement déclarée au manifeste.{{% endcomment %}}''')
     bouton_dup = (f'''
         <button type="button" class="btn btn-sm btn-outline-warning duplicate-btn" title="Dupliquer"
-                data-duplicate-url="{{% url '{app}:{route_duplicate}' elem.id %}}"><i class="fas fa-copy"></i></button>''' if route_duplicate else '')
+                data-duplicate-url="{{% url '{app}:{rp}{route_duplicate}' elem.id %}}"><i class="fas fa-copy"></i></button>''' if route_duplicate else '')
     bouton_del = (f'''
         <button type="button" class="btn btn-sm btn-outline-danger delete-btn" title="Supprimer"
-                data-delete-url="{{% url '{app}:{route_delete}' elem.id %}}"><i class="fas fa-trash"></i></button>''' if route_delete else '')
+                data-delete-url="{{% url '{app}:{rp}{route_delete}' elem.id %}}"><i class="fas fa-trash"></i></button>''' if route_delete else '')
     # ✎ ÉDITER : un bouton par SURFACE déclarée au manifeste (facette `surfaces`, 2026-10-13) —
     # le tag commun le rend grisé avec sa raison quand la surface ne s'ouvre pas sur l'élément.
     from wama.common.manifests.codegen.surfaces_gen import declared_surfaces
@@ -755,7 +839,7 @@ document.addEventListener('DOMContentLoaded', function () {{
     # un process OPTIONNEL n'a pas sa case à cocher sur la card (2026-10-26, la « Partition de
     # sortie » du composer ; les cards réelles du transcriber, du describer et du reader la
     # passaient déjà).
-    process_strip = (f'''{{% url '{app}:{route_update}' elem.id as url_settings %}}
+    process_strip = (f'''{{% url '{app}:{rp}{route_update}' elem.id as url_settings %}}
       {{% include 'common/_card_processes.html' with processes=elem.processes card_id=elem.id settings_url=url_settings %}}'''
                      if route_update else
                      "{% include 'common/_card_processes.html' with processes=elem.processes card_id=elem.id %}")
@@ -785,7 +869,7 @@ silence (Django rend '' sur un attribut manquant : la card reste juste, jamais c
 On ne corrige JAMAIS ce fichier dans la jumelle : on corrige le générateur et on RÉGÉNÈRE.{{% endcomment %}}
 <div class="job-card card bg-body border-secondary wama-card {{% if in_batch %}}mb-1 wcv3--batch-child{{% else %}}mb-2{{% endif %}}"
      data-id="{{{{ elem.id }}}}" data-status="{{{{ elem.status }}}}"
-     data-preview-url="{{% url 'common:unified_preview' '{app}' elem.id %}}">
+     data-preview-url="{{% url 'common:unified_preview' '{surface}' elem.id %}}">
   <div class="card-body py-2">
     <div class="wcv3-head">#{{{{ elem.id }}}}<span class="sep">·</span>{{{{ elem.created_at|date:"d/m H:i" }}}}</div>
     <div class="wcv3">
@@ -800,7 +884,7 @@ On ne corrige JAMAIS ce fichier dans la jumelle : on corrige le générateur et 
             travail, sinon la consigne (`source_text` de la spec). Il dépendait de `elem.input_file`,
             un nom de champ supposé : aucune card générée n'ouvrait son entrée.{{% endcomment %}}
             <span role="button" class="wcv3-in-name preview-media-link" title="Aperçu de l'entrée"
-                  data-preview-url="{{% url 'common:unified_preview' '{app}' elem.id %}}?side=input">{entry_label}</span>
+                  data-preview-url="{{% url 'common:unified_preview' '{surface}' elem.id %}}?side=input">{entry_label}</span>
             <span class="wcv3-in-props">{{{{ elem.media_type|default:'—' }}}}{{% for p in elem.input_props %}} · {{{{ p }}}}{{% endfor %}}</span>
           </div>
         </div>
@@ -861,14 +945,14 @@ On ne corrige JAMAIS ce fichier dans la jumelle : on corrige le générateur et 
     (hydrateur commun). Sans la classe, la preview s'affichait mais ne s'AGRANDISSAIT pas
     (constat Fabien 31/08 — câblage manquant, mécanisme déjà en place).{{% endcomment %}}
     {{% if elem.status == 'SUCCESS' %}}
-    {{% url 'common:unified_preview' '{app}' elem.id as pv_out %}}
+    {{% url 'common:unified_preview' '{surface}' elem.id as pv_out %}}
     <div class="wcv3-preview wama-card-preview" id="preview-row-{{{{ elem.id }}}}" data-card-preview="{{{{ pv_out }}}}?side=output" data-preview-url="{{{{ pv_out }}}}?side=output" data-id="{{{{ elem.id }}}}" data-player-id="{{{{ elem.id }}}}"></div>
     {{% else %}}
     {{% comment %}}Preview de la SOURCE en attendant le résultat (demande Fabien 31/08 : « la
     preview n'apparaît pas dans les cards, uniquement dans le volet droit ») — MÊME hydrateur
     commun (hydrateCardPreviews), face input. Les cards réelles n'affichent qu'une icône à ce
     stade : écart voulu jumelle>réel, à porter au parc après validation écran (CARD_DESIGN §11).{{% endcomment %}}
-    {{% url 'common:unified_preview' '{app}' elem.id as pv_in %}}
+    {{% url 'common:unified_preview' '{surface}' elem.id as pv_in %}}
     <div class="wcv3-preview wama-card-preview" id="preview-row-{{{{ elem.id }}}}" data-card-preview="{{{{ pv_in }}}}?side=input" data-preview-url="{{{{ pv_in }}}}?side=input" data-id="{{{{ elem.id }}}}" data-player-id="{{{{ elem.id }}}}"></div>
     {{% endif %}}
   </div>
@@ -879,7 +963,9 @@ On ne corrige JAMAIS ce fichier dans la jumelle : on corrige le générateur et 
     # un PARTIAL COMMUN (`common/_batch_meta_chips.html`) et le calcul une BRIQUE
     # (`card_chips.common_chips_for_items`) : le générateur n'émet plus de partial d'app —
     # il passe le slot et la vue appelle la brique, comme n'importe quelle app portée.
-    return {'index.html': src, '_generic_card.html': card}, None
+    if prefix:
+        return {'pieces': element_pieces, '_card': card}, None
+    return {'index.html': src, '_generic_card.html': card, **(extra_cards if elements else {})}, None
 
 
 def render_base(manifest: dict) -> tuple:
