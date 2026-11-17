@@ -606,14 +606,17 @@ def dev_regen_check(user, app: str) -> dict:
 
 
 def dev_reload_web(user) -> dict:
-    """Recharge gunicorn (signal HUP, rechargement gracieux) — nécessaire après la création, la restauration ou le retrait d'une jumelle."""
-    # Motif `[g]unicorn` : un motif littéral se retrouverait dans la ligne de commande de ce
-    # `pkill` lui-même, qui se signalerait (piège mesuré le 2026-09-15).
-    res = subprocess.run(['pkill', '-HUP', '-f', '[g]unicorn wama.wsgi'],
-                         capture_output=True, text=True)
-    if res.returncode == 0:
-        return {'reloaded': True}
-    return {'error': "gunicorn introuvable — aucun rechargement (serveur arrêté ?)"}
+    """Recharge gunicorn à chaud (les pages restent servies, la réponse en cours aussi) — nécessaire après la création, la restauration ou le retrait d'une jumelle, ou une modification de code."""
+    # Par l'ORDRE de la page Exploitation (`service_supervision.control_process`), jamais par un
+    # signal envoyé d'ici (2026-11-17). Un `pkill -HUP -f 'gunicorn wama.wsgi'` atteignait AUSSI
+    # les workers, dont la ligne de commande est celle du maître : chacun mourait du signal
+    # (« Worker … was sent SIGHUP! »), celui qui servait l'appel compris — l'assistant, appelé à
+    # 21:40:09 pour « relancer gunicorn », a coupé sa propre réponse (« Erreur réseau »).
+    # L'ordre est exécuté par la surveillance au passage suivant : `HUP` au seul maître, les
+    # anciens workers finissent leurs requêtes (`graceful_timeout`).
+    from wama.common.utils import service_supervision as supervision
+    accepted, message = supervision.control_process(supervision.WEB, 'restart')
+    return {'reloaded': True, 'detail': message} if accepted else {'error': message}
 
 
 #: Préfixe du nom de tâche Claude Code (`claude_code` ou `claude_code:write`).

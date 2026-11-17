@@ -390,6 +390,19 @@ class ProcessOrdersTest(_WithLogs):
                 self.assertTrue(accepted)
                 self.assertIn(flag, self._files())
 
+    def test_the_developer_reload_tool_drops_the_web_order_and_signals_no_process(self):
+        """2026-11-17 : `dev_reload_web` signalait TOUS les processus gunicorn (`pkill -f`), workers
+        compris — celui qui servait l'assistant est mort avec sa réponse (« Erreur réseau »). Il
+        passe par l'ordre de la page, que la surveillance exécute au maître seul."""
+        from wama.common.services import dev_tools
+        with mock.patch('subprocess.run', side_effect=AssertionError('aucun processus signalé d’ici')), \
+                mock.patch('os.kill', side_effect=AssertionError('aucun processus signalé d’ici')):
+            self.assertIn('error', dev_tools.dev_reload_web(None))          # pas de surveillance
+            self.assertEqual(set(), self._files())
+            self._watchdog_alive()
+            self.assertTrue(dev_tools.dev_reload_web(None)['reloaded'])
+        self.assertEqual({'service_launch.web'}, self._files())
+
     def test_all_the_workers_are_restarted_by_one_order(self):
         """2026-11-12 : le serveur web, puis tous les workers — deux gestes pour servir du code neuf."""
         self._watchdog_alive()
