@@ -147,6 +147,81 @@ class EveryDomainHasItsElementTest(SimpleTestCase):
                 with self.subTest(app=app, surface=surface):
                     self.assertEqual({domain_schema_name(app, d) for d in served}, _picks(form) - {None})
 
+    def test_the_element_of_a_domain_with_its_own_routes_reaches_the_manifest(self):
+        """A domain that declares a route prefix has an element of its OWN (its surface): the
+        manifest carries it beside the app's (`processing.elements`), measured the same way, and a
+        generator reads it as the element of an app (`views_gen.element_bodies`)."""
+        from wama.common.manifests.codegen.views_gen import element_bodies
+        from wama.common.manifests.ingest import extract
+        from wama.common.utils.batch_sync import SYNCED
+        seen = 0
+        for app, decl in sorted(APP_MODES.items()):
+            own = {domain_surface(app, d['id']): d for d in decl.get('domains', [])
+                   if d.get('route_prefix')}
+            body = (extract('app', app) or {}).get('body') or {}
+            elements = (body.get('processing') or {}).get('elements') or {}
+            bodies = {surface: (prefix, derived)
+                      for surface, prefix, derived in element_bodies(body, app)}
+            with self.subTest(app=app):
+                self.assertEqual(sorted(own), sorted(elements))
+                self.assertEqual({''} | set(own), set(bodies))
+                if not own:
+                    self.assertIs(body, bodies[''][1], 'an app of one element renders its body')
+                # The app's element keeps the routes and the tasks no domain element owns.
+                main = bodies[''][1]['processing']
+                prefixes = tuple(d['route_prefix'] + '_' for d in own.values())
+                self.assertFalse([e for e in main.get('endpoints') or [] if prefixes
+                                  and e.startswith(prefixes)])
+                self.assertEqual(
+                    sorted(e for e in body['processing'].get('endpoints') or []
+                           if not (prefixes and e.startswith(prefixes))),
+                    sorted(main.get('endpoints') or []))
+            declared = {m['name'] for m in (body.get('data') or {}).get('models') or []}
+            for surface, domain in sorted(own.items()):
+                model = DetailRegistry.get(surface)['model']
+                entry, (prefix, derived) = elements[surface], bodies[surface]
+                with self.subTest(app=app, surface=surface):
+                    self.assertEqual(model.__name__, entry['item_model'])
+                    self.assertNotEqual(body['processing']['item_model'], entry['item_model'])
+                    self.assertEqual(surface_domains(app, surface), entry['domains'])
+                    self.assertEqual(DetailRegistry.get(surface)['spec'],
+                                     entry['inspector']['detail_spec'])
+                    # Its batch link is the registered one that points ITS model.
+                    link = next(m for m in SYNCED if m.__name__ == entry['batch_link_model'])
+                    self.assertIn(model, [f.related_model for f in link._meta.fields if f.is_relation])
+                    self.assertLessEqual({entry['item_model'], entry['batch_link_model'],
+                                          entry['model_spec']['batch']['name']}, declared)
+                    # The settings its columns hold are those of ITS schema.
+                    names = {p['name'] for p in domain_schema(app, domain['id'])}
+                    self.assertTrue(entry['model_spec']['item']['params_fields'])
+                    self.assertLessEqual(set(entry['model_spec']['item']['params_fields']), names)
+                    # For a generator: an app whose element is this one, without a prefix.
+                    self.assertEqual(domain['route_prefix'], prefix)
+                    self.assertEqual(entry['item_model'], derived['processing']['item_model'])
+                    self.assertEqual(entry['model_spec'], derived['processing']['model_spec'])
+                    self.assertEqual(entry['inspector'], derived['inspector'])
+                    self.assertEqual(domain_schema_name(app, domain['id']),
+                                     derived['params']['primary'])
+                    self.assertEqual([domain['id']], [d['id'] for d in derived['modes']['domains']])
+                    self.assertNotIn('route_prefix', derived['modes']['domains'][0])
+                    self.assertNotIn('elements', derived['processing'])
+                    # Its routes are those of its prefix, the prefix removed — the real app's names.
+                    self.assertEqual(
+                        sorted(e[len(prefix) + 1:] for e in body['processing']['endpoints']
+                               if e.startswith(prefix + '_')),
+                        sorted(derived['processing']['endpoints']))
+                    self.assertTrue(derived['processing']['endpoints'])
+                    # Its task is the one that hands ITS model to the skeleton, and only that one.
+                    self.assertEqual([entry['item_model']],
+                                     [t.get('model') for t in derived['processing']['tasks']])
+                    self.assertNotIn(entry['item_model'],
+                                     [t.get('model') for t in bodies[''][1]['processing']['tasks']])
+                    # Its surface follows THE rule on the key one renders (a twin has its own).
+                    self.assertEqual([f'{prefix}_{app}_01'], [
+                        s for s, _p, _b in element_bodies(body, f'{app}_01') if s])
+                    seen += 1
+        self.assertGreater(seen, 0, 'no domain of the park has routes of its own')
+
 
 def _picks(form) -> set:
     """The schema names a detail-spec form can give, whatever its shape."""

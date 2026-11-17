@@ -96,6 +96,84 @@ def page_domains(body: dict) -> list:
              'schema': str(d.get('params_schema') or primary)} for d in shared]
 
 
+def element_bodies(body: dict, app: str = '') -> list:
+    """`[(surface, préfixe de routes, corps)]` — un corps de manifeste PAR ÉLÉMENT de l'app : le
+    sien d'abord (surface `''`), puis celui de chaque domaine à routes propres
+    (`processing.elements`, extrait par `builtin.app._elements`).
+
+    Le corps d'une surface est celui de l'app où l'élément est le SIEN : `processing.item_model`,
+    `batch_link_model`, `model_spec`, la facette `inspector` et le schéma principal
+    (`params.primary`) sont ceux de l'entrée, les domaines sont les siens, sans préfixe ; ses
+    tâches sont celles qui passent SON modèle au squelette (`processing.tasks[].model`), ses routes
+    celles de son préfixe, le préfixe retiré (`audio_start` → `start`) — pour un gabarit, une app à
+    un élément. L'élément de l'app perd, lui, ce qui est aux autres. Un générateur n'a donc pas une
+    seconde lecture à écrire : il rend chaque corps comme celui d'une app et préfixe ce qu'il nomme
+    (`ROUTE §11 #42`, reste ii, 2026-11-16) — la convention des routes de l'enhancer réel.
+
+    La surface suit LA règle commune (`app_modes.surface_name`) sur la clé `app` qu'on rend — une
+    jumelle a donc la sienne (`audio_enhancer_01`) ; sans `app`, celle qu'a mesurée l'extraction.
+    Une app sans élément de domaine rend son corps tel quel."""
+    processing = body.get('processing') or {}
+    elements = [(surface, entry) for surface, entry in sorted((processing.get('elements') or {}).items())
+                if isinstance(entry, dict) and entry.get('route_prefix')]
+    if not elements:
+        return [('', '', body)]
+    from wama.common.utils.app_modes import surface_name
+    prefixes = [str(entry['route_prefix']) + '_' for _s, entry in elements]
+    own_models = {entry.get('item_model') for _s, entry in elements}
+
+    def _routes(proc: dict, prefix: str = '') -> dict:
+        """Les routes et les tâches d'UN élément : celles de son préfixe, préfixe retiré ; pour
+        l'élément de l'app (`prefix` vide), celles d'aucun préfixe d'élément."""
+        def mine(name):
+            name = str(name or '')
+            return name.startswith(prefix) if prefix else not any(name.startswith(p) for p in prefixes)
+
+        def bare(name):
+            return str(name)[len(prefix):] if prefix else name
+        out = dict(proc)
+        out['endpoints'] = [bare(e) for e in proc.get('endpoints') or [] if mine(e)]
+        if proc.get('extra_routes'):
+            out['extra_routes'] = [
+                {**e, 'name': bare(e.get('name')),
+                 'view': '.'.join(str(e.get('view') or '').split('.')[:-1]
+                                  + [bare(str(e.get('view') or '').split('.')[-1])]),
+                 'pattern': str(e.get('pattern') or '')[len(prefix.rstrip('_')) + 1:]
+                 if prefix else e.get('pattern')}
+                for e in proc['extra_routes'] if mine(e.get('name'))]
+        return out
+
+    main = _routes({k: v for k, v in processing.items() if k != 'elements'})
+    main['tasks'] = [t for t in processing.get('tasks') or [] if t.get('model') not in own_models]
+    out = [('', '', {**body, 'processing': main})]
+    for surface, entry in elements:
+        prefix = str(entry['route_prefix'])
+        own = _routes({k: v for k, v in processing.items()
+                       if k not in ('elements', 'item_model', 'batch_link_model', 'model_spec')},
+                      prefix + '_')
+        own.update({k: entry[k] for k in ('item_model', 'batch_link_model', 'model_spec')
+                    if entry.get(k)})
+        own['tasks'] = [t for t in processing.get('tasks') or []
+                        if t.get('model') == entry.get('item_model')]
+        params = dict(body.get('params') or {})
+        if entry.get('params_schema'):
+            params['primary'] = entry['params_schema']
+        domains = [{k: v for k, v in d.items() if k != 'route_prefix'}
+                   for d in ((body.get('modes') or {}).get('domains') or [])
+                   if isinstance(d, dict) and d.get('id') in (entry.get('domains') or [])]
+        # Ses ports d'entrée : ceux que les modes de SES domaines nomment (`modes[].inputs`) —
+        # l'audio de l'enhancer n'a que `work_audio`. Aucun nommé : ceux de l'app.
+        named = {i for d in domains for m in d.get('modes') or [] for i in m.get('inputs') or []}
+        ports = dict(body.get('ports') or {})
+        if named:
+            ports['inputs'] = [p for p in ports.get('inputs') or [] if p.get('id') in named]
+        out.append((surface_name(app, prefix) if app else str(surface), prefix,
+                    {**body, 'processing': own, 'inspector': dict(entry.get('inspector') or {}),
+                     'params': params, 'ports': ports,
+                     'modes': {**(body.get('modes') or {}), 'domains': domains}}))
+    return out
+
+
 def prompt_port_field(body: dict, fields=None) -> str:
     """Le champ où la SAISIE de la card se pose : sa cible de prompt, sinon le PORT de consigne
     lui-même, sinon `prompt` — '' si aucune n'est une colonne (`fields`, None = ne pas vérifier).
@@ -304,7 +382,88 @@ def _donnees(manifest: dict) -> dict:
 
 
 def render_views(manifest: dict) -> tuple:
-    """(source, raison) — views.py complet, ou (None, raison). Jamais de fichier partiel."""
+    """(source, raison) — views.py complet, ou (None, raison). Jamais de fichier partiel.
+
+    Un élément PAR DOMAINE À ROUTES PROPRES (`element_bodies`, `ROUTE §11 #42`, reste ii,
+    2026-11-16) : chacun est rendu comme une app — ses fabriques sous SA surface, sa card — puis
+    ses noms de module prennent le préfixe de ses routes (`start` → `audio_start`), la convention
+    de l'enhancer réel. Un élément qu'on ne sait pas rendre laisse ses routes en bouchons VISIBLES."""
+    app = manifest.get('key')
+    elements = element_bodies(manifest.get('body') or {}, app)
+    src, why = _render_element({**manifest, 'body': elements[0][2]})
+    if src is None:
+        return None, why
+    for surface, prefix, body in elements[1:]:
+        own, own_why = _render_element({**manifest, 'body': body}, surface=surface, prefix=prefix)
+        if own is None:
+            from ..builtin.app import _GEN_MARK
+            msg = f'[manifest-gen app:{app}] élément `{surface}` non généré ({own_why})'
+            own = '\n\n'.join(
+                f"def {ep}(request, *args, **kwargs):\n    return JsonResponse({{'error': {msg!r}}}, status=501)"
+                for ep in (body.get('processing') or {}).get('endpoints') or [])
+        src += (f'\n\n# ══ Élément du domaine à routes propres `{prefix}` — surface `{surface}` '
+                f'(`views_gen.element_bodies`) ══\n\n' + prefixed_names(own, prefix) + '\n')
+    return src, None
+
+
+def prefixed_names(src: str, prefix: str) -> str:
+    """`src` (un module de vues rendu pour un élément) où chaque nom que le module DÉFINIT
+    (fonction, classe, affectation de niveau module, y compris dans un `try`) prend le préfixe
+    `<prefix>_` — `start` → `audio_start`, la convention des routes d'un domaine qui a les
+    siennes. Les attributs (`x.start`), les arguments nommés (`f(start=…)`) et les noms importés
+    gardent le leur. Lève si un nom défini sert aussi de paramètre : le renommage serait ambigu."""
+    import ast
+    import io as _io
+    import tokenize
+    tree = ast.parse(src)
+    bound = set()
+
+    def collect(statements):
+        for node in statements:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                bound.add(node.name)
+            elif isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
+                for target in (node.targets if isinstance(node, ast.Assign) else [node.target]):
+                    bound.update(n.id for n in ast.walk(target) if isinstance(n, ast.Name))
+            elif isinstance(node, ast.Try):
+                collect(node.body + node.orelse + node.finalbody
+                        + [s for h in node.handlers for s in h.body])
+            elif isinstance(node, ast.If):
+                collect(node.body + node.orelse)
+    collect(tree.body)
+    params = {a.arg for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.Lambda,
+                                                                ast.AsyncFunctionDef))
+              for a in n.args.args + n.args.kwonlyargs + n.args.posonlyargs}
+    clash = bound & params
+    if clash:
+        raise ValueError(f'noms définis ET paramètres : {sorted(clash)}')
+    lines = src.splitlines(True)
+    edits, depth, previous = [], 0, None
+    tokens = list(tokenize.generate_tokens(_io.StringIO(src).readline))
+    for index, tok in enumerate(tokens):
+        if tok.type == tokenize.OP and tok.string in '([{':
+            depth += 1
+        elif tok.type == tokenize.OP and tok.string in ')]}':
+            depth -= 1
+        if tok.type == tokenize.NAME and tok.string in bound:
+            after = next((t for t in tokens[index + 1:]
+                          if t.type not in (tokenize.NL, tokenize.COMMENT)), None)
+            keyword = depth > 0 and after is not None and after.string == '='
+            attribute = previous is not None and previous.string == '.'
+            if not keyword and not attribute:
+                edits.append(tok.start)
+        if tok.type not in (tokenize.NL, tokenize.NEWLINE, tokenize.COMMENT, tokenize.INDENT,
+                            tokenize.DEDENT):
+            previous = tok
+    for row, col in sorted(edits, reverse=True):
+        line = lines[row - 1]
+        lines[row - 1] = line[:col] + f'{prefix}_' + line[col:]
+    return ''.join(lines)
+
+
+def _render_element(manifest: dict, surface: str = '', prefix: str = '') -> tuple:
+    """Le module de vues d'UN élément. `surface` : celle de l'élément d'un domaine à routes
+    propres (ses fabriques, sa porte, sa card, son aperçu la nomment) ; sans elle, l'app."""
     from ..builtin.app import _GEN_MARK
     d = _donnees(manifest)
     if d.get('_raison'):
@@ -317,6 +476,9 @@ def render_views(manifest: dict) -> tuple:
                       'item→Batch + batch_row_index')
 
     app, item, batch = d['app_id'], d['item'], d['batch']
+    surface = surface or app
+    # La card d'un élément de domaine est la sienne (le gabarit la rend : `templates_gen`).
+    card_template = f'{app}/_generic_{prefix}_card.html' if prefix else f'{app}/_generic_card.html'
     progress = d['progress_field']
     fk, row, task = d['batch_fk'], d['row_field'], d['tasks'][0]
     is_link, link, link_fk = d['form'] == 'link', d['link'], d['link_fk']
@@ -394,14 +556,14 @@ def _nature(nom):
     (`app_modes.surface_file_nature`) ; '' quand elle le refuse. L'appelant le SIGNALE : un champ
     vide et dit se répare, une valeur fausse et muette se propage."""
     from wama.common.utils.app_modes import surface_file_nature
-    return surface_file_nature('{app}', '{app}', nom) or ''
+    return surface_file_nature('{app}', '{surface}', nom) or ''
 
 
 def _nature_url(url):
     """La nature d'une SOURCE avant l'arrivée de son fichier (`app_modes.surface_source_nature`) :
     None quand la porte la refuse, '' quand seul le téléchargement le dira."""
     from wama.common.utils.app_modes import surface_source_nature
-    return surface_source_nature('{app}', '{app}', url)
+    return surface_source_nature('{app}', '{surface}', url)
 
 ''' if nature_champ else ''
 
@@ -1079,7 +1241,7 @@ def _decorer(item):
     # (`elem`, `in_batch`, `card_label`, `domain`) — ce gabarit en écrivait le corps.
     vues['card_html'] = f'''from wama.common.utils.item_views import make_card_view  # noqa: E402
 
-card_html = make_card_view(work_model={item}, template='{app}/_generic_card.html',
+card_html = make_card_view(work_model={item}, template='{card_template}',
                            decorate=lambda item: _decorer(item))'''
 
     # PROGRESSION d'une card et de la file : la fabrique COMMUNE (`progress_views`, ROUTE §11 #37,
@@ -1148,13 +1310,18 @@ card_html = make_card_view(work_model={item}, template='{app}/_generic_card.html
     _EXEMPLES = {'image': '.jpg', 'video': '.mp4', 'audio': '.mp3',
                  'document': '.pdf', 'archive': '.zip', '3d': '.glb', 'dataset': '.csv'}
     ext_exemple = _EXEMPLES.get((d.get('types_entree') or ('video',))[0], '.mp4')
+    # Les formats acceptés d'un élément de domaine sont ceux de SON domaine (l'appel de l'app réelle).
+    _own_domains = [dd.get('id') for dd in (((manifest.get('body') or {}).get('modes') or {})
+                                            .get('domains') or [])]
+    batch_scope = (f", app='{app}', domain='{_own_domains[0]}'" if prefix and len(_own_domains) == 1
+                   else '')
     # Servi par `batch_template_response` (2026-11-02, R207) : le nom de fichier commun et les
     # formats que l'app déclare — la réponse était écrite ici, sous un autre nom de fichier.
     vues['batch_template'] = f'''def batch_template(request):
     from wama.common.utils.batch_parsers import batch_template_response
     return batch_template_response(
-        '{app}', ['fichier'], {{'fichier': 'https://example.com/exemple{ext_exemple}'}},
-        label='{app} (un chemin local ou une URL par ligne)')'''
+        '{surface}', ['fichier'], {{'fichier': 'https://example.com/exemple{ext_exemple}'}},
+        label='{app} (un chemin local ou une URL par ligne)'{batch_scope})'''
 
     batch_extra_kw = (f"""
     batch_extra=lambda w: {{'{d['batch_extra']}': w.{d['batch_extra']}}},""" if d['batch_extra'] else '')
@@ -1392,11 +1559,11 @@ def _user(request):
 
 
 # Les vues de PROGRESSION (une card, la file) : fabrique COMMUNE (`progress_views`, ROUTE §11 #37).
-_pv = make_progress_views(work_model={item}, app_id='{app}'{pv_extra})
+_pv = make_progress_views(work_model={item}, app_id='{surface}'{pv_extra})
 
 # ▶ de la card, ▶ et 🗑 de la file : fabrique COMMUNE (`item_views`, ROUTE §11 #39) — sa
 # déclaration est celle que lit l'outil `start_{app}` de l'assistant.
-_iv = make_item_views(work_model={item}, app_id='{app}', task={task}, get_user=_user,
+_iv = make_item_views(work_model={item}, app_id='{surface}', task={task}, get_user=_user,
                       reset_on_start={{'{progress}': 0, 'error_message': ''}},
                       batch_model={batch}, items_related='{items_related}'{iv_selection})
 {helpers_forme}{bloc_nature}{bloc_reglages}

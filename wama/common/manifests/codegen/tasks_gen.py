@@ -61,9 +61,29 @@ def app_tasks(app_id: str) -> list:
             seg = ast.get_source_segment(src, node) or ''
             lifecycle = (node.name in reaches_skeleton
                          or ("'SUCCESS'" in seg and "'FAILURE'" in seg))
-            out.append({'function': node.name, 'task_name': task_name,
-                        'file': fname, 'lifecycle': lifecycle})
+            entry = {'function': node.name, 'task_name': task_name,
+                     'file': fname, 'lifecycle': lifecycle}
+            # Le MODÈLE d'élément que la tâche passe au squelette (`run_item_task(model=<Nom>)`) :
+            # une app à deux éléments (l'enhancer : image / vidéo, audio) a une tâche par élément,
+            # et le générateur range chacune avec le sien (`views_gen.element_bodies`, 2026-11-16).
+            model = _skeleton_model(node)
+            if model:
+                entry['model'] = model
+            out.append(entry)
     return out
+
+
+def _skeleton_model(node) -> str:
+    """Le nom du modèle que la fonction passe au squelette commun (`run_item_task(model=X)`),
+    '' s'il n'est pas un nom nu."""
+    for call in ast.walk(node):
+        name = getattr(getattr(call, 'func', None), 'id', None) or getattr(
+            getattr(call, 'func', None), 'attr', None)
+        if isinstance(call, ast.Call) and name == 'run_item_task':
+            for kw in call.keywords:
+                if kw.arg == 'model' and isinstance(kw.value, ast.Name):
+                    return kw.value.id
+    return ''
 
 
 def _functions_reaching_skeleton(tree) -> set:
@@ -360,8 +380,13 @@ def render_tasks(manifest: dict) -> tuple:
     """(source, raison) — fichier mince complet, ou (None, raison) si la facette ne porte pas
     de quoi le rendre (tasks lifecycle + item_model). Jamais de fichier partiel."""
     from ..builtin.app import _GEN_MARK
+    from .views_gen import element_bodies
     app_id = manifest.get('key')
-    proc = (manifest.get('body') or {}).get('processing') or {}
+    # UN ÉLÉMENT PAR DOMAINE À ROUTES PROPRES (`ROUTE §11 #42`, reste ii, 2026-11-16) : chaque
+    # élément a sa tâche, sur SON modèle, sous SA surface (`audio_enhancer` dans l'enhancer réel) —
+    # le reste du gabarit est le même, lu sur le corps de l'élément (`views_gen.element_bodies`).
+    elements = element_bodies(manifest.get('body') or {}, app_id)
+    proc = elements[0][2].get('processing') or {}
     item_model = proc.get('item_model')
     taches = [t for t in (proc.get('tasks') or []) if t.get('lifecycle')]
     if not item_model:
@@ -383,7 +408,9 @@ def render_tasks(manifest: dict) -> tuple:
         '"""',
         'from celery import shared_task',
         '',
-        f'from .models import {item_model}',
+        'from .models import ' + ', '.join(dict.fromkeys(
+            (b.get('processing') or {}).get('item_model') for _s, _p, b in elements
+            if (b.get('processing') or {}).get('item_model'))),
         '',
     ]
     # ── Marche B1 (2026-09-02) : le corps se COMPOSE quand le manifeste route ─────────────
@@ -400,235 +427,241 @@ def render_tasks(manifest: dict) -> tuple:
     #        chemin dans output_file, sortie au domicile de l'utilisateur (`app_media_dir`) ;
     #   'text' (describer) : le backend REND le texte, la tâche le persiste dans la colonne
     #        `field` déclarée, et publie l'aperçu PARTIEL (during_preview) au fil de l'eau.
-    routes = (proc.get('backend_routes') or {})
-    schema_symbole = ((manifest.get('body') or {}).get('params') or {}).get('primary') or ''
-    spec_item = ((proc.get('model_spec') or {}).get('item') or {})
-    params_fields = list(spec_item.get('params_fields') or [])
-    result_decl = proc.get('backend_result') or {'kind': 'file'}
-    result_kind = result_decl.get('kind') or 'file'
-    result_field = result_decl.get('field') or ''
-    nature_champ = (proc.get('backend_nature_field')
-                    or ('media_type' if 'media_type' in params_fields else ''))
-    compose = bool(routes and schema_symbole and nature_champ
-                   and (result_kind == 'file' or result_field))
-    # Saveur « MODÈLE » (2026-10-08) : sans ROUTES, une app dont le schéma choisit un modèle du
-    # catalogue PAR TÂCHE (`options_query.task`) se compose sur la porte commune — tirage « auto »
-    # dans le domaine déclaré, backend dérivé de la clé (`backend_instance_for_key`, modèles
-    # distants compris), méthode de travail du contrat (`run_contract`). Sa glu n'est plus que
-    # le backend lui-même.
-    by_model = None if routes else model_route(manifest)
-
-    # ── App à PLUSIEURS process (2026-10-05, patron composer — décision n°11, ROUTE §10.6) ──
-    # Le pipeline se lit par la CLÉ de l'app (`pipeline_decl`, jamais une facette du manifeste
-    # `app`). Une tâche, des glus : `run_item_task(pipeline=, processes=, only=)` joue les process
-    # retenus, `process=` borne le lancement (▶ d'un process, `steps_to_run(only=)`) — défaut
-    # `None` : un worker en service qui ne connaît pas l'argument reste compatible.
     from wama.common.manifests.codegen.pipeline_decl import declared_pipeline, process_specs
     _pipeline, _functions = declared_pipeline(app_id)
     _steps = process_specs(_pipeline) if _pipeline else []
-    if len(_steps) >= 2 and len(taches) == 1:
-        fn = taches[0]['function']
-        name_kw = f", name='{taches[0]['task_name']}'" if taches[0].get('task_name') else ''
-        glus = ', '.join(f"'{s['key']}': _process_{fn}_{s['key']}" for s in _steps)
-        lignes += [
-            '',
-            f'@shared_task(bind=True{name_kw})',
-            f'def {fn}(self, item_id: int, process: str | None = None):',
-            '    """Tâche de la card : joue son PIPELINE (`function_specs.PIPELINE`). `process` : ▶ d\'UN',
-            '    process — lui et ses seuls amonts périmés (`steps_to_run(only=)`)."""',
-            '    from wama.common.utils.task_skeleton import run_item_task',
-            '    from .function_specs import PIPELINE',
-            f"    run_item_task(self, app_id='{app_id}', model={item_model}, item_id=item_id,",
-            f'                  pipeline=PIPELINE, processes={{{glus}}},',
-            f"                  only=process, notify_label='{label}')",
-        ]
-        from wama.common.manifests.codegen.pipeline_decl import COMMON_PROCESSES
-        for s in _steps:
-            outputs = ', '.join(s['outputs']) or '(aucune déclarée)'
-            ups = ', '.join(s['depends_on']) or 'aucun'
-            common = COMMON_PROCESSES.get(s['key'])
-            rendered = _common_glue_call(common, proc, s) if common else None
-            if rendered:
-                # Process COMMUN dont la brique ne demande que des noms du manifeste : sa glu est
-                # RENDUE ici, pas laissée au rôle `codegen` (`COMMON_PROCESSES[…]['renders']`).
-                module, factory, call = rendered
-                lignes.extend([
-                    '',
-                    '',
-                    f'def _process_{fn}_{s["key"]}(item, ctx):',
-                    f'    """Process COMMUN « {common["label"]} » (amont : {ups}) — glu RENDUE par le '
-                    'générateur',
-                    f'    (`pipeline_decl.COMMON_PROCESSES`) : {common["does"]}."""',
-                    f'    from {module} import {factory}',
-                    f'    return {call}(item, ctx)',
-                ])
-                continue
-            if common:
-                # Process COMMUN (`pipeline_decl.COMMON_PROCESSES`) : sa glu est la brique — le
-                # trou ne demande que ses arguments, jamais un traitement réécrit.
+    emitted = set()
+    for _surface, _prefix, _body in elements:
+        # Les valeurs de L'ÉLÉMENT (son modèle, ses tâches, son schéma, son modèle de données) ;
+        # la clé de l'app reste celle du pipeline et des modules.
+        proc = _body.get('processing') or {}
+        item_model = proc.get('item_model')
+        taches = [t for t in (proc.get('tasks') or []) if t.get('lifecycle')]
+        run_id = _surface or app_id
+        manifest_element = {**manifest, 'body': _body}
+        routes = (proc.get('backend_routes') or {})
+        schema_symbole = ((manifest_element.get('body') or {}).get('params') or {}).get('primary') or ''
+        spec_item = ((proc.get('model_spec') or {}).get('item') or {})
+        params_fields = list(spec_item.get('params_fields') or [])
+        result_decl = proc.get('backend_result') or {'kind': 'file'}
+        result_kind = result_decl.get('kind') or 'file'
+        result_field = result_decl.get('field') or ''
+        nature_champ = (proc.get('backend_nature_field')
+                        or ('media_type' if 'media_type' in params_fields else ''))
+        compose = bool(routes and schema_symbole and nature_champ
+                       and (result_kind == 'file' or result_field))
+        # Saveur « MODÈLE » (2026-10-08) : sans ROUTES, une app dont le schéma choisit un modèle du
+        # catalogue PAR TÂCHE (`options_query.task`) se compose sur la porte commune — tirage « auto »
+        # dans le domaine déclaré, backend dérivé de la clé (`backend_instance_for_key`, modèles
+        # distants compris), méthode de travail du contrat (`run_contract`). Sa glu n'est plus que
+        # le backend lui-même.
+        by_model = None if routes else model_route(manifest_element)
+
+        # ── App à PLUSIEURS process (2026-10-05, patron composer — décision n°11, ROUTE §10.6) ──
+        # Le pipeline se lit par la CLÉ de l'app (`pipeline_decl`, jamais une facette du manifeste
+        # `app`). Une tâche, des glus : `run_item_task(pipeline=, processes=, only=)` joue les process
+        # retenus, `process=` borne le lancement (▶ d'un process, `steps_to_run(only=)`) — défaut
+        # `None` : un worker en service qui ne connaît pas l'argument reste compatible.
+        if len(_steps) >= 2 and len(taches) == 1:
+            fn = taches[0]['function']
+            name_kw = f", name='{taches[0]['task_name']}'" if taches[0].get('task_name') else ''
+            glus = ', '.join(f"'{s['key']}': _process_{fn}_{s['key']}" for s in _steps)
+            lignes += [
+                '',
+                f'@shared_task(bind=True{name_kw})',
+                f'def {fn}(self, item_id: int, process: str | None = None):',
+                '    """Tâche de la card : joue son PIPELINE (`function_specs.PIPELINE`). `process` : ▶ d\'UN',
+                '    process — lui et ses seuls amonts périmés (`steps_to_run(only=)`)."""',
+                '    from wama.common.utils.task_skeleton import run_item_task',
+                '    from .function_specs import PIPELINE',
+                f"    run_item_task(self, app_id='{run_id}', model={item_model}, item_id=item_id,",
+                f'                  pipeline=PIPELINE, processes={{{glus}}},',
+                f"                  only=process, notify_label='{label}')",
+            ]
+            from wama.common.manifests.codegen.pipeline_decl import COMMON_PROCESSES
+            for s in _steps:
+                outputs = ', '.join(s['outputs']) or '(aucune déclarée)'
+                ups = ', '.join(s['depends_on']) or 'aucun'
+                common = COMMON_PROCESSES.get(s['key'])
+                rendered = _common_glue_call(common, proc, s) if common else None
+                if rendered:
+                    # Process COMMUN dont la brique ne demande que des noms du manifeste : sa glu est
+                    # RENDUE ici, pas laissée au rôle `codegen` (`COMMON_PROCESSES[…]['renders']`).
+                    module, factory, call = rendered
+                    lignes.extend([
+                        '',
+                        '',
+                        f'def _process_{fn}_{s["key"]}(item, ctx):',
+                        f'    """Process COMMUN « {common["label"]} » (amont : {ups}) — glu RENDUE par le '
+                        'générateur',
+                        f'    (`pipeline_decl.COMMON_PROCESSES`) : {common["does"]}."""',
+                        f'    from {module} import {factory}',
+                        f'    return {call}(item, ctx)',
+                    ])
+                    continue
+                if common:
+                    # Process COMMUN (`pipeline_decl.COMMON_PROCESSES`) : sa glu est la brique — le
+                    # trou ne demande que ses arguments, jamais un traitement réécrit.
+                    lignes += [
+                        '',
+                        '',
+                        f'def _process_{fn}_{s["key"]}(item, ctx):',
+                        f'    """TROU DE GLU {mark} — process COMMUN « {common["label"]} » (amont : {ups}), '
+                        'marche B.',
+                        '',
+                        f'    Sa glu est la brique `{common["glue"]}`',
+                        f'    — {common["does"]}. Sortie(s) DÉCLARÉE(S) : {outputs}. Rien d\'autre."""',
+                        f"    raise NotImplementedError('{mark} process {s['key']} non généré (marche B)')",
+                    ]
+                    continue
                 lignes += [
                     '',
                     '',
                     f'def _process_{fn}_{s["key"]}(item, ctx):',
-                    f'    """TROU DE GLU {mark} — process COMMUN « {common["label"]} » (amont : {ups}), '
-                    'marche B.',
+                    f'    """TROU DE GLU {mark} — process `{s["key"]}` ({s["label"] or s["key"]}), marche B.',
                     '',
-                    f'    Sa glu est la brique `{common["glue"]}`',
-                    f'    — {common["does"]}. Sortie(s) DÉCLARÉE(S) : {outputs}. Rien d\'autre."""',
+                    f'    Amont(s) : {ups}. Sortie(s) DÉCLARÉE(S) : {outputs} — un FICHIER de la card,',
+                    '    rendu sous `fields` ET sous `output_ref` (le chemin relatif) : c\'est son empreinte',
+                    '    qui périme l\'aval quand cette sortie est remplacée. Contrat `task_skeleton` :',
+                    '    ctx.progress/ctx.console/ctx.app_id ; retour {fields, output_ref, label, models} ;',
+                    '    une exception = FAILURE de la card."""',
                     f"    raise NotImplementedError('{mark} process {s['key']} non généré (marche B)')",
                 ]
-                continue
-            lignes += [
-                '',
-                '',
-                f'def _process_{fn}_{s["key"]}(item, ctx):',
-                f'    """TROU DE GLU {mark} — process `{s["key"]}` ({s["label"] or s["key"]}), marche B.',
-                '',
-                f'    Amont(s) : {ups}. Sortie(s) DÉCLARÉE(S) : {outputs} — un FICHIER de la card,',
-                '    rendu sous `fields` ET sous `output_ref` (le chemin relatif) : c\'est son empreinte',
-                '    qui périme l\'aval quand cette sortie est remplacée. Contrat `task_skeleton` :',
-                '    ctx.progress/ctx.console/ctx.app_id ; retour {fields, output_ref, label, models} ;',
-                '    une exception = FAILURE de la card."""',
-                f"    raise NotImplementedError('{mark} process {s['key']} non généré (marche B)')",
-            ]
-        emitted = {fn} | {f'_process_{fn}_{s["key"]}' for s in _steps}
-        lignes.extend(declared_glue_holes(manifest, _steps, mark, emitted))
-        lignes.extend(_instant_hole(manifest, mark))
-        lignes.append('')
-        return '\n'.join(lignes), None
+            emitted |= {fn} | {f'_process_{fn}_{s["key"]}' for s in _steps}
+            continue
 
-    for t in taches:
-        fn = t['function']
-        name_kw = f", name='{t['task_name']}'" if t.get('task_name') else ''
-        lignes += [
-            '',
-            f'@shared_task(bind=True{name_kw})',
-            f'def {fn}(self, item_id: int):',
-            '    from wama.common.utils.task_skeleton import run_item_task',
-            f"    run_item_task(self, app_id='{app_id}', model={item_model}, item_id=item_id,",
-            f"                  process=_process_{fn}, notify_label='{label}')",
-            '',
-            '',
-        ]
-        if compose and result_kind == 'text':
+        for t in taches:
+            fn = t['function']
+            name_kw = f", name='{t['task_name']}'" if t.get('task_name') else ''
             lignes += [
-                f'def _process_{fn}(item, ctx):',
-                f'    """CORPS COMPOSÉ {mark} — marche B1, saveur TEXTE : routage nature→backend',
-                '    du MANIFESTE (processing.backend_routes ← backends/__init__.ROUTES), appel au',
-                '    CONTRAT COMMUN « texte » — le backend REND le texte, la tâche le persiste',
-                '    dans la colonne déclarée (processing.backend_result). Import RELATIF AU',
-                '    PAQUET : la jumelle résout SES copies de backends/ sans citer aucun nom',
-                '    d\'app. La tâche lit les COLONNES (modèle événementiel §23.2quater)."""',
-                '    from wama.common.backends.manager import route_for_nature',
-                '    from wama.common.utils.param_schema import effective_settings',
-                '    from wama.common.utils.preview_utils import publish_partial_text',
-                f'    from .params import {schema_symbole} as _SCH',
                 '',
-                f'    routes = {routes!r}',
-                f"    nature = (getattr(item, '{nature_champ}', '') or '').strip()",
-                '    backend = route_for_nature(__package__, nature, routes=routes)',
-                '    fonc = backend.__name__',
+                f'@shared_task(bind=True{name_kw})',
+                f'def {fn}(self, item_id: int):',
+                '    from wama.common.utils.task_skeleton import run_item_task',
+                f"    run_item_task(self, app_id='{run_id}', model={item_model}, item_id=item_id,",
+                f"                  process=_process_{fn}, notify_label='{label}')",
                 '',
-                '    posees = {}',
-                f'    for _n in {params_fields!r}:',
-                '        _v = getattr(item, _n, None)',
-                "        if _v not in (None, '', False):",
-                '            posees[_n] = _v',
-                f"    opts = effective_settings(_SCH, posees=posees, contexte={{'{nature_champ}': nature}})",
                 '',
-                f'    ctx.console(f"Traitement ({{fonc}}) : {{nature}}")',
-                '    texte = backend(item.input_file.path, options=opts,',
-                '                    progress_callback=ctx.progress,',
-                f"                    partial_callback=lambda t: publish_partial_text('{app_id}', item.pk, t),",
-                '                    console=ctx.console)',
-                f"    return {{'fields': {{'{result_field}': texte}}}}",
             ]
-        elif by_model:
-            r = by_model
-            lignes += [
-                f'def _process_{fn}(item, ctx):',
-                f'    """CORPS COMPOSÉ {mark} — marche B1, saveur MODÈLE : le select `{r["param"]}`',
-                f'    choisit un modèle du catalogue pour la tâche `{r["task"]}` ; « auto » tire dans ce',
-                '    domaine déclaré, la porte commune dérive le backend de la clé (modèles distants',
-                '    compris) et appelle la méthode de travail de son CONTRAT avec les réglages de',
-                f'    l\'élément par leur nom, et son fichier par celui de son PORT (`{r["port"]}`). La',
-                '    tâche lit les COLONNES (modèle événementiel §23.2quater)."""',
-                '    from wama.common.backends.manager import backend_instance_for_key, run_contract',
-                '    from wama.common.utils.auto_model import resolve_model_choice',
-                '    from wama.common.utils.param_schema import effective_settings',
-                '    from wama.common.utils.preview_utils import publish_partial_text',
-                f'    from .params import {r["schema"]} as _SCH',
-                '',
-                *settings_and_draw_lines(
-                    r['params_fields'], param=r['param'], domain=r['domain'],
-                    app_id_expr=repr(app_id),
-                    missing=f'aucun modèle de la tâche « {r["task"]} » au catalogue'),
-                '    engine = backend_instance_for_key(key, user=item.user)',
-                f'    text = run_contract(engine, {r["port"]}=item.{r["input_field"]}.path,',
-                '                        progress_callback=ctx.progress,',
-                f"                        on_partial=lambda t: publish_partial_text('{app_id}', item.pk, t),",
-                '                        **opts)',
-                '    if not isinstance(text, str):',
-                '        raise TypeError(f"{type(engine).__name__} ne rend pas de texte")',
-                f"    return {{'fields': {{'{r['result_field']}': text}}, 'models': [key]}}",
-            ]
-        elif compose:
-            lignes += [
-                f'def _process_{fn}(item, ctx):',
-                f'    """CORPS COMPOSÉ {mark} — marche B1 : routage nature→backend du MANIFESTE',
-                '    (processing.backend_routes ← backends/__init__.ROUTES), appel au CONTRAT',
-                '    COMMUN des backends. Import RELATIF AU PAQUET : la jumelle résout SES',
-                '    copies de backends/ sans citer aucun nom d\'app. La tâche lit les COLONNES',
-                '    (modèle événementiel §23.2quater) — le preset s\'écrit au clic, pas ici."""',
-                '    from wama.common.backends.manager import route_for_nature',
-                '    from wama.common.utils.param_schema import effective_settings',
-                f'    from .params import {schema_symbole} as _SCH',
-                '',
-                f'    routes = {routes!r}',
-                f"    nature = (getattr(item, '{nature_champ}', '') or '').strip()",
-                '    backend = route_for_nature(__package__, nature, routes=routes)',
-                '    fonc = backend.__name__',
-                "    fmt = (getattr(item, 'output_format', '') or '').strip().lower()",
-                '    if not fmt:',
-                '        raise ValueError("format de sortie manquant — régler la card avant de lancer")',
-                '',
-                '    posees = {}',
-                f'    for _n in {params_fields!r}:',
-                '        _v = getattr(item, _n, None)',
-                "        if _v not in (None, '', False):",
-                '            posees[_n] = _v',
-                f"    opts = effective_settings(_SCH, posees=posees, contexte={{'{nature_champ}': nature}})",
-                '',
-                # La PLACE et le NOM de la sortie viennent de la brique du squelette
-                # (`ctx.output_place` : domicile de l'app, règle commune de nommage), comme dans
-                # les glues des apps réelles (2026-10-22). Ce gabarit émettait d'abord
-                # `f"<app>/{item.user_id}/output/"` (l'ancien domicile, relevé le 2026-09-22), puis
-                # `app_media_dir` + `compose_output_name` à la main (relevé le 2026-10-07).
-                '    rel, path = ctx.output_place(fmt, source_name=item.input_filename)',
-                '',
-                f'    ctx.console(f"Conversion : {{item.input_filename}} → .{{fmt}} ({{fonc}})")',
-                '    backend(item.input_file.path, path, fmt,',
-                '            options=opts, progress_callback=ctx.progress)',
-                "    return {'fields': {'output_file': rel},",
-                '            \'label\': f".{fmt}"}',
-            ]
-        else:
-            lignes += [
-                f'def _process_{fn}(item, ctx):',
-                f'    """TROU DE GLU {mark} — corps de backend à générer (marche B).',
-                '',
-                '    Contrat (task_skeleton) : ctx.progress/ctx.console ; retour {fields, eta,',
-                '    label} ; une exception = FAILURE ; nettoyage d\'échec ici.',
-                '',
-                '    ⚠ Les VALEURS de réglage se lisent par la brique commune (2026-09-01) :',
-                '        from wama.common.utils.param_schema import effective_settings',
-                '        opts = effective_settings(PARAMS_JSON, posees=…, preset=…, contexte=…)',
-                '    — défauts du schéma ← preset ← réglages POSÉS. Ne PAS relire un défaut en dur',
-                '    dans le corps (`opts.get(\'x\', 12)`) : c\'est la 3ᵉ copie du même défaut, et',
-                '    c\'est exactement ce que cette brique vient de résorber (ROADMAP §23.2bis)."""',
-                f"    raise NotImplementedError('{mark} corps de backend non généré (marche B)')",
-            ]
-    emitted = {n for t in taches for n in (t['function'], f"_process_{t['function']}")}
+            if compose and result_kind == 'text':
+                lignes += [
+                    f'def _process_{fn}(item, ctx):',
+                    f'    """CORPS COMPOSÉ {mark} — marche B1, saveur TEXTE : routage nature→backend',
+                    '    du MANIFESTE (processing.backend_routes ← backends/__init__.ROUTES), appel au',
+                    '    CONTRAT COMMUN « texte » — le backend REND le texte, la tâche le persiste',
+                    '    dans la colonne déclarée (processing.backend_result). Import RELATIF AU',
+                    '    PAQUET : la jumelle résout SES copies de backends/ sans citer aucun nom',
+                    '    d\'app. La tâche lit les COLONNES (modèle événementiel §23.2quater)."""',
+                    '    from wama.common.backends.manager import route_for_nature',
+                    '    from wama.common.utils.param_schema import effective_settings',
+                    '    from wama.common.utils.preview_utils import publish_partial_text',
+                    f'    from .params import {schema_symbole} as _SCH',
+                    '',
+                    f'    routes = {routes!r}',
+                    f"    nature = (getattr(item, '{nature_champ}', '') or '').strip()",
+                    '    backend = route_for_nature(__package__, nature, routes=routes)',
+                    '    fonc = backend.__name__',
+                    '',
+                    '    posees = {}',
+                    f'    for _n in {params_fields!r}:',
+                    '        _v = getattr(item, _n, None)',
+                    "        if _v not in (None, '', False):",
+                    '            posees[_n] = _v',
+                    f"    opts = effective_settings(_SCH, posees=posees, contexte={{'{nature_champ}': nature}})",
+                    '',
+                    f'    ctx.console(f"Traitement ({{fonc}}) : {{nature}}")',
+                    '    texte = backend(item.input_file.path, options=opts,',
+                    '                    progress_callback=ctx.progress,',
+                    f"                    partial_callback=lambda t: publish_partial_text('{run_id}', item.pk, t),",
+                    '                    console=ctx.console)',
+                    f"    return {{'fields': {{'{result_field}': texte}}}}",
+                ]
+            elif by_model:
+                r = by_model
+                lignes += [
+                    f'def _process_{fn}(item, ctx):',
+                    f'    """CORPS COMPOSÉ {mark} — marche B1, saveur MODÈLE : le select `{r["param"]}`',
+                    f'    choisit un modèle du catalogue pour la tâche `{r["task"]}` ; « auto » tire dans ce',
+                    '    domaine déclaré, la porte commune dérive le backend de la clé (modèles distants',
+                    '    compris) et appelle la méthode de travail de son CONTRAT avec les réglages de',
+                    f'    l\'élément par leur nom, et son fichier par celui de son PORT (`{r["port"]}`). La',
+                    '    tâche lit les COLONNES (modèle événementiel §23.2quater)."""',
+                    '    from wama.common.backends.manager import backend_instance_for_key, run_contract',
+                    '    from wama.common.utils.auto_model import resolve_model_choice',
+                    '    from wama.common.utils.param_schema import effective_settings',
+                    '    from wama.common.utils.preview_utils import publish_partial_text',
+                    f'    from .params import {r["schema"]} as _SCH',
+                    '',
+                    *settings_and_draw_lines(
+                        r['params_fields'], param=r['param'], domain=r['domain'],
+                        app_id_expr=repr(app_id),
+                        missing=f'aucun modèle de la tâche « {r["task"]} » au catalogue'),
+                    '    engine = backend_instance_for_key(key, user=item.user)',
+                    f'    text = run_contract(engine, {r["port"]}=item.{r["input_field"]}.path,',
+                    '                        progress_callback=ctx.progress,',
+                    f"                        on_partial=lambda t: publish_partial_text('{run_id}', item.pk, t),",
+                    '                        **opts)',
+                    '    if not isinstance(text, str):',
+                    '        raise TypeError(f"{type(engine).__name__} ne rend pas de texte")',
+                    f"    return {{'fields': {{'{r['result_field']}': text}}, 'models': [key]}}",
+                ]
+            elif compose:
+                lignes += [
+                    f'def _process_{fn}(item, ctx):',
+                    f'    """CORPS COMPOSÉ {mark} — marche B1 : routage nature→backend du MANIFESTE',
+                    '    (processing.backend_routes ← backends/__init__.ROUTES), appel au CONTRAT',
+                    '    COMMUN des backends. Import RELATIF AU PAQUET : la jumelle résout SES',
+                    '    copies de backends/ sans citer aucun nom d\'app. La tâche lit les COLONNES',
+                    '    (modèle événementiel §23.2quater) — le preset s\'écrit au clic, pas ici."""',
+                    '    from wama.common.backends.manager import route_for_nature',
+                    '    from wama.common.utils.param_schema import effective_settings',
+                    f'    from .params import {schema_symbole} as _SCH',
+                    '',
+                    f'    routes = {routes!r}',
+                    f"    nature = (getattr(item, '{nature_champ}', '') or '').strip()",
+                    '    backend = route_for_nature(__package__, nature, routes=routes)',
+                    '    fonc = backend.__name__',
+                    "    fmt = (getattr(item, 'output_format', '') or '').strip().lower()",
+                    '    if not fmt:',
+                    '        raise ValueError("format de sortie manquant — régler la card avant de lancer")',
+                    '',
+                    '    posees = {}',
+                    f'    for _n in {params_fields!r}:',
+                    '        _v = getattr(item, _n, None)',
+                    "        if _v not in (None, '', False):",
+                    '            posees[_n] = _v',
+                    f"    opts = effective_settings(_SCH, posees=posees, contexte={{'{nature_champ}': nature}})",
+                    '',
+                    # La PLACE et le NOM de la sortie viennent de la brique du squelette
+                    # (`ctx.output_place` : domicile de l'app, règle commune de nommage), comme dans
+                    # les glues des apps réelles (2026-10-22). Ce gabarit émettait d'abord
+                    # `f"<app>/{item.user_id}/output/"` (l'ancien domicile, relevé le 2026-09-22), puis
+                    # `app_media_dir` + `compose_output_name` à la main (relevé le 2026-10-07).
+                    '    rel, path = ctx.output_place(fmt, source_name=item.input_filename)',
+                    '',
+                    f'    ctx.console(f"Conversion : {{item.input_filename}} → .{{fmt}} ({{fonc}})")',
+                    '    backend(item.input_file.path, path, fmt,',
+                    '            options=opts, progress_callback=ctx.progress)',
+                    "    return {'fields': {'output_file': rel},",
+                    '            \'label\': f".{fmt}"}',
+                ]
+            else:
+                lignes += [
+                    f'def _process_{fn}(item, ctx):',
+                    f'    """TROU DE GLU {mark} — corps de backend à générer (marche B).',
+                    '',
+                    '    Contrat (task_skeleton) : ctx.progress/ctx.console ; retour {fields, eta,',
+                    '    label} ; une exception = FAILURE ; nettoyage d\'échec ici.',
+                    '',
+                    '    ⚠ Les VALEURS de réglage se lisent par la brique commune (2026-09-01) :',
+                    '        from wama.common.utils.param_schema import effective_settings',
+                    '        opts = effective_settings(PARAMS_JSON, posees=…, preset=…, contexte=…)',
+                    '    — défauts du schéma ← preset ← réglages POSÉS. Ne PAS relire un défaut en dur',
+                    '    dans le corps (`opts.get(\'x\', 12)`) : c\'est la 3ᵉ copie du même défaut, et',
+                    '    c\'est exactement ce que cette brique vient de résorber (ROADMAP §23.2bis)."""',
+                    f"    raise NotImplementedError('{mark} corps de backend non généré (marche B)')",
+                ]
+        emitted |= {n for t in taches for n in (t['function'], f"_process_{t['function']}")}
     lignes.extend(declared_glue_holes(manifest, _steps, mark, emitted))
     lignes.extend(_instant_hole(manifest, mark))
     lignes.append('')

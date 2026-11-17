@@ -182,7 +182,7 @@ DECLARED_VALUES = (
                'processing.model_spec.batch.user_related_name',
                'processing.model_spec.batch.link_item_related',
                'processing.ingest.target', 'processing.ingest.name_field', 'processing.ingest.source',
-               'processing.tasks[].function', 'processing.item_model',
+               'processing.tasks[].function', 'processing.tasks[].model', 'processing.item_model',
                'processing.batch_link_model', 'processing.endpoints[]',
                'processing.backend_nature_field', 'processing.backend_result.field',
                'inspector.preview.file_field',
@@ -262,4 +262,15 @@ def source_safety_errors(body: dict) -> list[str]:
     chemin, un texte inerte ou une expression admise. Liste vide = rien à refuser."""
     if not isinstance(body, dict):
         return []
-    return _declared_errors(body) + _data_errors(body.get('data'))
+    # L'élément d'un domaine à routes propres (`processing.elements`) est lu par les gabarits comme
+    # celui de l'app (`views_gen.element_bodies`) : ses valeurs passent les MÊMES règles, et le nom
+    # de sa surface comme son préfixe deviennent des noms de vues.
+    from .views_gen import element_bodies
+    base = _declared_errors(body)
+    errors = base + _data_errors(body.get('data'))
+    for surface, prefix, own in element_bodies(body)[1:]:
+        errors += [f'processing.elements[{surface!r}] → {e}' for e in _declared_errors(own)
+                   if e not in base]
+        errors += [f'processing.elements : nom refusé dans du code généré {value!r}'
+                   for value in (surface, prefix) if not is_name(value)]
+    return errors

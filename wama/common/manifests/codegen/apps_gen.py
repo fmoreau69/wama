@@ -48,7 +48,14 @@ def render_apps(manifest: dict) -> tuple:
     preview = insp.get('preview') if insp.get('preview_registered') else None
 
     mark = _GEN_MARK.format(app_id=app_id)
-    modeles = [item_model] + ([link] if link else [])
+    # UN ÉLÉMENT PAR DOMAINE À ROUTES PROPRES (`ROUTE §11 #42`, reste ii, 2026-11-16) : chacun
+    # s'inscrit sous SA surface, comme dans l'app réelle (`audio_enhancer`) — `views_gen.element_bodies`.
+    from .views_gen import element_bodies
+    elements = element_bodies(body, app_id)
+    modeles = list(dict.fromkeys(
+        m for _s, _p, b in elements for m in ((b.get('processing') or {}).get('item_model'),
+                                              (b.get('processing') or {}).get('batch_link_model'))
+        if m))
     lignes = [
         '"""',
         f"{mark} — apps.py GÉNÉRÉ par write_back_app (facette inspector, gabarit A3b).",
@@ -68,48 +75,55 @@ def render_apps(manifest: dict) -> tuple:
         '    def ready(self):',
         f"        from .models import {', '.join(modeles)}",
     ]
-    if link:
-        lignes += [
-            '        try:',
-            '            from wama.common.utils.batch_sync import register_batch_sync',
-            f'            register_batch_sync({link})',
-            '        except Exception:',
-            '            pass',
-        ]
-    else:
-        # FK DIRECTE (forme converter) : pas de modèle de liaison, mais l'invariant « un lot
-        # sans membre n'existe pas » vaut aussi — sans ce branchement, le lot vidé de la
-        # jumelle survivait en base (trou A4 de l'audit 31/08 ; l'app réelle l'avait payé le
-        # 28/08 sur clear_all). Détection par la MÊME lecture de facette que views_gen.
-        from .views_gen import _donnees
-        d = _donnees(manifest)
-        if not d.get('_raison') and d.get('batch') and d.get('batch_fk'):
+    for _surface, _prefix, _body in elements:
+        _proc, _insp = _body.get('processing') or {}, _body.get('inspector') or {}
+        surface = _surface or app_id
+        item_model, link = _proc.get('item_model'), _proc.get('batch_link_model')
+        spec = _insp.get('detail_spec')
+        preview = _insp.get('preview') if _insp.get('preview_registered') else None
+        if link:
             lignes += [
                 '        try:',
                 '            from wama.common.utils.batch_sync import register_batch_sync',
-                f'            register_batch_sync({item_model}, direct_fk=True)',
+                f'            register_batch_sync({link})',
                 '        except Exception:',
                 '            pass',
             ]
-    if preview:
-        kwargs = ''.join(f", {k}={v!r}" for k, v in (('file_field', preview.get('file_field')),
-                                                     ('user_field', preview.get('user_field')))
-                         if v)
-        lignes += [
-            '        from wama.common.utils.preview_utils import register_app_preview',
-            f"        register_app_preview('{app_id}', {item_model}{kwargs})",
-        ]
-    if spec:
-        rendu = pprint.pformat(spec, width=88, sort_dicts=True).split('\n')
-        lignes += [
-            '        from wama.common.utils.detail_registry import register_app_detail_spec',
-            f"        register_app_detail_spec('{app_id}', {item_model}, {rendu[0]}"
-            + (')' if len(rendu) == 1 else ''),
-        ]
-        if len(rendu) > 1:
-            pad = ' ' * len(f"        register_app_detail_spec('{app_id}', {item_model}, ")
-            lignes += [pad + l for l in rendu[1:]]
-            lignes[-1] += ')'
+        else:
+            # FK DIRECTE (forme converter) : pas de modèle de liaison, mais l'invariant « un lot
+            # sans membre n'existe pas » vaut aussi — sans ce branchement, le lot vidé de la
+            # jumelle survivait en base (trou A4 de l'audit 31/08 ; l'app réelle l'avait payé le
+            # 28/08 sur clear_all). Détection par la MÊME lecture de facette que views_gen.
+            from .views_gen import _donnees
+            d = _donnees({**manifest, 'body': _body})
+            if not d.get('_raison') and d.get('batch') and d.get('batch_fk'):
+                lignes += [
+                    '        try:',
+                    '            from wama.common.utils.batch_sync import register_batch_sync',
+                    f'            register_batch_sync({item_model}, direct_fk=True)',
+                    '        except Exception:',
+                    '            pass',
+                ]
+        if preview:
+            kwargs = ''.join(f", {k}={v!r}" for k, v in (('file_field', preview.get('file_field')),
+                                                         ('user_field', preview.get('user_field')))
+                             if v)
+            lignes += [
+                '        from wama.common.utils.preview_utils import register_app_preview',
+                f"        register_app_preview('{surface}', {item_model}{kwargs})",
+            ]
+        if spec:
+            rendu = pprint.pformat(spec, width=88, sort_dicts=True).split('\n')
+            lignes += [
+                '        from wama.common.utils.detail_registry import register_app_detail_spec',
+                f"        register_app_detail_spec('{surface}', {item_model}, {rendu[0]}"
+                + (')' if len(rendu) == 1 else ''),
+            ]
+            if len(rendu) > 1:
+                pad = ' ' * len(f"        register_app_detail_spec('{surface}', {item_model}, ")
+                lignes += [pad + l for l in rendu[1:]]
+                lignes[-1] += ')'
+    item_model = proc.get('item_model')
     revisions = proc.get('revisions')
     if revisions:
         # Fichiers de RÉVISION gardés (`processing.revisions`, 2026-10-13, `WAMA_COLLABORATION

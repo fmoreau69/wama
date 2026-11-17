@@ -682,20 +682,68 @@ def _processing(cat: dict, app_id: str) -> dict:
     spec = _model_spec(app_id)
     if spec:
         out['model_spec'] = spec
+    elements = _elements(app_id)
+    if elements:
+        out['elements'] = elements
     return out
 
 
-def _model_spec(app_id: str):
+def _elements(app_id: str) -> dict:
+    """Les ÉLÉMENTS des domaines qui ont leurs propres routes (`ROUTE §11 #42`, reste ii,
+    2026-11-16) : `{<surface>: {domains, route_prefix, params_schema, item_model,
+    batch_link_model, model_spec, inspector}}`.
+
+    Un domaine qui DÉCLARE un `route_prefix` (`app_modes`) a sa surface (`domain_surface` :
+    `audio_enhancer`), sous laquelle l'app enregistre SON modèle d'élément, sa spec de détail, son
+    aperçu et sa liaison de lot. Les facettes `inspector` et `processing` ne lisaient que la surface
+    de l'app : le second élément n'arrivait pas au manifeste, donc pas au générateur. Chaque entrée
+    porte les MÊMES clés que celles de l'élément principal (`processing.item_model`,
+    `batch_link_model`, `model_spec`, facette `inspector`), mesurées de la même façon — un
+    générateur lit l'élément d'une surface comme il lit celui de l'app (`views_gen.element_bodies`).
+    Vide pour une app dont tous les domaines partagent un élément : le cas normal."""
+    try:
+        from wama.common.utils.app_modes import (domain_schema_name, domain_surface, get_domains,
+                                                 surface_domains)
+        from wama.common.utils.detail_registry import DetailRegistry
+    except Exception:
+        return {}
+    out = {}
+    for domain in get_domains(app_id):
+        prefix = domain.get('route_prefix')
+        surface = domain_surface(app_id, domain.get('id')) if prefix else None
+        if not surface or surface in out or not DetailRegistry.is_registered(surface):
+            continue
+        spec = _model_spec(app_id, surface) or {}
+        entry = {'domains': surface_domains(app_id, surface), 'route_prefix': prefix,
+                 'inspector': _inspector(surface)}
+        schema = domain_schema_name(app_id, domain.get('id'))
+        if schema:
+            entry['params_schema'] = schema
+        if spec:
+            entry['model_spec'] = spec
+            entry['item_model'] = spec['item']['name']
+            if spec.get('batch', {}).get('link_name'):
+                entry['batch_link_model'] = spec['batch']['link_name']
+        out[surface] = entry
+    return out
+
+
+def _model_spec(app_id: str, surface: str = None):
     """Spine du models.py de l'app, MESURÉ par introspection Django (marche A5).
 
     Ne décrit que le SQUELETTE conventionnel (cadrage A0 : 9/10 apps) : identité des classes,
     liaison user/fichier d'entrée, ordering, couverture params (les champs du schéma PRÉSENTS
     sur le modèle — ceux que le gabarit rend par l'inverse de `derive_from_model` ; les autres
     sont des transitoires UI). Les champs de résultat et la logique (properties, méthodes)
-    sont de la GLU — marche B, jamais déclarés ici."""
+    sont de la GLU — marche B, jamais déclarés ici.
+
+    `surface` : l'élément d'un domaine à routes propres (`_elements`) — son modèle est celui que
+    l'app enregistre sous cette surface, son schéma celui de son domaine, sa liaison de lot celle
+    qui pointe SON modèle. Sans elle, l'élément de l'app, comme avant."""
+    key = surface or app_id
     try:
         from wama.common.utils.detail_registry import DetailRegistry
-        entree = DetailRegistry.get(app_id) if DetailRegistry.is_registered(app_id) else None
+        entree = DetailRegistry.get(key) if DetailRegistry.is_registered(key) else None
         model = (entree or {}).get('model')
     except Exception:
         return None
@@ -715,7 +763,12 @@ def _model_spec(app_id: str):
     try:
         from wama.common.utils.param_schema import schema_for_app
         noms_modele = {f.name for f in meta.fields}
-        couverts = [p['name'] for p in (schema_for_app(app_id) or [])
+        if surface:
+            from wama.common.utils.app_modes import domain_schema, surface_domains
+            schema = domain_schema(app_id, surface_domains(app_id, surface)[0])
+        else:
+            schema = schema_for_app(app_id) or []
+        couverts = [p['name'] for p in schema
                     if p.get('name') in noms_modele]
         if couverts:
             item['params_fields'] = couverts
@@ -724,7 +777,12 @@ def _model_spec(app_id: str):
     spec = {'item': item}
     try:
         from wama.common.utils.batch_sync import SYNCED
-        lien = next((m for m in SYNCED if m.__module__ == f'wama.{app_id}.models'), None)
+        liens = [m for m in SYNCED if m.__module__ == f'wama.{app_id}.models']
+        # La liaison d'une SURFACE est celle qui pointe son modèle ; l'app garde la première
+        # enregistrée (son élément principal), comme avant.
+        lien = (next((m for m in liens if any(f.is_relation and f.related_model is model
+                                              for f in m._meta.fields)), None)
+                if surface else next(iter(liens), None))
     except Exception:
         lien = None
     if lien is not None:

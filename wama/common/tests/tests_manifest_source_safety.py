@@ -95,6 +95,28 @@ class AppValidatorRejectsCodeTest(SimpleTestCase):
         body = _body_with('processing.model_spec.item.input_field', 'input_file')
         self.assertFalse([e for e in validate_app_body(body) if 'input_field' in e])
 
+    def test_the_element_of_a_domain_with_its_own_routes_passes_the_same_rules(self):
+        """`processing.elements` (2026-11-16): the templates read the element of a surface as they
+        read the app's — its values, the name of its surface and its route prefix become code."""
+        breakout = "x'); import os  #\n"
+        safe = {'route_prefix': 'audio', 'item_model': 'AudioItem', 'batch_link_model': 'AudioLink',
+                'model_spec': {'item': {'name': 'AudioItem', 'input_field': 'input_file'}},
+                'inspector': {'detail_spec': {'result_file': 'output_file'}}}
+        self.assertEqual([], validate_app_body({'processing': {'elements': {'audio_app': safe}}}))
+        cases = {
+            'item_model': {**safe, 'item_model': breakout},
+            'batch_link_model': {**safe, 'batch_link_model': breakout},
+            'model_spec': {**safe, 'model_spec': {'item': {'name': 'A', 'input_field': breakout}}},
+            'inspector': {**safe, 'inspector': {'detail_spec': {'result_file': breakout}}},
+            'route_prefix': {**safe, 'route_prefix': breakout},
+        }
+        for label, entry in cases.items():
+            with self.subTest(case=label):
+                errors = validate_app_body({'processing': {'elements': {'audio_app': entry}}})
+                self.assertTrue(any('processing.elements' in e for e in errors), errors)
+        with self.subTest(case='surface'):
+            self.assertTrue(validate_app_body({'processing': {'elements': {breakout: safe}}}))
+
 
 def _body_with(path: str, value):
     """Un corps minimal qui porte `value` au chemin déclaré `path` (syntaxe de `DECLARED_VALUES`)."""

@@ -1193,8 +1193,9 @@ class GeneratedCardGesturesTest(SimpleTestCase):
     #: Le parc des sources, DÉRIVÉ du catalogue (une app ajoutée y entre sans qu'on la nomme).
     APPS = sorted(a for a, s in app_registry.APP_CATALOG.items() if not s.get('sandbox'))
     #: Les apps dont un DOMAINE n'est pas encore généré (ROUTE §11 #42, étape ⑦) : ses gestes
-    #: restent des bouchons marqués. Ne peut que rétrécir.
-    DOMAINS_NOT_GENERATED = {'enhancer'}
+    #: restent des bouchons marqués. Ne peut que rétrécir — VIDE depuis le 2026-11-16 : l'élément
+    #: d'un domaine à routes propres est généré (`views_gen.element_bodies`, l'audio de l'enhancer).
+    DOMAINS_NOT_GENERATED = set()
 
     def test_every_generated_module_takes_the_five_gestures_from_the_factory(self):
         import re

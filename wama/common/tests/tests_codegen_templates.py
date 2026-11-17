@@ -1084,6 +1084,56 @@ class GeneratedPageByDomainTest(SimpleTestCase):
                     self.assertIn(".get('inputs') or [], domain=dom))", views)
                     self.assertNotIn('{{ input_match|', script)
 
+    def test_the_element_of_a_domain_with_its_own_routes_is_generated_like_the_real_app(self):
+        """`ROUTE §11 #42` reste ii (2026-11-16): a domain that declares a route prefix has its own
+        element. The generator renders it as the real app does — its routes under its prefix by the
+        common factories (no 501 stub), its task on ITS model under ITS surface, its registries under
+        its surface."""
+        import ast
+
+        from wama.common.manifests.codegen import apps_gen, tasks_gen, views_gen
+        from wama.common.utils.app_modes import surface_name
+        seen = 0
+        for app, manifest in sorted(_park_manifests().items()):
+            body = manifest.get('body') or {}
+            elements = views_gen.element_bodies(body, manifest.get('key'))[1:]
+            if not elements:
+                continue
+            views, why = views_gen.render_views(manifest)
+            tasks, _ = tasks_gen.render_tasks(manifest)
+            apps, _ = apps_gen.render_apps(manifest)
+            self.assertTrue(views and tasks and apps, why)
+            defined = {n.name if hasattr(n, 'name') else t.id
+                       for n in ast.parse(views).body
+                       for t in (n.targets if isinstance(n, ast.Assign) else [n])
+                       if isinstance(n, (ast.FunctionDef, ast.ClassDef))
+                       or isinstance(t, ast.Name)}
+            skeleton = set()
+            for call in ast.walk(ast.parse(tasks)):
+                if isinstance(call, ast.Call) and getattr(call.func, 'id', '') == 'run_item_task':
+                    kw = {k.arg: k.value for k in call.keywords}
+                    skeleton.add((getattr(kw.get('app_id'), 'value', None),
+                                  getattr(kw.get('model'), 'id', None)))
+            for surface, prefix, own in elements:
+                key = manifest.get('key')
+                model = own['processing']['item_model']
+                with self.subTest(app=app, surface=surface):
+                    self.assertEqual(surface_name(key, prefix), surface)
+                    routes = [f'{prefix}_{e}' for e in own['processing']['endpoints']]
+                    self.assertTrue(routes)
+                    self.assertFalse([r for r in routes if r not in defined],
+                                     'a route of the element has no view')
+                    stubbed = [r for r in routes if re.search(
+                        rf'^def {r}\(request.*\n.*status=501', views, re.M)]
+                    self.assertFalse(stubbed, 'a route of the element is a 501 stub')
+                    self.assertIn(f"app_id='{surface}'", views)
+                    self.assertIn((surface, model), skeleton)
+                    self.assertIn(f"register_app_detail_spec('{surface}', {model}", apps)
+                    seen += 1
+            with self.subTest(app=app):
+                self.assertIn((manifest.get('key'), body['processing']['item_model']), skeleton)
+        self.assertGreater(seen, 0, 'no domain of the park has an element of its own')
+
     def test_the_script_of_every_generated_page_parses(self):
         """Django tags neutralised, the page script is PARSED by V8 (never run): one scope per
         domain, so the same names live once in each."""
