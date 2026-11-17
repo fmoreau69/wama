@@ -1,4 +1,6 @@
 {% load wama_actions %}
+{# La surface du domaine audio, lue à la déclaration (`app_modes.domain_surface`). #}
+{% domain_surface 'enhancer' 'audio' as audio_surface %}
 {% comment %}
 Card AudioEnhancement — CARD v3 « sections × chips » (CARD_DESIGN §11, portée le 2026-08-13 ;
 remplace la card en colonnes du port 07/26). SOURCE UNIQUE du markup : rendue au chargement
@@ -11,7 +13,7 @@ Contexte : elem (AudioEnhancement, décorée .chips), in_batch (bool).
 {% endcomment %}
 <div class="synthesis-card card bg-body border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %}"
      data-id="{{ elem.id }}" data-domain="audio" data-status="{{ elem.shown_state|default:elem.status }}" data-element-status="{{ elem.status }}"
-     data-preview-url="{% url 'common:unified_preview' 'audio_enhancer' elem.id %}">
+     data-preview-url="{% url 'common:unified_preview' audio_surface elem.id %}">
 <div class="card-body py-2">
 
   <div class="wcv3-head">#{{ elem.id }}<span class="sep">·</span>{{ elem.created_at|date:"d/m H:i" }}</div>
@@ -25,7 +27,7 @@ Contexte : elem (AudioEnhancement, décorée .chips), in_batch (bool).
         <span class="wcv3-thumb"><i class="fas fa-microphone-alt text-success"></i></span>
         <div class="wcv3-in-lines">
           <span role="button" class="wcv3-in-name preview-media-link" title="Aperçu"
-                data-preview-url="{% url 'common:unified_preview' 'audio_enhancer' elem.id %}?side=input">
+                data-preview-url="{% url 'common:unified_preview' audio_surface elem.id %}?side=input">
             {% if elem.get_input_filename %}{{ elem.get_input_filename }}{% else %}{{ elem.source_url }}{% endif %}
           </span>
           {% if elem.duration %}<span class="wcv3-in-props">{{ elem.duration|floatformat:1 }}s</span>{% endif %}
@@ -130,12 +132,12 @@ Contexte : elem (AudioEnhancement, décorée .chips), in_batch (bool).
   Une FILLE de lot a son player comme une card seule : la garde `not in_batch` est retirée le
   2026-10-12 (décision de Fabien, alignement sur les autres apps).{% endcomment %}
   {% if elem.output_file %}
-  {% url 'common:unified_preview' 'audio_enhancer' elem.id as pv_out %}
+  {% url 'common:unified_preview' audio_surface elem.id as pv_out %}
   <div class="wcv3-preview wama-card-preview" id="preview-row-{{ elem.id }}" data-preview-url="{{ pv_out }}?side=output" data-id="{{ elem.id }}"
        data-card-preview="{{ pv_out }}?side=output" data-player-id="{{ elem.id }}"></div>
   {% else %}
   {# l'hôte de la face PENDANT : la card montre ce qui se construit #}
-  <div id="preview-row-{{ elem.id }}" {% url 'common:unified_preview' 'audio_enhancer' elem.id as pv_during %}data-card-during="{{ pv_during }}" data-preview-mode="excerpt"></div>
+  <div id="preview-row-{{ elem.id }}" {% url 'common:unified_preview' audio_surface elem.id as pv_during %}data-card-during="{{ pv_during }}" data-preview-mode="excerpt"></div>
   {% endif %}
 
 </div>
