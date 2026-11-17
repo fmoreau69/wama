@@ -3471,7 +3471,11 @@ class StemMixTest(SimpleTestCase):
     d'édition »), run in V8 on the SERVED files with a stand-in WebAudio : the rule of the remix
     (original + Σ (gain − 1) · stem), every source started on the same sample — a stem that joins
     during the play included —, only the stems that move decoded, a memory bound said ; the mix a
-    MEDIA the real axis follows, played by the transport as a version of the medium read."""
+    MEDIA the real axis follows, played by the transport as a version of the medium read. And its
+    THREE MODES (Fabien, the same evening) : nothing moved → the original, one <audio> ; moved at
+    ×1 → that exact mix ; moved at another speed → the SUM, one <audio> per stem on the axis — each
+    file downloaded once and played from memory (six players would hold the six connections of the
+    host), the bytes of one mode reused by the other."""
 
     SERVED = Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'js'
 
@@ -3488,17 +3492,41 @@ class StemMixTest(SimpleTestCase):
                 start: function (when, offset) { self.started.push({key: n.buffer.key, when: when,
                     offset: offset, to: n.to, rate: n.playbackRate.value}); n.on = true; },
                 stop: function () { n.on = false; }, disconnect: function () {}}; return n; };
-        FakeAC.prototype.decodeAudioData = function (bytes, ok) {
+        FakeAC.prototype.decodeAudioData = function (bytes, ok) { decoded.push(bytes.key);
             ok({key: bytes.key, length: LENGTH, numberOfChannels: 2, duration: LENGTH / 48000}); };
         FakeAC.prototype.resume = function () { return Promise.resolve(); };
         FakeAC.prototype.close = function () { this.closed = true; };
-        function fakeFetch(url) { fetched.push(url);
-            return Promise.resolve({key: url === '/o.wav' ? '' : url.slice(1, -4)}); }
+        // A <audio> played by the page : routed through a level node (`wired`), loaded from `src`.
+        FakeAC.prototype.createMediaElementSource = function (el) {
+            return {connect: function (to) { el.wired = to; }}; };
+        var decoded = [], audios = [];
+        function FakeAudio() { this.on = {}; this.attrs = {}; this.readyState = 0; this.paused = true;
+            this.currentTime = 0; this.duration = NaN; this.playbackRate = 1; this.volume = 1;
+            this.muted = false; this.seeking = false; this.ended = false; this.error = null; audios.push(this); }
+        FakeAudio.prototype.addEventListener = function (n, fn) { (this.on[n] = this.on[n] || []).push(fn); };
+        FakeAudio.prototype.removeEventListener = function (n, fn) {
+            this.on[n] = (this.on[n] || []).filter(function (f) { return f !== fn; }); };
+        Object.defineProperty(FakeAudio.prototype, 'src', {get: function () { return this._src; },
+            set: function (v) { var a = this; a._src = v; Promise.resolve().then(function () {
+                a.duration = LENGTH / 48000; a.readyState = 4;
+                (a.on.loadedmetadata || []).slice().forEach(function (fn) { fn({type: 'loadedmetadata'}); }); }); }});
+        FakeAudio.prototype.play = function () { this.paused = false; return Promise.resolve(); };
+        FakeAudio.prototype.pause = function () { this.paused = true; };
+        FakeAudio.prototype.load = function () {};
+        FakeAudio.prototype.setAttribute = function (k, v) { this.attrs[k] = v; };
+        FakeAudio.prototype.getAttribute = function (k) { return k in this.attrs ? this.attrs[k] : null; };
+        FakeAudio.prototype.hasAttribute = function (k) { return k in this.attrs; };
+        FakeAudio.prototype.removeAttribute = function (k) { delete this.attrs[k]; };
+        // A file, downloaded : a Blob (its size, its bytes).
+        function fakeFetch(url) { fetched.push(url); var key = url === '/o.wav' ? '' : url.slice(1, -4);
+            return Promise.resolve({key: key, size: 1000, arrayBuffer: function () { return Promise.resolve({key: key}); }}); }
         var TRACKS = [{key: 'drums', label: 'Batterie', url: '/drums.wav', gain: 1},
                       {key: 'bass', label: 'Basse', url: '/bass.wav', gain: 1},
                       {key: 'vocals', label: 'Voix', url: '/vocals.wav', gain: 0.5}];
-        function mixer() { return window.WamaStemMix.create({original: '/o.wav', tracks: TRACKS,
+        function mixer(tracks) { return window.WamaStemMix.create({original: '/o.wav', tracks: tracks || TRACKS,
             audioContext: function () { return new FakeAC(); }, fetch: fakeFetch,
+            audio: function () { return new FakeAudio(); },
+            objectUrl: function (blob) { return 'blob:' + (blob.key || 'original'); }, revokeUrl: function () {},
             status: function (t, k) { said.push([t, k]); }}); }
     """
 
@@ -3509,6 +3537,72 @@ class StemMixTest(SimpleTestCase):
 
     def _eval(self, script):
         return json.loads(self.engine.eval('JSON.stringify((function(){' + script + '})())'))
+
+    def _real_player_and_axis(self):
+        """The stand-in DOM of the transport run, without its stand-in axis nor its stand-in player :
+        the real ones here, and an axis whose time and frames the test drives."""
+        self.engine.eval(RegistryTest._FAKE_DOM.split('var axis = {')[0]
+                         + 'window.WamaStemMix = WamaStemMix;'
+                         + 'document.addEventListener = function () {};'
+                         + 'document.getElementById = function () { return null; };'
+                         + (self.SERVED / 'wama-audio-player.js').read_text(encoding='utf-8')
+                         + (self.SERVED / 'wama-axis.js').read_text(encoding='utf-8'))
+        self.engine.eval("""var frames = [], T = 0;
+            var realAxis = window.WamaAxis.create({now: function () { return T; },
+                frame: function (fn) { frames.push(fn); return frames.length; }, cancelFrame: function () {}});""")
+
+    def test_the_mode_follows_the_levels_and_the_speed(self):
+        modes = self._eval("""var M = window.WamaStemMix.modeFor;
+            return [M({a: 1, b: 1}, 2), M({a: 1, b: 1}, 1), M({a: 1, b: 0}, 1), M({a: 1.5}, 1.0004),
+                    M({a: 0.5}, 2), M({a: 0}, 0.5), M({}, 1)];""")
+        self.assertEqual(['original', 'original', 'exact', 'exact', 'sum', 'sum', 'original'], modes,
+                         'nothing moved : the original at any speed ; moved : exact at ×1 (a re-timing '
+                         'nudge is still ×1), the sum at any other speed')
+
+    def test_off_unit_speed_plays_the_sum_of_the_stems_each_from_memory(self):
+        """Through the REAL common player (`followLive` hands the mix its axis, `joinAxis`) and the
+        real axis : nothing moved plays the original alone ; a stem moved at ×2 puts one <audio> per
+        audible stem on the axis — each from a `blob:` (no player holds a connection), a level above
+        1 through its node ; back at ×1 the exact mix decodes the SAME files, nothing downloaded
+        twice ; a stem at 0 leaves the axis."""
+        self._real_player_and_axis()
+        self.engine.eval("""var P = window.WamaAudioPlayer;
+            var FLAT = TRACKS.map(function (t) { return Object.assign({}, t, {gain: 1}); });
+            var mix = mixer(FLAT);
+            mix.preload().then(function () { P.followLive('mix', mix.media, realAxis, 0, window.WamaStemMix.SYNC); });""")
+        def state():
+            return self._eval("""return {mode: mix.mode(), fetched: fetched.slice(), decoded: decoded.slice(),
+                followers: realAxis.medias().map(function (m) { return m === mix.media ? 'mix' : m.src; }),
+                levels: audios.filter(function (a) { return a.wired; }).map(function (a) {
+                    return [a.src, a.wired.gain.value, a.wired.to === ac.destination]; }),
+                memory: mix.memoryBytes()};""")
+        first = state()
+        self.assertEqual('original', first['mode'])
+        self.assertEqual((['/o.wav'], []), (first['fetched'], first['decoded']),
+                         'the original downloaded once, nothing decoded : nothing to mix')
+        self.assertEqual(['mix', 'blob:original'], first['followers'], 'the original, played from memory')
+        # Another speed, then a stem raised above 1 : the sum, one player per audible stem.
+        self.engine.eval("realAxis.setRate(2); mix.setGain('drums', 1.5);")
+        summed = state()
+        self.assertEqual('sum', summed['mode'])
+        self.assertEqual(['mix', 'blob:drums', 'blob:bass', 'blob:vocals'], summed['followers'],
+                         'the original left the axis ; every stem joined it, each from a blob')
+        self.assertEqual([['blob:drums', 1.5, True], ['blob:bass', 1, True], ['blob:vocals', 1, True]],
+                         summed['levels'], 'each stem through its level node, a gain above 1 kept')
+        self.assertEqual(4000, summed['memory'], 'four files kept, nothing decoded')
+        self.engine.eval("mix.setGain('bass', 0);")
+        self.assertEqual(['mix', 'blob:drums', 'blob:vocals'], state()['followers'], 'a stem at 0 leaves the axis')
+        # Back at ×1 : the exact mix, decoded from the files already there.
+        self.engine.eval("realAxis.setRate(1);")
+        exact = state()
+        self.assertEqual('exact', exact['mode'])
+        self.assertEqual(['mix'], exact['followers'], 'the players left : the mix plays its buffers')
+        self.assertEqual(['/o.wav', '/drums.wav', '/bass.wav', '/vocals.wav'], exact['fetched'],
+                         'nothing downloaded twice')
+        self.assertEqual(['', 'drums', 'bass'], exact['decoded'], 'the original and the moved stems')
+        self.engine.eval("realAxis.setRate(0.5);")
+        again = state()
+        self.assertEqual(('sum', 4), (again['mode'], len(again['fetched'])))
 
     def test_every_source_starts_on_the_same_sample_and_only_what_moves_is_decoded(self):
         self.engine.eval('var mix = mixer(); mix.media.currentTime = 30; mix.media.play();')
@@ -3553,20 +3647,10 @@ class StemMixTest(SimpleTestCase):
         its exclusive playback both ways, the rule every sound of WAMA follows (the guard of
         `tests_editor_axis` : no `axis.attach(media` in the brick) ; the axis plays it, pauses it,
         and the mix asks the soft re-timing (`SYNC`)."""
-        # The stand-in DOM of the transport run, without its stand-in axis nor its stand-in player :
-        # the real ones here.
-        self.engine.eval(RegistryTest._FAKE_DOM.split('var axis = {')[0]
-                         + 'window.WamaStemMix = WamaStemMix;'
-                         + 'document.addEventListener = function () {};'
-                         + 'document.getElementById = function () { return null; };'
-                         + (self.SERVED / 'wama-audio-player.js').read_text(encoding='utf-8')
-                         + (self.SERVED / 'wama-axis.js').read_text(encoding='utf-8')
-                         + (self.SERVED / 'surfaces' / 'wama-surface.js').read_text(encoding='utf-8')
+        self._real_player_and_axis()
+        self.engine.eval((self.SERVED / 'surfaces' / 'wama-surface.js').read_text(encoding='utf-8')
                          + (self.SERVED / 'surfaces' / 'brick-media-transport.js').read_text(encoding='utf-8'))
         self.engine.eval("""
-            var frames = [], T = 0;
-            var realAxis = window.WamaAxis.create({now: function () { return T; },
-                frame: function (fn) { frames.push(fn); return frames.length; }, cancelFrame: function () {}});
             var mix = mixer();
             var ctx = window.WamaSurface.view({config: {pk: 7}, axis: realAxis, reads: {},
                 sources: {audio: [{key: 'input', label: 'Entrée', url: '/in.wav'}]}, chosen: {audio: 'input'},
@@ -3603,7 +3687,7 @@ class StemMixTest(SimpleTestCase):
         self.assertEqual(4, out['started'], 'twice the original and the stem at 50 %')
         self.assertEqual(200, out['duration'], 'the axis covers the song')
 
-    def test_the_slider_stops_where_the_setting_declares_its_bound(self):
+    def test_the_slider_stops_at_the_bound_of_its_setting(self):
         """2026-11-17 : the bound of a level was written twice (×2 in the brick, ×4 in the remix).
         It is declared once, on the setting the slot names (`levels` → its `max` in the served
         schema) ; the brick reads it there — a setting without a bound gives no gain above 100 %."""

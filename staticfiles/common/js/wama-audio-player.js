@@ -495,13 +495,19 @@
          *  `wama-stem-mix.js`, 2026-11-17) : il prend la place du lecteur `playerId` — donc sa lecture
          *  EXCLUSIVE dans les deux sens (il coupe les autres sons en partant ; un autre son, `pauseAll`
          *  ou un `destroy` le coupent) et `isPlaying` —, puis il est suivi par `follow`, avec le
-         *  recalage qu'il demande. Pas d'onde ni de conteneur : le lecteur n'en dessine aucun. */
+         *  recalage qu'il demande. Pas d'onde ni de conteneur : le lecteur n'en dessine aucun.
+         *  Un média FAIT DE PLUSIEURS (le mixage hors ×1 : un <audio> par piste) reçoit l'axe et son
+         *  décalage (`media.joinAxis(axis, offset)`, `null` au départ) pour y attacher les siens —
+         *  lui seul porte la lecture exclusive, ses lecteurs jouent ensemble. */
         followLive: function(playerId, media, axis, offset, sync) {
             var id = String(playerId);
             if (!media || !axis) return null;
             this.destroy(id);
             registry.set(id, { audio: media, canvas: null, channelData: null, container: null });
-            return this.follow(id, axis, offset, sync);
+            var drop = this.follow(id, axis, offset, sync);
+            if (!drop || typeof media.joinAxis !== 'function') return drop;
+            media.joinAxis(axis, Number(offset) || 0);
+            return function() { media.joinAxis(null); drop(); };
         },
 
         /** Positionne la lecture à `seconds` (init si nécessaire) + joue optionnellement. */

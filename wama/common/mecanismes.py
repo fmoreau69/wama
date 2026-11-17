@@ -3750,7 +3750,12 @@ MECHANISMS = (
               "navigateur (`wama-stem-mix.js`, WebAudio) : toutes les sources parties au même "
               "échantillon, une piste décodée seulement quand elle quitte 100 % (borne de 1,5 Go, "
               "dite), le mixage étant une version de plus que l'axe suit ; la brique `stem_mixer` "
-              "écrit les niveaux sur la card (`remix_levels`), que la refusion relit",
+              "écrit les niveaux sur la card (`remix_levels`), que la refusion relit. TROIS MODES "
+              "(Fabien, 2026-11-17, `WamaStemMix.modeFor`) : rien touché → l'original en <audio> ; "
+              "touché à ×1 → cette formule exacte ; touché à une autre vitesse → l'ADDITION "
+              "Σ gain · piste, un <audio> par piste attaché à l'axe (hauteur gardée, ~10-20 ms "
+              "entre lecteurs, accepté en édition) — chaque fichier téléchargé une fois et joué "
+              "depuis la mémoire (`blob:`) : six lecteurs tenaient les six connexions de l'hôte",
               'wama/common/utils/stem_mix.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
               annexes=('wama/common/static/common/js/wama-stem-mix.js',
