@@ -74,7 +74,8 @@ from wama.tool_api import ROUTE_TOOLS, action_routes  # noqa: E402
 #: 162 → 152 on 2026-11-16 : the sorting (`WAMA_LLM.md` « fil web n° 46 », point 6) — ten routes an
 #: existing tool already did ; the 152 left are sorted there (to extend, to write, the screen's own).
 #: 152 → 148 the same day : `list_media_assets` and `list_user_files` extended to what the page reads.
-ROUTES_WITHOUT_TOOL_BUDGET = 148
+#: 148 → 144 on 2026-11-17 : the option sources of the converter, the imager and the avatarizer.
+ROUTES_WITHOUT_TOOL_BUDGET = 144
 
 
 def factory_gestures(path: str, function: str) -> set:

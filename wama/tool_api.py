@@ -3129,6 +3129,44 @@ def list_model_choices(user, task: str = '', model_type: str = '', modality: str
                                  data=params)
 
 
+@tool_effect(READ)
+def get_converter_presets(user) -> dict:
+    """
+    The converter's quality presets ('web', 'balanced', 'max') and what each one sets for an
+    image, a video, an audio file and a document — the table the quick-convert window reads.
+
+    Read from the converter's own route (`converter:api_presets`), for an account that may use the
+    converter. Pass the chosen preset as `quality_preset` to add_to_converter or convert_file.
+    """
+    if refusal := _signed_in_refusal(user, 'Lecture'):
+        return refusal
+    failure, payload = _page_view(user, 'converter:api_presets', 'Préréglages du convertisseur',
+                                  method='get')
+    return failure or payload
+
+
+@tool_effect(READ)
+def get_image_resolutions(user, model: str = '') -> dict:
+    """
+    The image sizes the imager offers: with `model`, the resolutions recommended for that model
+    (its minimum, maximum and default size); without it, every size preset grouped by ratio.
+
+    Read from the imager's own routes (`imager:api_model_resolutions`, `imager:api_all_resolutions`),
+    for an account that may use the imager.
+
+    Args:
+        model: an imager model id (e.g. 'hunyuan-image-2.1'); empty = every preset.
+    """
+    if refusal := _signed_in_refusal(user, 'Lecture'):
+        return refusal
+    if model:
+        failure, payload = _page_view(user, 'imager:api_model_resolutions',
+                                      'Résolutions du modèle', method='get', data={'model': model})
+    else:
+        failure, payload = _page_view(user, 'imager:api_all_resolutions', 'Résolutions', method='get')
+    return failure or payload
+
+
 #: `action` de free_memory → (route, la page le fait-elle confirmer ?).
 _FREE_MEMORY_ACTIONS = {
     'unload': ('api_unload_model', True), 'idle': ('api_cleanup_idle', False),
@@ -5706,6 +5744,10 @@ TOOL_REGISTRY = {
     'get_model_evaluation_progress': get_model_evaluation_progress,
     'list_model_proposals':          list_model_proposals,
     'list_model_choices':            list_model_choices,
+    # Les SOURCES d'options d'un réglage d'app (2026-11-17, critère `tool_routes`) : la route de la
+    # page, appelée au nom du compte.
+    'get_converter_presets':         get_converter_presets,
+    'get_image_resolutions':         get_image_resolutions,
     'free_memory':                   free_memory,
     'free_gpu_for_item':             free_gpu_for_item,
     'control_memory_cleaner':        control_memory_cleaner,
@@ -5788,6 +5830,8 @@ _TRIAD = (('add', 'add_to_', ''), ('start', 'start_', ''), ('status', 'get_', '_
 # Noms HISTORIQUES (antérieurs aux alias canoniques) + outils dont l'app diffère du suffixe.
 # `None` = outil TRANSVERSE (aucun gating d'app).
 TOOL_APP_OVERRIDE = {
+    'get_converter_presets': 'converter',
+    'get_image_resolutions': 'imager',
     'create_image':        'imager',
     'synthesize_text':     'synthesizer',
     'compose_music':       'composer',
@@ -7441,6 +7485,14 @@ ROUTE_TOOLS = {
     'model_manager:api_model_uninstall': 'uninstall_model',
     'model_manager:api_model_task_limit': 'set_model_task_limit',
     'model_manager:api_manifest_proposal_decide': 'decide_model_proposal',
+    # The OPTION SOURCES of an app's settings (2026-11-17, conformity criterion `tool_routes`) :
+    # each tool calls the route's own view, or reads what it reads.
+    'converter:api_presets': 'get_converter_presets',
+    'imager:api_model_resolutions': 'get_image_resolutions',      # `model=…`
+    'imager:api_all_resolutions': 'get_image_resolutions',        # no model : every preset
+    # The avatars a user may NAME (`system_assets.nameable_avatars`) : the media library's
+    # avatar assets they see — the tool that lists them, by nature.
+    'avatarizer:api_avatar_gallery': 'list_media_assets',         # `asset_type='avatar'`
 }
 
 
