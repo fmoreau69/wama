@@ -124,6 +124,23 @@ def select_match_meta(app_id: str, field: str, extra_caps: tuple = (),
     return meta
 
 
+def domains_match_meta(app_id: str) -> Dict[str, Dict[str, Any]]:
+    """La méta d'appariement du select de modèle de CHAQUE domaine de l'app (`app_modes`), lue
+    dans le schéma du domaine (`auto_model.catalog_field`, `select_match_meta(…, domain=)`) et
+    réunie — ce que sert la page d'une app à plusieurs domaines. Extraite le 2026-11-17 au 2ᵉ
+    consommateur : l'enhancer et l'imager écrivaient chacun la même boucle (et, avant elle, leurs
+    tâches recopiées du schéma). L'« auto » d'un domaine est le sien ; une app qui en veut un pour
+    toute la page le recompose (l'imager)."""
+    from wama.common.utils.app_modes import get_domains
+    from wama.common.utils.auto_model import catalog_field
+    meta = {}
+    for domain in get_domains(app_id):
+        field = catalog_field(app_id, domain['id'])
+        if field:
+            meta.update(select_match_meta(app_id, field['name'], domain=domain['id']))
+    return meta
+
+
 def card_match(app_id: str, ports, domain: str = None) -> Dict[str, Any]:
     """L'appariement de la CARD d'une app rendue À CÔTÉ de son volet généré — `{field, meta,
     labels, ports}`, ou `{}` s'il n'y a rien à apparier (2026-10-21, modale d'une card d'entrée du

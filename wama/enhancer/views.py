@@ -110,15 +110,8 @@ def _input_match_meta_enhancer():
     `input_match.select_match_meta(…, domain=)`, 2026-11-17). Elle était écrite ici, deux
     lectures à la main (la source, puis la tâche de `MEDIA_SPEC`) ; mesurée avant d'être
     remplacée : mêmes entrées, moins neuf identifiants nus qu'aucune option ne porte, plus `auto`."""
-    from wama.common.utils.app_modes import get_domains
-    from wama.common.utils.auto_model import catalog_field
-    from wama.common.utils.input_match import select_match_meta
-    meta = {}
-    for d in get_domains('enhancer'):
-        field = catalog_field('enhancer', d['id'])
-        if field:
-            meta.update(select_match_meta('enhancer', field['name'], domain=d['id']))
-    return meta
+    from wama.common.utils.input_match import domains_match_meta
+    return domains_match_meta('enhancer')
 
 
 class IndexView(View):

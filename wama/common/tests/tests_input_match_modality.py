@@ -168,6 +168,29 @@ class SelectMatchMetaReadsTheDeclaredDomainTest(SimpleTestCase):
         self.assertGreater(apart, 0, 'no app has two domains on two catalogue queries')
         self.assertEqual({}, self._meta('absent')[0])
 
+    def test_the_page_meta_gathers_the_select_of_every_domain(self):
+        """`domains_match_meta` (2026-11-17): the select of EACH domain, read in its own schema —
+        park-wide, every catalogue query a domain declares reaches the page's meta."""
+        from wama.common.utils import input_match
+        from wama.common.utils.app_modes import APP_MODES, domain_schema, get_domains
+
+        def fake_meta(**kw):
+            return {repr(kw['query']): {'label': 'X', 'inputs_required': [], 'inputs_optional': []}}
+
+        seen = 0
+        with mock.patch.object(input_match, 'input_match_meta', fake_meta):
+            for app in sorted(APP_MODES):
+                expected = set()
+                for d in get_domains(app):
+                    first = next((p for p in domain_schema(app, d['id'])
+                                  if p.get('options_source') == 'catalog'), None)
+                    if first and first.get('options_query'):
+                        expected.add(repr(first['options_query']))
+                with self.subTest(app=app):
+                    self.assertEqual(expected, set(input_match.domains_match_meta(app)) - {'auto'})
+                seen += len(expected) > 1
+        self.assertGreater(seen, 0, 'no app has two domains on two catalogue queries')
+
     def test_the_endpoint_keys_only_reach_the_catalogue(self):
         """Same reading as `api_model_options`: task, model_type, modality (+ source)."""
         from wama.common.utils import input_match
