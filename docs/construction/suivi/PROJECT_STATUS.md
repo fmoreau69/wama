@@ -31953,3 +31953,36 @@ Décision de Fabien (« aligne les créateurs »), sur l'écart mesuré l'après
 - Les arguments d'arrivée ne sont écrits nulle part : `tool_api.arrival_arguments` ← `generic_runner.work_arguments`, le contrat port → argument du Studio sur les ports du groupe `travail` (la règle de l'entrée principale extraite en `generic_runner.primary_argument`, lue par `create` aussi). Mesuré : `file_path` pour anonymizer, converter, describer, enhancer, reader, transcriber ; `audio_path` (avatarizer) ; `work_audio`/`work_score` (composer) ; `work_file` (synthesizer, translator_01) ; aucun pour imager, writer_01, media_library, `add_to_audio_enhancer` (hors Studio : port `work_audio` de l'enhancer non lu, `UNWIRED_PORTS_BUDGET`).
 - Annoncé au modèle : schéma JSON (`anyOf` chaîne | liste) et liste texte, une phrase (`ARRIVAL_NOTE`). Lecteurs du retour : `items_of_step`, `relay_quality_intent`, `relay_next_step` lisent `item_ids` (le rappel nomme `launch_batch`).
 - `_born_creator` refuse plusieurs fichiers sur un port (au lieu d'en perdre). Au passage : `_lot_de` (fabrique de test) pose `batch_row_index` sur la forme à FK directe — `BatchSendToConverterTest` rougissait dans une longue série (ordre indéterminé), vert seul.
+
+## §PALIER 2026-11-17 (soir), « DOMAINES : les restes de la revérification traités ; les gestes à plusieurs domaines dépendent du domaine RETENU » — commits locaux, non poussés — 🔴 relancer gunicorn + workers (vues de l'enhancer et de l'imager, journal, identité, assistant, tâches d'`enhancer_01`) — 🔚 gestes nocturnes ouverts sur le domaine qu'ils mesurent (`?domain=`) ; glu `generate`/`output` d'`enhancer_01` ; nœud du Studio par domaine ; dix jumelles
+
+**Livré** (`3ba4a6c6f`, `61672e62d`) :
+- l'appariement d'entrée de l'enhancer et de l'imager lu dans le schéma de CHAQUE domaine, par une
+  brique (`input_match.domains_match_meta`) — mesuré : méta de l'imager identique (15 entrées) ;
+  celle de l'enhancer perd neuf identifiants nus qu'aucune option ne porte et gagne `auto` ;
+- le lien d'un élément d'une surface de domaine ouvre la page sur CE domaine
+  (`journal.family_queue_url`, `?domain=`, la forme de `navigation.domain_links`) ;
+- une surface de domaine a l'identité de son app, nommée par son domaine (`app_identity`) ;
+- **défaut trouvé à la relecture** : l'état des files dit à l'assistant (`assistant_engine.
+  _build_wama_context`) appelait `get_model('wama.<app>', …)` — un label POINTÉ, `LookupError`
+  avalée pour chaque app : l'assistant lisait toujours « files vides ». Il lit désormais les éléments
+  déclarés (`DetailRegistry`, jumelles écartées), le domaine audio compris ;
+- la glu composée du générateur nomme sa source par la règle des vues (`views_gen._donnees`), plus
+  par une colonne `input_filename` supposée.
+
+**Gardes** : génériques (surfaces de domaine du parc, identité, lien, méta par domaine, état pour
+l'assistant) ; quatre mutations, quatre rouges.
+
+**Chantier nommé, non traité** : les gestes nocturnes des pages à plusieurs domaines (enhancer,
+imager, anonymizer et leurs jumelles) ouvrent la page sur le domaine que le compte de test a
+RETENU à son dernier passage, que les scénarios d'un autre domaine déplacent ; leurs instruments
+(`ui_smoke._monter_un_lot`, `_GABARIT_DE_LOT`…) visent le premier élément de la page. D'où des
+« file vide », « élément non visible » d'un passage à l'autre — cause la plus probable des rouges
+de l'enhancer réel depuis le 17/11 07:14 et d'`enhancer_01.inspector_actions`, NON prouvée à la
+ligne. Une portée « volet visible » essayée ce jour a été RETIRÉE (elle suivait le même domaine
+imprévisible). Remède aligné : ouvrir la page sur le domaine mesuré par l'adresse (`?domain=`) —
+36 consommateurs de `discoverable_apps`, dont certains ajoutent déjà leur requête (`?tab=`).
+
+**`enhancer_01`** : tâches régénérées — la forme réelle (un pipeline `generate` → `output` par
+élément), corps en trous de glu marqués (marche B) ; `processing` y échoue donc pour la glu à
+écrire, plus sur un champ supposé.
