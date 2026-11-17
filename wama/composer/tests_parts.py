@@ -449,6 +449,8 @@ class StemSeparationTest(_InputProcessCase):
         from django.urls import reverse
         from wama.common.utils import process_views
         gen = self._run(separate_stems=True, melody_reference=self._cover())
+        # Levels of an earlier live mix : the chosen stems stay AS THEY ARE, they no longer apply.
+        ComposerGeneration.objects.filter(pk=gen.pk).update(remix_levels={'vocals': '0.5'})
         stems = self._stems(gen)
         self.client.force_login(self.user)
         url = lambda process: reverse('common:api_process_on_selection', args=['composer', process])
@@ -460,7 +462,8 @@ class StemSeparationTest(_InputProcessCase):
             self.assertEqual(200, res.status_code, res.content)
             self.assertEqual([(gen.pk, 'remix')], started, 'the step of the ORIGIN card')
             gen.refresh_from_db()
-            self.assertEqual((True, 'Batterie'), (gen.remix_stems, gen.remix_without))
+            self.assertEqual((True, 'Batterie', None),
+                             (gen.remix_stems, gen.remix_without, gen.remix_levels))
             refused = {
                 'all stems': self.client.post(url('remix'), {'ids': [c.pk for c in stems.values()]}),
                 'not derived': self.client.post(url('remix'), {'ids': [gen.pk]}),
@@ -486,6 +489,52 @@ class StemSeparationTest(_InputProcessCase):
         self.assertEqual({'vocals': 1.0, 'drums': 1.0}, remix_gains(stems, ''), 'nothing removed')
         with self.assertRaisesRegex(RuntimeError, 'Piano'):
             remix_gains(stems, 'Piano')
+        # The LEVELS of the live mix (2026-11-17) : a gain per stem, written as text ; a removed
+        # stem stays removed, a stem the separation no longer gives is nothing to set.
+        self.assertEqual({'vocals': 0.5, 'drums': 1.25},
+                         remix_gains(stems, '', {'vocals': '0,5', 'drums': '1.25', 'piano': '2'}))
+        self.assertEqual({'vocals': 1.5, 'drums': 0.0}, remix_gains(stems, 'Batterie',
+                                                                    {'vocals': '1.5', 'drums': '0.7'}))
+        for unreadable in ('beaucoup', '9', '-1'):
+            with self.subTest(level=unreadable), self.assertRaisesRegex(RuntimeError, 'Voix'):
+                remix_gains(stems, '', {'vocals': unreadable})
+
+    def test_the_page_mixes_what_the_remix_renders(self):
+        """2026-11-17, Fabien : « le mixage temps réel va dans la page d'édition, la card porte les
+        process ». The page reads the original and its stems with the gain the remix would give
+        them (`stem_tracks`, the context of the composer surface) and writes the levels the remix
+        reads (`remix_levels`, `remix_without`) : what is rendered is what was heard — here the
+        voice plus HALF the drums. A card that only has its stems opens the page."""
+        import numpy as np
+        import soundfile as sf
+        from wama.common.surfaces import surface
+        gen = self._run(separate_stems=True, melody_reference=self._cover())
+        voice, rate = self._real_audio(gen)
+        ComposerGeneration.objects.filter(pk=gen.pk).update(status='RUNNING', remix_stems=True,
+                                                            remix_levels={'drums': '0.5'})
+        gen = ComposerGeneration.objects.get(pk=gen.pk)
+        page = surface('composer', 'score')
+        self.assertEqual((True, ''), page.can_open(gen), 'its stems open the page, no score needed')
+        tracks = page.context_of(gen)['stems']
+        self.assertEqual({'vocals': 1.0, 'drums': 0.5}, {t['key']: t['gain'] for t in tracks['tracks']})
+        self.assertTrue(tracks['original'].endswith(gen.melody_reference.name.rsplit('/', 1)[-1]))
+        self.assertEqual({'remix_levels', 'remix_without'}, set(page.page_settings()))
+        gen = self._run(gen, process='remix')
+        self.assertEqual(JOB_SUCCESS, self._states(gen)['remix'], gen.error_message)
+        out, _rate = sf.read(str(Path(self.tmp) / gen.remix_audio.name), always_2d=True)
+        drums = 0.3 * np.sign(np.sin(2 * np.pi * 3 * np.arange(rate) / rate))
+        heard, wanted = out[:, 0][::2], voice + 0.5 * drums
+        n = min(len(heard), len(wanted))
+        # Away from the edges, and from the steps of the square wave the resampling rings on.
+        steady = np.abs(np.diff(np.concatenate([[0], drums]))) == 0
+        steady[:200] = steady[n - 200:] = False
+        self.assertLess(float(np.abs(heard[:n] - wanted[:n])[steady[:n]].max()), 0.02)
+        remix = self._stems(gen)['remix']
+        self.assertEqual((None, '', False), (remix.remix_levels, remix.remix_without, remix.remix_stems),
+                         'the mixed card starts from its own song, at 100 %')
+        # A card without stems : the context says so, the page needs its score.
+        plain = self._run(melody_reference=self._cover())
+        self.assertIsNone(page.context_of(plain)['stems'])
 
     def test_a_relaunch_replaces_the_stems_never_adds_cards(self):
         gen = self._run(separate_stems=True, melody_reference=self._cover())

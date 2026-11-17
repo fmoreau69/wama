@@ -107,6 +107,7 @@
           "watched": [
             "remix_stems",
             "remix_without",
+            "remix_levels",
             "melody_reference",
             "source_url"
           ]

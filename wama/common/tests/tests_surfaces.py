@@ -116,6 +116,32 @@ class RegistryTest(SimpleTestCase):
                 self.assertFalse(found.can_open(stranger)[0])
                 self.assertEqual({'shown': False}, surface_button(found.app, found.key, stranger))
 
+    def test_a_surface_opens_with_what_another_brick_shows(self):
+        """2026-11-17 (the live mix of the composer : a card with stems opens its editing page to
+        mix them before it has a score) : `Surface.opens_with` names fields whose PRESENCE opens
+        the page while what it edits is still empty — held on every declaration : the fields
+        exist, one filled opens it, and without the declaration the common rule refuses (« rien à
+        éditer »). A data field, rendered by the generator like the others."""
+        import dataclasses
+        from wama.common.manifests.codegen.surfaces_gen import _data_fields
+        from wama.common.surfaces import SURFACES, load_all
+        load_all()
+        declaring = [s for s in SURFACES.values() if s.opens_with]
+        self.assertTrue(declaring, 'the contract is held on real declarations')
+        self.assertIn('opens_with', _data_fields())
+        for found in declaring:
+            model = found.model_class()
+            for name in found.opens_with:
+                with self.subTest(surface=found.id, field=name):
+                    model._meta.get_field(name)                       # an unknown field raises
+                    bare = dataclasses.replace(found, available=None)
+                    filled = model(pk=1, **{name: 'users/1/x/index.json'})
+                    self.assertEqual((True, ''), bare.can_open(filled))
+                    if bare.text_value:
+                        self.assertFalse(dataclasses.replace(bare, opens_with=()).can_open(filled)[0],
+                                         'counterproof : nothing to edit, the page stays closed')
+                        self.assertFalse(bare.can_open(model(pk=1))[0], 'nothing there, nothing opens')
+
     def test_the_video_review_page_is_the_image_one_on_the_shared_axis(self):
         """2026-11-15 : correcting the detections of a VIDEO is the same brick of zones, put on the
         shared axis (it attaches its video and follows the frame PRESENTED — the rule of the
@@ -2705,7 +2731,8 @@ class ComposerScoreSurfaceTest(TestCase):
         from wama.common.surfaces import surface
         score = surface('composer', 'score')
         self.assertEqual(['score_view', 'media_transport', 'score_view', 'text_sections',
-                          'surface_actions', 'revision_history'], [s.brick for s in score.slots])
+                          'surface_actions', 'revision_history', 'stem_mixer'],
+                         [s.brick for s in score.slots])
         view = score.slots[0]
         self.assertEqual((0, 12), (view.x, view.w), 'the input score, the whole width')
         self.assertEqual([None, 'parts_score'], [v.get('field') for v in view.options['versions']],
@@ -2728,6 +2755,14 @@ class ComposerScoreSurfaceTest(TestCase):
         self.assertEqual(200, page.status_code)
         self.assertContains(page, 'abcjs-6.4.4/abcjs-basic-min.js')
         self.assertContains(page, 'brick-media-transport.js')
+        # Another step than the one « Appliquer » replays (2026-11-17, « Rendre le mixage ») : the
+        # route of the ▶ with the step as a slot, and the box that switches each optional step on,
+        # read from the pipeline of the element (`ctx.run`).
+        from wama.composer.function_specs import PIPELINE
+        config = page.context['config']
+        self.assertTrue(config['process_url'].endswith('/__process__/'), config['process_url'])
+        self.assertEqual({s.key: s.toggle for s in PIPELINE.specs if s.toggle}, config['toggles'])
+        self.assertEqual('remix_stems', config['toggles']['remix'])
         # The axis and the shuttle belong to the BASE page since 2026-11-05 (the common preview puts
         # its videos on the axis) : the surface asks for them, and does not load them again — two
         # executions, two listeners (`surface_views.page_scripts`).
@@ -3398,6 +3433,125 @@ class DataPluginBricksTest(SimpleTestCase):
         with mock.patch('wama.accounts.permissions.is_guest_account', return_value=False):
             self.assertEqual({'user': 'u'}, listable_by(Plain(), 'u'))
             self.assertEqual('shared', listable_by(Shared(), 'u'), 'sharing untouched')
+
+
+class StemMixTest(SimpleTestCase):
+    """The LIVE MIX of separated stems (2026-11-17, Fabien : « le mixage temps réel va dans la page
+    d'édition »), run in V8 on the SERVED files with a stand-in WebAudio : the rule of the remix
+    (original + Σ (gain − 1) · stem), every source started on the same sample — a stem that joins
+    during the play included —, only the stems that move decoded, a memory bound said ; the mix a
+    MEDIA the real axis follows, played by the transport as a version of the medium read."""
+
+    SERVED = Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'js'
+
+    #: WebAudio, the least of it : each started source and each level node are recorded.
+    FAKE_AUDIO = """
+        var window = this, fetched = [], LENGTH = 200 * 48000, ac = null, said = [];
+        function FakeAC() { this.currentTime = 10; this.state = 'running'; this.destination = {name: 'out'};
+            this.started = []; this.closed = false; ac = this; }
+        FakeAC.prototype.createGain = function () {
+            var g = {name: 'gain', gain: {value: 1, setTargetAtTime: function (v) { this.value = v; }},
+                     connect: function (to) { g.to = to; }}; return g; };
+        FakeAC.prototype.createBufferSource = function () {
+            var self = this, n = {playbackRate: {value: 1}, connect: function (to) { n.to = to; },
+                start: function (when, offset) { self.started.push({key: n.buffer.key, when: when,
+                    offset: offset, to: n.to, rate: n.playbackRate.value}); n.on = true; },
+                stop: function () { n.on = false; }, disconnect: function () {}}; return n; };
+        FakeAC.prototype.decodeAudioData = function (bytes, ok) {
+            ok({key: bytes.key, length: LENGTH, numberOfChannels: 2, duration: LENGTH / 48000}); };
+        FakeAC.prototype.resume = function () { return Promise.resolve(); };
+        FakeAC.prototype.close = function () { this.closed = true; };
+        function fakeFetch(url) { fetched.push(url);
+            return Promise.resolve({key: url === '/o.wav' ? '' : url.slice(1, -4)}); }
+        var TRACKS = [{key: 'drums', label: 'Batterie', url: '/drums.wav', gain: 1},
+                      {key: 'bass', label: 'Basse', url: '/bass.wav', gain: 1},
+                      {key: 'vocals', label: 'Voix', url: '/vocals.wav', gain: 0.5}];
+        function mixer() { return window.WamaStemMix.create({original: '/o.wav', tracks: TRACKS,
+            audioContext: function () { return new FakeAC(); }, fetch: fakeFetch,
+            status: function (t, k) { said.push([t, k]); }}); }
+    """
+
+    def setUp(self):
+        from py_mini_racer import MiniRacer
+        self.engine = MiniRacer()
+        self.engine.eval(self.FAKE_AUDIO + (self.SERVED / 'wama-stem-mix.js').read_text(encoding='utf-8'))
+
+    def _eval(self, script):
+        return json.loads(self.engine.eval('JSON.stringify((function(){' + script + '})())'))
+
+    def test_every_source_starts_on_the_same_sample_and_only_what_moves_is_decoded(self):
+        self.engine.eval('var mix = mixer(); mix.media.currentTime = 30; mix.media.play();')
+        first = self._eval("""return {fetched: fetched.slice(), started: ac.started.map(function (s) {
+            return [s.key, s.when, s.offset, s.to.name, s.to.gain.value]; }), playing: !mix.media.paused,
+            ready: mix.media.readyState, duration: mix.media.duration};""")
+        self.assertEqual(['/o.wav', '/vocals.wav'], first['fetched'],
+                         'the original first (its length bounds the memory), then the stem the card '
+                         'already sets at 50 % — nothing else')
+        self.assertEqual([['', 10.05, 30.05, 'gain', 1], ['vocals', 10.05, 30.05, 'gain', -0.5]],
+                         first['started'], 'one instant, one offset : the same sample ; the stem at (gain − 1)')
+        self.assertEqual((True, 4, 200), (first['playing'], first['ready'], first['duration']))
+        # Two seconds later, the drums move : decoded, they JOIN on the playhead of the others.
+        self.engine.eval("ac.currentTime = 12; mix.setGain('drums', 0); mix.setGain('bass', 1);")
+        joined = self._eval("""var d = ac.started.filter(function (s) { return s.key === 'drums'; });
+            return {fetched: fetched.length, drums: d.map(function (s) { return [s.when, s.offset, s.to.gain.value]; }),
+                    time: mix.media.currentTime, gains: mix.gains()};""")
+        self.assertEqual(3, joined['fetched'], 'the drums decoded, the bass (at 100 %) not')
+        self.assertEqual([[12.05, 32.05, -1]], joined['drums'], 'the playhead of the original at that instant')
+        self.assertAlmostEqual(32, joined['time'])
+        self.assertEqual({'drums': 0, 'bass': 1, 'vocals': 0.5}, joined['gains'])
+        # Paused, moved, played again : every source restarts together from where it was set.
+        out = self._eval("""mix.media.pause(); var at = mix.media.currentTime; ac.started.length = 0;
+            mix.media.currentTime = 50; ac.currentTime = 20; mix.media.play();
+            return {at: at, started: ac.started.map(function (s) { return [s.key, s.when, s.offset]; })};""")
+        self.assertAlmostEqual(32, out['at'])
+        self.assertEqual([['', 20.05, 50.05], ['drums', 20.05, 50.05], ['vocals', 20.05, 50.05]],
+                         out['started'])
+
+    def test_a_song_too_long_for_its_stems_is_said_not_decoded(self):
+        self.engine.eval("LENGTH = 3000 * 48000; var mix = mixer(); var ok = null;"
+                         "mix.preload().then(function () { mix.setGain('drums', 0).then(function (r) { ok = r; }); });")
+        out = self._eval("return {ok: ok, said: said.map(function (s) { return s[0]; }), "
+                         "bytes: mix.decodedBytes(), bound: window.WamaStemMix.MAX_DECODED_BYTES};")
+        self.assertIs(False, out['ok'])
+        self.assertTrue(any('mémoire' in s and 'Rendre le mixage' in s for s in out['said']), out['said'])
+        self.assertEqual(3000 * 48000 * 8, out['bytes'], 'the original alone : no stem beyond the bound')
+
+    def test_the_axis_follows_the_mix_the_transport_plays_live(self):
+        """The real axis (`wama-axis.js`) and the transport brick : choosing the mix version
+        attaches the MIX as a follower of the axis (no player, no file) ; the axis plays it, pauses
+        it, and the mix asks the soft re-timing (`SYNC`)."""
+        # The stand-in DOM of the transport run, without its stand-in axis : the real one here.
+        self.engine.eval(RegistryTest._FAKE_DOM.split('var axis = {')[0]
+                         + 'window.WamaStemMix = WamaStemMix;'
+                         + (self.SERVED / 'wama-axis.js').read_text(encoding='utf-8')
+                         + (self.SERVED / 'surfaces' / 'wama-surface.js').read_text(encoding='utf-8')
+                         + (self.SERVED / 'surfaces' / 'brick-media-transport.js').read_text(encoding='utf-8'))
+        self.engine.eval("""
+            var frames = [], T = 0;
+            var realAxis = window.WamaAxis.create({now: function () { return T; },
+                frame: function (fn) { frames.push(fn); return frames.length; }, cancelFrame: function () {}});
+            var mix = mixer();
+            var ctx = window.WamaSurface.view({config: {pk: 7}, axis: realAxis, reads: {},
+                sources: {audio: [{key: 'input', label: 'Entrée', url: '/in.wav'}]}, chosen: {audio: 'input'},
+                slots: [{brick: 'media_transport', body: el('div'), head: el('span'), options: {role: 'audio'}}]});
+            ctx.addSource('audio', {key: 'live-mix', label: 'Mixage', url: '', render: function () {
+                return mix.preload().then(function () {
+                    return {media: mix.media, sync: window.WamaStemMix.SYNC, from: 'mixage'}; }); }});
+            log.length = 0;
+            ctx.setSource('audio', 'live-mix');
+        """)
+        out = self._eval("""var attached = realAxis.medias()[0] === mix.media;
+            realAxis.play(); var playing = !mix.media.paused;
+            realAxis.pause();
+            return {attached: attached, followers: realAxis.medias().length, log: log.slice(),
+                    playing: playing, paused: mix.media.paused, started: ac.started.length,
+                    duration: realAxis.duration()};""")
+        self.assertTrue(out['attached'], 'the mix is the medium the axis follows')
+        self.assertEqual(1, out['followers'], 'the file player left the axis')
+        self.assertEqual(['drop view-7-audio', 'destroy view-7-audio'], out['log'])
+        self.assertEqual((True, True), (out['playing'], out['paused']), 'the axis plays it and pauses it')
+        self.assertEqual(2, out['started'], 'the original and the stem at 50 %')
+        self.assertEqual(200, out['duration'], 'the axis covers the song')
 
 
 class AnUnreadableAvailabilityClosesThePageTest(SimpleTestCase):

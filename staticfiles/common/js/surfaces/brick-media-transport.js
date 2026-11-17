@@ -103,6 +103,21 @@
             if (keep && !axis.playing()) axis.seek(keep);
         }
 
+        /** Une version EN DIRECT (2026-11-17, le mixage des pistes, `wama-stem-mix.js`) : un média
+         *  sans fichier, fait dans la page, que l'axe suit comme les autres (`axis.attach`, avec le
+         *  recalage qu'il demande, `sync`) — pas de lecteur ni d'onde : le lecteur se le dit. */
+        function attachLive(version) {
+            if (!axis) return;
+            var keep = axis.time();
+            drop();
+            if (Player) Player.destroy(playerId);
+            playerHost.textContent = version.from ? 'En direct : ' + version.from : 'En direct';
+            var media = version.media;
+            dropMedia = axis.attach(media, { offset: (Number(options.offset) || 0) - (Number(version.start) || 0),
+                                             sync: version.sync });
+            if (keep && !axis.playing()) axis.seek(keep);
+        }
+
         // ── Les commandes ───────────────────────────────────────────────────────────────────
         // Un hôte qui donne déjà les touches du temps à l'axe (la visionneuse, `WamaSurface.view`) :
         // les nôtres ne s'inscrivent pas à la page, une frappe ne joue pas deux fois.
@@ -148,8 +163,10 @@
         ctx.on('sources', function (p) { if (p && p.role === role) buildPick(); });
 
         /** La version choisie : jouée, ou RENDUE d'abord quand elle se fait dans la page (`render`) —
-         *  le rendu dit d'où vient le son (`from`), jamais une substitution muette. */
+         *  le rendu dit d'où vient le son (`from`), jamais une substitution muette. Le rendu rend une
+         *  adresse (`url`, la lecture MIDI) ou un média EN DIRECT (`media`, le mixage). */
         function play(version, bust) {
+            if (version.media) { attachLive(version); return; }
             if (version.url || !version.render) {
                 load(version.url, version.peaks, bust, version.start);
                 return;
@@ -160,10 +177,12 @@
             ctx.status(busy, 'busy');
             version.render().then(function (got) {
                 version.url = got.url;
+                version.media = got.media;
+                version.sync = got.sync;
                 version.start = got.start || 0;
                 if (got.from) version.from = got.from;
                 if (ctx.source(role).key !== version.key) return;      // un autre choix entre-temps
-                load(got.url, null, false, version.start);
+                if (got.media) attachLive(version); else load(got.url, null, false, version.start);
                 ctx.status(got.from ? 'Lecture : ' + got.from : '', got.from ? 'ok' : '');
             }).catch(function (e) {
                 playerHost.textContent = 'Rendu impossible : ' + e.message;
@@ -172,6 +191,9 @@
         }
         ctx.on('source', function (p) {
             if (!p || p.role !== role) return;
+            // Choisie par une AUTRE brique (2026-11-17 : bouger une piste du mixage passe au mixage) :
+            // la liste « Écouter » le dit — elle montrait encore la version d'avant.
+            if (pick && pick.value !== p.key) pick.value = p.key;
             play(ctx.source(role));
         });
 

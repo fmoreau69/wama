@@ -207,6 +207,13 @@ PARAMS = [
           dom_id={"panel": "remixWithout", "item": "settingsRemixWithout",
                   "batch": "batchSettingsRemixWithout"},
           contexts=PANEL_ITEM_BATCH, stales=("remix",)),
+    # Les NIVEAUX (2026-11-17) : ce que règle le mixage en temps réel de la page d'édition (brique
+    # « Mixage »), une piste par clé — sur la page seulement, comme les noms des intervenants.
+    Param(name="remix_levels", type="mapping", label="Niveaux des pistes", icon="fa-sliders",
+          help="Le niveau de chaque piste dans la refusion (1 = telle quelle, 0,5 = à moitié, "
+               "1,5 = plus fort) — réglé à l'oreille dans la page d'édition ; les pistes retirées "
+               "sont dans « Pistes à retirer ».",
+          contexts=("surface",), stales=("remix",)),
     # PARTITION COMPLÈTE (2026-10-16, décision de Fabien) : la case qui ACTIVE le process optionnel
     # `parts` (`ProcessSpec.toggle`) — depuis le 2026-10-26 sur l'ENTRÉE : l'audio repris, comme la
     # partition réduite. Ne périme qu'elle-même : le rendu suit la réduite, jamais celle-ci.

@@ -213,6 +213,13 @@ class ComposerGeneration(DerivedCardMixin, KeptOutputsMixin, ProcessingTimeMixin
         help_text="Pistes à retirer de la refusion, séparées par des virgules.")
     remix_audio = models.FileField(
         max_length=500, upload_to=upload_to_user_output('composer'), blank=True, null=True)
+    # Les NIVEAUX de la refusion (2026-11-17, le mixage en temps réel de la page d'édition, décision
+    # de Fabien : « le mixage temps réel va dans la page d'édition, la card porte les process ») :
+    # `{piste: gain}` — un gain par piste ni retirée ni laissée telle quelle (0,5 = à moitié, 1,5 =
+    # plus fort), en texte (`mapping` du schéma). La brique « Mixage » les écrit avec
+    # `remix_without` (les pistes à 0) ; `tasks.remix_gains` les lit. Vide : toutes à 1, sauf les
+    # retirées. Nullable : le code en service crée des générations sans connaître la colonne.
+    remix_levels = models.JSONField(null=True, blank=True)
 
     # Format de sortie (conversion inline via Converter) — 'original' = WAV natif
     output_format = models.CharField(max_length=20, default='original')
@@ -284,6 +291,14 @@ class ComposerGeneration(DerivedCardMixin, KeptOutputsMixin, ProcessingTimeMixin
             part = instrument_label(self.derived_role) if self.derived_role else ''
             return ' — '.join(p for p in (base, part) if p)
         return self.input_stem() or ' '.join((self.prompt or '').split())[:80]
+
+    @property
+    def stem_tracks(self):
+        """Ce que lit le MIXAGE en temps réel de la page d'édition (brique « Mixage », 2026-11-17,
+        nommé par `Surface.context`) : l'original et ses pistes séparées servis, chacune avec le
+        gain que la refusion lui donnerait — None sans pistes (`tasks.stem_tracks`)."""
+        from .tasks import stem_tracks
+        return stem_tracks(self)
 
     @property
     def duration_display(self):

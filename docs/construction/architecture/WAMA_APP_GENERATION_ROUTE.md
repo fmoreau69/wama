@@ -1893,6 +1893,14 @@ manifeste** (ce que le kind `app` capte + cible de projection).
     sans lecture ; un double-clic ouvre la visionneuse, qui joue (aller plus loin plus tard). Même
     jour : la partition complète (MuScriptor) ne change pas de mesure en cours de morceau — limite
     ACCEPTÉE pour l'instant (les changements de tempo, eux, suivent les repères).
+    ✅ **Le MIXAGE en temps réel, 2026-11-17** (décision de Fabien : « dans la page d'édition, la
+    card porte les process » — détail et mesures : `PROSPECTION_PIPELINE`, refusion) : une brique
+    commune `stem_mixer` au volet, dont le son (`wama-stem-mix.js`, WebAudio calé à l'échantillon)
+    est une VERSION de plus du média lu — le transport sait jouer une version EN DIRECT (un média que
+    l'axe suit, sans fichier) et sa liste « Écouter » suit le choix fait par une autre brique. Trois
+    pièces communes de plus, déclarées : `Surface.opens_with` (la page s'ouvre quand un champ est là,
+    même si ce qu'elle édite est vide), `ctx.run(étape)` (le ▶ d'une étape depuis la page, sa case
+    cochée d'abord — « Appliquer » en est un cas) et les niveaux en réglage `mapping` de l'élément.
   - ⏳ **Restes, dans l'ordre** : ② rendus par TYPE (ABC en partition — fait pour la visionneuse, ci-dessus) ; ③ les lignes de la bande des process ouvrent leur face, l'état du
     process (périmé, en échec) se lit sur elle ; ④ Studio (nœuds `StudioRun`, `output_ref`), Lab
     (passes du cam_analyzer, une face par caméra, `instance_key`), Data (Explorer). Et la face de

@@ -26,6 +26,12 @@ sortie (« deux briques partition côte à côte ») ; la disposition se règle 
 
 Une partition importée en MIDI ou MusicXML (2026-11-10) s'y ouvre par sa vue ABC, le fichier
 importé jamais réécrit (`common/utils/score_source.py`, règle de toutes les surfaces).
+
+Le MIXAGE en temps réel (2026-11-17, décision de Fabien : « le mixage temps réel va dans la page
+d'édition, la card porte les process ») : une card à pistes séparées règle le niveau de chacune
+à l'oreille (brique commune `stem_mixer`, au volet), sur l'audio lu ; les niveaux sont les réglages
+de la refusion, que « Rendre le mixage » lance. Une card qui n'a que ses pistes ouvre la page
+(`opens_with`) : on y mixe avant d'avoir une partition.
 """
 from wama.common.surfaces import INPUT_SOURCE, BrickSlot, Surface, register_surface
 from wama.composer.models import ComposerGeneration
@@ -101,13 +107,27 @@ register_surface(Surface(
                              "jouée » dans les réglages de la card, puis relancer."}]}),
            BrickSlot('source', 'text_sections', 0, 29, 12, 6, {'title': 'Source ABC'}),
            BrickSlot('actions', 'surface_actions', 0, 0, 1, 5, zone='panel'),
-           BrickSlot('versions', 'revision_history', 0, 5, 1, 6, zone='panel')),
+           BrickSlot('versions', 'revision_history', 0, 5, 1, 6, zone='panel'),
+           # Le MIXAGE en temps réel des pistes séparées (2026-11-17, décision de Fabien : « le
+           # mixage temps réel va dans la page d'édition, la card porte les process ») — une
+           # version de plus de l'audio lu ; ses niveaux sont les réglages de la refusion.
+           BrickSlot('mixer', 'stem_mixer', 0, 11, 1, 9, {
+               'role': 'audio', 'tracks': 'stems', 'levels': 'remix_levels',
+               'without': 'remix_without', 'process': 'remix',
+               'empty': "Pas de pistes séparées : cocher « Pistes séparées » dans les réglages "
+                        "de la card, puis la lancer."}, zone='panel')),
     reads={'audio': 'audio_output', 'rendered': 'rendered_parts_score',
            'rendered_score': 'rendered_score',
            'lyrics_in': 'input_lyrics_timed', 'lyrics_out': 'rendered_lyrics_timed'},
     texts=('rendered', 'rendered_score', 'lyrics_in', 'lyrics_out'),
     edits=INPUT_SCORE_FIELDS,
     also_edits=ALSO_EDITED,
+    # Les niveaux du mixage et les pistes retirées : les réglages de la refusion (`params.py`).
+    settings=('remix_levels', 'remix_without'),
+    # L'original et ses pistes, servis avec le niveau que la refusion leur donnerait.
+    context={'stems': 'stem_tracks'},
+    # Une card à pistes s'ouvre pour les mixer, même sans partition.
+    opens_with=('stems_index',),
     reruns='render', available=_score_available,
     # L'élément témoin des vignettes du catalogue des briques (nocturne) : une partition, sa
     # partition complète et un rendu audio — rien n'est lancé, les fichiers sont des témoins.

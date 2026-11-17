@@ -4794,12 +4794,23 @@ l'étape), le menu commun l'offre (`queue_dnd_attrs` → `data-selection-process
 `start_process_on_items` ; exporté au manifeste et rendu par le générateur (trou de glu). Refusé en le
 disant : cards de deux morceaux, card qui n'est pas une piste, toutes les pistes choisies. Joué au
 navigateur (POST intercepté) : l'entrée offerte sur deux pistes, leurs deux ids postés.
-⏳ Le MIXAGE EN TEMPS RÉEL (gains continus, la même formule) — **décision de Fabien, 2026-11-16 : dans
-la PAGE D'ÉDITION** de la card d'origine (la card porte les process, le temps réel vit dans les pages
-d'édition), les réglages gardés sur la page et versés dans la refusion, « Appliquer » fait le fichier :
-une brique WebAudio calée à l'échantillon — des lecteurs `<audio>` suivis à ±20 ms par l'axe ne
-s'annulent pas en soustraction ; la mémoire des pistes décodées (six pistes de 4 min : quelques centaines
-de Mo) se mesure avant de choisir comment les charger. La séparation reste à la demande (coût GPU).
+✅ Le MIXAGE EN TEMPS RÉEL (2026-11-17, **décision de Fabien du 2026-11-16 : dans la PAGE D'ÉDITION**
+de la card d'origine — la card porte les process, le temps réel vit dans les pages d'édition) : brique
+commune `stem_mixer` au volet de la page du composer, un curseur par piste (0–200 %) et un muet,
+entendus aussitôt. Le son se fait dans la page (`common/js/wama-stem-mix.js`, WebAudio) avec LA règle
+de la refusion — original + Σ (gain − 1) · piste —, toutes les sources parties au même échantillon : le
+mixage est une VERSION de plus de l'audio lu (« Mixage des pistes »), un média que l'axe suit comme les
+autres (le transport sait jouer une version « en direct »). Mesuré avant de choisir : Chromium décode
+l'original MP3 ALIGNÉ sur ses pistes (décalage 0 sur les trois morceaux séparés de la base, résidu
+identique au serveur, 9 à 11 %) ; tout décoder pèserait 550 à 940 Mo par morceau (six pistes, 4 à 6 min) —
+d'où le décodage PARESSEUX (l'original, puis une piste seulement quand elle quitte 100 %, sous une borne
+de 1,5 Go, dite). Les niveaux sont des réglages de la card (`remix_levels`, mapping ; les pistes à 0 dans
+`remix_without`), lus par `tasks.remix_gains` : ce qu'on entend est ce que « Rendre le mixage » écrit
+(le noyau lance l'étape en cochant sa case, `ctx.run`). Une card qui n'a que ses pistes ouvre la page
+(`Surface.opens_with`). Joué au navigateur (serveur jetable, lancement intercepté) : lecture continue
+sur l'axe, une piste qui rejoint pendant la lecture, niveaux écrits sur la card. ⚠ Une vitesse autre que
+×1 change aussi la hauteur du mixage (un tampon n'a pas l'étirement d'un `<audio>`). La séparation reste
+à la demande (coût GPU).
 ⏳ **BS-RoFormer SW** (six pistes, meilleur que Demucs en guitare et piano) : intégrable comme second
 modèle du même contrat (`separate_sources`), Demucs restant le défaut ; coût : `audio-separator` sans
 ses dépendances et ses poids par la route ; **bloqué par la licence de ses poids** (CC-BY-NC-SA ou MIT

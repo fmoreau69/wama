@@ -387,7 +387,7 @@
                 emit('select', { id: id, focus: !!(opts && opts.focus) });
             },
             history: history, dirty: dirty,
-            save: save, apply: apply, resetLayout: resetLayout,
+            save: save, apply: apply, run: run, resetLayout: resetLayout,
             /** Le champ édité : '' = le principal, sinon l'un des `also_edits` de la surface. */
             target: function () { return target; },
             retarget: retarget,
@@ -496,21 +496,39 @@
             // Le process rejoué lit le champ PRINCIPAL : un autre champ édité ne fait qu'enregistrer.
             if (!config.run_url || target) return save();
             return (dirty() ? save() : Promise.resolve(true)).then(function (ok) {
-                if (!ok) return false;
-                status('Lancement…', 'busy');
-                return App.csrfFetch(config.run_url, App.csrfToken(), { method: 'POST' })
-                    .then(App.jsonOrExplain).then(function (res) {
-                        if (res && res.error) throw new Error(res.error);
-                        status('Relancé : ' + (surface.reruns || ''), 'ok');
-                        if (App.toast) App.toast('Traitement relancé', 'success');
-                        emit('applied', res);
-                        track(surface.reruns);
-                        return true;
-                    }).catch(function (e) {
-                        status('Échec du lancement : ' + e.message, 'error');
-                        return false;
-                    });
+                return ok ? launch(config.run_url, surface.reruns) : false;
             });
+        }
+
+        /** Lance l'étape `process` de l'élément (2026-11-17 : « Rendre le mixage », une autre étape
+         *  que celle qu'« Appliquer » rejoue) par la route du ▶ de la bande, après avoir COCHÉ sa case
+         *  quand elle est optionnelle (`config.toggles`) — sinon la route la refuse, « désactivée ».
+         *  Suivie comme « Appliquer ». Rend une promesse de `true` si elle est partie. */
+        function run(process) {
+            if (!process || !config.process_url) return Promise.resolve(false);
+            var toggle = (config.toggles || {})[process];
+            var enabled = {};
+            if (toggle) enabled[toggle] = true;
+            return (toggle ? saveSettings(enabled) : Promise.resolve(true)).then(function (ok) {
+                return ok ? launch(config.process_url.replace('__process__', encodeURIComponent(process)),
+                                   process) : false;
+            });
+        }
+
+        function launch(url, process) {
+            status('Lancement…', 'busy');
+            return App.csrfFetch(url, App.csrfToken(), { method: 'POST' })
+                .then(App.jsonOrExplain).then(function (res) {
+                    if (res && res.error) throw new Error(res.error);
+                    status('Relancé : ' + (process || ''), 'ok');
+                    if (App.toast) App.toast('Traitement relancé', 'success');
+                    emit('applied', res);
+                    track(process);
+                    return true;
+                }).catch(function (e) {
+                    status('Échec du lancement : ' + e.message, 'error');
+                    return false;
+                });
         }
 
         // ── Réglages de l'élément (`Surface.settings`) ──────────────────────────────────────

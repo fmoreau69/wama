@@ -184,6 +184,11 @@ def surface_page(request, app: str, key: str, pk: int):
             'field': _requested_field(found, item, request.GET.get('field') or ''),
             'save_url': base + 'save/',
             'run_url': _url(f'{app}:start_process', pk, found.reruns) if found.reruns else '',
+            # Lancer une AUTRE étape que celle qu'« Appliquer » rejoue (2026-11-17, « Rendre le
+            # mixage ») : la route du ▶ d'une étape, l'étape en gabarit (`ctx.run`), et la case qui
+            # ACTIVE chaque étape optionnelle (`ProcessSpec.toggle`), lue du pipeline de l'élément.
+            'process_url': _url(f'{app}:start_process', pk, PROCESS_SLOT),
+            'toggles': _toggles_of(item),
             'revisions_url': base + 'revisions/',
             # La page de l'app telle que son IDENTITÉ la déclare (2026-10-29) : `<app>:index` ne
             # se résout pas pour une app du Lab, montée sous `wama_lab:`.
@@ -205,6 +210,22 @@ def surface_page(request, app: str, key: str, pk: int):
         'scripts': [s for s in found.scripts() if s not in page_scripts()],
         'styles': found.styles(),
     })
+
+
+#: L'étape dans la route du ▶ servie à la page (`process_url`) : la page la remplace par la sienne.
+PROCESS_SLOT = '__process__'
+
+
+def _toggles_of(item) -> dict:
+    """`{étape: case}` des étapes OPTIONNELLES du pipeline de l'élément (`ProcessSpec.toggle`) — ce
+    qu'une page coche avant de lancer l'une d'elles (`ctx.run`), comme la bande de la card. `{}`
+    sans pipeline."""
+    try:
+        from wama.common.services.process_pipeline import pipeline_of
+        pipeline = pipeline_of(item)
+    except Exception:
+        return {}
+    return {spec.key: spec.toggle for spec in (pipeline.specs if pipeline else ()) if spec.toggle}
 
 
 def _requested_field(found, item, requested: str) -> str:

@@ -471,10 +471,12 @@ def _separate(gen, ctx):
     }
 
 
-def remix_gains(stems, without: str) -> dict:
+def remix_gains(stems, without: str, levels=None) -> dict:
     """Les gains de la refusion : 0 pour chaque piste NOMMÉE à retirer (libellés français du
-    vocabulaire commun ou clés, `midi_score.instrument_keys`), 1 pour les autres. Un nom qu'aucune
-    piste ne porte est refusé en le disant — jamais un « retrait » silencieusement sans effet."""
+    vocabulaire commun ou clés, `midi_score.instrument_keys`), le NIVEAU réglé au mixage pour les
+    autres (`levels`, `{piste: gain}` — 2026-11-17), 1 sinon. Un nom qu'aucune piste ne porte est
+    refusé en le disant — jamais un « retrait » silencieusement sans effet ; un niveau illisible ou
+    hors de 0–4 aussi. La règle du mixage en temps réel (`wama-stem-mix.js`) est la même."""
     from wama.common.utils.midi_score import instrument_keys, instrument_label
     removed = instrument_keys(without or '')
     unknown = [key for key in removed if key not in stems]
@@ -482,7 +484,64 @@ def remix_gains(stems, without: str) -> dict:
         have = ', '.join(instrument_label(key) for key in stems)
         raise RuntimeError(f"Pistes à retirer inconnues : {', '.join(instrument_label(k) for k in unknown)}"
                            f" — pistes de la card : {have}.")
-    return {key: 0.0 if key in removed else 1.0 for key in stems}
+    gains = {key: 0.0 if key in removed else 1.0 for key in stems}
+    for key, raw in (levels or {}).items():
+        if key not in stems:
+            continue                   # une piste que la séparation ne rend plus : rien à régler
+        try:
+            gain = float(str(raw).replace(',', '.'))
+        except ValueError:
+            gain = -1.0
+        if not 0.0 <= gain <= MAX_STEM_GAIN:
+            raise RuntimeError(f"Niveau illisible pour « {instrument_label(key)} » : {raw!r} "
+                               f"(de 0 à {MAX_STEM_GAIN:g}).")
+        if key not in removed:
+            gains[key] = gain
+    return gains
+
+
+#: Le niveau le plus fort qu'une piste peut recevoir au mixage : ×4 (+12 dB). La brique « Mixage »
+#: va jusqu'à ×2 ; au-delà, la refusion le refuse en le disant.
+MAX_STEM_GAIN = 4.0
+
+
+def stem_files(gen) -> list:
+    """Les pistes séparées de `gen` dont le fichier existe encore, telles que son index les range
+    (`stems_index`, écrit par `_separate`) : `[{stem, label, path}]`, chemins relatifs à
+    MEDIA_ROOT. [] sans séparation. Une piste dont la card a été retirée (fichier libéré) sort."""
+    import json
+    from django.conf import settings
+    if not getattr(getattr(gen, 'stems_index', None), 'name', ''):
+        return []
+    try:
+        with open(os.path.join(settings.MEDIA_ROOT, gen.stems_index.name), encoding='utf-8') as handle:
+            stems = json.load(handle).get('stems', ())
+    except (OSError, ValueError):
+        return []
+    return [s for s in stems if s.get('stem') and s.get('path')
+            and os.path.isfile(os.path.join(settings.MEDIA_ROOT, s['path']))]
+
+
+def stem_tracks(gen):
+    """Ce que lit le mixage en temps réel de la page d'édition (2026-11-17) : `{original, tracks:
+    [{key, label, url, gain}]}` — l'entrée servie et chaque piste avec le gain que la refusion lui
+    donnerait (`remix_gains`, la même règle : la page part de ce que la card dit). None sans
+    pistes ou sans entrée. Un réglage illisible laisse toutes les pistes à 1 et le DIT (`error`)."""
+    from django.core.files.storage import default_storage
+    from wama.common.utils.midi_score import instrument_label
+    files = stem_files(gen)
+    if not files or not getattr(gen.melody_reference, 'name', ''):
+        return None
+    keys = {s['stem']: s['path'] for s in files}
+    error = ''
+    try:
+        gains = remix_gains(keys, getattr(gen, 'remix_without', ''), getattr(gen, 'remix_levels', None))
+    except RuntimeError as refused:
+        gains, error = {}, str(refused)
+    return {'original': default_storage.url(gen.melody_reference.name), 'error': error,
+            'tracks': [{'key': s['stem'], 'label': s.get('label') or instrument_label(s['stem']),
+                        'url': default_storage.url(s['path']), 'gain': gains.get(s['stem'], 1.0)}
+                       for s in files]}
 
 
 def remix_from_selection(gen, roles) -> dict:
@@ -490,13 +549,8 @@ def remix_from_selection(gen, roles) -> dict:
     de Fabien : sélectionner les pistes à refusionner, clic droit) : les pistes CHOISIES restent, les
     autres se retirent (`remix_without`, le vocabulaire commun). Une card choisie qui n'est pas une
     piste de la séparation (une refusion déjà faite) est refusée en le disant."""
-    import json
-    from django.conf import settings
     from wama.common.utils.midi_score import instrument_label
-    stems = []
-    if gen.stems_index:
-        with open(os.path.join(settings.MEDIA_ROOT, gen.stems_index.name), encoding='utf-8') as handle:
-            stems = [s['stem'] for s in json.load(handle).get('stems', ())]
+    stems = [s['stem'] for s in stem_files(gen)]
     if not stems:
         raise ValueError("Rien à refusionner : lancer d'abord « Pistes séparées ».")
     odd = [role for role in roles if role not in stems]
@@ -506,7 +560,8 @@ def remix_from_selection(gen, roles) -> dict:
     if set(stems) <= set(roles):
         # Rien à retirer : ce serait le morceau d'origine — et un réglage vide ne s'écrit pas.
         raise ValueError("Toutes les pistes sont choisies : la refusion rendrait le morceau d'origine.")
-    return {'remix_stems': True,
+    # Les choisies restent TELLES QUELLES : les niveaux d'un mixage d'avant ne s'y appliquent plus.
+    return {'remix_stems': True, 'remix_levels': None,
             'remix_without': ', '.join(instrument_label(s) for s in stems if s not in roles)}
 
 
@@ -516,7 +571,6 @@ def _remix(gen, ctx):
     qu'on garde n'est pas re-synthétisé. Le morceau recomposé est la sortie de la card
     (`remix_audio`) et une card de plus dans le lot (`derived_cards`, rôle `remix`) : on peut en
     écrire la partition, le recomposer encore."""
-    import json
     import shutil
     from django.conf import settings
     from wama.common.utils.derived_cards import derive_cards
@@ -525,18 +579,18 @@ def _remix(gen, ctx):
 
     if not gen.melody_reference or not gen.stems_index:
         raise RuntimeError("Rien à refusionner : lancer d'abord « Pistes séparées ».")
-    with open(os.path.join(settings.MEDIA_ROOT, gen.stems_index.name), encoding='utf-8') as handle:
-        index = json.load(handle)
-    stems = {s['stem']: os.path.join(settings.MEDIA_ROOT, s['path']) for s in index.get('stems', ())
-             if os.path.isfile(os.path.join(settings.MEDIA_ROOT, s['path']))}
-    gains = remix_gains(stems, getattr(gen, 'remix_without', ''))
+    stems = {s['stem']: os.path.join(settings.MEDIA_ROOT, s['path']) for s in stem_files(gen)}
+    gains = remix_gains(stems, getattr(gen, 'remix_without', ''), getattr(gen, 'remix_levels', None))
     removed = [key for key, gain in gains.items() if gain == 0.0]
-    ctx.console("[Composer] Refusion : " + (f"sans {', '.join(instrument_label(k) for k in removed)}"
-                                            if removed else "toutes les pistes (le morceau d'origine)"))
+    leveled = [f"{instrument_label(k)} à {round(g * 100)} %" for k, g in gains.items()
+               if g not in (0.0, 1.0)]
+    said = '; '.join(([f"sans {', '.join(instrument_label(k) for k in removed)}"] if removed else [])
+                     + ([', '.join(leveled)] if leveled else []))
+    ctx.console("[Composer] Refusion : " + (said or "toutes les pistes (le morceau d'origine)"))
     ctx.progress(10)
     samples, rate = mix(os.path.join(settings.MEDIA_ROOT, gen.melody_reference.name), stems, gains)
     ctx.progress(80)
-    nature = 'remix' + ''.join(f'-{k.replace(" ", "_")}' for k in removed)
+    nature = 'remix' + ''.join(f'-{k.replace(" ", "_")}' for k in removed) + ('-mix' if leveled else '')
     rel, abs_path = ctx.output_place('.wav', nature=nature, model='stem_mix')
     write_wav(abs_path, samples, rate)
     # La card du lot a SA copie, rangée comme les pistes (dans l'entrée de l'app) : retirer l'une
@@ -545,8 +599,9 @@ def _remix(gen, ctx):
                                           source_name=gen.melody_reference.name, folder='input')
     shutil.copyfile(abs_path, card_abs)
     derive_cards(gen, [('remix', card_rel)], field='melody_reference',
-                 reset_fields={'separate_stems': False, 'remix_stems': False, 'source_url': ''})
-    label = ('sans ' + ', '.join(instrument_label(k) for k in removed)) if removed else 'complète'
+                 reset_fields={'separate_stems': False, 'remix_stems': False, 'remix_without': '',
+                               'remix_levels': None, 'source_url': ''})
+    label = said or 'complète'
     return {
         'fields': {'remix_audio': rel},
         'output_ref': rel,

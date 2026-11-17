@@ -539,6 +539,11 @@ class Surface:
     #: pas, une surface qui le concerne et ne s'ouvre pas encore reste grisée avec sa raison.
     #: Une DONNÉE, comme `ProcessSpec.domains` : elle passe au manifeste. Vide : tout élément.
     only: dict = field(default_factory=dict)
+    #: Des champs de l'élément dont la PRÉSENCE ouvre la page même quand ce qu'elle édite est encore
+    #: vide (2026-11-17, le mixage en temps réel du composer : une card à pistes séparées s'ouvre pour
+    #: les mixer avant d'avoir une partition) — la page montre alors ses autres briques, rien ne
+    #: s'écrit dans le champ édité tant qu'on ne l'édite pas. Une DONNÉE (elle passe au manifeste).
+    opens_with: tuple = ()
 
     def concerns(self, item) -> bool:
         """L'élément est-il de ceux auxquels la surface se réserve (`only`) ?"""
@@ -681,6 +686,8 @@ class Surface:
         Lu à CHAQUE rendu d'une card : ni écriture, ni calcul long."""
         if not self.concerns(item):
             return False, "Cette page n'est pas celle de cet élément."
+        if any(getattr(item, name, None) for name in self.opens_with):      # un fichier vide est faux
+            return True, ''
         if self.available is not None:
             try:
                 ok, reason = self.available(item)
@@ -1258,6 +1265,21 @@ register_brick(UIBrick(
     script='common/js/surfaces/brick-speaker-names.js',
     requires=('common/js/wama-segments.js', 'common/js/wama-params.js'),
     consumes=('segments',)))
+
+register_brick(UIBrick(
+    key='stem_mixer', name='Mixage',
+    description="Le MIXAGE EN TEMPS RÉEL des pistes séparées d'un morceau (2026-11-17) : un curseur "
+                "par piste (de 0 à 200 %) et un muet, entendus aussitôt — le mixage est une version "
+                "de plus du média lu, que le transport joue sur l'axe partagé (`wama-stem-mix.js`, "
+                "WebAudio, pistes calées à l'échantillon). La règle est celle de la refusion : "
+                "l'original, plus chaque piste pondérée de (niveau − 1) — tout à 100 %, l'original "
+                "exact. Seules les pistes qu'on bouge sont décodées. Les niveaux s'écrivent dans les "
+                "réglages de l'élément que l'emplacement nomme (`levels`, `without` : celles à 0) par "
+                "la route commune des réglages ; « Rendre le mixage » lance le process qui écrit le "
+                "fichier (`process`).",
+    script='common/js/surfaces/brick-stem-mixer.js',
+    requires=('common/js/wama-axis.js', 'common/js/wama-stem-mix.js'),
+    consumes=('audio',)))
 
 register_brick(UIBrick(
     key='score_view', name='Partition',
