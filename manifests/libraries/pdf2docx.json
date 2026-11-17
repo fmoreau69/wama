@@ -18,6 +18,7 @@
       "author": "Artifex",
       "license": "MIT",
       "repository": "https://artifex.com/",
+      "role": "app",
       "summary": "Open source Python library converting pdf to docx.",
       "version": "0.5.13"
     },

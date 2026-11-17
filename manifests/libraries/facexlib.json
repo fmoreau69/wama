@@ -17,6 +17,7 @@
       "author": "Xintao Wang",
       "license": "Apache License 2.0",
       "repository": "https://github.com/xinntao/facexlib",
+      "role": "engine",
       "summary": "Basic face library",
       "version": "0.3.0"
     },

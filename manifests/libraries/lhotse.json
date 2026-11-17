@@ -23,6 +23,7 @@
       "author": "The Lhotse Development Team",
       "license": "Apache-2.0 License",
       "repository": null,
+      "role": "engine",
       "summary": "Data preparation for speech processing models training.",
       "version": "1.33.0"
     },

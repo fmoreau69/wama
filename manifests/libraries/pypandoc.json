@@ -7,6 +7,7 @@
       "author": "b'Juho Veps\\xc3\\xa4l\\xc3\\xa4inen'",
       "license": "MIT",
       "repository": "https://github.com/JessicaTegner/pypandoc",
+      "role": "app",
       "summary": "Thin wrapper for pandoc.",
       "version": "1.13"
     },

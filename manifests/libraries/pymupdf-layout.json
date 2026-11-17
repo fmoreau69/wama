@@ -9,6 +9,7 @@
       "author": "Artifex",
       "license": "Polyform Noncommercial OR Artifex Commercial License",
       "repository": "https://github.com/pymupdf/pymupdf-layout",
+      "role": "brick",
       "summary": "Layout analysis for PyMuPDF: classifies the regions of a page (text, title, table, picture, caption...).",
       "version": "1.27.2.2"
     },

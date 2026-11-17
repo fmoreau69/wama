@@ -11,6 +11,7 @@
       "author": "Ronnie Ghose, Taylor Fox Dahlin, Nick Ficano",
       "license": "The Unlicense (Unlicense)",
       "repository": "https://github.com/pytube/pytube",
+      "role": "brick",
       "summary": "Python 3 library for downloading YouTube Videos.",
       "version": "15.0.0"
     },

@@ -15,6 +15,7 @@
       "author": "Jeremy Singer-Vine",
       "license": "MIT License",
       "repository": "https://github.com/jsvine/pdfplumber",
+      "role": "app",
       "summary": "Plumb a PDF for detailed information about each char, rectangle, and line.",
       "version": "0.11.9"
     },

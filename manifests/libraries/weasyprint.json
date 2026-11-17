@@ -20,6 +20,7 @@
       "author": "Simon Sapin <simon.sapin@exyr.org>",
       "license": "BSD License",
       "repository": "https://weasyprint.org/",
+      "role": "brick",
       "summary": "The Awesome Document Factory",
       "version": "69.0"
     },

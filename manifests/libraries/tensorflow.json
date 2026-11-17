@@ -35,6 +35,7 @@
       "author": "Google Inc.",
       "license": "Apache 2.0",
       "repository": "https://www.tensorflow.org/",
+      "role": "engine",
       "summary": "TensorFlow is an open source machine learning framework for everyone.",
       "version": "2.21.0"
     },

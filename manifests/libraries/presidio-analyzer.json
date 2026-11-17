@@ -25,6 +25,7 @@
       "author": "Microsoft",
       "license": "MIT",
       "repository": "https://github.com/microsoft/presidio",
+      "role": "engine",
       "summary": "Presidio Analyzer package",
       "version": "2.2.363"
     },

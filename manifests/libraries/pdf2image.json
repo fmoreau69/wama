@@ -9,6 +9,7 @@
       "author": "Edouard Belval",
       "license": "MIT",
       "repository": "https://github.com/Belval/pdf2image",
+      "role": "brick",
       "summary": "A wrapper around the pdftoppm and pdftocairo command line tools to convert PDF to a PIL Image list.",
       "version": "1.17.0"
     },

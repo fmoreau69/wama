@@ -23,6 +23,7 @@
       "author": "The HuggingFace team",
       "license": "Apache",
       "repository": "https://github.com/huggingface/accelerate",
+      "role": "engine",
       "summary": "Accelerate",
       "version": "1.12.0"
     },

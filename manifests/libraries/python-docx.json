@@ -10,6 +10,7 @@
       "author": "Steve Canny <stcanny@gmail.com>",
       "license": "MIT",
       "repository": "https://github.com/python-openxml/python-docx",
+      "role": "brick",
       "summary": "Create, read, and update Microsoft Word .docx files.",
       "version": "1.2.0"
     },

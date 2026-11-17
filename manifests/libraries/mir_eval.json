@@ -11,6 +11,7 @@
       "author": "Colin Raffel",
       "license": "MIT",
       "repository": "https://github.com/mir-evaluation/mir_eval",
+      "role": "engine",
       "summary": "Common metrics for common audio/music processing tasks.",
       "version": "0.8.2"
     },

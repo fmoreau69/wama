@@ -7,6 +7,7 @@
       "author": "Allo-Media <contact@allo-media.fr>",
       "license": "MIT",
       "repository": "https://github.com/allo-media/text2num",
+      "role": "engine",
       "summary": "Parse and convert numbers written in French, Spanish, English, Portuguese, German, Dutch, Danish, or Italian into their digit representation.",
       "version": "3.1.0"
     },

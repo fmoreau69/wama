@@ -11,6 +11,7 @@
       "author": "Olivier PLATHEY, Max, Lucas Cimon (@Lucas-C), Georg Mischler (@gmischler), Anderson Herzogenrath da Costa (@andersonhc)",
       "license": "LGPL-3.0-only",
       "repository": "https://py-pdf.github.io/fpdf2/",
+      "role": "brick",
       "summary": "Simple & fast PDF generation for Python",
       "version": "2.8.7"
     },

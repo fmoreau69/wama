@@ -11,6 +11,7 @@
       "author": "Sebastian Eck (paquet) ; W. G. Vree et contributeurs (xml2abc, abc2xml)",
       "license": "LGPL",
       "repository": "https://github.com/sebastian-eck/abc_xml_converter",
+      "role": "brick",
       "summary": "MusicXML ↔ ABC : emballe xml2abc (version 147) et abc2xml de W. G. Vree — la conversion MusicXML → ABC de la brique commune `musicxml_score`",
       "version": "1.0.1"
     },

@@ -16,6 +16,7 @@
       "author": "MMCV Contributors",
       "license": "Apache Software License",
       "repository": "https://github.com/open-mmlab/mmcv",
+      "role": "engine",
       "summary": "OpenMMLab Computer Vision Foundation",
       "version": "2.2.0"
     },

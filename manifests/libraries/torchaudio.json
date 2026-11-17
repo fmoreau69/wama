@@ -9,6 +9,7 @@
       "author": "Soumith Chintala, David Pollack, Sean Naren, Peter Goldsborough, Moto Hira, Caroline Chen, Jeff Hwang, Zhaoheng Ni, Xiaohui Zhang",
       "license": "BSD License",
       "repository": "https://github.com/pytorch/audio",
+      "role": "engine",
       "summary": "An audio package for PyTorch",
       "version": "2.9.1+cu128"
     },

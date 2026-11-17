@@ -7,6 +7,7 @@
       "author": "Alex Rogozhnikov",
       "license": "MIT",
       "repository": "https://github.com/arogozhnikov/einops",
+      "role": "engine",
       "summary": "A new flavour of deep learning operations",
       "version": "0.8.1"
     },

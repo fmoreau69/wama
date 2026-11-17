@@ -23,6 +23,7 @@
       "author": "Xintao Wang",
       "license": "Apache License 2.0",
       "repository": "https://github.com/xinntao/BasicSR",
+      "role": "engine",
       "summary": "Open Source Image and Video Super-Resolution Toolbox",
       "version": "1.4.2"
     },

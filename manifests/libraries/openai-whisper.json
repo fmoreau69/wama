@@ -19,6 +19,7 @@
       "author": "OpenAI",
       "license": "MIT",
       "repository": "https://github.com/openai/whisper",
+      "role": "engine",
       "summary": "Robust Speech Recognition via Large-Scale Weak Supervision",
       "version": "20250625"
     },

@@ -9,6 +9,7 @@
       "author": "Artifex",
       "license": "AGPL-3.0 OR Artifex Commercial License",
       "repository": "https://github.com/pymupdf/PyMuPDF",
+      "role": "brick",
       "summary": "A high performance Python library for data extraction, analysis, conversion & manipulation of PDF (and other) documents.",
       "version": "1.27.2.2"
     },

@@ -10,6 +10,7 @@
       "author": "Mathieu Fenniak <biziqe@mathieu.fenniak.net>",
       "license": "BSD License",
       "repository": "https://github.com/py-pdf/PyPDF2",
+      "role": "brick",
       "summary": "A pure-python PDF library capable of splitting, merging, cropping, and transforming PDF files",
       "version": "3.0.1"
     },

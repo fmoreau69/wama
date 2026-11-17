@@ -18,6 +18,7 @@
       "author": "Microsoft Corporation",
       "license": "MIT License",
       "repository": "https://onnxruntime.ai",
+      "role": "engine",
       "summary": "ONNX Runtime is a runtime accelerator for Machine Learning models",
       "version": "1.21.1"
     },

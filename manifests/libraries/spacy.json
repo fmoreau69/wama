@@ -30,6 +30,7 @@
       "author": "Explosion",
       "license": "MIT",
       "repository": "https://github.com/explosion/spaCy",
+      "role": "engine",
       "summary": "Industrial-strength Natural Language Processing (NLP) in Python",
       "version": "3.8.11"
     },

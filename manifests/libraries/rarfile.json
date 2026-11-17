@@ -7,6 +7,7 @@
       "author": "Marko Kreen",
       "license": "ISC",
       "repository": "https://github.com/markokr/rarfile",
+      "role": "app",
       "summary": "RAR archive reader for Python",
       "version": "4.2"
     },

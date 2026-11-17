@@ -20,6 +20,7 @@
       "author": "GGML",
       "license": "MIT License",
       "repository": "https://github.com/ggml-org/llama.cpp",
+      "role": "engine",
       "summary": "Read and write ML models in GGUF for GGML",
       "version": "0.19.0"
     },

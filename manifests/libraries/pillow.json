@@ -7,6 +7,7 @@
       "author": "\"Jeffrey A. Clark\" <aclark@aclark.net>",
       "license": "MIT-CMU",
       "repository": "https://github.com/python-pillow/Pillow",
+      "role": "brick",
       "summary": "Python Imaging Library (Fork)",
       "version": "11.3.0"
     },

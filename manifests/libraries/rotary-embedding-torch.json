@@ -12,6 +12,7 @@
       "author": "Phil Wang (lucidrains)",
       "license": "MIT",
       "repository": "https://codeberg.org/lucidrains/rotary-embedding-torch",
+      "role": "engine",
       "summary": "Rotary Embedding - Pytorch",
       "version": "0.9.1"
     },

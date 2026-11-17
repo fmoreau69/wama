@@ -10,6 +10,7 @@
       "author": "hexgrad <hello@hexgrad.com>",
       "license": "Apache Software License",
       "repository": null,
+      "role": "engine",
       "summary": "G2P engine for TTS",
       "version": "0.9.4"
     },

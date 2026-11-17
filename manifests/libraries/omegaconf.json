@@ -11,6 +11,7 @@
       "author": "Omry Yadan",
       "license": "BSD License",
       "repository": "https://github.com/omry/omegaconf",
+      "role": "engine",
       "summary": "A flexible configuration library",
       "version": "2.3.0"
     },

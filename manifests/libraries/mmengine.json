@@ -17,6 +17,7 @@
       "author": "MMEngine Authors",
       "license": "Apache Software License",
       "repository": "https://github.com/open-mmlab/mmengine",
+      "role": "engine",
       "summary": "Engine of OpenMMLab projects",
       "version": "0.10.7"
     },
