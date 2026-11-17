@@ -606,6 +606,11 @@ def render_tasks(manifest: dict) -> tuple:
                     f"    return {{'fields': {{'{r['result_field']}': text}}, 'models': [key]}}",
                 ]
             elif compose:
+                from .views_gen import _donnees
+                _shape = _donnees(manifest_element)
+                source_field = _shape.get('input_field') or 'input_file'
+                source_name_expr = (f'item.{_shape["name_field"]}' if _shape.get('name_field')
+                                    else f"(item.{source_field}.name or '').rsplit('/', 1)[-1]")
                 lignes += [
                     f'def _process_{fn}(item, ctx):',
                     f'    """CORPS COMPOSÉ {mark} — marche B1 : routage nature→backend du MANIFESTE',
@@ -637,10 +642,15 @@ def render_tasks(manifest: dict) -> tuple:
                     # les glues des apps réelles (2026-10-22). Ce gabarit émettait d'abord
                     # `f"<app>/{item.user_id}/output/"` (l'ancien domicile, relevé le 2026-09-22), puis
                     # `app_media_dir` + `compose_output_name` à la main (relevé le 2026-10-07).
-                    '    rel, path = ctx.output_place(fmt, source_name=item.input_filename)',
+                    # Le NOM de la source : la règle du générateur de vues (`views_gen._donnees` :
+                    # la colonne de nom déclarée, sinon le nom du fichier d'entrée) — ce gabarit
+                    # supposait la colonne `input_filename` de son pilote (le converter), absente
+                    # de l'enhancer (relevé le 2026-11-17 au geste `enhancer_01.processing`).
+                    f'    source_name = {source_name_expr}',
+                    '    rel, path = ctx.output_place(fmt, source_name=source_name)',
                     '',
-                    f'    ctx.console(f"Conversion : {{item.input_filename}} → .{{fmt}} ({{fonc}})")',
-                    '    backend(item.input_file.path, path, fmt,',
+                    '    ctx.console(f"Conversion : {source_name} → .{fmt} ({fonc})")',
+                    f'    backend(item.{source_field}.path, path, fmt,',
                     '            options=opts, progress_callback=ctx.progress)',
                     "    return {'fields': {'output_file': rel},",
                     '            \'label\': f".{fmt}"}',

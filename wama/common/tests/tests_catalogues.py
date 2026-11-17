@@ -822,6 +822,26 @@ class AppIdentityTest(TestCase):
         self.assertEqual(world_color('transverse'), identity['color'],
                          'a tool that declares no colour takes the colour of its world')
 
+    def test_a_domain_surface_is_its_app_named_by_its_domain(self):
+        """A domain with routes of its own has a surface (`app_modes.domain_surface`): its
+        identity is the app carrying it, named by the domain — never an undeclared key (2026-11-17)."""
+        from wama.common.app_registry import app_identity
+        from wama.common.utils.app_modes import APP_MODES, domain_surface
+        seen = 0
+        for app, decl in sorted(APP_MODES.items()):
+            for domain in decl.get('domains', []):
+                if not domain.get('route_prefix'):
+                    continue
+                identity, owner = app_identity(domain_surface(app, domain['id'])), app_identity(app)
+                with self.subTest(app=app, domain=domain['id']):
+                    self.assertTrue(identity['declared'])
+                    self.assertEqual((owner['color'], owner['world'], owner['url_name']),
+                                     (identity['color'], identity['world'], identity['url_name']))
+                    self.assertIn(domain['label'], identity['label'])
+                    self.assertIn(owner['label'], identity['label'])
+                seen += 1
+        self.assertGreater(seen, 0)
+
     def test_an_unknown_key_gets_a_readable_label_and_the_shared_world_colour(self):
         from wama.common.app_registry import app_identity, world_color
         identity = app_identity('app_without_entry')

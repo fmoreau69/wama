@@ -121,16 +121,24 @@ def family_queue_url(family, model=None):
     sinon la racine de son paquet. Lue par le lien d'une notification (`notifications._job_url`)
     et par l'échange de l'assistant (un lot lancé, les éléments au-delà des lignes suivies)."""
     url = app_queue_url(family) if family else ''
-    if url:
-        return url
-    if model is None and family:
-        from ..utils.detail_registry import DetailRegistry
-        entry = DetailRegistry.get(family)
-        model = entry['model'] if entry else None
-    if model is None:
-        return ''
-    label = model._meta.app_label
-    return app_queue_url(label) or f'/{label}/'
+    if not url:
+        if model is None and family:
+            from ..utils.detail_registry import DetailRegistry
+            entry = DetailRegistry.get(family)
+            model = entry['model'] if entry else None
+        if model is None:
+            return ''
+        url = app_queue_url(model._meta.app_label) or f'/{model._meta.app_label}/'
+    # Une surface de DOMAINE (l'audio de l'enhancer) : la page de l'app sur CE domaine — sans
+    # lui, la page s'ouvrait sur le domaine que le compte avait retenu (2026-11-17). L'adresse est
+    # celle des liens de domaine de la page (`navigation.domain_links`, `?domain=`).
+    from wama.common.utils import app_modes
+    from .navigation import PAGE_DOMAIN_PARAM
+    owner = app_modes.surface_app(family) if family else ''
+    served = app_modes.surface_domains(owner, family) if owner and owner != family else []
+    if len(served) == 1 and app_modes.has_domain_tabs(owner):
+        url += f'?{PAGE_DOMAIN_PARAM}={served[0]}'
+    return url
 
 
 def enregistrer_source(app, model, *, champ_date=None, champ_user='user'):

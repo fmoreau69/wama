@@ -119,11 +119,17 @@ def index(request):
     # 2026-09-29) — les MÊMES domaines que les options des deux selects (params.py), donc les
     # MÊMES clés entières. Par `source='imager'` elle rendait des ids nus et ignorait tout
     # modèle d'une autre source : `WamaInputMatch` n'aurait rien apparié, sans le dire.
-    from wama.common.utils.input_match import (
-        auto_entry, input_labels as _im_labels, input_match_meta as _im_meta,
-    )
-    input_match_meta = {**_im_meta(task='text-to-image,image-to-image'),
-                        **_im_meta(task='text-to-video,image-to-video')}
+    from wama.common.utils.app_modes import get_domains
+    from wama.common.utils.auto_model import catalog_field
+    from wama.common.utils.input_match import auto_entry, input_labels as _im_labels, select_match_meta
+    # Le select de modèle de CHAQUE domaine, lu dans le schéma du domaine (2026-11-17) : ses deux
+    # tâches étaient recopiées ici, à côté des `options_query` des deux schémas qui les déclarent.
+    input_match_meta = {}
+    for _domain in get_domains('imager'):
+        _field = catalog_field('imager', _domain['id'])
+        if _field:
+            input_match_meta.update(select_match_meta('imager', _field['name'], domain=_domain['id']))
+    input_match_meta.pop('auto', None)      # l'« auto » de l'imager est l'union des DEUX (ci-dessous)
     input_labels = _im_labels()
     # Pseudo-modèle « Auto » : il n'est PAS au catalogue, donc sans cette union il n'accepte
     # RIEN — et une entrée fournie le désactivait, alors que c'est justement le cas où il sert

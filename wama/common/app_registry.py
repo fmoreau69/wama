@@ -1101,8 +1101,9 @@ def app_identity(app: str) -> dict:
     lecteurs la refaisaient chacun à sa façon — « Mon RAG » affichait ainsi la CLÉ de toutes les
     apps, en lisant un `name` qu'aucune entrée ne porte.
 
-    • `declared` — vrai si quelque chose déclare cette app ; faux pour une clé que rien ne déclare
-      (`audio_enhancer`, une clé de `detail_registry`), qui reçoit un libellé tiré de sa clé et la
+    • `declared` — vrai si quelque chose déclare cette app — une surface de domaine comprise
+      (`audio_enhancer` : l'enhancer, nommé par son domaine audio) ; faux pour une clé que rien ne
+      déclare, qui reçoit un libellé tiré de sa clé et la
       couleur du monde transversal plutôt que le bleu par défaut d'un composant, qui la ferait
       passer pour une autre app ;
     • `color` — celle que l'app déclare, sinon celle de son monde ;
@@ -1127,6 +1128,22 @@ def app_identity(app: str) -> dict:
                 'icon': f'fas {icon}' if icon and ' ' not in icon else icon,
                 'url_name': declared.get('url_name') or '',
                 'description': declared.get('description') or '', 'world': world}
+    # Une surface de DOMAINE (`audio_enhancer`, `app_modes.surface_app`, 2026-11-17) : l'app qui la
+    # porte, nommée par son domaine — son libellé, son icône, sa phrase, déclarés à `app_modes`.
+    # Elle tombait jusqu'ici dans « rien ne la déclare » : un libellé tiré de sa clé, la couleur
+    # du monde transversal.
+    from wama.common.utils.app_modes import get_domain, surface_app, surface_domains
+    owner = surface_app(app)
+    if owner != app and owner in APP_CATALOG:
+        base = app_identity(owner)
+        served = surface_domains(owner, app)
+        domain = get_domain(owner, served[0]) if len(served) == 1 else {}
+        icon = domain.get('icon') or ''
+        return {**base, 'app': app,
+                'label': (f"{base['label']} — {domain['label']}" if domain.get('label')
+                          else base['label']),
+                'icon': (f'fas {icon}' if icon and ' ' not in icon else icon) or base['icon'],
+                'description': domain.get('description') or base['description']}
     return {'app': app, 'declared': False, 'label': _label_from_key(app),
             'color': world_color('transverse'), 'icon': '', 'url_name': '', 'description': '',
             'world': world}

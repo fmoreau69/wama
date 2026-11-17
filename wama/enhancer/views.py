@@ -105,13 +105,20 @@ def _decorate_audio_card(ae, preloaded=False):
 
 
 def _input_match_meta_enhancer():
-    """Meta de la brique COMMUNE, indexée par les VALEURS d'option des deux selects : le select
-    MÉDIA porte des clés entières, tirées par TÂCHE (route F4b ⑤, 2026-10-06 — le mode `task`
-    de la brique, qui sinon resterait muet sur un modèle d'une autre source, Swin2SR) ; le select
-    AUDIO garde ses identifiants nus de la source `enhancer`."""
-    from wama.common.utils.input_match import input_match_meta
-    from wama.enhancer.utils.auto_model import MEDIA_SPEC
-    return {**input_match_meta('enhancer'), **input_match_meta(task=MEDIA_SPEC['task'])}
+    """Meta de la brique COMMUNE, indexée par les VALEURS d'option des selects de modèle : celui
+    de CHAQUE domaine, lu dans le schéma du domaine (`auto_model.catalog_field`,
+    `input_match.select_match_meta(…, domain=)`, 2026-11-17). Elle était écrite ici, deux
+    lectures à la main (la source, puis la tâche de `MEDIA_SPEC`) ; mesurée avant d'être
+    remplacée : mêmes entrées, moins neuf identifiants nus qu'aucune option ne porte, plus `auto`."""
+    from wama.common.utils.app_modes import get_domains
+    from wama.common.utils.auto_model import catalog_field
+    from wama.common.utils.input_match import select_match_meta
+    meta = {}
+    for d in get_domains('enhancer'):
+        field = catalog_field('enhancer', d['id'])
+        if field:
+            meta.update(select_match_meta('enhancer', field['name'], domain=d['id']))
+    return meta
 
 
 class IndexView(View):

@@ -50,6 +50,19 @@ class JobProgressTest(TestCase):
     def _set(self, status, progress=0):
         type(self.card).objects.filter(pk=self.card.pk).update(status=status, progress=progress)
 
+    def test_the_assistant_is_told_the_state_of_every_registered_queue(self):
+        """`_build_wama_context` reads every element WAMA declares (`DetailRegistry`), named by its
+        identity. A hand-written list asked `get_model('wama.<app>', …)` — a DOTTED label, a
+        LookupError swallowed for every app: the assistant was always told « all queues empty »."""
+        from wama.common.app_registry import app_identity
+        from wama.common.services.assistant_engine import _build_wama_context
+        from wama.common.utils.detail_registry import DetailRegistry
+        label = app_identity(DetailRegistry.surface_of(type(self.card)))['label']
+        self._set('PENDING')
+        self.assertIn(f'{label}: 1 en attente', _build_wama_context(self.user))
+        self._set('SUCCESS')
+        self.assertNotIn(f'{label}:', _build_wama_context(self.user))
+
     def test_a_running_job_is_read_like_its_card(self):
         from wama.tool_api import job_progress
         self._set('RUNNING', 40)
@@ -270,8 +283,15 @@ class LaunchedBatchTest(TestCase):
         fallback of the notification (`/<package>/`) linked `/cam_analyzer/`, a page that is not."""
         from django.apps import apps
         from wama.common.services.journal import app_queue_url, family_queue_url
+        from wama.common.utils.app_modes import APP_MODES, domain_surface
         from wama.common.utils.notifications import _job_url
-        self.assertEqual('/enhancer/', family_queue_url('audio_enhancer'))
+        # A domain's surface opens the page of its app ON THAT DOMAIN (2026-11-17), park-wide.
+        surfaces = [(app, d['id']) for app, decl in sorted(APP_MODES.items())
+                    for d in decl.get('domains', []) if d.get('route_prefix')]
+        self.assertTrue(surfaces)
+        for app, domain in surfaces:
+            self.assertEqual(f'{app_queue_url(app)}?domain={domain}',
+                             family_queue_url(domain_surface(app, domain)))
         lab_model = next(iter(apps.get_app_config('cam_analyzer').get_models()))
         self.assertEqual(app_queue_url('cam_analyzer'), family_queue_url('', lab_model))
         self.assertNotEqual('/cam_analyzer/', family_queue_url('', lab_model))

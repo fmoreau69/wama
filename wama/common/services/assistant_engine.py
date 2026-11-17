@@ -421,21 +421,24 @@ def _build_wama_context(user) -> str:
     Tells the assistant about current queue state without revealing sensitive data.
     """
     try:
-        from django.apps import apps as django_apps
+        from wama.common.app_registry import APP_CATALOG, app_identity
+        from wama.common.utils.app_modes import surface_app
+        from wama.common.utils.detail_registry import DetailRegistry
         lines = []
-        checks = [
-            ('anonymizer',   'Media',            'status'),
-            ('transcriber',  'Transcript',       'status'),
-            ('describer',    'Description',      'status'),
-            ('enhancer',     'Enhancement',      'status'),
-            ('imager',       'Generation',       'status'),
-            ('synthesizer',  'VoiceSynthesis',   'status'),
-            ('composer',     'ComposerGeneration','status'),
-            ('reader',       'ReadingItem',      'status'),
-        ]
-        for app_label, model_name, _ in checks:
+        # Les ÉLÉMENTS que WAMA déclare (`DetailRegistry` : une surface par modèle d'élément, le
+        # domaine audio de l'enhancer compris), hors jumelles de bac à sable (2026-11-17). Une
+        # liste écrite ici à la main appelait `get_model('wama.<app>', …)` — un label POINTÉ, donc
+        # `LookupError` à chaque app, avalée : l'assistant lisait toujours « files vides » ; elle
+        # nommait aussi `Generation` pour l'imager et ignorait cinq apps et le domaine audio.
+        for surface in DetailRegistry.registered_apps():
+            owner = surface_app(surface)
+            if owner not in APP_CATALOG or (APP_CATALOG.get(owner) or {}).get('sandbox'):
+                continue
+            app_label = app_identity(surface)['label']
             try:
-                model = django_apps.get_model(f'wama.{app_label}', model_name)
+                model = DetailRegistry.get(surface)['model']
+                if not {'user', 'status'} <= {f.name for f in model._meta.fields}:
+                    continue
                 pending = model.objects.filter(user=user, status='PENDING').count()
                 running = model.objects.filter(user=user, status__in=['RUNNING', 'processing']).count()
                 # `ERROR`/`error` retirés le 2026-09-18 : mesuré à zéro ligne sur les 18 modèles
