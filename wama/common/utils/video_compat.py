@@ -284,20 +284,25 @@ def audio_copy_args(codec: str) -> list:
     return ['-map', '0:a:0', '-vn', *encode, '-movflags', '+faststart']
 
 
-def _make_audio_copy(rel: str, source: str, timeout: int) -> str:
-    """La copie de lecture d'un audio NON positionnable (`seekability`), par `audio_copy_args`."""
-    from wama.common.utils.media_probe import probe_audio_format
-    info = probe_audio_format(source)
-    seekable, reason = seekability(info)
-    if seekable:
-        return ''
-    copy = playback_copy_rel(rel)
-    target = _absolute(copy)
-    os.makedirs(os.path.dirname(target), exist_ok=True)
-    if not _transcode(source, target, audio_copy_args(info.get('codec', '')), timeout=timeout):
-        return ''
-    logger.info(f"[lecture] copie de lecture de {rel} ({reason}) → {copy}")
-    return copy
+#: La recette ffmpeg de la copie de lecture d'une vidéo : H.264 High 4:2:0, son AAC, faststart.
+VIDEO_COPY_ARGS = ['-map', '0:v:0', '-map', '0:a:0?', '-c:v', 'libx264', '-preset', 'veryfast',
+                   '-crf', '20', '-profile:v', 'high', '-pix_fmt', 'yuv420p', '-c:a', 'aac',
+                   '-b:a', '160k', '-movflags', '+faststart']
+
+
+def copy_verdict(rel: str, source: str) -> tuple:
+    """`(copie à faire, raison, recette ffmpeg)` d'un média présent sur le disque — LA décision,
+    une fois pour l'import, le rattrapage et la page qui s'ouvre (2026-11-18) : une vidéo que le
+    navigateur ne LIT pas (`playability`), un audio qu'il ne POSITIONNE pas juste
+    (`seekability`)."""
+    if _is_audio(rel):
+        from wama.common.utils.media_probe import probe_audio_format
+        info = probe_audio_format(source)
+        seekable, reason = seekability(info)
+        return (not seekable), reason, audio_copy_args((info or {}).get('codec', ''))
+    from wama.common.utils.media_probe import probe_video_format
+    playable, reason = playability(probe_video_format(source))
+    return (not playable), reason, VIDEO_COPY_ARGS
 
 
 def make_playback_copy(rel: str, *, timeout: int = 3600) -> str:
@@ -312,19 +317,13 @@ def make_playback_copy(rel: str, *, timeout: int = 3600) -> str:
     source = _absolute(rel)
     if not os.path.isfile(source):
         return ''
-    if _is_audio(rel):
-        return _make_audio_copy(rel, source, timeout)
-    from wama.common.utils.media_probe import probe_video_format
-    playable, reason = playability(probe_video_format(source))
-    if playable:
+    needed, reason, recipe = copy_verdict(rel, source)
+    if not needed:
         return ''
     copy = playback_copy_rel(rel)
     target = _absolute(copy)
     os.makedirs(os.path.dirname(target), exist_ok=True)
-    if not _transcode(source, target,
-                      ['-map', '0:v:0', '-map', '0:a:0?', '-c:v', 'libx264', '-preset', 'veryfast',
-                       '-crf', '20', '-profile:v', 'high', '-pix_fmt', 'yuv420p', '-c:a', 'aac',
-                       '-b:a', '160k', '-movflags', '+faststart'], timeout=timeout):
+    if not _transcode(source, target, recipe, timeout=timeout):
         return ''
     logger.info(f"[lecture] copie de lecture de {rel} ({reason}) → {copy}")
     return copy
@@ -441,22 +440,22 @@ PAGE_REQUEST_TTL = 900
 def playback_state(rel: str):
     """Ce qu'une page doit DIRE de la lecture d'un média qu'elle montre (2026-11-16, Fabien : « on
     informe bien l'utilisateur de ce qu'il se passe en cas de vidéo illisible, et on le prévient
-    que la copie de lecture se génère ») — None quand rien n'est à dire (pas une vidéo, lisible
-    telle quelle, ou sa copie à jour existe) ; sinon `{'playback': 'preparing', 'reason'}` après
-    avoir REMIS la copie en file (la mise en file de l'import est dédoublonnée trente jours : une
-    copie qui a échoué ne se referait jamais d'elle-même). Ne lève jamais."""
+    que la copie de lecture se génère ») — None quand rien n'est à dire (ni vidéo ni audio, lisible
+    et positionnable tel quel, ou sa copie à jour existe) ; sinon `{'playback': 'preparing',
+    'reason'}` après avoir REMIS la copie en file (la mise en file de l'import est dédoublonnée
+    trente jours : une copie qui a échoué ne se referait jamais d'elle-même). Un audio non
+    positionnable suit le même cycle depuis le 2026-11-18 (`copy_verdict`). Ne lève jamais."""
     rel = str(rel or '').replace('\\', '/')
     try:
-        if not rel or os.path.splitext(rel)[1].lower() not in _video_extensions():
+        if not rel or os.path.splitext(rel)[1].lower() not in _copied_extensions():
             return None
         if f'/{PLAYBACK_DIR}/' in f'/{rel}' or playback_copy_for(rel):
             return None
         source = _absolute(rel)
         if not os.path.isfile(source):
             return None
-        from wama.common.utils.media_probe import probe_video_format
-        playable, reason = playability(probe_video_format(source))
-        if playable:
+        needed, reason, _recipe = copy_verdict(rel, source)
+        if not needed:
             return None
         from django.core.cache import cache
 
@@ -493,9 +492,8 @@ def backfill_playback_copies(dry_run: bool = False, audio_only: bool = False) ->
     wanted = sorted(audios) if audio_only else sorted(videos | audios)
     out = {'videos': 0 if audio_only else len(videos), 'audios': len(audios)}
     if dry_run:
-        from wama.common.utils.media_probe import probe_audio_format
         on_disk = [n for n in sorted(audios) if os.path.isfile(_absolute(n))]
-        to_copy = [n for n in on_disk if not seekability(probe_audio_format(_absolute(n)))[0]]
+        to_copy = [n for n in on_disk if copy_verdict(n, _absolute(n))[0]]
         out.update(audio_on_disk=len(on_disk), audio_to_copy=len(to_copy),
                    audio_copied=sum(1 for n in to_copy if playback_copy_for(n)))
     for name in wanted:

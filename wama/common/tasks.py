@@ -100,10 +100,11 @@ def enrich_prompt_at_ingest_task(app_label, model_name, pk):
 
 @shared_task(name='common.make_playback_copy')
 def make_playback_copy_task(rel):
-    """Copie de LECTURE d'une vidéo que le navigateur ne lit pas (`video_compat`, 2026-10-06) —
-    l'original reste intact pour les traitements. Mise en file par le récepteur générique à
-    l'import ; CPU seul (ffmpeg), jamais la file GPU. Idempotente : une copie à jour n'est pas
-    refaite, une vidéo lisible n'en reçoit pas."""
+    """Copie de LECTURE d'une vidéo que le navigateur ne lit pas (`video_compat`, 2026-10-06) ou,
+    depuis le 2026-11-18, d'un audio qu'il ne positionne pas juste — l'original reste intact pour
+    les traitements. Mise en file par le récepteur générique à l'import ; CPU seul (ffmpeg), jamais
+    la file GPU. Idempotente : une copie à jour n'est pas refaite, un média lisible et
+    positionnable n'en reçoit pas (`video_compat.copy_verdict`)."""
     from wama.common.utils.video_compat import make_playback_copy
     return make_playback_copy(rel)
 

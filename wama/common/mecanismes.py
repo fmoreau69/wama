@@ -3552,7 +3552,9 @@ MECHANISMS = (
               "voie — formats déclarés une fois (`SEEK_INEXACT_AUDIO`, verdict `seekability` sur "
               "`media_probe.probe_audio_format`), déclaration tenue par le banc nocturne "
               "`common.audio_seek` (mesure dans Chromium) ; servie à tout lecteur "
-              "(`playback_url`) : aperçu, pages, mixage des pistes",
+              "(`playback_url`) : aperçu, pages, mixage des pistes ; même cycle que les vidéos, "
+              "une copie manquante remise en file par la page qui l'ouvre — UNE décision pour "
+              "l'import, le rattrapage et la page (`copy_verdict`)",
               'wama/common/utils/video_compat.py',
               'docs/construction/exploitation/MEDIA_STORAGE_TIERING.md',
               annexes=('wama/common/management/commands/playback_copies.py',

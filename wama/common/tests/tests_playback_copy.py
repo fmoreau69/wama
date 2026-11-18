@@ -390,6 +390,24 @@ class AudioPlaybackCopyOnDiskTest(SimpleTestCase):
         info = probe_audio_format(os.path.join(self.root, copy))
         self.assertEqual(('aac', 'mov,mp4,m4a,3gp,3g2,mj2'), (info['codec'], info['container']))
 
+    def test_a_page_requeues_a_missing_audio_copy_like_a_video_one(self):
+        """Same lifecycle as the videos (Fabien, 2026-11-18) : an unseekable audio whose copy is
+        missing — failed, or queued to a worker that did not know audios — is queued again when a
+        page opens it, once per window ; a seekable one is left alone."""
+        rel = 'users/7/temp/voice.mp3'
+        _write_audio(self.root, rel, ['-c:a', 'libmp3lame', '-b:a', '128k'])
+        wav = 'users/7/temp/take.wav'
+        _write_audio(self.root, wav, ['-c:a', 'pcm_s16le'])
+        with mock.patch('wama.common.tasks.make_playback_copy_task.delay') as delay:
+            said = vc.playback_state(rel)
+            again = vc.playback_state(rel)
+            self.assertIsNone(vc.playback_state(wav))
+        self.assertEqual({'playback': 'preparing', 'reason': 'MP3 : positionnement inexact'}, said)
+        self.assertEqual(said, again)
+        delay.assert_called_once_with(rel)
+        vc.make_playback_copy(rel)
+        self.assertIsNone(vc.playback_state(rel), 'its copy is up to date')
+
     def test_the_preview_and_the_pages_play_the_audio_copy(self):
         from wama.common.surface_views import _media_url
         from wama.common.utils.preview_utils import with_playback_copy
