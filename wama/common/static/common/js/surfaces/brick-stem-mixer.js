@@ -32,6 +32,13 @@
         return 100;
     }
 
+    /** Ce qu'on ENTEND de la piste `key` : son niveau, ou rien quand D'AUTRES pistes sont en solo
+     *  (`solo` : `{piste: vrai}`) — la règle d'une console. Pure. */
+    function heardLevel(levels, solo, key) {
+        var anySolo = Object.keys(solo || {}).some(function (k) { return solo[k]; });
+        return anySolo && !solo[key] ? 0 : levels[key];
+    }
+
     function esc(t) {
         var d = document.createElement('div'); d.textContent = t == null ? '' : t;
         return d.innerHTML;
@@ -90,14 +97,21 @@
         }
         if (data.error) say(data.error, 'error');
 
-        var lastAudible = {};
+        // Le NIVEAU de chaque piste (ce qui s'écrit et se rend) et le SOLO (2026-11-18, Fabien : « un
+        // bouton S à gauche du bouton speaker ») : une aide d'ÉCOUTE, comme sur une console — les
+        // pistes en solo seules s'entendent, à leur niveau ; leurs niveaux, eux, ne bougent pas.
+        var lastAudible = {}, levels = {}, solo = {};
         data.tracks.forEach(function (t) {
             var g = mix.gains()[t.key];
+            levels[t.key] = g;
             lastAudible[t.key] = g > 0 ? g : 1;
             var row = document.createElement('div');
             row.className = 'wama-mixer-row d-flex align-items-center gap-2 mb-1';
             row.dataset.track = t.key;
             row.innerHTML =
+                '<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1" data-mixer="solo" ' +
+                '        aria-pressed="false" title="Solo : n’entendre que « ' + esc(t.label) + ' » ' +
+                '(et les autres pistes en solo)">S</button>' +
                 '<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1" data-mixer="mute" ' +
                 '        title="Couper / rendre « ' + esc(t.label) + ' »"><i class="fas"></i></button>' +
                 '<span class="text-truncate" style="flex:0 0 5.2em" title="' + esc(t.label) + '">' + esc(t.label) + '</span>' +
@@ -110,13 +124,18 @@
         });
 
         function rowOf(key) { return rows.querySelector('[data-track="' + key + '"]'); }
+        function heard(key) { return heardLevel(levels, solo, key); }
         function show(key, g) {
             var row = rowOf(key);
             row.querySelector('[data-mixer="level"]').value = String(Math.round(g * 100));
             row.querySelector('[data-mixer="value"]').textContent = Math.round(g * 100) + ' %';
             var icon = row.querySelector('[data-mixer="mute"] i');
             icon.className = 'fas ' + (g === 0 ? 'fa-volume-xmark' : 'fa-volume-high');
-            row.classList.toggle('opacity-50', g === 0);
+            var soloBtn = row.querySelector('[data-mixer="solo"]');
+            soloBtn.classList.toggle('btn-warning', !!solo[key]);
+            soloBtn.classList.toggle('btn-outline-secondary', !solo[key]);
+            soloBtn.setAttribute('aria-pressed', solo[key] ? 'true' : 'false');
+            row.classList.toggle('opacity-50', heard(key) === 0);
         }
 
         // La version « Mixage » du média lu : le transport la joue comme une autre. Son « rendu » est
@@ -133,17 +152,29 @@
         });
 
         var timer = null;
+        /** Ce qui s'ÉCRIT : les niveaux réglés — jamais l'effet du solo, qui n'est qu'une écoute. */
         function values() {
-            var gains = mix.gains(), levels = {}, without = [];
+            var written = {}, without = [];
             data.tracks.forEach(function (t) {
-                var g = gains[t.key];
+                var g = levels[t.key];
                 if (g === 0) without.push(t.label);
-                else if (g !== 1) levels[t.key] = level(g);
+                else if (g !== 1) written[t.key] = level(g);
             });
             var out = {};
-            out[options.levels] = levels;
+            out[options.levels] = written;
             if (options.without) out[options.without] = without.join(', ');
             return out;
+        }
+        /** Le mixage entendu suit les niveaux et le solo, piste par piste. */
+        function hearAll() {
+            data.tracks.forEach(function (t) {
+                if (mix.gains()[t.key] !== heard(t.key)) mix.setGain(t.key, heard(t.key));
+                show(t.key, levels[t.key]);
+            });
+        }
+        function listenLive() {
+            // Bouger une piste, c'est vouloir l'entendre : la lecture passe au mixage.
+            if (ctx.source(role).key !== LIVE_KEY) ctx.setSource(role, LIVE_KEY);
         }
         function save() {
             clearTimeout(timer); timer = null;
@@ -152,11 +183,15 @@
         function set(key, g) {
             g = Math.max(0, Math.min(MAX_PERCENT / 100, g));
             if (g > 0) lastAudible[key] = g;
-            show(key, g);
-            // Bouger une piste, c'est vouloir l'entendre : la lecture passe au mixage.
-            if (ctx.source(role).key !== LIVE_KEY) ctx.setSource(role, LIVE_KEY);
-            mix.setGain(key, g);
+            levels[key] = g;
+            listenLive();
+            hearAll();
             if (canWrite) { clearTimeout(timer); timer = setTimeout(save, SAVE_AFTER_MS); }
+        }
+        function toggleSolo(key) {
+            solo[key] = !solo[key];
+            listenLive();
+            hearAll();
         }
 
         rows.addEventListener('input', function (ev) {
@@ -168,12 +203,15 @@
             if (range) set(range.closest('[data-track]').dataset.track, 1);
         });
         rows.addEventListener('click', function (ev) {
+            var soloBtn = ev.target.closest('[data-mixer="solo"]');
+            if (soloBtn) { toggleSolo(soloBtn.closest('[data-track]').dataset.track); return; }
             var mute = ev.target.closest('[data-mixer="mute"]');
             if (!mute) return;
             var key = mute.closest('[data-track]').dataset.track;
-            set(key, mix.gains()[key] === 0 ? lastAudible[key] : 0);
+            set(key, levels[key] === 0 ? lastAudible[key] : 0);
         });
         body.querySelector('[data-mixer="reset"]').addEventListener('click', function () {
+            solo = {};
             data.tracks.forEach(function (t) { set(t.key, 1); });
         });
         var render = body.querySelector('[data-mixer="render"]');
@@ -187,7 +225,7 @@
         });
         global.addEventListener('pagehide', function () { if (timer) save(); });
 
-        return { help: 'Mixage : glisser un curseur, double-clic = 100 %' };
+        return { help: 'Mixage : glisser un curseur, double-clic = 100 % · S = solo (écoute seule, ne s’écrit pas) · haut-parleur = couper' };
     }
 
     global.WamaSurface.registerBrick('stem_mixer', { title: 'Mixage', mount: mount });

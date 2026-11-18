@@ -57,6 +57,9 @@
     var CELL_HEIGHT = 46;
     /** px de fenêtre sous lesquels les panneaux s'empilent sur une colonne (rien ne se garde). */
     var NARROW = 768;
+    /** La part de la hauteur de la fenêtre qu'une brique du VOLET prend au plus en suivant son
+     *  contenu ; au-delà, son corps défile (2026-11-18). */
+    var PANEL_FIT_SHARE = 0.5;
 
     function readLayout(key) {
         try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) { return null; }
@@ -184,6 +187,10 @@
         var migrated = !layout.stored && readLayout(opts.key);
         if (migrated) layout.slots = migrated;
         var saved = layout.slots || {};
+        /** Les briques du volet dont la hauteur a été réglée À LA MAIN : elles ne suivent plus leur
+         *  contenu (`followsContent`) — gardé avec la disposition (`sized`). */
+        var sizedByHand = {};
+        Object.keys(saved).forEach(function (id) { if (saved[id] && saved[id].sized) sizedByHand[id] = true; });
 
         // Le titre (la poignée `handle`) existe AVANT que gridstack ne prenne l'élément :
         // gridstack cherche ses poignées une seule fois, à `makeWidget`, et faute d'en trouver
@@ -243,8 +250,18 @@
         // montage, quand son contenu change, quand elle change de zone et quand la disposition se
         // fige ; une brique déclarée `fit` se déplace et se règle en largeur, pas en hauteur
         // (`gs-resize-handles`). Seule dans son panneau : une pile partage sa hauteur.
+        //
+        // 2026-11-18 (Fabien : « seules les briques UI succinctes doivent s'auto-ajuster dans le
+        // volet droit. Si une brique contient énormément de texte ou d'infos, la brique doit se
+        // mettre en mode slide ») — la source ABC posée au volet s'étalait sur toute sa hauteur.
+        // Dans le volet, une brique suit son contenu JUSQU'À une borne (`PANEL_FIT_SHARE` de la
+        // hauteur de la fenêtre) ; au-delà, elle garde cette hauteur et son corps défile. Une
+        // hauteur réglée À LA MAIN y tient (`sizedByHand`, gardée par compte avec la disposition) :
+        // le recalage la défaisait au fil du geste — la brique clignotait — et la redéroulait au
+        // passage suivant en disposition modifiable. Pendant le geste, rien ne la recale.
         function followsContent(rec) {
             var node = rec.el.gridstackNode;
+            if (sizedByHand[rec.slot.id] || rec.resizing) return false;
             return !!rec.slot.fit || !!(panel && node && node.grid === panel);
         }
         function sized(key, at) {
@@ -274,11 +291,16 @@
             if (!cell || !rec.el.clientHeight) return;
             var chrome = rec.el.clientHeight - rec.body.clientHeight;
             var rows = Math.max(1, Math.ceil((contentHeight(rec.body) + chrome) / cell));
+            if (node.grid === panel) rows = Math.min(rows, panelFitRows(cell));
             if (rows === node.h) return;
             // Ce n'est pas un geste : la hauteur suit le contenu, rien ne se garde pour autant.
             var was = resetting;
             resetting = true;
             try { node.grid.update(rec.el, { h: rows }); } finally { resetting = was; }
+        }
+        /** Le plus de rangées qu'une brique du volet prend en suivant son contenu (au moins 2). */
+        function panelFitRows(cell) {
+            return Math.max(2, Math.floor((global.innerHeight || 800) * PANEL_FIT_SHARE / cell));
         }
         function refitAll() { Object.keys(frames).forEach(function (id) { refit(frames[id]); }); }
         /** Le contenu change de taille (une card dépliée, une liste qui s'allonge) ou d'enfants :
@@ -1114,7 +1136,9 @@
                 var zone = g === panel ? 'panel' : 'grid';
                 g.getGridItems().forEach(function (el) {
                     var n = el.gridstackNode;
-                    if (n && n.id) out[n.id] = { x: n.x, y: n.y, w: n.w, h: n.h, zone: zone };
+                    if (!n || !n.id) return;
+                    out[n.id] = { x: n.x, y: n.y, w: n.w, h: n.h, zone: zone };
+                    if (zone === 'panel' && sizedByHand[n.id]) out[n.id].sized = true;
                 });
             });
             // Un panneau épinglé, retiré ou parti dans une autre fenêtre a quitté la grille, pas la
@@ -1283,6 +1307,7 @@
         function resetLayout() {
             if (layout.frozen || !onFullGrid()) return;
             layout.slots = null;                 // la disposition DÉCLARÉE, qui suit la page
+            sizedByHand = {};                    // chaque brique du volet suit de nouveau son contenu
             Object.keys(windows).forEach(closeWindow);   // chacun revient dans la page
             resetting = true;
             restoreHidden();                     // un panneau retiré se range aussi, puis se retire
@@ -1355,6 +1380,23 @@
                 (items || []).forEach(function (n) { if (n.id && frames[n.id]) refit(frames[n.id]); });
             });
         });
+        // Une hauteur réglée À LA MAIN dans le volet : pendant le geste, rien ne la recale ; à la fin,
+        // elle est celle de la brique (`sizedByHand`) et se garde avec la disposition.
+        if (panel) {
+            var byGesture = function (el) {
+                var n = el && el.gridstackNode;
+                return n && n.id && frames[n.id] ? frames[n.id] : null;
+            };
+            panel.on('resizestart', function (e, el) { var rec = byGesture(el); if (rec) rec.resizing = true; });
+            panel.on('resizestop', function (e, el) {
+                var rec = byGesture(el);
+                if (!rec) return;
+                rec.resizing = false;
+                if (resetting || building) return;
+                sizedByHand[rec.slot.id] = true;
+                layoutChanged();
+            });
+        }
         // Une brique venue du volet arrive dans la grille avec la largeur de la colonne (1) : on lui
         // donne celle de la colonne de droite d'une surface (un tiers), qu'on retaille ensuite.
         var FROM_PANEL_W = Math.round(COLUMNS / 3);

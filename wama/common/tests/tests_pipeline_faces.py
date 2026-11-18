@@ -380,6 +380,37 @@ class ProcessFacesTest(_MediaRootMixin, TestCase):
         self.assertEqual(turns, face['segments'])
         self.assertEqual('[A]  0-1\n  Bonjour\n\n[B]  1-2\n  à tous', face['content'])
 
+    def test_timed_words_in_a_data_file_are_served_as_dated_lines(self):
+        """2026-11-18 (Fabien : « Paroles de l'entrée » disait « Preview not available ») : a step
+        whose output is a DATA file (timed lyrics, JSON) declares the form of its face
+        (`result_format='timed_words'`, `FILE_FORMATS`) — the words shown as dated lines, drawn
+        like speaker turns. One declaration, for any step that has such a file."""
+        import json
+        from types import SimpleNamespace
+
+        from wama.common.services.process_pipeline import AppPipeline, ProcessSpec, words_segments
+        words = [{'word': 'Somewhere,', 'start': 0.0, 'end': 0.6}, {'word': 'the', 'start': 0.6, 'end': 0.8},
+                 {'word': 'earth', 'start': 0.8, 'end': 1.2}, {'word': 'cracks.', 'start': 1.2, 'end': 1.9},
+                 {'word': 'Sky', 'start': 4.0, 'end': 4.5}, {'word': 'falls', 'start': 7.0, 'end': 7.6}]
+        rel = self._file('composer/output/lyrics.json', json.dumps({'words': words, 'language': 'en'}).encode())
+        item = SimpleNamespace(pk=1, lyrics=SimpleNamespace(name=rel, path=os.path.join(self.root, rel)))
+        pipe = AppPipeline('demo_faces', (
+            ProcessSpec('sing', label="Paroles de l'entrée", outputs=('lyrics',), result_format='timed_words'),
+        ), label='Demo')
+        with mock.patch('wama.common.services.process_pipeline.pipeline_of', return_value=pipe):
+            face = self._faces('demo_faces', item)['sing'][1]
+        self.assertEqual(['Somewhere, the earth cracks.', 'Sky', 'falls'],
+                         [s['text'] for s in face['segments']],
+                         'a line ends at a full stop, or at a silence of more than 1.2 s')
+        self.assertEqual('00:00.000 - 00:01.900', face['segments'][0]['time_range'])
+        self.assertIn('Somewhere, the earth cracks.', face['content'], 'the text Copy takes')
+        self.assertEqual(14, len(words_segments([{'word': 'w', 'start': i, 'end': i + .5}
+                                                 for i in range(20)])[0]['text'].split()),
+                         'a line without pause stops at fourteen words')
+        item.lyrics = SimpleNamespace(name='', path='')
+        with mock.patch('wama.common.services.process_pipeline.pipeline_of', return_value=pipe):
+            self.assertNotIn('sing', self._faces('demo_faces', item), 'no file : no face')
+
     def test_an_unknown_result_form_is_refused_at_declaration(self):
         from wama.common.services.process_pipeline import AppPipeline, ProcessSpec
         with self.assertRaises(ValueError):

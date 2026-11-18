@@ -191,6 +191,7 @@
           "outputs": [
             "input_lyrics_timed"
           ],
+          "result_format": "timed_words",
           "toggle": "extract_input_lyrics",
           "watched": [
             "extract_input_lyrics",
@@ -356,6 +357,7 @@
           "outputs": [
             "rendered_lyrics_timed"
           ],
+          "result_format": "timed_words",
           "toggle": "extract_rendered_lyrics",
           "watched": [
             "extract_rendered_lyrics",

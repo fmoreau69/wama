@@ -249,6 +249,15 @@ class RegistryTest(SimpleTestCase):
         from wama.common.surfaces import SURFACES
         self.assertFalse([s for found in SURFACES.values() for s in found.slots
                           if 'fit' in s.to_dict()], 'la règle ne se déclare pas par emplacement')
+        # 2026-11-18 (Fabien : « seules les briques UI succinctes doivent s'auto-ajuster dans le volet
+        # droit […] une brique qui contient énormément de texte se met en mode slide ») : bornée à
+        # une part de la fenêtre, au-delà son corps défile ; une hauteur réglée À LA MAIN tient (le
+        # recalage la défaisait au fil du geste : la brique clignotait) et se garde (`sized`).
+        self.assertIn('if (node.grid === panel) rows = Math.min(rows, panelFitRows(cell));', layout)
+        self.assertIn('if (sizedByHand[rec.slot.id] || rec.resizing) return false;', layout)
+        self.assertIn("panel.on('resizestart'", layout)
+        self.assertIn("if (zone === 'panel' && sizedByHand[n.id]) out[n.id].sized = true;", layout)
+        self.assertIn('sizedByHand = {};', layout, 'the declared layout gives every brick back its content height')
 
     def test_the_kept_version_setting_is_read_and_written_without_being_said_twice(self):
         """`Surface.sources_setting` (2026-10-22) is one of the settings the page reads and
@@ -646,6 +655,11 @@ class SurfaceLayoutTest(TestCase):
         place = {'x': 0, 'y': 3, 'w': 1, 'h': 5, 'zone': 'panel'}
         res = self._post({'slots': {'actions': place}})
         self.assertEqual({'actions': place}, res.json()['layout']['slots'])
+        # A height set BY HAND in the panel is kept (2026-11-18) ; nowhere else, and only `True`.
+        sized = {**place, 'sized': True}
+        self.assertEqual({'actions': sized}, self._post({'slots': {'actions': sized}}).json()['layout']['slots'])
+        self.assertNotIn('sized', self._post({'slots': {'actions': {**place, 'sized': 'yes'}}})
+                         .json()['layout']['slots']['actions'])
         for bad in ({'x': 0, 'y': 0, 'w': 2, 'h': 2, 'zone': 'panel'},
                     {'x': 1, 'y': 0, 'w': 1, 'h': 2, 'zone': 'panel'},
                     {'x': 0, 'y': 0, 'w': 2, 'h': 2, 'zone': 'sidebar'}):
@@ -3828,6 +3842,27 @@ class StemMixTest(SimpleTestCase):
         self.assertEqual(400, bound([{'name': 'other', 'max': 2.0}, {'name': 'remix_levels', 'max': 4}]))
         self.assertEqual(100, bound([{'name': 'remix_levels'}]), 'undeclared : never above the stem')
         self.assertEqual(100, bound([]))
+
+    def test_solo_is_a_listening_aid_that_never_writes_the_levels(self):
+        """2026-11-18 (Fabien : « mettre une piste en solo, un bouton S à gauche du bouton
+        speaker ») : the tracks in solo alone are HEARD, each at its level ; the others are silent
+        while one is in solo. What is written (and rendered) stays the LEVELS — never the solo."""
+        src = (self.SERVED / 'surfaces' / 'brick-stem-mixer.js').read_text(encoding='utf-8')
+        start = src.index('    function heardLevel(')
+        self.engine.eval(src[start:src.index('\n    }\n', start) + 6])
+        out = json.loads(self.engine.eval('''JSON.stringify((function () {
+            var levels = {voice: 0.5, drums: 1, bass: 0};
+            function all(solo) { return ['voice', 'drums', 'bass'].map(function (k) { return heardLevel(levels, solo, k); }); }
+            return {none: all({}), voice: all({voice: true}), two: all({voice: true, bass: true}), off: all({voice: false})};
+        })())'''))
+        self.assertEqual([0.5, 1, 0], out['none'], 'no solo : every level')
+        self.assertEqual([0.5, 0, 0], out['voice'], 'the solo track alone, at its level')
+        self.assertEqual([0.5, 0, 0], out['two'], 'a muted track in solo stays muted')
+        self.assertEqual([0.5, 1, 0], out['off'])
+        self.assertIn('var g = levels[t.key];', src, 'the written values read the levels, not what is heard')
+        self.assertLess(src.index('data-mixer="solo"'), src.index('data-mixer="mute"'), 'S left of the speaker')
+        css = (Path(settings.BASE_DIR) / 'wama/common/static/common/css/wama-surface.css').read_text(encoding='utf-8')
+        self.assertRegex(css, r'\.wama-brick-mixer \{ padding:', 'the brick has its margins')
 
 
 class AnUnreadableAvailabilityClosesThePageTest(SimpleTestCase):

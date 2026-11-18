@@ -890,6 +890,10 @@ def clean_layout(surface: Surface, payload) -> dict:
             if x < 0 or w < 1 or x + w > columns or y < 0 or h < 1 or y + h > MAX_LAYOUT_ROWS:
                 raise ValueError(f'place hors de sa zone : {slot_id}')
             slots[slot_id] = {'x': x, 'y': y, 'w': w, 'h': h, 'zone': zone}
+            # Une hauteur réglée À LA MAIN dans le volet (2026-11-18) : la brique ne suit plus son
+            # contenu (`wama-brick-layout.js`, `sizedByHand`).
+            if zone == 'panel' and place.get('sized') is True:
+                slots[slot_id]['sized'] = True
         slots = slots or None
     declared = {s.id for s in surface.slots}
     stacks = _clean_stacks(payload.get('stacks'), declared)

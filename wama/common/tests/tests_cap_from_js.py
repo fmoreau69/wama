@@ -1780,8 +1780,18 @@ class PreviewModalTest(SimpleTestCase):
             removeAttribute: function (k) { delete a[k]; },
             closest: function () { return card; }, matches: function () { return true; },
             querySelector: function () { return null; }, querySelectorAll: function () { return []; },
-            appendChild: function () {}, insertBefore: function () {}, firstChild: null};
+            kids: [], appendChild: function (k) { h.kids.push(k); return k; },
+            insertBefore: function () {}, firstChild: null};
           return h;
+        }
+        // Un élément créé par le rendu (l'extrait d'une card a le sien, 2026-11-18).
+        if (!document.createElement) document.createElement = function (tag) {
+          return {tagName: tag, textContent: '', className: '', classList: classList(),
+                  setAttribute: function () {}, appendChild: function () {}}; };
+        /** Le texte que l'hôte MONTRE : celui de son extrait, sinon le sien. */
+        function shownText(h) {
+          var kid = (h.kids || []).filter(function (k) { return k.className === 'wama-preview-excerpt'; }).pop();
+          return kid ? kid.textContent : h.textContent;
         }
         var text = function (t) { return {mime_type: 'text/plain', content: t,
           sides: {during_capable: true, has_during: true}}; };
@@ -1803,7 +1813,7 @@ class PreviewModalTest(SimpleTestCase):
             var first = mount(host);
             var again = mount(host);
             tick();
-            return [calls.slice(), host.textContent, host.getAttribute('data-preview-url'),
+            return [calls.slice(), shownText(host), host.getAttribute('data-preview-url'),
                     first === again, host.ondblclick || null];
         })()""")
         self.assertEqual(['/common/preview/composer/5/?side=input'], list(out[0]),
@@ -1826,12 +1836,12 @@ class PreviewModalTest(SimpleTestCase):
                         text('Un chat noir'), text('Un chat noir dort sur un canapé'),
                         {mime_type: 'text/plain', content: 'Un chat noir dort.', side: 'output'}];
             var viewer = mount(host);
-            var first = host.textContent;
+            var first = shownText(host);
             tick();
-            var second = host.textContent;
+            var second = shownText(host);
             var during = host.getAttribute('data-preview-url');
             card.dataset.status = 'SUCCESS'; tick(); tick();  // the card is done → its output
-            return [first, second, during, host.textContent, calls.slice(), viewer.following()];
+            return [first, second, during, shownText(host), calls.slice(), viewer.following()];
         })()""")
         self.assertEqual('Un chat noir', out[0])
         self.assertEqual('Un chat noir dort sur un canapé', out[1])
@@ -1855,7 +1865,7 @@ class PreviewModalTest(SimpleTestCase):
                         {sides: {during_capable: false, has_during: false}}];
             mount(host);
             tick(); tick();
-            return [calls.length, host.textContent];
+            return [calls.length, shownText(host)];
         })()""")
         self.assertEqual([2, 'entrée'], list(out))
 
@@ -1869,14 +1879,14 @@ class PreviewModalTest(SimpleTestCase):
             var host = cardHost({'data-card-preview': '/common/preview/transcriber/9/'}, card);
             payloads = [{mime_type: 'text/plain', content: 'Bonjour.'}];
             var viewer = mount(host);
-            var done = host.textContent;
+            var done = shownText(host);
             card.dataset.status = 'RUNNING';
             payloads = [{mime_type: 'image/png', url: '/m/spectre.png', sides: {has_input: true}},
                         text('Bonjour'), {mime_type: 'text/plain', content: 'Bonjour à tous.'}];
             viewer.refresh();                                 // what the status watcher calls
-            var during = host.textContent;
+            var during = shownText(host);
             card.dataset.status = 'SUCCESS'; tick();
-            return [done, during, host.textContent, calls.slice()];
+            return [done, during, shownText(host), calls.slice()];
         })()""")
         self.assertEqual('Bonjour.', out[0])
         self.assertEqual('Bonjour', out[1])
@@ -1885,6 +1895,18 @@ class PreviewModalTest(SimpleTestCase):
                           '/common/preview/transcriber/9/?side=input',
                           '/common/preview/transcriber/9/?side=during',
                           '/common/preview/transcriber/9/?side=output'], list(out[3]))
+
+    def test_a_card_face_keeps_its_tabs_and_engraves_a_score(self):
+        """2026-11-18 (Fabien : « quand je clique sur l'onglet partition dans la preview de card, je
+        perds les onglets, et c'est l'ABC qui s'affiche ») : the excerpt of a card is written into
+        ITS element — loaded afterwards, it wrote the whole host and took away the face tabs laid
+        out meanwhile ; and a SCORE face is the viewer's « Partition » face, wherever a face shows."""
+        inline = self._body('media-preview.js', 'function renderInline')
+        self.assertIn("holder.className = 'wama-preview-excerpt';", inline)
+        self.assertIn("holder.textContent = c ?", inline)
+        self.assertNotIn("host.textContent = c ?", inline, 'the late excerpt wrote the whole host')
+        self.assertIn("if (data.score && typeof data.score.abc === 'string') {", inline)
+        self.assertIn('host.appendChild(_scoreFace(data));', inline)
 
     def test_the_status_watcher_refreshes_the_cards_own_preview_only(self):
         """The page watches `data-status` (old value kept) and refreshes the viewer of the card

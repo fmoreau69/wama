@@ -170,9 +170,10 @@
         return '<div class="wama-segments">' + (segments || []).map(function (s) {
             const who = String((s && s.speaker) || '');
             if (!(who in colors)) colors[who] = SPEAKER_COLORS[next++ % SPEAKER_COLORS.length];
+            // Un tour sans locuteur (des paroles horodatées, 2026-11-18) : sa plage seule.
             return '<div class="d-flex align-items-start mb-2 px-1' + (compact ? ' flex-column' : '') + '">' +
-                '<div class="wama-segment-who"><span class="badge me-1" style="background-color:' + colors[who] +
-                ';color:#fff;font-size:.75rem;">' + escapeHtml(who) + '</span>' +
+                '<div class="wama-segment-who">' + (who ? '<span class="badge me-1" style="background-color:' + colors[who] +
+                ';color:#fff;font-size:.75rem;">' + escapeHtml(who) + '</span>' : '') +
                 '<small class="text-muted">' + escapeHtml(s && s.time_range) + '</small></div>' +
                 '<div class="' + (compact ? '' : 'ms-2 ') + 'text-body-emphasis wama-segment-text">' +
                 escapeHtml(s && s.text) + '</div></div>';
@@ -559,6 +560,14 @@
             _renderPreviewGrid(host, data);
             return;
         }
+        // Une PARTITION se grave et se joue, partout où une face se montre (2026-11-18 — Fabien :
+        // dans l'aperçu d'une card, l'onglet « Partition » montrait la source ABC) : la face
+        // « Partition » de la visionneuse, la même — gravure justifiée, écoute, calage de la page.
+        if (data.score && typeof data.score.abc === 'string') {
+            host.innerHTML = '';
+            host.appendChild(_scoreFace(data));
+            return;
+        }
         const mime = (data.mime_type || '').toLowerCase();
         const url = data.url || '';
         const name = escapeHtml(data.name || '');
@@ -611,9 +620,16 @@
                 // overlay via .wama-card-preview, describer = .result-preview où son polling écrit le
                 // texte partiel pendant le RUN). Tous ces contrats portent sur l'ÉLÉMENT, aucun sur son
                 // contenu — vérifié consommateur par consommateur avant le portage.
+                // L'extrait vit dans SON élément (2026-11-18) : chargé après coup, il écrivait tout
+                // l'hôte et emportait les onglets des faces posés entre-temps (relevé par Fabien sur
+                // l'aperçu d'une card) — et un extrait en retard n'écrase plus la face suivante.
+                host.textContent = '';
+                const holder = document.createElement('div');
+                holder.className = 'wama-preview-excerpt';
+                host.appendChild(holder);
                 const excerpt = function (t) {
                     const c = _compactText(t);
-                    host.textContent = c ? (c.length > density.max ? c.slice(0, density.max) + ' …' : c) : '(vide)';
+                    holder.textContent = c ? (c.length > density.max ? c.slice(0, density.max) + ' …' : c) : '(vide)';
                 };
                 if (typeof data.content === 'string') {
                     excerpt(data.content);

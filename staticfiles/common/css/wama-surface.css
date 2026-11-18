@@ -352,6 +352,10 @@ body.wama-panel-arranged > .container {
 
 /* Réglages de l'élément et intervenants */
 .wama-brick-settings, .wama-brick-speakers { padding: .55rem; }
+/* Le MIXAGE des pistes (2026-11-18, Fabien : « il n'y a pas de marge sur les bords de cette
+   brique ») : sa marge, comme les briques de réglages — chaque brique la déclare par sa classe. */
+.wama-brick-mixer { padding: .55rem; }
+.wama-brick-mixer [data-mixer="solo"] { font-weight: 700; min-width: 1.6rem; }
 .wama-brick-settings .meta-ro { font-size: .74rem; color: var(--wama-text-muted); margin-top: .3rem; }
 .wama-brick-settings .meta-ro div { padding: .12rem 0; }
 

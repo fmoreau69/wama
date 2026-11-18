@@ -683,9 +683,10 @@ def _process_face(app_name, pipeline, spec, instance, request, input_data):
         # coloré, remarques, version proposée en regard du texte vérifié) ; `content` est son
         # texte, pour Copier.
         return {'name': label, 'mime_type': 'text/plain', 'content': text, 'coherence': value}
-    if text and spec.result_format == 'segments' and isinstance(value, (list, tuple)):
+    if text and spec.result_format in ('segments', 'timed_words') and isinstance(value, (list, tuple)):
         # Les TOURS DE PAROLE, dessinés un par un, le locuteur dans sa couleur ; `content` = leur
-        # texte (Copier).
+        # texte (Copier). Des MOTS HORODATÉS lus dans un fichier (`timed_words`, 2026-11-18) : en
+        # lignes datées, le même dessin.
         return {'name': label, 'mime_type': 'text/plain', 'content': text, 'segments': list(value)}
     if text and spec.result_format == 'markdown':
         # Mis en forme par LE rendu markdown de WAMA (celui du lecteur de docs : HTML brut

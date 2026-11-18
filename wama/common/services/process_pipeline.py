@@ -53,14 +53,53 @@ UPSTREAM_KEY = '@upstream'
 NODE_KEY = '@node'
 
 #: Les formes du résultat lisible d'un process (`ProcessSpec.result_format`) : '' = texte brut.
-RESULT_FORMATS = ('', 'markdown', 'coherence', 'segments')
+RESULT_FORMATS = ('', 'markdown', 'coherence', 'segments', 'timed_words')
+#: Les formes lues dans un FICHIER DE DONNÉES des `outputs` du process, quand il ne déclare pas de
+#: `result` (2026-11-18 — Fabien : les faces « Paroles de l'entrée » et « Pistes séparées »
+#: disaient « Preview not available ») : `{forme: (fichier JSON) -> résultat}`. Une forme y entre
+#: une fois, toute étape qui la déclare en profite.
+FILE_FORMATS = ('timed_words',)
+
+
+def _clock(seconds) -> str:
+    """`MM:SS.mmm` — la plage des tours de parole (`format_time_range` du transcriber)."""
+    seconds = max(0.0, float(seconds or 0))
+    return f"{int(seconds // 60):02d}:{seconds % 60:06.3f}"
+
+
+def words_segments(words, gap: float = 1.2, longest: int = 14) -> list:
+    """Des MOTS HORODATÉS (`[{word, start, end}]`, les paroles d'une chanson, un alignement) en
+    LIGNES lisibles, à la forme des tours de parole (`[{speaker, time_range, text}]`) : une ligne
+    s'arrête à une ponctuation de fin de phrase, à un silence de plus de `gap` secondes, ou à
+    `longest` mots. Pure."""
+    lines, current = [], []
+
+    def close():
+        if current:
+            lines.append({'speaker': '', 'text': ' '.join(w['word'] for w in current),
+                          'time_range': f"{_clock(current[0]['start'])} - {_clock(current[-1]['end'])}"})
+            current.clear()
+    for item in words or ():
+        word = str((item or {}).get('word') or '').strip()
+        if not word:
+            continue
+        start, end = float(item.get('start') or 0), float(item.get('end') or item.get('start') or 0)
+        if current and (start - current[-1]['end'] > gap or len(current) >= longest):
+            close()
+        current.append({'word': word, 'start': start, 'end': end})
+        if word[-1] in '.!?…':
+            close()
+    close()
+    return lines
 
 
 def segments_text(segments) -> str:
     """Des SEGMENTS de parole (`result_format='segments'` : `[{speaker, time_range, text}]`) en
     texte — un tour par bloc, son locuteur et sa plage, puis ses mots. La forme de l'export TXT
-    du transcriber, qui la lit d'ici."""
-    return '\n\n'.join(f"[{s.get('speaker') or ''}]  {s.get('time_range') or ''}\n  {s.get('text') or ''}"
+    du transcriber, qui la lit d'ici. Un tour sans locuteur (des paroles, `timed_words`) ne montre
+    pas de crochets vides."""
+    return '\n\n'.join((f"[{s.get('speaker')}]  " if s.get('speaker') else '')
+                       + f"{s.get('time_range') or ''}\n  {s.get('text') or ''}"
                        for s in segments or ())
 
 #: Attribut posé sur un élément par `preload` : ses lignes d'exécution, lues une fois.
@@ -203,7 +242,12 @@ class ProcessSpec:
                   vérifié (2026-10-13, Fabien : « on ne doit rien perdre, on complète le
                   commun ») ; 'segments' — `result` rend des tours de parole
                   `[{speaker, time_range, text}]`, que la face montre un par un, le locuteur
-                  dans sa couleur (la diarisation de la modale du transcriber, même jour).
+                  dans sa couleur (la diarisation de la modale du transcriber, même jour) ;
+                  'timed_words' (2026-11-18) — SANS `result` : le premier fichier JSON de ses
+                  `outputs` porte des mots horodatés (`{words: [{word, start, end}]}`, des
+                  paroles), que la face montre en LIGNES datées, comme des tours de parole
+                  (`FILE_FORMATS` : une forme lue dans un fichier de données — la face d'une
+                  sortie qui n'est pas un média disait « Preview not available »).
       split_from  le process dont celui-ci a été DÉTACHÉ, en amont (2026-10-21 : la préparation
                   audio du transcriber, qui se faisait DANS `transcribe`). Une ligne de ce process
                   rendue AVANT le détachement — sa photo porte encore tous les réglages que
@@ -517,10 +561,11 @@ class AppPipeline:
         """Ce que rend la déclaration `ProcessSpec.result` pour cet élément, TEL QUEL : un texte,
         un rapport (`result_format='coherence'`), ou None — sans déclaration, ou déclaration
         illisible (dite au journal, jamais levée : un aperçu ne casse pas pour un lecteur, comme
-        `process_runs.process_eta`)."""
+        `process_runs.process_eta`). Sans `result`, une forme lue dans un FICHIER
+        (`FILE_FORMATS`) lit le premier fichier JSON de ses `outputs` que l'élément porte."""
         declared = spec.result
         if not declared:
-            return None
+            return AppPipeline._file_result(spec, item) if spec.result_format in FILE_FORMATS else None
         try:
             if isinstance(declared, str):
                 from wama.common.catalog.function_catalog import resolve_impl
@@ -533,6 +578,27 @@ class AppPipeline:
             return None
 
     @staticmethod
+    def _file_result(spec: ProcessSpec, item):
+        """Le résultat lisible d'un process lu dans son FICHIER de données (`FILE_FORMATS`) : des
+        mots horodatés (`timed_words` : `{words: [...]}` ou la liste) en lignes. None sans fichier
+        lisible — un aperçu ne casse pas pour un lecteur."""
+        import json
+        for field in spec.outputs:
+            value = getattr(item, field, None)
+            path = getattr(value, 'path', '') if getattr(value, 'name', '') else ''
+            if not path:
+                continue
+            try:
+                with open(path, encoding='utf-8') as handle:
+                    data = json.load(handle)
+            except (OSError, ValueError):
+                continue
+            if spec.result_format == 'timed_words':
+                words = data.get('words') if isinstance(data, dict) else data
+                return words_segments(words) or None
+        return None
+
+    @staticmethod
     def result_text(spec: ProcessSpec, value):
         """Le TEXTE d'un résultat déclaré : un rapport de cohérence s'écrit par la brique commune
         (`llm_utils.coherence_report_text`), des segments par `segments_text` ; tout autre
@@ -542,7 +608,7 @@ class AppPipeline:
         if spec.result_format == 'coherence' and isinstance(value, dict):
             from wama.common.utils.llm_utils import coherence_report_text
             return coherence_report_text(value)
-        if spec.result_format == 'segments' and isinstance(value, (list, tuple)):
+        if spec.result_format in ('segments', 'timed_words') and isinstance(value, (list, tuple)):
             return segments_text(value)
         return str(value)
 

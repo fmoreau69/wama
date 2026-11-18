@@ -727,3 +727,7 @@
 .wama-score-face-stage { background: var(--wama-paper); border-radius: .375rem; overflow: auto;
   max-height: var(--wv-stage, 65vh); }
 .wama-score-face-source { max-height: var(--wv-stage, 65vh); overflow: auto; white-space: pre; }
+/* Dans l'aperçu d'une CARD (2026-11-18) : la partition défile dans une hauteur bornée, la card ne
+   s'étire pas sur toute la partition. */
+.wcv3-preview .wama-score-face-stage,
+.wcv3-preview .wama-score-face-source { max-height: 320px; }

@@ -398,6 +398,9 @@ PIPELINE = register_app_pipeline(_APP, (
                 watched=('melody_reference', 'source_url'), toggle='extract_input_lyrics',
                 degree=OPTIONAL, gpu=True, share=1, needs=MAKES_MUSIC, applies=_lyrics_extract_applies,
                 available=_lyrics_available, outputs=('input_lyrics_timed',),
+                # Sa face : les mots horodatés de son JSON en lignes datées (2026-11-18, Fabien : elle
+                # disait « Preview not available » — `FILE_FORMATS`, forme commune).
+                result_format='timed_words',
                 eta='composer.tasks:lyrics_eta'),
     # ÉCRIRE LES PAROLES (2026-11-08, décision de Fabien) : une ÉTAPE, avant la partition composée —
     # YuE2 bâtit la structure de sa partition sur les sections des paroles —, écrites à la LONGUEUR
@@ -459,6 +462,7 @@ PIPELINE = register_app_pipeline(_APP, (
     ProcessSpec('rendered_lyrics', label='Paroles chantées', depends_on=('render',),
                 toggle='extract_rendered_lyrics', degree=OPTIONAL, gpu=True, share=1, needs=SINGS,
                 available=_lyrics_available, outputs=('rendered_lyrics_timed',),
+                result_format='timed_words',
                 eta='composer.tasks:lyrics_eta'),
 ), label='Composer — partition, rendu, sortie', source_ref='composer.function_specs:PIPELINE',
    model_of=lambda gen: _requested_model(gen))

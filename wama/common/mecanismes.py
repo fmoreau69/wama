@@ -225,7 +225,10 @@ MECHANISMS = (
               "réglages d'un process que le modèle choisi ne sert pas. 2026-11-18 : une étape peut "
               "être IMPOSÉE par une autre étape activée qui la lit (`required_by_steps`, "
               "`imposing_step`) comme par le modèle (`required_by`) — sa case cochée, verrouillée, "
-              "et la raison dite (`imposed_by`)",
+              "et la raison dite (`imposed_by`). Même jour : la FORME de la face d'une sortie qui "
+              "n'est pas un média (un fichier de DONNÉES) se déclare aussi (`result_format` lu dans "
+              "le fichier, `FILE_FORMATS` : `timed_words`, des mots horodatés en lignes datées — "
+              "les paroles du composer disaient « Preview not available »)",
               'wama/common/services/process_pipeline.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/tests/tests_process_pipeline.py',),
               depends_on=('process_runs', 'input_provenance')),
@@ -503,7 +506,10 @@ MECHANISMS = (
               "refusé ; et la brique « Versions » reprend une correction enregistrée. Même jour : "
               "des briques se montent aussi HORS d'une page (`WamaSurface.view`, le contexte de "
               "LECTURE de la page et son montage protégé) — la face « Partition » de la visionneuse "
-              "monte la partition et le transport de la page d'édition, plus une copie",
+              "monte la partition et le transport de la page d'édition, plus une copie. "
+              "2026-11-18 : dans la colonne du VOLET, une brique suit son contenu jusqu'à la moitié "
+              "de la fenêtre, puis défile ; une hauteur réglée à la main y tient (`sized`, gardée "
+              "par compte) — Fabien : « seules les briques succinctes s'auto-ajustent »",
               'wama/common/surfaces.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
               annexes=('wama/common/surface_views.py',
@@ -2497,7 +2503,9 @@ MECHANISMS = (
               "commun (`mountCardFaces`), posé par UN hôte (`common/_card_preview.html`, cards "
               "réelles et générateur) : l'Entrée dès qu'elle existe, la face Pendant suivie, la "
               "Sortie, les onglets des faces — l'hôte n'était posé qu'une fois la sortie produite, "
-              "avec un hôte d'attente à part (`data-card-during`, retiré). Depuis le 2026-10-28, la VIGNETTE d'un fichier est une brique "
+              "avec un hôte d'attente à part (`data-card-during`, retiré) ; une face PARTITION y est "
+              "la face « Partition » de la visionneuse (`renderInline`, partout où une face se "
+              "montre). Depuis le 2026-10-28, la VIGNETTE d'un fichier est une brique "
               "(`tileHtml` : l'image, la 1ʳᵉ image d'une vidéo, sinon l'icône de la famille du "
               "type), décidée par le type que le serveur résout — lue par la grille d'une sortie "
               "multiple, la fenêtre de sélection et la médiathèque, qui l'écrivaient chacune et "
@@ -3795,7 +3803,9 @@ MECHANISMS = (
               "touché à ×1 → cette formule exacte ; touché à une autre vitesse → l'ADDITION "
               "Σ gain · piste, un <audio> par piste attaché à l'axe (hauteur gardée, ~10-20 ms "
               "entre lecteurs, accepté en édition) — chaque fichier téléchargé une fois et joué "
-              "depuis la mémoire (`blob:`) : six lecteurs tenaient les six connexions de l'hôte",
+              "depuis la mémoire (`blob:`) : six lecteurs tenaient les six connexions de l'hôte. "
+              "2026-11-18 : le SOLO (bouton S, Fabien) — une aide d'écoute, jamais écrite : les "
+              "niveaux restent ce qui s'écrit et se rend",
               'wama/common/utils/stem_mix.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
               annexes=('wama/common/static/common/js/wama-stem-mix.js',
