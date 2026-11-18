@@ -785,6 +785,10 @@ def _register_builtin() -> None:
         # à l'image présentée, sur des vidéos témoins numérotées — page nue, aucun compte ni GPU.
         from wama.common.services.ui_smoke_preview_sync import register_preview_sync_scenarios
         register_preview_sync_scenarios()
+        # 2026-11-18 — le POSITIONNEMENT d'un audio, mesuré par format : la déclaration des formats
+        # qui reçoivent une copie de lecture (`video_compat.SEEK_INEXACT_AUDIO`) contre la mesure.
+        from wama.common.services.ui_smoke_audio_seek import register_audio_seek_scenarios
+        register_audio_seek_scenarios()
         # 2026-10-16 — le CONTRASTE (Fabien : « parfois le texte est écrit de la même couleur que le
         # fond »). Une couleur réelle ne se lit que dans le navigateur ; axe-core la tranche. Aucun GPU.
         from wama.common.services.ui_smoke_contrast import register_contrast_scenarios

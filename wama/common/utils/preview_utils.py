@@ -1018,12 +1018,14 @@ def unified_preview(request, app_name: str, pk: int):
 
 
 def with_playback_copy(data, request):
-    """Une vidéo que le navigateur ne lit pas est servie par sa COPIE DE LECTURE quand elle
-    existe et est à jour (`video_compat`, 2026-10-06) — pour toute face, comparaison comprise.
-    L'original n'est ni lu ni touché ici ; le téléchargement le sert toujours. Sans copie : rien
-    ne change. Ne lève jamais : un aperçu ne casse pas pour une copie."""
+    """Une vidéo que le navigateur ne lit pas — ou un audio qu'il ne POSITIONNE pas juste, un MP3
+    (2026-11-18) — est servi par sa COPIE DE LECTURE quand elle existe et est à jour
+    (`video_compat`, 2026-10-06) — pour toute face, comparaison comprise. L'original n'est ni lu
+    ni touché ici ; le téléchargement le sert toujours. Sans copie : rien ne change. Ne lève
+    jamais : un aperçu ne casse pas pour une copie."""
     try:
-        if not str(data.get('mime_type') or '').startswith('video/'):
+        kind = str(data.get('mime_type') or '').split('/', 1)[0]
+        if kind not in ('video', 'audio'):
             return data
         rel = _media_rel(data.get('url'))
         if not rel:
@@ -1038,7 +1040,7 @@ def with_playback_copy(data, request):
             # l'ancienne de son cache.
             media_url = settings.MEDIA_URL or '/media/'
             data['url'] = request.build_absolute_uri(_versioned(media_url + quote(copy)))
-            data['mime_type'] = 'video/mp4'
+            data['mime_type'] = 'audio/mp4' if kind == 'audio' else 'video/mp4'
             data['playback_copy'] = True
     except Exception as exc:
         logger.debug(f"copie de lecture ignorée : {exc}")

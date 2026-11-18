@@ -172,10 +172,41 @@ BROWSER_H264_PROFILES: frozenset[str] = frozenset({
 BROWSER_PIX_FMTS: frozenset[str] = frozenset({'yuv420p', 'yuvj420p'})
 #: Dossier caché des copies de lecture, à la racine de l'utilisateur.
 PLAYBACK_DIR = '.preview'
-#: Les fichiers DÉRIVÉS d'un média rangés dans ce dossier, par leur suffixe : la copie de lecture,
-#: et depuis le 2026-10-21 les pics fins de l'onde (`waveform.DENSE_SUFFIX`, ROUTE §F3b). Le
-#: balayage des orphelins et l'audit d'intégrité les reconnaissent tous par `original_of_copy`.
-DERIVED_SUFFIXES = ('.peaks.json', '.mp4')
+#: Les fichiers DÉRIVÉS d'un média rangés dans ce dossier, par leur suffixe : la copie de lecture
+#: d'une vidéo (`.mp4`) ou d'un audio (`.m4a`, 2026-11-18), et depuis le 2026-10-21 les pics fins
+#: de l'onde (`waveform.DENSE_SUFFIX`, ROUTE §F3b). Le balayage des orphelins et l'audit
+#: d'intégrité les reconnaissent tous par `original_of_copy`.
+DERIVED_SUFFIXES = ('.peaks.json', '.mp4', '.m4a')
+
+# ── L'AUDIO : lisible, mais pas toujours POSITIONNABLE (2026-11-18) ───────────────────────────
+# Mesuré dans Chromium (le banc `common.audio_seek`, `ui_smoke_audio_seek.py`) : après un
+# positionnement, un MP3 à débit variable fait entendre un endroit du fichier jusqu'à 771 ms
+# AVANT ce que dit son `currentTime` (un constant ~25 ms) ; un AAC brut (ADTS) et un Vorbis
+# flottent de 10 à 25 ms ; un conteneur à index (MP4/M4A, WebM, Ogg-Opus, FLAC, WAV) reste à
+# 3 ms au plus. Une partition, une piste, une ligne de temps suivent le TEMPS : un audio qui ne
+# tombe pas où il dit fausse tout ce qui le suit. Décision de Fabien (« Ok pour AAC, tous les
+# MP3, pas de pansement ») : un format non positionnable reçoit une copie de lecture AAC en M4A
+# — la même copie que les vidéos, au même dossier, au même cycle de vie.
+
+#: Les formats audio NON positionnables, `(conteneur ffprobe, codec)` — déclarés UNE fois ici ;
+#: le banc nocturne les mesure tous et rougit si la déclaration et la mesure divergent.
+SEEK_INEXACT_AUDIO: frozenset = frozenset({('mp3', 'mp3'), ('aac', 'aac'), ('ogg', 'vorbis')})
+
+
+def seekability(info: Optional[dict]) -> tuple:
+    """`(positionnable, raison)` d'un audio décrit par la sonde commune (`media_probe.
+    probe_audio_format`) — pure. Sans flux audio lisible : positionnable (rien à copier ; la
+    lecture dira son échec comme avant)."""
+    if not info:
+        return True, ''
+    if (info.get('container', ''), info.get('codec', '')) in SEEK_INEXACT_AUDIO:
+        return False, f"{info['codec'].upper()} : positionnement inexact"
+    return True, ''
+
+
+def _is_audio(rel: str) -> bool:
+    from wama.common.app_registry import AUDIO_EXTENSIONS
+    return os.path.splitext(str(rel or ''))[1].lower() in {e.lower() for e in AUDIO_EXTENSIONS}
 
 
 def playability(info: Optional[dict]) -> tuple:
@@ -208,8 +239,9 @@ def derived_rel(rel: str, suffix: str) -> str:
 
 
 def playback_copy_rel(rel: str) -> str:
-    """Le chemin de la copie de lecture d'un média (`derived_rel`, suffixe `.mp4`) — pure."""
-    return derived_rel(rel, '.mp4')
+    """Le chemin de la copie de lecture d'un média (`derived_rel`) — `.m4a` pour un audio, `.mp4`
+    pour une vidéo — pure."""
+    return derived_rel(rel, '.m4a' if _is_audio(rel) else '.mp4')
 
 
 def _absolute(rel: str) -> str:
@@ -229,16 +261,59 @@ def playback_copy_for(rel: str) -> str:
     return ''
 
 
+def playback_url(rel: str) -> str:
+    """L'adresse qu'un LECTEUR reçoit pour le média `rel` : celle de sa copie de lecture à jour,
+    sinon la sienne ; '' sans média. Les traitements et le téléchargement lisent l'original."""
+    if not rel:
+        return ''
+    from django.core.files.storage import default_storage
+    try:
+        copy = playback_copy_for(rel)
+        if copy:
+            return default_storage.url(copy)
+    except Exception:
+        pass
+    return default_storage.url(rel)
+
+
+def audio_copy_args(codec: str) -> list:
+    """La recette ffmpeg de la copie de lecture d'un audio : AAC en M4A, index en tête (faststart).
+    Un AAC brut garde ses octets (seul le conteneur change) ; un autre codec est réencodé comme le
+    son d'une copie vidéo (160 kbit/s). Le banc `common.audio_seek` mesure la copie qu'elle fait."""
+    encode = ['-c:a', 'copy'] if codec == 'aac' else ['-c:a', 'aac', '-b:a', '160k']
+    return ['-map', '0:a:0', '-vn', *encode, '-movflags', '+faststart']
+
+
+def _make_audio_copy(rel: str, source: str, timeout: int) -> str:
+    """La copie de lecture d'un audio NON positionnable (`seekability`), par `audio_copy_args`."""
+    from wama.common.utils.media_probe import probe_audio_format
+    info = probe_audio_format(source)
+    seekable, reason = seekability(info)
+    if seekable:
+        return ''
+    copy = playback_copy_rel(rel)
+    target = _absolute(copy)
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    if not _transcode(source, target, audio_copy_args(info.get('codec', '')), timeout=timeout):
+        return ''
+    logger.info(f"[lecture] copie de lecture de {rel} ({reason}) → {copy}")
+    return copy
+
+
 def make_playback_copy(rel: str, *, timeout: int = 3600) -> str:
-    """Crée la copie de lecture d'un média si le navigateur ne le lit pas — idempotent. Rend le
-    chemin de la copie, ou '' (lisible tel quel, pas une vidéo, ou échec : l'original reste
-    servi, rien n'est perdu). Même résolution et même cadence que l'original : les détections
-    dessinées sur l'aperçu tombent au même endroit."""
+    """Crée la copie de lecture d'un média si le navigateur ne le lit pas — ou, pour un audio, ne
+    le POSITIONNE pas juste (2026-11-18) — idempotent. Rend le chemin de la copie, ou '' (lisible
+    tel quel, ni vidéo ni audio, ou échec : l'original reste servi, rien n'est perdu). Même
+    résolution et même cadence que l'original : les détections dessinées sur l'aperçu tombent au
+    même endroit ; même début qu'un audio (mesuré : décodée, la copie tombe sur l'échantillon de
+    l'original)."""
     if playback_copy_for(rel):
         return playback_copy_rel(rel)
     source = _absolute(rel)
     if not os.path.isfile(source):
         return ''
+    if _is_audio(rel):
+        return _make_audio_copy(rel, source, timeout)
     from wama.common.utils.media_probe import probe_video_format
     playable, reason = playability(probe_video_format(source))
     if playable:
@@ -323,12 +398,20 @@ def _video_extensions() -> frozenset:
     return frozenset(e.lower() for e in VIDEO_EXTENSIONS)
 
 
+def _copied_extensions() -> frozenset:
+    """Les extensions dont un fichier peut recevoir une copie de lecture : vidéo et, depuis le
+    2026-11-18, audio (vocabulaire média COMMUN, `app_registry`)."""
+    from wama.common.app_registry import AUDIO_EXTENSIONS
+    return _video_extensions() | frozenset(e.lower() for e in AUDIO_EXTENSIONS)
+
+
 def schedule_playback_copy(rel: str) -> bool:
-    """Met en file la copie de lecture d'un média vidéo, UNE fois par version du fichier (chemin,
-    taille, date) : le récepteur passe à chaque enregistrement de la card, la file ne voit que le
-    premier. Rend True si une tâche part. Ne lève jamais : un import n'échoue pas pour un aperçu."""
+    """Met en file la copie de lecture d'un média vidéo ou audio, UNE fois par version du fichier
+    (chemin, taille, date) : le récepteur passe à chaque enregistrement de la card, la file ne voit
+    que le premier. Rend True si une tâche part (la tâche juge : un média lisible et positionnable
+    n'en reçoit pas). Ne lève jamais : un import n'échoue pas pour un aperçu."""
     rel = str(rel or '').replace('\\', '/')
-    if not rel or os.path.splitext(rel)[1].lower() not in _video_extensions():
+    if not rel or os.path.splitext(rel)[1].lower() not in _copied_extensions():
         return False
     if f'/{PLAYBACK_DIR}/' in f'/{rel}':
         return False                              # une copie de lecture n'en reçoit pas
@@ -386,13 +469,17 @@ def playback_state(rel: str):
         return None
 
 
-def backfill_playback_copies(dry_run: bool = False) -> dict:
-    """Le RATTRAPAGE : les vidéos que des cards portaient AVANT le récepteur (aucun import ne
-    repassera dessus). Parcourt les champs fichier de toutes les cards et met en file une copie
-    par vidéo — la tâche décide (lisible tel quel : rien). Rend `{'videos', 'queued'}`."""
+def backfill_playback_copies(dry_run: bool = False, audio_only: bool = False) -> dict:
+    """Le RATTRAPAGE : les médias que des cards portaient AVANT le récepteur (aucun import ne
+    repassera dessus) — vidéos, et depuis le 2026-11-18 audios. Parcourt les champs fichier de
+    toutes les cards et met en file une copie par média — la tâche décide (lisible et
+    positionnable tel quel : rien). `audio_only` : les audios seuls. En essai (`dry_run`), rien ne
+    part : le compte dit aussi les audios NON positionnables présents sur le disque et ceux qui ont
+    déjà leur copie (`audio_to_copy`, `audio_copied`). Rend `{'videos', 'audios', 'queued', …}`."""
     from wama.common.utils.file_references import EXCLUDED_MODELS, file_field_models
-    videos, queued = set(), 0
-    extensions = _video_extensions()
+    videos, audios, queued = set(), set(), 0
+    video_ext = _video_extensions()
+    extensions = _copied_extensions()
     for model, fields in file_field_models():
         if model._meta.label in EXCLUDED_MODELS:
             continue
@@ -400,13 +487,22 @@ def backfill_playback_copies(dry_run: bool = False) -> dict:
             names = (model.objects.exclude(**{field.name: ''})
                      .values_list(field.name, flat=True).distinct())
             for name in names:
-                if name and os.path.splitext(name)[1].lower() in extensions \
-                        and f'/{PLAYBACK_DIR}/' not in f'/{name}':
-                    videos.add(name)
-    for name in sorted(videos):
+                ext = os.path.splitext(name or '')[1].lower()
+                if name and ext in extensions and f'/{PLAYBACK_DIR}/' not in f'/{name}':
+                    (videos if ext in video_ext else audios).add(name)
+    wanted = sorted(audios) if audio_only else sorted(videos | audios)
+    out = {'videos': 0 if audio_only else len(videos), 'audios': len(audios)}
+    if dry_run:
+        from wama.common.utils.media_probe import probe_audio_format
+        on_disk = [n for n in sorted(audios) if os.path.isfile(_absolute(n))]
+        to_copy = [n for n in on_disk if not seekability(probe_audio_format(_absolute(n)))[0]]
+        out.update(audio_on_disk=len(on_disk), audio_to_copy=len(to_copy),
+                   audio_copied=sum(1 for n in to_copy if playback_copy_for(n)))
+    for name in wanted:
         if not dry_run and schedule_playback_copy(name):
             queued += 1
-    return {'videos': len(videos), 'queued': queued}
+    out['queued'] = queued
+    return out
 
 
 _connected = []

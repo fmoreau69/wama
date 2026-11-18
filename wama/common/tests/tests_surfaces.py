@@ -3518,16 +3518,17 @@ class StemMixTest(SimpleTestCase):
         FakeAudio.prototype.hasAttribute = function (k) { return k in this.attrs; };
         FakeAudio.prototype.removeAttribute = function (k) { delete this.attrs[k]; };
         // A file, downloaded : a Blob (its size, its bytes).
-        function fakeFetch(url) { fetched.push(url); var key = url === '/o.wav' ? '' : url.slice(1, -4);
+        function fakeFetch(url) { fetched.push(url);
+            var key = url === '/o.wav' ? '' : url === '/o.m4a' ? 'playback' : url.slice(1, -4);
             return Promise.resolve({key: key, size: 1000, arrayBuffer: function () { return Promise.resolve({key: key}); }}); }
         var TRACKS = [{key: 'drums', label: 'Batterie', url: '/drums.wav', gain: 1},
                       {key: 'bass', label: 'Basse', url: '/bass.wav', gain: 1},
                       {key: 'vocals', label: 'Voix', url: '/vocals.wav', gain: 0.5}];
-        function mixer(tracks) { return window.WamaStemMix.create({original: '/o.wav', tracks: tracks || TRACKS,
+        function mixer(tracks, extra) { return window.WamaStemMix.create(Object.assign({original: '/o.wav', tracks: tracks || TRACKS,
             audioContext: function () { return new FakeAC(); }, fetch: fakeFetch,
             audio: function () { return new FakeAudio(); },
             objectUrl: function (blob) { return 'blob:' + (blob.key || 'original'); }, revokeUrl: function () {},
-            status: function (t, k) { said.push([t, k]); }}); }
+            status: function (t, k) { said.push([t, k]); }}, extra || {})); }
     """
 
     def setUp(self):
@@ -3558,6 +3559,26 @@ class StemMixTest(SimpleTestCase):
         self.assertEqual(['original', 'original', 'exact', 'exact', 'sum', 'sum', 'original'], modes,
                          'nothing moved : the original at any speed ; moved : exact at ×1 (a re-timing '
                          'nudge is still ×1), the sum at any other speed')
+
+    def test_the_original_plays_its_playback_copy_and_the_exact_mix_decodes_the_original(self):
+        """2026-11-18 : an MP3 is heard up to 771 ms off its `currentTime` after a seek, its M4A
+        playback copy within 3 ms. The PLAYER of the original plays the copy the server gives
+        (`playback`) ; the exact mix DECODES the original — the copy is a re-encode (8.7 % off the
+        original, measured), the stems are subtracted from the original itself."""
+        self._real_player_and_axis()
+        self.engine.eval("""var P = window.WamaAudioPlayer;
+            var FLAT = TRACKS.map(function (t) { return Object.assign({}, t, {gain: 1}); });
+            var mix = mixer(FLAT, {playback: '/o.m4a'});
+            mix.preload().then(function () { P.followLive('mix', mix.media, realAxis, 0, window.WamaStemMix.SYNC); });""")
+        first = self._eval("""return {fetched: fetched.slice(), decoded: decoded.slice(),
+            followers: realAxis.medias().map(function (m) { return m === mix.media ? 'mix' : m.src; })};""")
+        self.assertEqual({'fetched': ['/o.m4a'], 'decoded': [], 'followers': ['mix', 'blob:playback']}, first,
+                         'nothing moved : the copy is played, nothing else downloaded')
+        self.engine.eval("mix.setGain('drums', 0);")
+        exact = self._eval("return {mode: mix.mode(), fetched: fetched.slice(), decoded: decoded.slice()};")
+        self.assertEqual('exact', exact['mode'])
+        self.assertEqual(['', 'drums'], exact['decoded'], 'the ORIGINAL decoded, never the copy')
+        self.assertEqual(['/o.m4a', '/o.wav', '/drums.wav'], exact['fetched'])
 
     def test_off_unit_speed_plays_the_sum_of_the_stems_each_from_memory(self):
         """Through the REAL common player (`followLive` hands the mix its axis, `joinAxis`) and the

@@ -3527,7 +3527,7 @@ MECHANISMS = (
     Mechanism('video_utils', 'Utilitaires vidéo',
               "Extraction audio des vidéos + téléchargement YouTube/yt-dlp",
               'wama/common/utils/video_utils.py', ''),
-    Mechanism('playback_copy', 'Copie de lecture des vidéos',
+    Mechanism('playback_copy', 'Copie de lecture des vidéos et des audios',
               "Une vidéo qu'une card porte et que le navigateur ne lit pas (conteneur, profil "
               "H.264, pixels — pas le seul nom du codec) reçoit, DÈS SON IMPORT et quelle que soit "
               "la voie, une copie de lecture H.264 servie par l'aperçu SEULEMENT ; l'original "
@@ -3540,10 +3540,17 @@ MECHANISMS = (
               "(`media_probe.probe_video_format`) ; l'écriture partage le geste de `ensure_h264`. "
               "2026-11-16 : une PAGE D'ÉDITION lit aussi la copie (`surface_views._media_url`) et, "
               "la trouvant absente, la DIT et la remet en file (`playback_state`, une fois par "
-              "quart d'heure) ; la vidéo se charge d'elle-même quand la copie est prête",
+              "quart d'heure) ; la vidéo se charge d'elle-même quand la copie est prête. "
+              "2026-11-18 : un AUDIO que le navigateur ne POSITIONNE pas juste (MP3 : jusqu'à "
+              "771 ms ; AAC brut et Vorbis : ~23 ms) reçoit la sienne, AAC en M4A, par la même "
+              "voie — formats déclarés une fois (`SEEK_INEXACT_AUDIO`, verdict `seekability` sur "
+              "`media_probe.probe_audio_format`), déclaration tenue par le banc nocturne "
+              "`common.audio_seek` (mesure dans Chromium) ; servie à tout lecteur "
+              "(`playback_url`) : aperçu, pages, mixage des pistes",
               'wama/common/utils/video_compat.py',
               'docs/construction/exploitation/MEDIA_STORAGE_TIERING.md',
-              annexes=('wama/common/management/commands/playback_copies.py',),
+              annexes=('wama/common/management/commands/playback_copies.py',
+                       'wama/common/services/ui_smoke_audio_seek.py'),
               depends_on=('media_probe', 'preview')),
     Mechanism('media_paths', 'Chemins média',
               "Emplacements canoniques des entrées/sorties par app et par utilisateur "

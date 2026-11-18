@@ -64,7 +64,7 @@
             return {};
         }
         var mix = global.WamaStemMix.create({
-            original: data.original, tracks: data.tracks,
+            original: data.original, playback: data.playback, tracks: data.tracks,
             status: function (text, kind) { say(text, kind); },
         });
         var MAX_PERCENT = maxPercent(ctx, options.levels);

@@ -142,19 +142,17 @@ def probe_video(path: str) -> dict:
         return {}
 
 
-def probe_video_format(path: str, *, timeout: int = 20) -> dict:
-    """Ce que le NAVIGATEUR regarde du premier flux vidéo : `{container, codec, profile,
-    pix_fmt}` (conteneur LU par ffprobe, pas l'extension), ou {} (pas de vidéo, ffprobe absent,
-    fichier illisible). La lisibilité se juge dessus (`video_compat.playability`) — mesure
-    technique, à côté de `probe_video` qui rédige les propriétés affichées. Fail-safe."""
+def _first_stream_format(path: str, select: str, fields: str, timeout: int) -> dict:
+    """Le conteneur LU par ffprobe (pas l'extension) et les champs du premier flux `select`
+    (`v:0`, `a:0`) — `{}` sans ce flux, sans ffprobe, ou fichier illisible. Fail-safe."""
     from wama.common.utils.ffmpeg_utils import adapt_path_for_ffmpeg, get_ffprobe_exe
     ffprobe = get_ffprobe_exe()
     if not ffprobe:
         return {}
     try:
         result = subprocess.run(
-            [ffprobe, "-v", "error", "-select_streams", "v:0",
-             "-show_entries", "format=format_name:stream=codec_name,profile,pix_fmt",
+            [ffprobe, "-v", "error", "-select_streams", select,
+             "-show_entries", f"format=format_name:stream={fields}",
              "-of", "json", adapt_path_for_ffmpeg(path, ffprobe)],
             capture_output=True, text=True, timeout=timeout)
         data = json.loads(result.stdout or "{}")
@@ -164,10 +162,27 @@ def probe_video_format(path: str, *, timeout: int = 20) -> dict:
     if not streams:
         return {}
     stream = streams[0]
-    return {'container': ((data.get("format") or {}).get("format_name") or '').lower(),
-            'codec': (stream.get("codec_name") or '').lower(),
-            'profile': (stream.get("profile") or '').lower(),
-            'pix_fmt': (stream.get("pix_fmt") or '').lower()}
+    out = {'container': ((data.get("format") or {}).get("format_name") or '').lower()}
+    out.update({name: (stream.get(name) or '').lower() for name in fields.split(',')})
+    return out
+
+
+def probe_video_format(path: str, *, timeout: int = 20) -> dict:
+    """Ce que le NAVIGATEUR regarde du premier flux vidéo : `{container, codec, profile,
+    pix_fmt}` (conteneur LU par ffprobe, pas l'extension), ou {} (pas de vidéo, ffprobe absent,
+    fichier illisible). La lisibilité se juge dessus (`video_compat.playability`) — mesure
+    technique, à côté de `probe_video` qui rédige les propriétés affichées. Fail-safe."""
+    info = _first_stream_format(path, 'v:0', 'codec_name,profile,pix_fmt', timeout)
+    return {'container': info['container'], 'codec': info['codec_name'], 'profile': info['profile'],
+            'pix_fmt': info['pix_fmt']} if info else {}
+
+
+def probe_audio_format(path: str, *, timeout: int = 20) -> dict:
+    """Ce que le NAVIGATEUR regarde du premier flux audio : `{container, codec}`, ou {} (pas
+    d'audio, ffprobe absent, fichier illisible). Le positionnement se juge dessus
+    (`video_compat.seekability`, 2026-11-18). Fail-safe."""
+    info = _first_stream_format(path, 'a:0', 'codec_name', timeout)
+    return {'container': info['container'], 'codec': info['codec_name']} if info else {}
 
 
 def _gltf_document(path: str):

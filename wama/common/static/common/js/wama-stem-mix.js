@@ -43,7 +43,7 @@
  * audio ; un recalage fin (une vitesse corrigée de quelques millièmes) s'entend à peine sur un
  * tampon, d'où le recalage doux qu'il demande (`SYNC`, que le transport passe à l'axe).
  *
- *   var mix = WamaStemMix.create({original: url, tracks: [{key, label, url, gain}], status: fn});
+ *   var mix = WamaStemMix.create({original: url, playback: copie, tracks: [{key, label, url, gain}], status: fn});
  *   WamaAudioPlayer.followLive(id, mix.media, axis, 0, WamaStemMix.SYNC);
  *   mix.setGain('drums', 0);          // aussitôt entendu ; charge la piste au besoin
  *   mix.gains();                      // {clé: gain}
@@ -98,6 +98,10 @@
         function say(text, kind) { lastKind = kind || ''; tell(text, kind); }
         function calm() { if (lastKind === 'busy') say('', ''); }
         var tracks = (opts.tracks || []).slice();
+        // Le fichier que JOUE le lecteur de l'original : sa copie de lecture quand le serveur en sert
+        // une (`playback` — un MP3 se positionne faux, sa copie M4A juste, 2026-11-18) ; le mode
+        // exact, lui, DÉCODE l'original, que ses pistes soustraient à l'échantillon près.
+        var PLAYBACK = opts.playback && opts.playback !== opts.original ? '~playback' : '';
         var gains = {};
         tracks.forEach(function (t) { gains[t.key] = isFinite(t.gain) ? Number(t.gain) : 1; });
 
@@ -157,7 +161,8 @@
         function file(key) {
             if (files[key]) return Promise.resolve(files[key]);
             if (fetching[key]) return fetching[key];
-            var url = key ? (tracks.filter(function (t) { return t.key === key; })[0] || {}).url : opts.original;
+            var url = key === PLAYBACK && key ? opts.playback
+                : key ? (tracks.filter(function (t) { return t.key === key; })[0] || {}).url : opts.original;
             if (!url) return Promise.reject(new Error('piste inconnue : ' + key));
             fetching[key] = getFile(url).then(function (blob) {
                 delete fetching[key];
@@ -297,7 +302,7 @@
          *  un gain au-delà de 1 compris). */
         function player(key) {
             if (players[key]) return players[key].ready;
-            return file(key).then(function (blob) {
+            return file(key || PLAYBACK).then(function (blob) {
                 if (players[key]) return players[key].ready;
                 var el = makeAudio();
                 el.preload = 'auto';
@@ -488,7 +493,7 @@
          *  exact (×1). Une piste qui ne se charge pas est dite, le reste joue. */
         function preload() {
             if (!axis && modeFor(gains, 1) === 'original') {
-                return file('').then(function () { emit('canplay'); }, function (error) {
+                return file(PLAYBACK).then(function () { emit('canplay'); }, function (error) {
                     media.error = error;
                     say('Mixage impossible : ' + error.message, 'error');
                     emit('error');

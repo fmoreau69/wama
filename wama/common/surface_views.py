@@ -496,19 +496,11 @@ def _media_url(name: str) -> str:
     navigateur ne lit pas (un AVI sous une extension `.mp4`, un profil 4:4:4…) reçoit dès son
     import une copie de même résolution et de même cadence, que l'aperçu sert déjà
     (`preview_utils.with_playback_copy`). Une page d'édition lisait l'original brut : zones
-    visibles, vidéo absente (relevé par Fabien le 2026-11-16). L'original n'est ni lu ni touché ;
-    sans copie, rien ne change."""
-    from django.core.files.storage import default_storage
-    if not name:
-        return ''
-    try:
-        from wama.common.utils.video_compat import playback_copy_for
-        copy = playback_copy_for(name)
-        if copy:
-            return default_storage.url(copy)
-    except Exception:
-        pass
-    return default_storage.url(name)
+    visibles, vidéo absente (relevé par Fabien le 2026-11-16). Un audio que le navigateur ne
+    POSITIONNE pas juste (un MP3) a la sienne depuis le 2026-11-18. L'original n'est ni lu ni
+    touché ; sans copie, rien ne change. La règle vit dans `video_compat.playback_url`."""
+    from wama.common.utils.video_compat import playback_url
+    return playback_url(name)
 
 
 def _server_peaks(url: str):

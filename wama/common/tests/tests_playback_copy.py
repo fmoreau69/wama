@@ -7,7 +7,10 @@ Held here, and above all what no error would reveal :
     original, never in a connected folder ;
   * the verdict reads the container, the H.264 profile and the pixels — not the codec name alone
     (`SEQ08-01.mp4` : an AVI under a `.mp4` name, H.264 High 4:4:4, judged playable before) ;
-  * the preview serves the copy only while it is up to date ; orphans are swept.
+  * the preview serves the copy only while it is up to date ; orphans are swept ;
+  * an AUDIO the browser does not POSITION right (an MP3 : up to 771 ms off, 2026-11-18) gets an
+    M4A copy by the same road — the formats declared once (`SEEK_INEXACT_AUDIO`), the declaration
+    held against a measure in Chromium (`common.audio_seek`, whose readings are held here).
 """
 import os
 import shutil
@@ -303,3 +306,171 @@ class DeletionDropsTheCopyTest(TestCase):
                     mock.patch('wama.common.utils.video_compat.drop_playback_copy') as drop:
                 queue_duplication.delete_file_unless_shared(instance, 'clip')
             self.assertEqual(expected, drop.call_count, f'shared={shared}')
+
+
+def _write_audio(root, rel, args, seconds=3):
+    """A short noise encoded by WAMA's ffmpeg (`args` : the codec)."""
+    path = os.path.join(root, rel)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    subprocess.run(['ffmpeg', '-y', '-v', 'error', '-f', 'lavfi', '-i',
+                    f'anoisesrc=d={seconds}:c=pink:r=44100:seed=7', *args, path], check=True)
+    return path
+
+
+class AudioSeekabilityTest(SimpleTestCase):
+
+    def test_only_the_formats_measured_unseekable_get_a_copy(self):
+        for info, seekable in (({'container': 'mp3', 'codec': 'mp3'}, False),
+                               ({'container': 'aac', 'codec': 'aac'}, False),
+                               ({'container': 'ogg', 'codec': 'vorbis'}, False),
+                               ({'container': 'ogg', 'codec': 'opus'}, True),
+                               ({'container': 'mov,mp4,m4a,3gp,3g2,mj2', 'codec': 'aac'}, True),
+                               ({'container': 'mov,mp4,m4a,3gp,3g2,mj2', 'codec': 'mp3'}, True),
+                               ({'container': 'flac', 'codec': 'flac'}, True),
+                               ({'container': 'wav', 'codec': 'pcm_s16le'}, True),
+                               ({}, True), (None, True)):
+            self.assertEqual(seekable, vc.seekability(info)[0], info)
+        self.assertIn('positionnement inexact', vc.seekability({'container': 'mp3', 'codec': 'mp3'})[1])
+
+    def test_an_audio_copy_is_an_m4a_in_the_hidden_folder_and_maps_back(self):
+        self.assertIn('.m4a', vc.DERIVED_SUFFIXES)
+        for original, copy in (
+                ('users/1/composer/input/Plus_D_eau.mp3', 'users/1/.preview/composer/input/Plus_D_eau.mp3.m4a'),
+                ('users/1/temp/a b.ogg', 'users/1/.preview/temp/a b.ogg.m4a'),
+                ('users/1/temp/clip.avi', 'users/1/.preview/temp/clip.avi.mp4')):
+            self.assertEqual(copy, vc.playback_copy_rel(original))
+            self.assertEqual(original, vc.original_of_copy(copy))
+
+    def test_the_recipe_rewraps_a_raw_aac_and_encodes_the_others(self):
+        self.assertIn('copy', vc.audio_copy_args('aac'))
+        args = vc.audio_copy_args('mp3')
+        start = args.index('-c:a')
+        self.assertEqual(['-c:a', 'aac', '-b:a', '160k'], args[start:start + 4])
+        self.assertIn('+faststart', args)
+
+
+@override_settings(CACHES=LOCMEM)
+class AudioPlaybackCopyOnDiskTest(SimpleTestCase):
+
+    def setUp(self):
+        if not shutil.which('ffmpeg'):
+            self.skipTest('ffmpeg absent')
+        self.root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.root, True)
+        media = override_settings(MEDIA_ROOT=self.root)
+        media.enable()
+        self.addCleanup(media.disable)
+
+    def test_an_mp3_gets_a_seekable_m4a_aside_and_keeps_its_bytes(self):
+        from wama.common.utils.media_probe import probe_audio_format
+        rel = 'users/7/composer/input/song.mp3'
+        path = _write_audio(self.root, rel, ['-c:a', 'libmp3lame', '-q:a', '4'])
+        with open(path, 'rb') as fh:
+            before = fh.read()
+        copy = vc.make_playback_copy(rel)
+        self.assertEqual('users/7/.preview/composer/input/song.mp3.m4a', copy)
+        info = probe_audio_format(os.path.join(self.root, copy))
+        self.assertEqual('aac', info['codec'])
+        self.assertTrue(vc.seekability(info)[0], 'the copy is a seekable format')
+        with open(path, 'rb') as fh:
+            self.assertEqual(before, fh.read(), 'the original keeps its bytes')
+        self.assertEqual(['song.mp3'], os.listdir(os.path.dirname(path)), 'nothing written next to it')
+        self.assertEqual(copy, vc.make_playback_copy(rel), 'idempotent')
+
+    def test_a_seekable_audio_gets_no_copy_and_a_raw_aac_is_only_rewrapped(self):
+        from wama.common.utils.media_probe import probe_audio_format
+        wav = 'users/7/temp/take.wav'
+        _write_audio(self.root, wav, ['-c:a', 'pcm_s16le'])
+        self.assertEqual('', vc.make_playback_copy(wav))
+        self.assertFalse(os.path.exists(os.path.join(self.root, 'users/7/.preview')))
+        adts = 'users/7/temp/take.aac'
+        _write_audio(self.root, adts, ['-c:a', 'aac', '-b:a', '96k'])
+        copy = vc.make_playback_copy(adts)
+        self.assertTrue(copy.endswith('take.aac.m4a'), copy)
+        info = probe_audio_format(os.path.join(self.root, copy))
+        self.assertEqual(('aac', 'mov,mp4,m4a,3gp,3g2,mj2'), (info['codec'], info['container']))
+
+    def test_the_preview_and_the_pages_play_the_audio_copy(self):
+        from wama.common.surface_views import _media_url
+        from wama.common.utils.preview_utils import with_playback_copy
+        rel = 'users/7/temp/voice.mp3'
+        _write_audio(self.root, rel, ['-c:a', 'libmp3lame', '-b:a', '128k'])
+        request = RequestFactory().get('/')
+        url = 'http://testserver/media/' + rel
+        self.assertEqual(url, with_playback_copy({'url': url, 'mime_type': 'audio/mpeg'}, request)['url'],
+                         'no copy yet : the original, as before')
+        self.assertTrue(vc.playback_url(rel).endswith(rel))
+        copy = vc.make_playback_copy(rel)
+        served = with_playback_copy({'url': url, 'mime_type': 'audio/mpeg'}, request)
+        self.assertEqual(('audio/mp4', True), (served['mime_type'], served['playback_copy']))
+        self.assertIn(copy, served['url'])
+        self.assertTrue(vc.playback_url(rel).endswith(copy), 'the pages read the same copy')
+        self.assertEqual(vc.playback_url(rel), _media_url(rel))
+
+
+@override_settings(CACHES=LOCMEM)
+class AudioBackfillTest(TestCase):
+
+    def test_a_dry_run_counts_the_audios_to_copy_and_writes_nothing(self):
+        if not shutil.which('ffmpeg'):
+            self.skipTest('ffmpeg absent')
+        root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, root, True)
+        media = override_settings(MEDIA_ROOT=root)
+        media.enable()
+        self.addCleanup(media.disable)
+        user = get_user_model().objects.create_user('audio_copy_owner', password='x')
+        mp3 = f'users/{user.id}/temp/a.mp3'
+        wav = f'users/{user.id}/temp/b.wav'
+        _write_audio(root, mp3, ['-c:a', 'libmp3lame', '-q:a', '4'])
+        _write_audio(root, wav, ['-c:a', 'pcm_s16le'])
+        from wama.anonymizer.models import Media
+        with mock.patch('wama.common.tasks.make_playback_copy_task.delay') as delay:
+            for rel in (mp3, wav):
+                Media.objects.create(user=user, file=rel, file_ext=os.path.splitext(rel)[1],
+                                     media_type='audio', status='PENDING')
+            delay.reset_mock()
+            counted = vc.backfill_playback_copies(dry_run=True, audio_only=True)
+            delay.assert_not_called()
+        self.assertEqual({'videos': 0, 'audios': 2, 'audio_on_disk': 2, 'audio_to_copy': 1,
+                          'audio_copied': 0, 'queued': 0}, counted)
+        self.assertFalse(os.path.exists(os.path.join(root, f'users/{user.id}/.preview')))
+
+
+class AudioSeekBenchTest(SimpleTestCase):
+    """The readings of `common.audio_seek` (the seeking of each audio format, measured in Chromium
+    on a witness — 2026-11-18) : pure, held here on hand-made signals."""
+
+    def test_the_heard_offset_is_found_in_the_witness(self):
+        from wama.common.services.ui_smoke_audio_seek import heard_offset_ms
+        sr = 8000
+        reference = np.random.default_rng(3).standard_normal(sr * 10)
+        at = 4.0
+        late = int(0.25 * sr)                      # heard 250 ms BEFORE what currentTime says
+        recorded = reference[int(at * sr) - late:int(at * sr) - late + 2 * sr]
+        offset, ncc = heard_offset_ms(recorded, reference, at, sr=sr, window_s=1.0)
+        self.assertEqual(-250.0, offset)
+        self.assertGreater(ncc, 0.99)
+        self.assertEqual((None, 0.0), heard_offset_ms(np.zeros(2 * sr), reference, at, sr=sr))
+
+    def test_a_format_is_judged_on_all_its_instants_and_disagreements_are_named(self):
+        from wama.common.services.ui_smoke_audio_seek import disagreements, measured_seekable
+        self.assertTrue(measured_seekable([-1.8, 2.5, 0.0]))
+        self.assertFalse(measured_seekable([-1.8, -230.0, 0.0]))
+        self.assertIsNone(measured_seekable([-1.8, None, 0.0]), 'a missing measure does not make it right')
+        self.assertFalse(measured_seekable([-22.6, -23.2, None]), 'one proven offset is enough')
+        self.assertIsNone(measured_seekable([]))
+        rows = [{'name': 'mp3_vbr', 'declared': False, 'measured': False},
+                {'name': 'flac', 'declared': True, 'measured': True},
+                {'name': 'ogg_vorbis', 'declared': False, 'measured': True},
+                {'name': 'webm_opus', 'declared': True, 'measured': None}]
+        self.assertEqual(['ogg_vorbis', 'webm_opus'], disagreements(rows))
+
+    def test_the_bench_covers_the_decision_and_is_registered_without_gpu(self):
+        from wama.common.services import ui_smoke_audio_seek as bench
+        from wama.common.services.nightly_tests import REGISTRY
+        self.assertIn('mp3_vbr', [name for name, _ext, _args in bench.FORMATS])
+        self.assertEqual('mp3_vbr', bench.COPIED, 'the copy measured is the one of the decision')
+        bench.register_audio_seek_scenarios()
+        (scenario,) = [s for s in list.__iter__(REGISTRY) if s.id == 'common.audio_seek']
+        self.assertEqual(('ui', 0.0), (scenario.stage, scenario.vram_gb))
