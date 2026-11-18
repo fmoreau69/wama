@@ -386,6 +386,20 @@ voir aucun palier : il faudra une entrée plus longue) **et le câblage transcri
 > involontaire : `composer_01` et `imager_01`, créées par une autre instance, ont hérité des 17
 > `queue_dnd` sans qu'une ligne soit écrite pour elles.
 >
+> ⭐ **2026-11-17 — une boucle par PAGE, donc par DOMAINE** (demande de Fabien : *« on balaye les
+> apps, on balaye les domaines »*). Les boucles parcourent `discoverable_pages()` : une page par
+> app à une file, UNE PAR DOMAINE pour une app qui en a plusieurs, ouverte sur ce domaine par
+> l'ADRESSE (`?domain=`) ; le premier domaine garde l'id historique (`enhancer.import`), les autres
+> le préfixent (`enhancer.audio.import`). Le lanceur lit le domaine d'un scénario
+> (`nightly_tests.scenario_domain`) ; les instruments mesurent l'ÉLÉMENT de ce domaine
+> (`ui_smoke._element_model`, sa surface) dans le VOLET montré (`_page_scope`, `PAGE_ROOT_JS`).
+> Avant, une page à plusieurs domaines s'ouvrait sur celui que le compte de test avait RETENU au
+> passage précédent : les gestes mesuraient un domaine imprévisible, jamais tous, et la page
+> audio de l'enhancer comptait des éléments image — un FAUX VERT, vu au premier balayage par
+> domaine. Les pages des seconds domaines, jamais mesurées jusque-là, montrent des écarts que le
+> palier du 2026-11-18 (`PROJECT_STATUS`) nomme un par un. Garde : `tests_domain_page.
+> TheNightlyGesturesSweepEveryDomainTest`.
+>
 > Le geste 17 est l'exception qui confirme la règle : `wama-history.js` n'a que DEUX
 > consommateurs, pas une surface par app. Le décliner produirait **15 skips permanents** — le
 > bruit exact que le harnais évite ailleurs. *On décline sur ce qui EST uniforme, on nomme ce

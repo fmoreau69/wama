@@ -589,7 +589,7 @@ def _image_temoin(ext: str) -> bytes:
 #: élément, et l'inclure fausserait tout comptage d'items. Elle ne porte pas `data-id`
 #: aujourd'hui (`_batch_card.html`), donc le filtre est défensif — mais il énonce l'intention,
 #: et c'est ce qui empêchera la prochaine divergence.
-IDS_CARDS_JS = ("[...document.querySelectorAll('.wama-card[data-id]:not(.is-batch)')]"
+IDS_CARDS_JS = ("[...(document.querySelector('.tab-pane[data-domain].active') || document).querySelectorAll('.wama-card[data-id]:not(.is-batch)')]"
                 ".map(c => c.dataset.id)")
 
 #: Is this element in the DOMAIN tab on screen? A page with several queues keeps one per domain
@@ -600,7 +600,7 @@ IDS_CARDS_JS = ("[...document.querySelectorAll('.wama-card[data-id]:not(.is-batc
 IN_SHOWN_PANE_JS = "(e => { const p = e.closest('.tab-pane'); return !p || p.classList.contains('active'); })"
 
 #: The same cards as `IDS_CARDS_JS`, restricted to the domain tab on screen.
-IDS_SHOWN_CARDS_JS = ("[...document.querySelectorAll('.wama-card[data-id]:not(.is-batch)')]"
+IDS_SHOWN_CARDS_JS = ("[...(document.querySelector('.tab-pane[data-domain].active') || document).querySelectorAll('.wama-card[data-id]:not(.is-batch)')]"
                       f".filter({IN_SHOWN_PANE_JS}).map(c => c.dataset.id)")
 
 
@@ -677,7 +677,10 @@ def _witness_image(ext: str) -> bytes:
             draw.rectangle((x1, y1, x2, y2), fill=(235, 235, 235), outline=(30, 60, 160), width=4)
             draw.text((x1 + 20, y1 + 18), 'AB-123-CD', fill=(20, 20, 20))
     buffer = _io.BytesIO()
-    image.save(buffer, format={'.jpg': 'JPEG', '.jpeg': 'JPEG', '.webp': 'WEBP'}.get(ext, 'PNG'))
+    # `.pdf` (2026-11-18) : la même image, en page d'un PDF valide — un document scanné, ce qu'une
+    # page document (anonymizer) reçoit ; avant, un `.pdf` témoin était du texte nommé `.pdf`.
+    image.save(buffer, format={'.jpg': 'JPEG', '.jpeg': 'JPEG', '.webp': 'WEBP',
+                               '.pdf': 'PDF'}.get(ext, 'PNG'))
     return buffer.getvalue()
 
 
@@ -841,7 +844,7 @@ def _witness_markdown(ext: str = '.md') -> bytes:
 #: extension (revérification du 2026-11-06 : `_fichier_temoin` en redisait une liste à lui).
 WITNESS_WRITERS = {
     '.png': _witness_image, '.jpg': _witness_image, '.jpeg': _witness_image,
-    '.webp': _witness_image,
+    '.webp': _witness_image, '.pdf': _witness_image,
     '.wav': lambda ext: _witness_tones(),
     '.abc': lambda ext: _WITNESS_ABC.encode('utf-8'),
     '.md': _witness_markdown,
@@ -1289,7 +1292,7 @@ def check_app_import(app: str, url_path: str):
                 outstanding = lambda: len(emitted) - len(posts) - len(failed)  # noqa: E731
                 _settle_posts(page, outstanding)
                 confirmations = _confirm_proposals(page, sel, outstanding)
-                apres = page.evaluate("document.querySelectorAll('.wama-card').length")
+                apres = page.evaluate("(document.querySelector('.tab-pane[data-domain].active') || document).querySelectorAll('.wama-card').length")
                 dit = _messages_a_l_ecran(page)
                 envoyes = [f"{s} {u.rsplit('/', 2)[-2]}/" for s, u, _c in posts]
             finally:
@@ -1384,13 +1387,13 @@ _ADD_PROBE = """(() => {
     // La card d'entrée qui porte un BOUTON PRIMAIRE (`primary_btn_id` de la card commune,
     // rendu dans `.d-grid`) — en mode attache (imager, avatarizer, composer, apps générées) ou
     // non (synthesizer : le dépôt crée ET le bouton ajoute le texte saisi).
-    for (const card of document.querySelectorAll('[data-wama-depot]')) {
+    for (const card of (document.querySelector('.tab-pane[data-domain].active') || document).querySelectorAll('[data-wama-depot]')) {
         const btn = card.querySelector('.d-grid > button.btn-success');
         if (!btn || !btn.id) continue;
         const prompt = card.querySelector('textarea');
         return {btn_id: btn.id, prompt_id: prompt ? prompt.id : '',
                 depot: card.getAttribute('data-wama-depot'),
-                cards: document.querySelectorAll('.wama-card').length};
+                cards: (document.querySelector('.tab-pane[data-domain].active') || document).querySelectorAll('.wama-card').length};
     }
     return null;
 })()"""
@@ -1566,6 +1569,17 @@ def check_app_send_to(app: str, url_path: str):
     if not exts:
         raise SkipScenario("l'app ne déclare aucune extension d'entrée : elle ne peut pas "
                            "apparaître au menu « Envoyer vers… » — geste non applicable")
+    # La page d'un DOMAINE mesure l'arrivée dans ce domaine : le témoin est un fichier que ce
+    # domaine prend (`accepts`, lu par `domain_nature`) — sinon une image envoyée depuis la page
+    # audio de l'enhancer crée un élément image, et la page audio n'en voit aucun (2026-11-18).
+    from wama.common.services import nightly_tests
+    if nightly_tests.current_page_domain:
+        from wama.common.utils.app_modes import domain_nature
+        domain = nightly_tests.current_page_domain
+        exts = [e for e in exts if domain_nature(app, domain, f"x.{e.lstrip('.')}")]
+        if not exts:
+            raise SkipScenario(f"le domaine `{domain}` ne prend aucune des extensions d'entrée de "
+                               "l'app : rien ne lui arrive par « Envoyer vers… »")
 
     # Deux conditions, pas une : accepter des extensions ne suffit pas, encore faut-il que le
     # gestionnaire de fichiers sache REMPLIR l'app (`filemanager.views.IMPORTERS`). Depuis le
@@ -2259,12 +2273,12 @@ _URL_EN_ETAT = """(() => {
     // ⚠ `title^="Importer depuis l"` viserait AUSSI « Importer depuis la médiathèque ».
     const btn = document.querySelector('button[title$="URL"]');
     const grp = btn ? btn.closest('.input-group') : null;
-    const nic = document.querySelector('[data-wama-nic]');
+    const nic = (document.querySelector('.tab-pane[data-domain].active') || document).querySelector('[data-wama-nic]');
     const inp = grp ? grp.querySelector('input[type=text], input[type=url]')
                     : (nic ? nic.querySelector('input[placeholder*="http"]') : null);
     return {bouton: !!btn, bouton_id: btn ? (btn.id || '') : '',
             champ: !!inp, champ_id: inp ? (inp.id || '') : '',
-            cards: document.querySelectorAll('.wama-card').length};
+            cards: (document.querySelector('.tab-pane[data-domain].active') || document).querySelectorAll('.wama-card').length};
 })()"""
 
 # Motifs rendus par la garde de sortie (`url_guard.UrlRefusee`). On les reconnaît au TEXTE
@@ -2425,7 +2439,7 @@ def check_app_url_import(app: str, url_path: str):
                     # un « navigateur indisponible » parfaitement faux (leçon du 23/08).
                     _deplier_autour(page, f'#{etat["champ_id"]}' if etat['champ_id']
                                     else 'button[title$="URL"]')
-                    avant = page.evaluate("document.querySelectorAll('.wama-card').length")
+                    avant = page.evaluate("(document.querySelector('.tab-pane[data-domain].active') || document).querySelectorAll('.wama-card').length")
                     sel_champ = (f'#{etat["champ_id"]}' if etat['champ_id']
                                  else '.input-group:has(button[title$="URL"]) input[type=text]')
                     sel_bouton = (f'#{etat["bouton_id"]}' if etat['bouton_id']
@@ -2486,7 +2500,7 @@ def check_app_url_import(app: str, url_path: str):
                         page.wait_for_load_state('networkidle', timeout=15000)
                     except Exception:
                         pass
-                    apres = page.evaluate("document.querySelectorAll('.wama-card').length")
+                    apres = page.evaluate("(document.querySelector('.tab-pane[data-domain].active') || document).querySelectorAll('.wama-card').length")
                     try:
                         dits = list(dialogues) + (page.evaluate("window.__wamaToasts || []") or [])
                     except Exception:
@@ -2645,13 +2659,13 @@ def register_url_import_scenarios():
 # scénario par avance — exactement la faute du 27/08, à l'envers.)
 
 _DOSSIER_EN_ETAT = """() => {
-    const inp = document.querySelector('input[type=file][webkitdirectory]');
+    const inp = (document.querySelector('.tab-pane[data-domain].active') || document).querySelector('input[type=file][webkitdirectory]');
     const B = window.WamaFolderImport;
     const brique = !!(B && typeof B.collect === 'function'
                       && typeof B.fromInput === 'function' && typeof B.files === 'function');
     if (!inp) return {input_id: '', brique: brique,
                       total: document.querySelectorAll('input[type=file]').length,
-                      cards: document.querySelectorAll('.wama-card').length};
+                      cards: (document.querySelector('.tab-pane[data-domain].active') || document).querySelectorAll('.wama-card').length};
     // L'`accept` ne vit PAS sur l'input de dossier (`_new_item_card.html:98` ne lui en pose
     // aucun : un dossier se choisit en entier, le filtrage est l'affaire de l'app). On le lit
     // sur son JUMEAU de la même card — sinon le témoin part en `.txt` sur une app audio et
@@ -2664,7 +2678,7 @@ _DOSSIER_EN_ETAT = """() => {
         lien: !!lien,
         lien_cable: !!(lien && (lien.getAttribute('onclick') || '').indexOf(inp.id) >= 0),
         accept: jumeau ? (jumeau.getAttribute('accept') || '') : '',
-        cards: document.querySelectorAll('.wama-card').length,
+        cards: (document.querySelector('.tab-pane[data-domain].active') || document).querySelectorAll('.wama-card').length,
         total: document.querySelectorAll('input[type=file]').length,
     };
 }"""
@@ -2888,7 +2902,7 @@ def check_app_folder_import(app: str, url_path: str):
                         page.wait_for_load_state('networkidle', timeout=15000)
                     except Exception:
                         pass
-                    apres_cards = page.evaluate("document.querySelectorAll('.wama-card').length")
+                    apres_cards = page.evaluate("(document.querySelector('.tab-pane[data-domain].active') || document).querySelectorAll('.wama-card').length")
                     dit = _messages_a_l_ecran(page)
                 finally:
                     navigateur.close()
@@ -2976,7 +2990,7 @@ def register_folder_import_scenarios():
 #: Le port principal d'une card qui JOINT, lu par la brique de la card : celui qui tient plusieurs
 #: fichiers (`multiple`), et les autres, à remplir si le bouton l'exige.
 _ATTACH_PORTS = """(() => {
-    const card = document.querySelector('[data-wama-depot="attache"][data-wama-ports]');
+    const card = (document.querySelector('.tab-pane[data-domain].active') || document).querySelector('[data-wama-depot="attache"][data-wama-ports]');
     if (!card || !window.WamaInputSlots) return null;
     return { card: card.id, ports: WamaInputSlots.filePorts(card).map(p => {
         const input = document.getElementById(p.inputId);
@@ -3223,7 +3237,7 @@ def check_app_duplicate_delete(app: str, url_path: str):
                     # a son propre scénario, ce n'est pas ici qu'on doit le diagnostiquer.
                     exclus = '[id*="atch"], [id*="elody"], [id*="eference"], [id*="voice"], [id*="avatar"]'
                     champ = page.query_selector(
-                        f'[data-wama-nic] input[type=file]:not({exclus})')
+                        f'{_page_scope(page)}[data-wama-nic] input[type=file]:not({exclus})')
                     if not champ:
                         raise SkipScenario(
                             "file vide et aucun champ d'import au contrat de la card commune "
@@ -3917,7 +3931,7 @@ def check_app_settings(app: str, url_path: str):
 # `data-batch-total`, les boutons `data-batch-id`). Première version de `batch_actions` :
 # 14 skips sur 14, l'id étant cherché sur la mère. Défaut d'INSTRUMENT, corrigé avant
 # d'accuser une seule app.
-_LOTS_EN_FILE = """(() => Array.from(document.querySelectorAll('.wama-card.is-batch'))
+_LOTS_EN_FILE = """(() => Array.from((document.querySelector('.tab-pane[data-domain].active') || document).querySelectorAll('.wama-card.is-batch'))
     .map(e => { const b = e.querySelector('[data-batch-id]');
                 return b ? b.getAttribute('data-batch-id') : ''; })
     .filter(Boolean))()"""
@@ -4043,10 +4057,24 @@ def _source_resolvable(app: str, combien: int = 2):
         dossier = get_app_media_path(app, uid, 'input')
         dossier.mkdir(parents=True, exist_ok=True)
         racine = Path(settings.MEDIA_ROOT).resolve()
+        # La page d'un DOMAINE monte un lot de CE domaine : une source d'une nature qu'il prend
+        # (`accepts`), écrite par l'écrivain de témoin de son extension — un `.wav` monté sur la
+        # page document de l'anonymizer partait ailleurs, et la page n'en voyait aucun (2026-11-18).
+        ext, body = '.wav', None
+        from wama.common.services import nightly_tests
+        if nightly_tests.current_page_domain:
+            from wama.common.app_registry import accepts_file, media_extensions
+            from wama.common.utils.app_modes import accepts
+            natures = media_extensions()
+            ext = next((f'.{e}' for nature in accepts(app, nightly_tests.current_page_domain)
+                        for e in natures.get(nature, ())
+                        if f'.{e}' in WITNESS_WRITERS and accepts_file(app, f'x.{e}')), '.wav')
+        if ext != '.wav':
+            body = WITNESS_WRITERS[ext](ext)
         rels, cibles = [], []
         for i in range(1, combien + 1):
-            cible = dossier / f'temoin_lot_nocturne_{i}.wav'
-            cible.write_bytes(_wav_silence())
+            cible = dossier / f'temoin_lot_nocturne_{i}{ext}'
+            cible.write_bytes(body if body is not None else _wav_silence())
             cibles.append(cible)
             rels.append(str(cible.resolve().relative_to(racine)).replace('\\', '/'))
         return rels, cibles
@@ -4253,7 +4281,7 @@ def _monter_un_lot(page, app: str = '', n: int = 2):
         else:
             for t in temoins:
                 champ = page.query_selector(
-                    f'[data-wama-nic] input[type=file]:not({exclus})') or champ
+                    f'{_page_scope(page)}[data-wama-nic] input[type=file]:not({exclus})') or champ
                 champ.set_input_files(str(t))
                 page.wait_for_timeout(4000)
         lots = page.evaluate(_LOTS_EN_FILE)
@@ -4388,7 +4416,7 @@ def check_app_batch_actions(app: str, url_path: str):
     # conclure « app non portée » sur deux apps qui l'étaient — 3ᵉ défaut d'instrument de ce
     # scénario, tous trouvés avant d'avoir accusé une seule app.
     URLS = """(() => {
-        const q = (c, a) => { const b = document.querySelector('.' + c + '[' + a + ']');
+        const q = (c, a) => { const b = (document.querySelector('.tab-pane[data-domain].active') || document).querySelector('.' + c + '[' + a + ']');
                               return b ? b.getAttribute(a) : null; };
         return {del:   q('batch-delete-btn',    'data-batch-delete-url'),
                 dup:   q('batch-duplicate-btn', 'data-batch-duplicate-url'),
@@ -4627,7 +4655,7 @@ def register_batch_actions_scenarios():
 # Aucun test Python ne voit un rechargement ni un lot resté à l'écran : c'est ici qu'ils se mesurent.
 
 _ETAT_DU_LOT_JS = """(args) => { const bid = args[0], restant = args[1];
-    const groupe = document.querySelector('.batch-group[data-batch-id="' + bid + '"]');
+    const groupe = (document.querySelector('.tab-pane[data-domain].active') || document).querySelector('.batch-group[data-batch-id="' + bid + '"]');
     const entree = document.querySelector('.wama-queue-entry[data-entry-batch-id="' + bid + '"]');
     const card = (restant && entree) ? entree.querySelector('.wama-card[data-id="' + restant + '"]') : null;
     const tete = groupe && groupe.querySelector('.batch-group-header');
@@ -4635,7 +4663,7 @@ _ETAT_DU_LOT_JS = """(args) => { const bid = args[0], restant = args[1];
     return {groupe: !!groupe, entree: !!entree, cardDansEntree: !!card,
             fille: !!(card && card.classList.contains('wcv3--batch-child')),
             plus: !!(card && card.querySelector('.wama-cm-plus')),
-            plusAilleurs: document.querySelectorAll('.wama-card[data-id] .wama-cm-plus').length,
+            plusAilleurs: (document.querySelector('.tab-pane[data-domain].active') || document).querySelectorAll('.wama-card[data-id] .wama-cm-plus').length,
             cartes: groupe ? Array.from(groupe.querySelectorAll('.wama-card[data-id]')).map(c => c.dataset.id) : [],
             total: tete ? tete.dataset.batchTotal : null,
             libelle: libelle ? libelle.textContent.trim() : null,
@@ -4808,10 +4836,10 @@ def register_delete_from_batch_scenarios():
 #: « Tout effacer », and the button clicked is the visible one.
 _FILE_EN_ETAT = """(() => {
     const shown = """ + IN_SHOWN_PANE_JS + """;
-    const cartes = Array.from(document.querySelectorAll('[data-id]'))
+    const cartes = Array.from((document.querySelector('.tab-pane[data-domain].active') || document).querySelectorAll('[data-id]'))
         .filter(e => /card/.test(String(e.className || '')) && e.dataset.id && shown(e))
         .map(e => e.dataset.id);
-    const lots = Array.from(document.querySelectorAll('.wama-card.is-batch')).filter(shown)
+    const lots = Array.from((document.querySelector('.tab-pane[data-domain].active') || document).querySelectorAll('.wama-card.is-batch')).filter(shown)
         .map(e => { const b = e.querySelector('[data-batch-id]');
                     return b ? b.getAttribute('data-batch-id') : ''; })
         .filter(Boolean);
@@ -5278,10 +5306,10 @@ def check_app_inspector_actions(app: str, url_path: str):
         }
         let hotes;
         if (portee === 'item') {
-            hotes = Array.from(document.querySelectorAll('[data-id]'))
+            hotes = Array.from((document.querySelector('.tab-pane[data-domain].active') || document).querySelectorAll('[data-id]'))
                 .filter(e => e.dataset.id && !e.closest(IGNORE) && !e.matches(IGNORE));
         } else {
-            hotes = Array.from(document.querySelectorAll('.batch-group[data-batch-id]'))
+            hotes = Array.from((document.querySelector('.tab-pane[data-domain].active') || document).querySelectorAll('.batch-group[data-batch-id]'))
                 .filter(e => e.dataset.batchId);
         }
         // Un clic RÉEL atterrit au CENTRE de l'élément marqué — pas sur l'élément
@@ -5778,7 +5806,7 @@ def check_app_queue_dnd(app: str, url_path: str):
     # filles vivent dans un `.collapse` replié (taille nulle), et la brique les traverse
     # justement — les laisser repliées mesurerait une file plus courte qu'elle n'est.
     PREPARER = """() => {
-        const q = document.querySelector('[data-wama-dnd]');
+        const q = """ + PAGE_ROOT_JS + """.querySelector('[data-wama-dnd]');
         if (!q) return { absent: true };
         q.querySelectorAll('.batch-group .collapse').forEach(c => c.classList.add('show'));
         const cards = Array.from(q.querySelectorAll('.wama-card[data-id]')).filter(c =>
@@ -5984,7 +6012,7 @@ def check_app_queue_dnd(app: str, url_path: str):
                       case.click(timeout=4000)
                   except Exception:
                       if not page.evaluate(
-                              """(id) => { const b = document.querySelector('[data-wama-dnd] .wama-card[data-id="'
+                              """(id) => { const b = (document.querySelector('.tab-pane[data-domain].active') || document).querySelector('[data-wama-dnd] .wama-card[data-id="'
                                      + id + '"]:not(.is-batch) .wama-select-box');
                                      if (!b) return false;
                                      b.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true}));
@@ -5993,7 +6021,7 @@ def check_app_queue_dnd(app: str, url_path: str):
                                          "ne l'a pas posée (bandeau d'identité absent ?)")
                   page.wait_for_timeout(200)
               cochees = page.evaluate(
-                  "() => document.querySelectorAll('[data-wama-dnd] .wama-select-box[aria-checked=\"true\"]').length")
+                  "() => (document.querySelector('.tab-pane[data-domain].active') || document).querySelectorAll('[data-wama-dnd] .wama-select-box[aria-checked=\"true\"]').length")
               if page.evaluate(SELECTION) != 2 or cochees != 2:
                   return False, (f"cocher deux cases : {page.evaluate(SELECTION)} sélectionnée(s), {cochees} "
                                  "case(s) cochée(s) au lieu de 2 — la case doit AJOUTER à la sélection")
@@ -6014,8 +6042,8 @@ def check_app_queue_dnd(app: str, url_path: str):
               page.wait_for_timeout(200)
               seuils = page.evaluate(
                   """(paire) => {
-                      const q = document.querySelector('[data-wama-dnd]');
-                      const par = (id) => document.querySelector(
+                      const q = """ + PAGE_ROOT_JS + """.querySelector('[data-wama-dnd]');
+                      const par = (id) => """ + PAGE_ROOT_JS + """.querySelector(
                           '[data-wama-dnd] .wama-card[data-id="' + id + '"]:not(.is-batch)');
                       const src = par(paire[0]);
                       const dst = par(paire[1]);
@@ -6113,7 +6141,7 @@ def register_queue_dnd_scenarios():
 
 
 _ENTREES_VISIBLES = """(() => {
-    const q = document.querySelector('[data-wama-dnd]');
+    const q = """ + PAGE_ROOT_JS + """.querySelector('[data-wama-dnd]');
     if (!q) return null;
     const vis = e => !e.classList.contains('wama-f-hors-filtre');
     // ⚠ DÉFINITION D'ENTRÉE REPRISE DE LA BRIQUE (`wama-queue-dnd.js:entries()`), pas
@@ -6139,7 +6167,9 @@ _ENTREES_VISIBLES = """(() => {
 #: Idem pour la SECONDE file d'une page (imager image/vidéo, enhancer média/audio) — c'est elle
 #: qui atteste la PORTÉE de la recherche.
 _ENTREES_SECONDE_FILE = """(() => {
-    const q = document.querySelectorAll('[data-wama-dnd]')[1];
+    const root = """ + PAGE_ROOT_JS + """;
+    const toutes = Array.from(document.querySelectorAll('[data-wama-dnd]'));  /* every pane */
+    const q = root === document ? toutes[1] : toutes.find(x => !root.contains(x));
     if (!q) return null;
     const e = Array.from(q.children).filter(x => x.classList.contains('batch-group')
         || x.classList.contains('wama-queue-entry')
@@ -6151,7 +6181,7 @@ _ENTREES_SECONDE_FILE = """(() => {
 
 #: État de file pour le geste de dégroupage : entrées de niveau supérieur, lots, filles.
 _ETAT_DE_FILE = """(() => {
-    const q = document.querySelector('[data-wama-dnd]');
+    const q = """ + PAGE_ROOT_JS + """.querySelector('[data-wama-dnd]');
     // ⚠ On DIT l'absence de file au lieu de rendre `null` : un appelant qui lit `null` comme
     // « 0 entrée » transforme un défaut d'INSTRUMENT en défaut de CODE. Mesuré le 2026-09-09,
     // premier passage de ce scénario : il a rapporté « 1 → 0 entrée, le geste n'a rien fait »
@@ -6729,7 +6759,7 @@ def check_app_processing(app: str, url_path: str):
         raise SkipScenario("aucun compte de test disponible pour ouvrir une session")
 
     CARTE = """(id) => {
-        const c = document.querySelector('.wama-card[data-id="' + id + '"]:not(.is-batch)');
+        const c = (document.querySelector('.tab-pane[data-domain].active') || document).querySelector('.wama-card[data-id="' + id + '"]:not(.is-batch)');
         if (!c) return null;
         const barre = c.querySelector('.wama-progress-fill, .progress-bar');
         return {
@@ -7054,7 +7084,7 @@ def check_app_batch_processing(app: str, url_path: str):
     # État agrégé du lot, lu sur la card mère (contrat `_batch_card.html`).
     #
     # ⚠⚠ ON VISE LE LOT DE *NOS* IDS, jamais « le premier de la page ». La v1 lisait
-    # `document.querySelector('.wama-card.is-batch')` : elle mesurait donc n'importe quel lot
+    # `(document.querySelector('.tab-pane[data-domain].active') || document).querySelector('.wama-card.is-batch')` : elle mesurait donc n'importe quel lot
     # préexistant du compte. Mesuré le 2026-09-07 — le verdict annonçait « 2 éléments en ÉCHEC,
     # la chaîne de production est cassée » pendant que le journal du worker écrivait « Image
     # convertie ✓ Terminé » pour les deux. *Un scénario qui accuse l'app d'un défaut qui est le
@@ -7063,7 +7093,7 @@ def check_app_batch_processing(app: str, url_path: str):
         // On remonte de NOS cards vers leur groupe de lot ; la card mère en est la première.
         let groupe = null;
         for (const id of ids) {
-            const c = document.querySelector('.wama-card[data-id="' + id + '"]');
+            const c = (document.querySelector('.tab-pane[data-domain].active') || document).querySelector('.wama-card[data-id="' + id + '"]');
             if (c && c.closest('.batch-group')) { groupe = c.closest('.batch-group'); break; }
         }
         if (!groupe) return null;
@@ -7207,7 +7237,7 @@ def check_app_batch_processing(app: str, url_path: str):
                     """(ids) => {
                         const out = [];
                         for (const id of ids) {
-                            const c = document.querySelector('.wama-card[data-id="' + id + '"]');
+                            const c = (document.querySelector('.tab-pane[data-domain].active') || document).querySelector('.wama-card[data-id="' + id + '"]');
                             if (!c || (c.dataset.status || '') !== 'FAILURE') continue;
                             const e = c.querySelector('.text-danger, .error-message, [class*="error"]');
                             out.push('#' + id + ' : '
@@ -7322,7 +7352,7 @@ def check_app_worker_death(app: str, url_path: str):
         raise SkipScenario("aucun compte de test disponible (wama_nightly_test / wama_ui_smoke_v3)")
 
     card_state = """(id) => {
-        const c = document.querySelector('.wama-card[data-id="' + id + '"]:not(.is-batch)');
+        const c = (document.querySelector('.tab-pane[data-domain].active') || document).querySelector('.wama-card[data-id="' + id + '"]:not(.is-batch)');
         return c ? (c.dataset.status || '') : null;
     }"""
     detail = ''
@@ -7361,7 +7391,7 @@ def check_app_worker_death(app: str, url_path: str):
                 return False, f"la brique n'a pas soldé l'élément #{ident} ({settled})"
             try:
                 page.wait_for_function(
-                    "(id) => { const c = document.querySelector('.wama-card[data-id=\"' + id + "
+                    "(id) => { const c = (document.querySelector('.tab-pane[data-domain].active') || document).querySelector('.wama-card[data-id=\"' + id + "
                     "'\"]:not(.is-batch)'); return c && c.dataset.status === 'FAILURE'; }",
                     arg=ident, timeout=25000)
             except PlaywrightTimeout:

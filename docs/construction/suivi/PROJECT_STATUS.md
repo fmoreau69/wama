@@ -31986,3 +31986,20 @@ imprévisible). Remède aligné : ouvrir la page sur le domaine mesuré par l'ad
 **`enhancer_01`** : tâches régénérées — la forme réelle (un pipeline `generate` → `output` par
 élément), corps en trous de glu marqués (marche B) ; `processing` y échoue donc pour la glu à
 écrire, plus sur un champ supposé.
+
+## §PALIER 2026-11-18, « DOMAINES : les gestes nocturnes balaient CHAQUE domaine ; la glu commune « Sortie » générée ; la grille rattrape ses quick wins » — commits locaux, non poussés — 🔴 relancer gunicorn + workers (outils de l'assistant, vues et tâches des jumelles régénérées) — 🔚 nœud du Studio par domaine (session fraîche) ; écarts restants nommés ci-dessous
+
+**Livré** (`7fd1f0ac0`, `8e828eedf`, `2d1afbcfc` + le commit des instruments) :
+- **grille** : avatarizer, converter, imager et `imager_01` à 100 %. Le trou du critère `tool_routes` (ajouté le 16/11) : quatre routes d'options de réglages sans outil — deux outils de LECTURE (`get_converter_presets`, `get_image_resolutions`) qui appellent la vue de la page, la galerie d'avatars par `list_media_assets` ; budget des routes sans outil 148 → 144 ;
+- **générateur** : le process COMMUN « Sortie » est RENDU (plus un trou) quand ses arguments sont au manifeste — champ du rendu, nature du média de l'élément (constante si un domaine, sinon sa colonne), app qui exécute (`tasks_gen._common_glue_call`) ; l'enhancer (deux éléments) et l'anonymizer en profitent ;
+- **gestes nocturnes par domaine** (Fabien : « on balaye les apps, on balaye les domaines ») : une page par domaine ouverte par l'adresse (`ui_smoke.discoverable_pages`, `?domain=`, le premier garde l'id historique, les autres `<app>.<domaine>.<geste>`) ; le lanceur lit le domaine (`nightly_tests.scenario_domain`) ; les instruments mesurent l'ÉLÉMENT de ce domaine (`_element_model`), dans le VOLET montré (`_page_scope`, `PAGE_ROOT_JS` : 40 relevés de cards, lots, file, card d'entrée, champ de dossier), avec un témoin de SA nature (`accepts` : envoi vers l'app, lot par gabarit) ; un écrivain de témoin `.pdf` (l'image témoin en page PDF). **Faux vert trouvé** : la page audio de l'enhancer comptait des éléments image.
+
+**Mesuré** : pages des seconds domaines 34/66 → 44/66 puis lot, recherche et sortie de lot de la page document verts au rejeu ciblé ; deux résidus du compte de test laissés par l'ancien envoi mal mesuré retirés (`enhancer` #2766, `enhancer_01` #180).
+
+**Gardes** : `tests_domain_page.TheNightlyGesturesSweepEveryDomainTest` (une page par domaine, un scénario par page, le domaine lu par le lanceur et l'élément mesuré, AUCUN relevé de page entière dans les instruments) ; `tests_codegen_templates` (glu de sortie, parc + cas synthétique) ; contre-épreuves rouges.
+
+**Écarts restants, nommés** :
+- `<app>.inspector_actions` rouge sur TOUTES les pages depuis le 18/11 midi, describer compris (un seul domaine : mes changements n'y font rien) — « volet Actions VIDE » ; suspects : l'aperçu de card commun (`a62020dd8`) ou l'édition non commitée de `wama-inspector.js` d'une autre session ; à départager par son auteur ;
+- `enhancer.delete_from_batch` (« la page s'est RECHARGÉE ») et des `Page.goto` à 45 s sous charge ;
+- `url_import` des seconds domaines (`ElementHandle.click` à 30 s) ; `panel_reflect` de la page document (le ⚙ ne porte pas le champ généré du volet) ;
+- jumelles : `processing`/`batch_processing`/`tree_drop` rouges pour `anonymizer_01` et `enhancer_01` au balayage d'AVANT relance (vues et tâches régénérées non servies) — à rejouer après la relance ; `transcriber_01` views : trou déjà consigné (31197).

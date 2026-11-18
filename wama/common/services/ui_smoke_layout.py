@@ -260,7 +260,7 @@ JS_STUDIO_BACKGROUND = """(gap) => {
 #: titre. En portrait une card de la file fait ~440 px : on amène la première en haut, et c'est le
 #: MILIEU de chacune qui doit être visible — c'est là que se fait le dépôt « sur » (fusion).
 JS_TWO_CARDS = """() => {
-    const all = [...document.querySelectorAll('[data-wama-dnd] .wama-card[data-id]:not(.is-batch)')]
+    const all = [...(document.querySelector('.tab-pane[data-domain].active') || document).querySelectorAll('[data-wama-dnd] .wama-card[data-id]:not(.is-batch)')]
         .filter(c => c.offsetParent !== null && c.getBoundingClientRect().height > 30);
     if (all.length < 2) return null;
     all[0].scrollIntoView({block: 'start'});
@@ -304,7 +304,7 @@ JS_GESTURE_STATE = """() => ({
 })"""
 
 #: Les cards de la file : leur case (visibilité, cochée, taille), leur sélection, leur survol.
-JS_CARDS_STATE = """() => [...document.querySelectorAll('[data-wama-dnd] .wama-card[data-id]:not(.is-batch)')]
+JS_CARDS_STATE = """() => [...(document.querySelector('.tab-pane[data-domain].active') || document).querySelectorAll('[data-wama-dnd] .wama-card[data-id]:not(.is-batch)')]
     .filter(c => c.offsetParent !== null).map(c => { const b = c.querySelector('.wama-select-box'), s = getComputedStyle(c);
         return {id: c.dataset.id, box: b ? getComputedStyle(b).opacity : null, checked: b && b.getAttribute('aria-checked'),
                 w: b ? Math.round(b.getBoundingClientRect().width) : 0, sel: c.classList.contains('wama-dnd-selected'),
@@ -312,7 +312,7 @@ JS_CARDS_STATE = """() => [...document.querySelectorAll('[data-wama-dnd] .wama-c
 
 #: Le défilement de la LISTE des cards : son premier ancêtre qui défile (dans WAMA, le conteneur
 #: de la page — la page elle-même ne défile pas).
-JS_LIST_SCROLL = """() => { const c = document.querySelector('[data-wama-dnd] .wama-card[data-id]');
+JS_LIST_SCROLL = """() => { const c = (document.querySelector('.tab-pane[data-domain].active') || document).querySelector('[data-wama-dnd] .wama-card[data-id]');
     for (let e = c; e; e = e.parentElement) { const o = getComputedStyle(e).overflowY;
         if ((o === 'auto' || o === 'scroll') && e.scrollHeight > e.clientHeight + 1) return Math.round(e.scrollTop); }
     return Math.round(scrollY); }"""
@@ -1097,7 +1097,7 @@ def check_mouse_gestures(paths: dict):
 
 #: La mesure d'un process dans la bande de SA card : le badge, le bouton « Relancer avec ».
 _PROC_CHECK_JS = """([pk, process]) => {
-    const card = document.querySelector('.wama-card[data-id="' + pk + '"]');
+    const card = (document.querySelector('.tab-pane[data-domain].active') || document).querySelector('.wama-card[data-id="' + pk + '"]');
     const row = card && card.querySelector('.wcv3-proc[data-process="' + process + '"]');
     const shown = el => !!(el && el.offsetParent !== null);
     const badge = row && row.querySelector('.wcv3-proc-check');
@@ -1596,7 +1596,7 @@ def check_keyboard_owners(path: str, page_hook=None):
 
 #: La rangée d'actions d'une card mère : un seul bouton de sortie, rien hors de la card.
 _LOT_ROW_JS = """pk => {
-    const card = document.querySelector('.batch-delete-btn[data-batch-id="' + pk + '"]').closest('.wama-card');
+    const card = (document.querySelector('.tab-pane[data-domain].active') || document).querySelector('.batch-delete-btn[data-batch-id="' + pk + '"]').closest('.wama-card');
     const row = card.querySelector('.btn-group-actions');
     const shown = [...row.querySelectorAll('a.btn, button.btn')].filter(e => e.getClientRects().length);
     const edge = card.getBoundingClientRect().right;
@@ -1604,7 +1604,7 @@ _LOT_ROW_JS = """pk => {
             inside: shown.every(b => b.getBoundingClientRect().right <= edge + 1)}; }"""
 #: Chaque ligne du menu ouvert est-elle bien ce qu'on voit à sa place ? Et combien de fichiers uniques ?
 _LOT_MENU_JS = """pk => {
-    const card = document.querySelector('.batch-delete-btn[data-batch-id="' + pk + '"]').closest('.wama-card');
+    const card = (document.querySelector('.tab-pane[data-domain].active') || document).querySelector('.batch-delete-btn[data-batch-id="' + pk + '"]').closest('.wama-card');
     const menu = card.querySelector('[data-batch-zip] .dropdown-menu.show');
     if (!menu) return {open: false, covered: [], joined: 0};
     const lines = [...menu.querySelectorAll('.dropdown-item')].filter(e => e.getClientRects().length);
@@ -1615,7 +1615,7 @@ _LOT_MENU_JS = """pk => {
             joined: lines.filter(e => e.closest('[data-batch-combined]')).length}; }"""
 #: La card mère compte-t-elle toutes ses cards terminées ?
 _LOT_ALL_DONE_JS = """pk => {
-    const header = document.querySelector('.batch-delete-btn[data-batch-id="' + pk + '"]').closest('.batch-group-header');
+    const header = (document.querySelector('.tab-pane[data-domain].active') || document).querySelector('.batch-delete-btn[data-batch-id="' + pk + '"]').closest('.batch-group-header');
     return header.dataset.batchSuccess === header.dataset.batchTotal; }"""
 
 

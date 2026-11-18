@@ -36,7 +36,7 @@ COULEURS = {
 
 #: Pose un état sur la PREMIÈRE card et rend la couleur de bord RÉELLEMENT calculée.
 JS_COULEUR = """(etat) => {
-    const c = document.querySelector('.wama-card[data-id]');
+    const c = (document.querySelector('.tab-pane[data-domain].active') || document).querySelector('.wama-card[data-id]');
     if (!c) return null;
     c.setAttribute('data-status', etat);
     return getComputedStyle(c).borderLeftColor;
@@ -46,7 +46,7 @@ JS_COULEUR = """(etat) => {
 #: une règle de classe a survécu quelque part (feuille d'app comprise) et la duplication vit
 #: encore. On rend aussi la couleur « neutre » de référence (aucun état).
 JS_CLASSE_MORTE = """() => {
-    const c = document.querySelector('.wama-card[data-id]');
+    const c = (document.querySelector('.tab-pane[data-domain].active') || document).querySelector('.wama-card[data-id]');
     if (!c) return null;
     c.setAttribute('data-status', '');
     const neutre = getComputedStyle(c).borderLeftColor;

@@ -226,6 +226,29 @@ class TheNightlyGesturesSweepEveryDomainTest(SimpleTestCase):
         self.assertTrue(nightly_tests.run_one(sc, {}).ok)
         self.assertEqual('', nightly_tests.current_page_domain)
 
+    def test_the_instruments_read_cards_in_the_shown_pane(self):
+        """A page with several domains carries every domain's pane, the hidden ones included: an
+        instrument that reads cards, batches, the entry card or the queue from the whole document
+        measures a pane the page does not show (2026-11-18 : the audio page of the enhancer saw the
+        image batches, mounted nothing and found no visible ⧉). Each such read goes through the
+        shown pane (`ui_smoke.PAGE_ROOT_JS`, `_page_scope`)."""
+        from wama.common.services import ui_smoke
+        whole_page = re.compile(
+            r"document\.querySelector(?:All)?\(['\"](?:\.wama-card(?!-menu)|\[data-id\]|"
+            r"\.batch-group\[data-batch-id|\[data-wama-dnd\]|\[data-wama-nic\]|\[data-wama-depot|"
+            r"input\[type=file\]\[webkitdirectory\])"
+            # The same read from Python : the entry card's field, unscoped (inline or on its line).
+            r"|(?:query_selector\(|^\s*)f?['\"]\[data-wama-nic\] input")
+        root = Path(ui_smoke.__file__).parent
+        found = []
+        for path in sorted(root.glob('ui_smoke*.py')):
+            for n, line in enumerate(path.read_text(encoding='utf-8').splitlines(), 1):
+                # A read that WANTS every pane says so (the second queue of `queue_search`).
+                if whole_page.search(line) and '/* every pane */' not in line:
+                    found.append(f'{path.name}:{n}')
+        self.assertEqual([], found)
+        self.assertIn(".tab-pane[data-domain].active", ui_smoke.PAGE_ROOT_JS)
+
     def test_the_page_of_a_domain_is_the_page_asked_for(self):
         """The arrival check compares the PATH: the page of a domain is asked with its query."""
         from wama.common.services.ui_smoke import _verdict_d_arrivee

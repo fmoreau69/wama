@@ -50,7 +50,7 @@ JS_PANEL = """() => {
 JS_SELECT = """(names) => {
     document.querySelectorAll('.batch-group .collapse').forEach(c => c.classList.add('show'));
     const visible = e => { const r = e.getBoundingClientRect(); return r.width > 4 && r.height > 4; };
-    const card = Array.from(document.querySelectorAll('.wama-card[data-id]:not(.is-batch)'))
+    const card = Array.from((document.querySelector('.tab-pane[data-domain].active') || document).querySelectorAll('.wama-card[data-id]:not(.is-batch)'))
                       .find(visible);
     if (!card) return null;
     const gear = window.WamaInspector && window.WamaInspector.gearValues
