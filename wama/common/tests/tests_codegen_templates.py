@@ -1152,6 +1152,50 @@ class GeneratedPageByDomainTest(SimpleTestCase):
                 self.assertIn((manifest.get('key'), body['processing']['item_model']), skeleton)
         self.assertGreater(seen, 0, 'no domain of the park has an element of its own')
 
+    def test_the_output_process_is_rendered_with_the_nature_of_each_element(self):
+        """The COMMON « Sortie » process (`pipeline_decl.COMMON_PROCESSES`) is rendered, not left as
+        a hole, when its arguments are in the manifest (2026-11-17): the element's result field, the
+        nature of ITS domains — a constant when they accept one, else its declared nature column —
+        and the app that runs it. Park-wide: every element of an app whose pipeline has the step."""
+        from wama.common.manifests.codegen import tasks_gen, views_gen
+        from wama.common.manifests.codegen.pipeline_decl import declared_pipeline, process_specs
+        seen = 0
+        for app, manifest in sorted(_park_manifests().items()):
+            pipeline, _ = declared_pipeline(manifest.get('key') or '')
+            steps = [s['key'] for s in process_specs(pipeline)] if pipeline else []
+            if 'output' not in steps:
+                continue
+            tasks, _ = tasks_gen.render_tasks(manifest)
+            for _surface, _prefix, body in views_gen.element_bodies(manifest['body'], manifest['key']):
+                out_file = views_gen._donnees({'key': '', 'body': body}).get('out_file')
+                natures = list(dict.fromkeys(
+                    t for d in (body.get('modes') or {}).get('domains') or []
+                    if not d.get('route_prefix') for t in d.get('accepts') or []))
+                for task in (t['function'] for t in body['processing'].get('tasks') or []
+                             if t.get('lifecycle')):
+                    marker = f'def _process_{task}_output(item, ctx):'
+                    if marker not in tasks:      # pipeline non rendu par élément (l'imager)
+                        continue
+                    glue = tasks.split(marker, 1)[-1].split('\ndef ')[0]
+                    with self.subTest(app=app, task=task):
+                        if not out_file or not natures:
+                            self.assertIn('NotImplementedError', glue)
+                            continue
+                        expected = (repr(natures[0]) if len(natures) == 1
+                                    else f"(lambda item: getattr(item, ")
+                        self.assertIn(f"return output_step({out_file!r}, domain={expected}", glue)
+                        self.assertIn('app_id=ctx.app_id)(item, ctx)', glue)
+                        seen += 1
+        self.assertGreater(seen, 1, 'no element of the park renders its output glue')
+        # The nature is that of the element's OWN domains: a domain with routes of its own belongs
+        # to another element, and must not turn a one-nature element into a nature read per item.
+        from wama.common.manifests.codegen.pipeline_decl import COMMON_PROCESSES
+        body = {'modes': {'domains': [{'id': 'main', 'accepts': ['image']},
+                                      {'id': 'other', 'accepts': ['audio'], 'route_prefix': 'x'}]},
+                'processing': {}, 'data': {'models': []}}
+        call = tasks_gen._common_glue_call(COMMON_PROCESSES['output'], {}, {'outputs': ['out']}, body)
+        self.assertEqual("output_step('out', domain='image', app_id=ctx.app_id)", call[2])
+
     def test_the_script_of_every_generated_page_parses(self):
         """Django tags neutralised, the page script is PARSED by V8 (never run): one scope per
         domain, so the same names live once in each."""

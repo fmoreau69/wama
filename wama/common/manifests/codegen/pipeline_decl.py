@@ -48,6 +48,10 @@ COMMON_PROCESSES = {
         'glue': 'output_process.output_step(<champ du rendu>, domain=…, app_id=ctx.app_id)(item, ctx)',
         'does': "réglages de sortie (format, qualité, agrandissement) appliqués à l'original que "
                 "l'amont a écrit",
+        # Glu RENDUE (2026-11-17) : le champ du rendu est la sortie déclarée du process, la nature
+        # du média celle de l'élément (`tasks_gen._common_glue_call`), l'app celle qui EXÉCUTE.
+        'renders': ('wama.common.services.output_process', 'output_step',
+                    ('output', 'domain=nature', 'app_id=ctx.app_id')),
     },
     OCR_KEY: {
         'label': OCR_LABEL,

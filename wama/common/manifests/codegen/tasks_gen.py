@@ -359,7 +359,7 @@ def declared_glue_holes(manifest: dict, steps: list, mark: str, emitted: set,
     return lines
 
 
-def _common_glue_call(common: dict, proc: dict, spec: dict):
+def _common_glue_call(common: dict, proc: dict, spec: dict, body: dict = None):
     """`(module, fabrique, appel)` de la glu d'un process COMMUN que le générateur sait RENDRE
     (`COMMON_PROCESSES[…]['renders']`) : chaque argument nommé est lu au manifeste —
     `input_field` (le champ d'entrée de l'élément), `output` (la sortie déclarée du process).
@@ -370,10 +370,37 @@ def _common_glue_call(common: dict, proc: dict, spec: dict):
     module, factory, names = declared
     known = {'input_field': ((proc.get('model_spec') or {}).get('item') or {}).get('input_field'),
              'output': (spec.get('outputs') or [None])[0]}
-    values = [known.get(name) for name in names]
-    if not all(values):
-        return None
-    return module, factory, f"{factory}({', '.join(repr(v) for v in values)})"
+    if not known['output'] and body:
+        # Un process qui transforme le rendu de son amont (la Sortie) n'en déclare pas : le champ
+        # est le RÉSULTAT déclaré de l'élément — la règle du générateur de vues (`_donnees`).
+        from .views_gen import _donnees
+        known['output'] = _donnees({'key': '', 'body': body}).get('out_file') or None
+    # Un argument NOMMÉ (`domain=nature`) prend une EXPRESSION : `nature` est la nature du média de
+    # l'élément — celle que ses domaines acceptent quand il n'y en a qu'une (l'audio de l'enhancer),
+    # sinon sa colonne de nature déclarée (2026-11-17, la glu de sortie de l'enhancer réel) ;
+    # `ctx.…` est une expression du squelette, écrite telle quelle.
+    # Les natures des domaines de CET élément (ceux à routes propres sont à d'autres éléments),
+    # dans l'ordre de leur déclaration : la première est le repli d'un élément sans nature posée.
+    natures = list(dict.fromkeys(
+        t for d in ((body or {}).get('modes') or {}).get('domains') or [] if not d.get('route_prefix')
+        for t in d.get('accepts') or []))
+    nature_field = proc.get('backend_nature_field') or 'media_type'
+    expressions = {'nature': (repr(natures[0]) if len(natures) == 1 else
+                              f"(lambda item: getattr(item, {nature_field!r}, '') or {natures[0]!r})"
+                              if natures else None)}
+    args = []
+    for name in names:
+        keyword, _, source = name.partition('=')
+        if source:
+            value = source if source.startswith('ctx.') else expressions.get(source)
+            if not value:
+                return None
+            args.append(f'{keyword}={value}')
+        elif known.get(name):
+            args.append(repr(known[name]))
+        else:
+            return None
+    return module, factory, f"{factory}({', '.join(args)})"
 
 
 def render_tasks(manifest: dict) -> tuple:
@@ -483,7 +510,8 @@ def render_tasks(manifest: dict) -> tuple:
                 outputs = ', '.join(s['outputs']) or '(aucune déclarée)'
                 ups = ', '.join(s['depends_on']) or 'aucun'
                 common = COMMON_PROCESSES.get(s['key'])
-                rendered = _common_glue_call(common, proc, s) if common else None
+                rendered = (_common_glue_call(common, proc, s, manifest_element.get('body'))
+                            if common else None)
                 if rendered:
                     # Process COMMUN dont la brique ne demande que des noms du manifeste : sa glu est
                     # RENDUE ici, pas laissée au rôle `codegen` (`COMMON_PROCESSES[…]['renders']`).

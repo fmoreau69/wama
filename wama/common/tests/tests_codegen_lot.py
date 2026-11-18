@@ -296,7 +296,10 @@ class CheminDeLotTest(SimpleTestCase):
         self.assertIn('effective_settings', src, 'la tâche lit les colonnes (§23.2quater)')
         # The output PLACE and NAME come from the skeleton's brick, like the source's glue
         # (`ctx.output_place`, 2026-10-22 ; the common naming brick alone since 2026-10-07).
-        self.assertIn('ctx.output_place(fmt, source_name=item.input_filename)', body)
+        # The source's NAME is read by the views' rule (`views_gen._donnees`, 2026-11-17) : the
+        # declared name column here (the converter has `input_filename`).
+        self.assertIn('source_name = item.input_filename', body)
+        self.assertIn('ctx.output_place(fmt, source_name=source_name)', body)
         self.assertNotIn('compose_output_name', body, 'a place composed by hand')
         self.assertNotIn('.stem}_{item.id}', src, 'a second, hand-made naming format')
 
