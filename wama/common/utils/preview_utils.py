@@ -758,7 +758,14 @@ def _score_face(app_name, instance, side, data, input_data, output_data):
         pipeline = pipeline_of(instance)
         spec = pipeline.spec(side) if pipeline is not None else None
         if spec is not None:
-            follows = 'output' if spec.depends_on else 'input'
+            # La face suit l'audio que son process LIT VRAIMENT (2026-11-18) : la sortie quand il
+            # lit celle du rendu, l'entrée sinon — la partition réduite d'un cover tirée de la
+            # refusion aussi, qui tient le temps de l'entrée à l'échantillon. La règle d'avant
+            # (« un amont : la sortie ») prenait pour tirée de la sortie toute partition dotée d'un
+            # amont, même quand cet amont (la refusion) n'a pas lieu.
+            read = pipeline.upstream_output(instance, spec.key, 'audio')
+            heard = (output_data or {}).get('url') or ''
+            follows = 'output' if read and os.path.basename(read) in heard else 'input'
     elif side == 'output':
         follows = 'input'
     if follows not in [a['key'] for a in audios]:

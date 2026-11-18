@@ -204,6 +204,16 @@ class ProcessFacesTest(_MediaRootMixin, TestCase):
         self.assertEqual([('input', INPUT_FACE), ('output', 'Sortie')],
                          [(a['key'], a['label']) for a in reduced['audios']])
         self.assertEqual('input', reduced['follows'], 'taken from the input : the cover')
+        # 2026-11-18 : the face follows the audio its process READS — taken from the REMIX
+        # (`cover_from_remix`), the reduced score keeps the input's time, never the output's.
+        gen.cover_from_remix = gen.remix_stems = gen.separate_stems = True
+        gen.stems_index = self._file('composer/output/stems.json', b'{"stems": []}')
+        gen.remix_audio = self._file('composer/output/remix.wav')
+        from wama.composer.function_specs import PIPELINE
+        self.assertTrue(PIPELINE.upstream_output(gen, 'extract_score', 'audio').endswith('remix.wav'))
+        remixed = _score_face('composer', gen, 'extract_score', faces['extract_score'][1], inp, out)['score']
+        self.assertEqual('input', remixed['follows'], 'the remix keeps the time of the input')
+        gen.cover_from_remix = gen.remix_stems = gen.separate_stems = False
         self.assertEqual(f'/common/surface/composer/score/{gen.pk}/', reduced['edit_url'])
         full = _score_face('composer', gen, 'parts', faces['parts'][1], inp, out)['score']
         self.assertTrue(full['edit_url'].endswith('?field=parts_score'), 'opened on that score')

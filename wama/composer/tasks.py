@@ -312,11 +312,33 @@ def _extract_score(gen, ctx):
     sélecteur commun. Son backend est propre à ce process et DÉCHARGÉ aussitôt — la carte
     graphique revient entière au rendu (YuE2), qui suit. La ligne d'exécution porte ce modèle
     (`models`)."""
-    from django.conf import settings
     if not gen.melody_reference:
         raise RuntimeError("Aucun audio à reprendre : le fichier du cover est absent.")
-    return _reduced_score(gen, ctx, os.path.join(settings.MEDIA_ROOT, gen.melody_reference.name),
+    # L'audio que le cover reprend (2026-11-18) : la refusion quand `cover_from_remix` est coché.
+    return _reduced_score(gen, ctx, cover_audio(gen, 'extract_score'),
                           field='extracted_score', nature='score', label='Partition réduite')
+
+
+def cover_audio(gen, process: str, model_key=None):
+    """Le chemin ABSOLU de l'audio que le process `process` reprend (2026-11-18, décision de
+    Fabien : « le cover peut se faire à partir de l'audio d'entrée ou de la refusion ») : la sortie
+    audio de l'amont qu'il LIT — la refusion quand `cover_from_remix` est coché, par la lecture
+    COMMUNE (`AppPipeline.upstream_output`, qui suit l'interrupteur `upstream_switch`) —, sinon
+    l'entrée de la card ; None sans entrée. Un amont aiguillé qui a lieu pour la card sans avoir
+    rendu son fichier est DIT : jamais l'entrée de la card à sa place, en silence."""
+    from django.conf import settings
+    from .function_specs import PIPELINE
+    found = PIPELINE.upstream_output(gen, process, 'audio', model_key)
+    if found:
+        return os.path.join(settings.MEDIA_ROOT, found)
+    spec = PIPELINE.spec(process)
+    if (spec.upstream_switch and getattr(gen, spec.upstream_switch, False)
+            and any(PIPELINE.takes_place(PIPELINE.spec(key), gen, model_key)
+                    for key in PIPELINE.switch_upstreams(spec))):
+        raise RuntimeError("Le cover reprend la refusion, mais elle n'a pas été rendue : lancer "
+                           "« Pistes séparées » puis « Refusion des pistes ».")
+    return (os.path.join(settings.MEDIA_ROOT, gen.melody_reference.name)
+            if gen.melody_reference else None)
 
 
 def _rendered_score(gen, ctx):
@@ -450,10 +472,11 @@ def _separate(gen, ctx):
 
     # Une piste est une COPIE de la card (la remise à zéro du ⧉, sa ligne nommée d'après elle —
     # `derived_cards` les lit à la déclaration de lot de l'app), sans ce que la source avait de
-    # propre au mélange : elle ne se sépare pas à son tour, et son audio est un fichier (pas
-    # l'adresse d'où venait le mélange).
+    # propre au mélange : elle ne se sépare pas à son tour, son cover ne reprend pas une refusion
+    # qu'elle n'a pas (2026-11-18), et son audio est un fichier (pas l'adresse d'où venait le mélange).
     cards = derive_cards(gen, parts, field='melody_reference',
-                         reset_fields={'separate_stems': False, 'source_url': ''})
+                         reset_fields={'separate_stems': False, 'cover_from_remix': False,
+                                       'source_url': ''})
     index = {'model': separator_key,
              'stems': [{'stem': stem, 'label': stem_label(stem), 'path': rel, 'card': card.pk}
                        for (stem, rel), card in zip(parts, cards)]}
@@ -951,9 +974,10 @@ def _render(gen, ctx):
 
     # L'audio du cover n'est donné qu'au modèle qui le prend LUI-MÊME (MusicGen Melody) : un modèle
     # qui le reprend par sa partition (YuE2) le refuserait — il reçoit la partition extraite.
+    # L'audio que le cover reprend (2026-11-18) : la refusion quand `cover_from_remix` est coché,
+    # sinon l'entrée de la card — la lecture COMMUNE d'un amont (`cover_audio`).
     from .utils.model_choice import consumes_melody
-    melody_abs = (os.path.join(settings.MEDIA_ROOT, gen.melody_reference.name)
-                  if gen.melody_reference and consumes_melody(catalog_key) else None)
+    melody_abs = cover_audio(gen, 'render', catalog_key) if consumes_melody(catalog_key) else None
     # Partition à suivre : celle que l'utilisateur FOURNIT (port `reference_score`, 2026-10-01)
     # prime ; sinon celle que le process `plan` a écrite (`planned_score` — à ce lancement, ou à
     # un précédent dont le résultat vaut encore). Passée au contrat de la tâche (`score_path`) —

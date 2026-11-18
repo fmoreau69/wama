@@ -8,6 +8,11 @@
         "to_port": null
       },
       {
+        "from": "remix",
+        "to": "extract_score",
+        "to_port": null
+      },
+      {
         "from": "extract_lyrics",
         "to": "write_lyrics",
         "to_port": null
@@ -20,6 +25,11 @@
       {
         "from": "write_lyrics",
         "to": "plan",
+        "to_port": null
+      },
+      {
+        "from": "remix",
+        "to": "render",
         "to_port": null
       },
       {
@@ -103,6 +113,10 @@
           "outputs": [
             "remix_audio"
           ],
+          "required_by_steps": [
+            "extract_score",
+            "render"
+          ],
           "toggle": "remix_stems",
           "watched": [
             "remix_stems",
@@ -127,7 +141,11 @@
           "outputs": [
             "extracted_score"
           ],
+          "switched_types": [
+            "audio"
+          ],
           "toggle": "extract_reduced_score",
+          "upstream_switch": "cover_from_remix",
           "watched": [
             "extract_reduced_score",
             "melody_reference",
@@ -242,7 +260,11 @@
             "audio_output"
           ],
           "share": 3,
+          "switched_types": [
+            "audio"
+          ],
           "toggle": "generate_audio",
+          "upstream_switch": "cover_from_remix",
           "watched": [
             "prompt",
             "model",
@@ -253,6 +275,7 @@
             "temperature",
             "seed",
             "generate_audio",
+            "cover_from_remix",
             "prompt_processed",
             "reference_score",
             "melody_reference",

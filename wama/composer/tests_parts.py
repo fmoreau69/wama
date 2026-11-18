@@ -591,6 +591,42 @@ class StemSeparationTest(_InputProcessCase):
         origin = self.client.get(f'/common/surface/composer/score/{gen.pk}/').context['config']
         self.assertEqual(({}, False), (origin['origin'], 'remix' in origin['excluded']))
 
+    def test_the_cover_takes_the_input_audio_or_the_remix(self):
+        """2026-11-18, Fabien : « le cover peut se faire à partir de l'audio d'entrée ou de la
+        refusion » ; « si on utilise l'audio d'entrée ou un stem en particulier la refusion n'est
+        pas imposée […] la refusion n'est à proposer que sur la card qui permet la refusion ». The
+        render and the reduced score read the remix only when `cover_from_remix` is checked
+        (`upstream_switch`, audio only) — the remix is then imposed ; on a stem card the setting
+        has no object ; checked without stems, the render is starved, never on the input."""
+        from wama.common.services.process_pipeline import inapplicable_settings
+        from wama.composer.function_specs import PIPELINE
+        from wama.composer.tasks import cover_audio
+        gen = self._run(separate_stems=True, melody_reference=self._cover())
+        self._real_audio(gen)
+        ComposerGeneration.objects.filter(pk=gen.pk).update(status='RUNNING', remix_stems=True,
+                                                            remix_without='Batterie')
+        gen = self._run(ComposerGeneration.objects.get(pk=gen.pk), process='remix')
+        remix, render = PIPELINE.spec('remix'), PIPELINE.spec('render')
+        name = lambda path: path.replace('\\', '/').rsplit('/', 1)[-1]  # noqa: E731
+        self.assertEqual(name(gen.melody_reference.name), name(cover_audio(gen, 'render')))
+        self.assertIsNone(PIPELINE.imposing_step(remix, gen), 'the input audio imposes nothing')
+        gen.cover_from_remix = True
+        for process in ('render', 'extract_score'):
+            self.assertEqual(name(gen.remix_audio.name), name(cover_audio(gen, process)), process)
+        self.assertIn(PIPELINE.imposing_step(remix, gen).key, {'render', 'extract_score'})
+        self.assertIn('prompt', {p.data_type for p in PIPELINE._ports(render)[0]})
+        self.assertIn('extract_score', PIPELINE.read_upstreams(render, gen),
+                      'only its audio is routed : the score is still read')
+        drums = self._stems(gen)['drums']
+        self.assertFalse(drums.cover_from_remix, 'a stem card does not inherit it')
+        self.assertIn('cover_from_remix', inapplicable_settings(drums))
+        self.assertNotIn('cover_from_remix', inapplicable_settings(gen))
+        plain = self._run(melody_reference=self._cover())
+        plain.cover_from_remix = True
+        self.assertTrue(PIPELINE.starved(render, plain), 'no stems : starved, never the input')
+        plain.cover_from_remix = False
+        self.assertFalse(PIPELINE.starved(render, plain))
+
     def test_a_relaunch_replaces_the_stems_never_adds_cards(self):
         gen = self._run(separate_stems=True, melody_reference=self._cover())
         first = {role: card.pk for role, card in self._stems(gen).items()}

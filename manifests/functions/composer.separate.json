@@ -20,7 +20,7 @@
     "key": "composer.separate",
     "outputs": [
       {
-        "cardinality": "one",
+        "cardinality": "many",
         "data_type": "audio",
         "description": "Les pistes, une card chacune dans le lot.",
         "key": "stems",

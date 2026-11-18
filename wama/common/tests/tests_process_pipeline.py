@@ -680,6 +680,28 @@ class WhatADownstreamReadsTest(SimpleTestCase):
         self.assertEqual('', pipeline.upstream_output(item, 'transcribe', 'audio'),
                          'the card input, then')
 
+    def test_an_upstream_that_renders_many_is_never_read_as_one_file(self):
+        """2026-11-18 : the separated stems are SEVERAL audios (`cardinality='many'`) — their
+        output field is their index. A remix that rendered nothing must not hand that index to the
+        render as its audio (`renders_many`)."""
+        from wama.common.catalog.function_catalog import PortSpec
+        pipeline = AppPipeline('demo_pipeline', (
+            ProcessSpec('split', outputs=('index',)),
+            ProcessSpec('mix', depends_on=('split',), outputs=('mixed',)),
+            ProcessSpec('render', depends_on=('mix',)),
+        ), label='Demo')
+        outputs = {'split': [PortSpec('stems', 'audio', cardinality='many')],
+                   'mix': [PortSpec('remix', 'audio')]}
+        patcher = mock.patch.object(AppPipeline, '_ports',
+                                    lambda self, spec: ([], outputs.get(spec.key, [])))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        item = _Element(index=self._File('stems.json'), mixed=None)
+        self.assertEqual('', pipeline.upstream_output(item, 'render', 'audio'),
+                         'the index of the stems is no audio')
+        item.mixed = self._File('mix.wav')
+        self.assertEqual('mix.wav', pipeline.upstream_output(item, 'render', 'audio'))
+
 
 class AProcessSplitFromItsDownstreamTest(WhatALaunchReplaysTest):
     """`ProcessSpec.split_from` (2026-10-21, the leveling taken out of the transcription) : a
@@ -919,6 +941,30 @@ class WhatTheCardShowsTest(TestCase):
         with_audio.processes = pipeline.card_rows(with_audio)
         self.assertNotIn('inapplicable', gear_data(with_audio, params))
 
+    def test_a_switch_toward_steps_the_card_excludes_leaves_it_too(self):
+        """2026-11-18, Fabien : « la refusion n'est à proposer que sur la card qui permet la
+        refusion. Pas les cards de stems ». The switch that makes a step READ the output of its
+        upstreams (`upstream_switch`) has no object when those upstreams are all excluded by the
+        element — even though its own step reads it. Counter-proof : on the origin it stays."""
+        from wama.common.services.process_pipeline import inapplicable_settings
+        pipeline = AppPipeline('demo_pipeline', (
+            ProcessSpec('mix', label='Refusion', degree='optional', toggle='wants_mix',
+                        applies=lambda item, model_key: not getattr(item, 'derived_role', '')),
+            ProcessSpec('render', label='Rendu', depends_on=('mix',), watched=('from_mix',),
+                        upstream_switch='from_mix', switched_types=('audio',)),
+        ), label='Demo')
+        types = {'mix': 'audio'}
+        patcher = mock.patch.object(AppPipeline, 'output_type',
+                                    lambda self, spec: types.get(spec.key, ''))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        stem = _Element(status=JOB_PENDING, wants_mix=True, from_mix=True, derived_role='drums')
+        self.assertEqual(('wants_mix', 'from_mix'), inapplicable_settings(stem, pipeline=pipeline))
+        self.assertIn('from_mix', inapplicable_settings(stem, pipeline.card_rows(stem), pipeline=pipeline),
+                      'the same answer from the strip rows')
+        origin = _Element(status=JOB_PENDING, wants_mix=True, from_mix=True, derived_role='')
+        self.assertEqual((), inapplicable_settings(origin, pipeline=pipeline))
+
     def test_the_strip_names_the_model_each_step_used(self):
         """2026-11-17, Fabien : « je vois seulement Moteur / Modèle auto:text-to-music […] je devrais
         connaître le modèle utilisé par chaque sous-process ». A step that ran says the model it
@@ -1062,6 +1108,49 @@ class WhatTheCardShowsTest(TestCase):
         for name, specs in cases.items():
             with self.subTest(name), self.assertRaisesMessage(ValueError, 'required_by_steps'):
                 AppPipeline('demo_pipeline', specs, label='Demo')
+
+    def test_a_step_imposes_only_what_it_reads_and_starves_with_it(self):
+        """2026-11-18, Fabien : « le cover peut se faire à partir de l'audio d'entrée ou de la
+        refusion […] si on utilise l'audio d'entrée la refusion n'est pas imposée ». The read
+        switch of the render (`upstream_switch`) routes its AUDIO only (`switched_types`) : off,
+        it still reads its score ; it imposes the remix only while it reads it ; and the remix
+        starved of its stems starves it — never the card's input in silence."""
+        from wama.common.catalog.function_catalog import PortSpec
+        pipeline = AppPipeline('demo_pipeline', (
+            ProcessSpec('split', label='Pistes', degree='optional', toggle='wants_split'),
+            ProcessSpec('mix', label='Refusion', depends_on=('split',), degree='optional',
+                        toggle='wants_mix', required_by_steps=('render',)),
+            ProcessSpec('score', label='Partition', degree='optional', toggle='wants_score'),
+            ProcessSpec('render', label='Rendu', depends_on=('mix', 'score'), toggle='wants_render',
+                        upstream_switch='from_mix', switched_types=('audio',)),
+        ), label='Demo')
+        types = {'split': 'audio', 'mix': 'audio', 'score': 'score'}
+        inputs = {'mix': [PortSpec('stems', 'audio', cardinality='many')]}
+        for name, fake in (('output_type', lambda self, spec: types.get(spec.key, '')),
+                           ('_ports', lambda self, spec: (inputs.get(spec.key, []), []))):
+            patcher = mock.patch.object(AppPipeline, name, fake)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        item = _Element(status=JOB_PENDING, wants_split=True, wants_mix=False, wants_score=True,
+                        wants_render=True, from_mix=False)
+        render, mix = pipeline.spec('render'), pipeline.spec('mix')
+        self.assertEqual(('score',), pipeline.read_upstreams(render, item),
+                         'the input audio : the score is still read')
+        self.assertIsNone(pipeline.imposing_step(mix, item), 'the input audio imposes nothing')
+        item.from_mix = True
+        self.assertEqual(('mix', 'score'), pipeline.read_upstreams(render, item))
+        self.assertEqual('render', pipeline.imposing_step(mix, item).key)
+        self.assertFalse(pipeline.starved(render, item))
+        item.wants_split = False                 # no stems : the remix is starved, the render too
+        self.assertTrue(pipeline.starved(mix, item))
+        self.assertTrue(pipeline.starved(render, item), 'never the card input in silence')
+        item.from_mix = False
+        self.assertFalse(pipeline.starved(render, item), 'the input audio needs no stems')
+
+    def test_switched_types_need_a_read_switch(self):
+        with self.assertRaisesMessage(ValueError, 'switched_types'):
+            AppPipeline('demo_pipeline', (ProcessSpec('render', switched_types=('audio',)),),
+                        label='Demo')
 
     def test_an_option_switched_off_does_not_take_place_and_no_longer_weighs_on_the_card(self):
         """Rule 4.4: « les optional désactivés sont ignorés ». A failed summary keeps the card
@@ -1230,10 +1319,14 @@ class WhatTheCardShowsTest(TestCase):
                 if starved:
                     found[(app, toggle)] = starved
         # 2026-11-16 : the remix reads the stems' index, a LINK from the separation — no stems, no
-        # remix.
+        # remix. 2026-11-18 : with every read switch ON (`cover_from_remix` among them), the reduced
+        # score and the render IMPOSE the remix they read — starved with it, and so is what reads
+        # the render : never the card's input in silence.
         self.assertEqual({('composer', 'generate_audio'): ['output', 'rendered_score', 'rendered_parts',
                                                             'rendered_lyrics'],
-                          ('composer', 'separate_stems'): ['remix']}, found)
+                          ('composer', 'separate_stems'): ['remix', 'extract_score', 'render', 'output',
+                                                           'rendered_score', 'rendered_parts',
+                                                           'rendered_lyrics']}, found)
 
     def test_a_cut_step_that_transforms_a_card_entry_starves_nothing(self):
         """The precision itself, on a fictitious pipeline : the upstream TAKES the `work_file` it

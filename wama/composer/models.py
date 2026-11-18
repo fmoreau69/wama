@@ -221,6 +221,12 @@ class ComposerGeneration(DerivedCardMixin, KeptOutputsMixin, ProcessingTimeMixin
     # `remix_without` (les pistes à 0) ; `tasks.remix_gains` les lit. Vide : toutes à 1, sauf les
     # retirées. Nullable : le code en service crée des générations sans connaître la colonne.
     remix_levels = models.JSONField(null=True, blank=True)
+    # Le cover reprend la REFUSION au lieu de l'audio d'entrée (2026-11-18, décision de Fabien :
+    # « le cover peut se faire à partir de l'audio d'entrée ou de la refusion ») — l'interrupteur de
+    # LECTURE (`ProcessSpec.upstream_switch`) du rendu et de la partition réduite, sur leur seul
+    # audio (`switched_types`). Faux par défaut : le comportement d'avant. `db_default` : le code
+    # en service crée des générations sans connaître la colonne.
+    cover_from_remix = models.BooleanField(default=False, db_default=False)
 
     # Format de sortie (conversion inline via Converter) — 'original' = WAV natif
     output_format = models.CharField(max_length=20, default='original')

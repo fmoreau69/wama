@@ -191,7 +191,10 @@ register(FunctionSpec(
     tags=['audio', 'music', 'gpu'],
     inputs=[PortSpec('work_audio', 'audio', group='travail',
                      description="Audio du morceau à séparer (cover).")],
-    outputs=[PortSpec('stems', 'audio', description="Les pistes, une card chacune dans le lot.")]))
+    # PLUSIEURS pistes (`cardinality='many'`, 2026-11-18) : le champ de sortie en est l'index, aucun
+    # aval ne le lit comme UN audio (`AppPipeline.renders_many`).
+    outputs=[PortSpec('stems', 'audio', cardinality='many',
+                      description="Les pistes, une card chacune dans le lot.")]))
 
 register(FunctionSpec(
     key='composer.remix', name="Composer — refusion des pistes",
@@ -203,7 +206,7 @@ register(FunctionSpec(
     tags=['audio', 'music'],
     inputs=[PortSpec('work_audio', 'audio', group='travail',
                      description="Audio du morceau d'origine (cover)."),
-            PortSpec('stems', 'audio', description="Ses pistes séparées.")],
+            PortSpec('stems', 'audio', cardinality='many', description="Ses pistes séparées.")],
     outputs=[PortSpec('remix', 'audio', description="Le morceau recomposé.")]))
 
 register(FunctionSpec(
@@ -342,8 +345,11 @@ PIPELINE = register_app_pipeline(_APP, (
                 outputs=('stems_index',), eta='composer.tasks:separate_eta'),
     # REFUSION (2026-11-16, demande de Fabien) : après les pistes séparées, qu'elle lit (leur
     # index) ; l'original moins les pistes retirées. Sans GPU. Rien ne la lit : aucun aval.
+    # Cochée d'office quand le cover la reprend (`required_by_steps`, 2026-11-18) : le rendu et la
+    # partition réduite qui LISENT sa sortie (`cover_from_remix`) ne peuvent pas s'en passer.
     ProcessSpec('remix', label='Refusion des pistes', depends_on=('separate',),
                 watched=('melody_reference', 'source_url'),
+                required_by_steps=('extract_score', 'render'),
                 degree=OPTIONAL, toggle='remix_stems', applies=_remix_applies,
                 outputs=('remix_audio',), eta='composer.tasks:remix_eta',
                 # Clic droit sur des pistes choisies (2026-11-16) : elles restent, les autres partent.
@@ -356,7 +362,10 @@ PIPELINE = register_app_pipeline(_APP, (
     # la bascule de la vue partition ; celle du morceau produit, « de sortie ».
     # Autonome depuis le 2026-11-07 (décision de Fabien) : l'interrupteur de l'utilisateur pour
     # tout cover, IMPOSÉ quand le modèle reprend le cover par sa partition (`required_by`).
-    ProcessSpec('extract_score', label='Partition réduite',
+    # Tirée de la REFUSION quand le cover la reprend (`cover_from_remix`, 2026-11-18) : son audio
+    # seul est aiguillé (`switched_types`) — c'est la partition que le rendu suit.
+    ProcessSpec('extract_score', label='Partition réduite', depends_on=('remix',),
+                upstream_switch='cover_from_remix', switched_types=('audio',),
                 watched=('melody_reference', 'source_url'),
                 degree=OPTIONAL, toggle='extract_reduced_score', required_by=COVERS_BY_SCORE,
                 needs=MAKES_MUSIC, gpu=True, share=1, applies=_extract_applies,
@@ -415,8 +424,12 @@ PIPELINE = register_app_pipeline(_APP, (
     # FACULTATIF depuis le 2026-11-07 (décision de Fabien) : coupé, ce qui ne lit que lui — la
     # sortie, la partition et les paroles de sortie — n'a plus lieu (`AppPipeline.starved`).
     # REQUIS quand il est activé : un rendu en échec fait échouer la card.
+    # L'AUDIO du cover (2026-11-18, décision de Fabien) : l'entrée de la card, ou la refusion quand
+    # `cover_from_remix` est coché — son seul audio est aiguillé (`switched_types`), la partition et
+    # les paroles restent lues de leurs amonts.
     ProcessSpec('render', label='Rendu',
-                depends_on=('extract_score', 'extract_lyrics', 'write_lyrics', 'plan'),
+                depends_on=('remix', 'extract_score', 'extract_lyrics', 'write_lyrics', 'plan'),
+                upstream_switch='cover_from_remix', switched_types=('audio',),
                 toggle='generate_audio',
                 watched=_RENDER_WATCHED, gpu=True, share=3, outputs=('audio_output',),
                 eta='composer.tasks:render_eta'),

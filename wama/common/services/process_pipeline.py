@@ -221,6 +221,11 @@ class ProcessSpec:
                   produite et ÉCOUTABLE. 2026-10-22, demande de Fabien : l'audio préparé sert
                   aussi l'intelligibilité pour la correction humaine — on doit pouvoir le
                   produire sans que la transcription l'écoute.
+      switched_types  les TYPES de port que cet interrupteur aiguille — vide : tous ceux que le
+                  process consomme (le transcriber, qui ne consomme que de l'audio). 2026-11-18,
+                  décision de Fabien (« le cover reprend l'audio d'entrée ou la refusion ») : le
+                  rendu du composer consomme aussi une partition et des paroles, que l'aiguillage
+                  de son AUDIO ne doit pas couper.
       required_by ce que le MODÈLE de la card doit satisfaire pour qu'un `optional` à interrupteur
                   ait lieu QUEL QUE SOIT son interrupteur — la grammaire de `needs`, jugée sur la
                   même fiche (2026-11-07, décision de Fabien : « partition réduite autonome »). La
@@ -240,7 +245,10 @@ class ProcessSpec:
                   de `starved` dans l'autre sens : couper un amont PRIVE son aval ; activer un aval
                   qui ne peut pas s'en passer MAINTIENT l'amont. Chacun porte un interrupteur et
                   dépend de celui-ci (sinon il n'y aurait rien à imposer, ou l'imposition tournerait
-                  en rond).
+                  en rond). Une étape n'impose que ce qu'elle LIT (`read_upstreams`, 2026-11-18) :
+                  le cover qui reprend l'audio d'entrée n'impose pas la refusion, celui qui la
+                  reprend l'impose ; et privée de son entrée, l'étape imposée prive celle qui
+                  l'impose (`starved`) — jamais un retour silencieux à l'entrée de la card.
       checks     les MESURES SANS RÉFÉRENCE de la sortie de ce process — des clés du registre
                   commun (`result_evaluation.register_check`), jouées par le squelette quand la
                   card a réussi, gardées sur la LIGNE du process (`output_summary['checks']`) : la
@@ -286,6 +294,7 @@ class ProcessSpec:
     result_format: str = ''
     split_from: str = ''
     upstream_switch: str = ''
+    switched_types: tuple = ()
     checks: tuple = ()
     writes: tuple = ()
     required_by: object = None
@@ -342,7 +351,8 @@ def declared_stales(app: str) -> dict:
 
 #: Ce que la déclaration d'un process AJOUTÉ par une card ne peut pas porter (`AppPipeline.extended`) :
 #: des champs de l'élément — la card n'en a pas pour lui — et des chemins de code.
-_NOT_ADDABLE = ('watched', 'outputs', 'toggle', 'upstream_switch', 'card_model', 'eta', 'result',
+_NOT_ADDABLE = ('watched', 'outputs', 'toggle', 'upstream_switch', 'switched_types', 'card_model',
+                'eta', 'result',
                 'result_format', 'writes', 'from_selection', 'required_by_steps')
 
 
@@ -396,6 +406,9 @@ class AppPipeline:
                     self._by_key.get(spec.split_from), 'depends_on', ()):
                 raise ValueError(f"pipeline de {app} : « {spec.key} » se dit détaché de "
                                  f"« {spec.split_from} » (`split_from`), qui doit en dépendre")
+            if spec.switched_types and not spec.upstream_switch:
+                raise ValueError(f"pipeline de {app} : « {spec.key} » nomme des types aiguillés "
+                                 f"(`switched_types`) sans interrupteur de lecture (`upstream_switch`)")
             if spec.result_format not in RESULT_FORMATS:
                 raise ValueError(f"pipeline de {app} : forme de résultat « {spec.result_format} » "
                                  f"inconnue ({', '.join(f or '(texte)' for f in RESULT_FORMATS)})")
@@ -491,6 +504,13 @@ class AppPipeline:
         '' s'il n'est pas déclaré. C'est lui qui choisit le rendu d'une face d'aperçu."""
         outputs = self._ports(spec)[1]
         return outputs[0].data_type if outputs else ''
+
+    def renders_many(self, spec: ProcessSpec) -> bool:
+        """Le process rend-il PLUSIEURS objets de son type (`PortSpec.cardinality == 'many'` : les
+        pistes séparées du composer) ? Une telle sortie ne se lit jamais comme UN fichier de ce
+        type par un aval (`upstream_output`, 2026-11-18) : son champ de sortie en est l'index."""
+        outputs = self._ports(spec)[1]
+        return bool(outputs) and outputs[0].cardinality == 'many'
 
     @staticmethod
     def declared_result(spec: ProcessSpec, item):
@@ -614,6 +634,9 @@ class AppPipeline:
                              # 2026-10-22 : écrit seulement quand il est posé (ajout pur).
                              **({'upstream_switch': spec.upstream_switch}
                                 if spec.upstream_switch else {}),
+                             # 2026-11-18 : écrit seulement quand il est posé (ajout pur).
+                             **({'switched_types': list(spec.switched_types)}
+                                if spec.switched_types else {}),
                              **({'label': spec.label} if spec.label else {}),
                              **({'outputs': list(spec.outputs)} if spec.outputs else {}),
                              **({'share': spec.share} if spec.share != 1 else {}),
@@ -820,9 +843,34 @@ class AppPipeline:
         que lisent la photo, la péremption, la relance et `upstream_output`."""
         if not spec.upstream_switch or getattr(item, spec.upstream_switch, True):
             return tuple(spec.depends_on)
-        consumed = {port.data_type for port in self._ports(spec)[0]}
+        switched = self.switched_types(spec)
         return tuple(key for key in spec.depends_on
-                     if self.output_type(self._by_key[key]) not in consumed)
+                     if self.output_type(self._by_key[key]) not in switched)
+
+    def switched_types(self, spec: ProcessSpec) -> set:
+        """Les types de port que l'interrupteur de lecture du process aiguille
+        (`ProcessSpec.switched_types`) — à défaut, tous ceux qu'il consomme (ses ports d'entrée)."""
+        return set(spec.switched_types) or {port.data_type for port in self._ports(spec)[0]}
+
+    def read_closure(self, spec: ProcessSpec, item) -> set:
+        """Les clés de TOUS les amonts que le process LIT pour cet élément — ceux qu'il lit
+        (`read_upstreams`), et ceux qu'ils lisent, de proche en proche."""
+        seen, pending = set(), list(self.read_upstreams(spec, item))
+        while pending:
+            upstream = pending.pop()
+            if upstream not in seen:
+                seen.add(upstream)
+                pending.extend(self.read_upstreams(self._by_key[upstream], item))
+        return seen
+
+    def switch_upstreams(self, spec: ProcessSpec) -> tuple:
+        """Les amonts DIRECTS entre lesquels l'interrupteur de lecture du process aiguille — ceux qui
+        rendent un type qu'il aiguille ; () sans interrupteur."""
+        if not spec.upstream_switch:
+            return ()
+        switched = self.switched_types(spec)
+        return tuple(key for key in spec.depends_on
+                     if self.output_type(self._by_key[key]) in switched)
 
     def snapshot(self, spec: ProcessSpec, item, rows: dict | None = None) -> dict:
         """Photo de ce que le process SURVEILLE aujourd'hui : ses réglages, et l'empreinte de la
@@ -911,7 +959,10 @@ class AppPipeline:
         non sur cette card (un document repris ne transcrit pas : aucun des deux n'y a lieu)."""
         for key in spec.required_by_steps:
             imposer = self._by_key[key]
-            if self.switched_on(imposer, item, model_key):
+            # Seulement une étape qui LIT celle-ci (2026-11-18) : le cover qui reprend l'audio
+            # d'entrée (`upstream_switch` coupé) ne dépend plus de la refusion.
+            if (self.switched_on(imposer, item, model_key)
+                    and spec.key in self.read_closure(imposer, item)):
                 return imposer
         return None
 
@@ -956,6 +1007,13 @@ class AppPipeline:
         fournit. Vécu le 2026-11-08 : les paroles de l'entrée, une case, alimentent la consigne de
         « Écrire les paroles » — décochées, l'étape se serait crue sans consigne."""
         from wama.common.utils.app_modes import INPUT_TYPES
+        # Une étape qu'il IMPOSE et qu'il lit (`required_by_steps` : il ne peut pas s'en passer),
+        # privée de son entrée, le prive aussi (2026-11-18) : le cover qui reprend la refusion,
+        # sans pistes séparées, n'a pas lieu — il ne retombe pas sur l'entrée de la card en silence.
+        for key in self.read_closure(spec, item):
+            upstream = self._by_key[key]
+            if spec.key in upstream.required_by_steps and self.starved(upstream, item, model_key):
+                return True
         required = [port for port in self._ports(spec)[0]
                     if not port.optional and port.key not in INPUT_TYPES]
         if not required:
@@ -1107,17 +1165,13 @@ class AppPipeline:
         l'entrée de la card pour le type qu'il consomme (2026-10-22)."""
         spec = self.spec(key)
         if (spec.upstream_switch and not getattr(item, spec.upstream_switch, True)
-                and data_type in {port.data_type for port in self._ports(spec)[0]}):
+                and data_type in self.switched_types(spec)):
             return ''
         order = {s.key: index for index, s in enumerate(self.ordered())}
-        seen, pending = set(), list(self.read_upstreams(spec, item))
-        while pending:
-            upstream = pending.pop()
-            if upstream not in seen:
-                seen.add(upstream)
-                pending.extend(self.read_upstreams(self.spec(upstream), item))
-        for upstream in sorted(seen, key=lambda name: -order[name]):
-            if self.output_type(self.spec(upstream)) == data_type:
+        for upstream in sorted(self.read_closure(spec, item), key=lambda name: -order[name]):
+            # Une sortie MULTIPLE (des pistes) n'est pas UN fichier de ce type (`renders_many`).
+            if (self.output_type(self.spec(upstream)) == data_type
+                    and not self.renders_many(self.spec(upstream))):
                 found = self.output_of(item, upstream, model_key)
                 if found:
                     return found
@@ -1677,7 +1731,8 @@ def inapplicable_settings(item, rows=None, pipeline=None) -> tuple:
         rows = []
         for spec in pipeline.ordered():
             state, reason = pipeline.step_state(spec, item, model)
-            rows.append({'toggle': spec.toggle, 'settings': pipeline.step_settings(spec),
+            rows.append({'key': spec.key, 'toggle': spec.toggle,
+                         'settings': pipeline.step_settings(spec),
                          'excluded': state == 'na' and AppPipeline.CAUSE_OF.get(reason) == 'element'})
     idle, used = [], set()
     for row in rows:
@@ -1686,7 +1741,20 @@ def inapplicable_settings(item, rows=None, pipeline=None) -> tuple:
             idle.extend(names)
         else:
             used.update(names)
-    return tuple(dict.fromkeys(name for name in idle if name not in used))
+    # L'interrupteur qui fait LIRE à une étape la sortie de ses amonts (`upstream_switch`) est sans
+    # objet quand ces amonts-là le sont tous (2026-11-18, Fabien : « la refusion n'est à proposer
+    # que sur la card qui permet la refusion. Pas les cards de stems ») — même lu par son étape.
+    moot = set()
+    excluded = {row.get('key') for row in rows if row.get('excluded')}
+    if excluded and pipeline is None:
+        pipeline = pipeline_of(item)        # seulement quand une étape est exclue : rien à payer sinon
+    if pipeline is not None and excluded:
+        for spec in pipeline.specs:
+            between = pipeline.switch_upstreams(spec)
+            if between and all(key in excluded for key in between):
+                moot.add(spec.upstream_switch)
+                idle.append(spec.upstream_switch)
+    return tuple(dict.fromkeys(name for name in idle if name not in used or name in moot))
 
 
 def app_pipeline(app: str) -> AppPipeline | None:

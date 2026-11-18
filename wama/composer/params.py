@@ -190,7 +190,8 @@ PARAMS = [
                   "batch": "batchSettingsSeparationStems"},
           contexts=PANEL_ITEM_BATCH, stales=("separate",)),
     # REFUSION (2026-11-16, demande de Fabien) : la case du process optionnel `remix` — l'original
-    # recomposé sans les pistes nommées, une card de plus dans le lot. Ne périme qu'elle-même.
+    # recomposé sans les pistes nommées, la SORTIE de l'étape (plus une card du lot depuis le
+    # 2026-11-17). Ne périme qu'elle-même.
     Param(name="remix_stems", type="toggle", label="Refusion des pistes",
           icon="fa-sliders",
           help="Recompose le morceau à partir de ses pistes séparées, sans celles qu'on retire (par "
@@ -219,6 +220,20 @@ PARAMS = [
                "pistes retirées sont dans « Pistes à retirer ».",
           min=0.0, max=2.0,
           contexts=("surface",), stales=("remix",)),
+    # LE COVER REPREND LA REFUSION (2026-11-18, décision de Fabien : « le cover peut se faire à
+    # partir de l'audio d'entrée ou de la refusion ») : l'interrupteur de LECTURE du rendu et de la
+    # partition réduite (`ProcessSpec.upstream_switch`), sur leur seul audio. Coché, la refusion est
+    # cochée d'office et verrouillée (`required_by_steps`) ; sans pistes séparées, le rendu est privé
+    # de son entrée et le dit. Sans objet sur une card piste (`inapplicable_settings`) : sa refusion
+    # n'existe pas, le cover y reprend sa piste. Rangé avec le rendu, qu'il périme.
+    Param(name="cover_from_remix", type="toggle", label="Le cover reprend la refusion",
+          icon="fa-sliders",
+          help="Coché : le cover part du morceau refusionné (sans les pistes retirées) au lieu de "
+               "l'audio d'entrée — la refusion est alors faite d'office, et la partition réduite "
+               "que suit le rendu en est tirée. Décoché : l'audio d'entrée, tel quel.",
+          dom_id={"panel": "coverFromRemix", "item": "settingsCoverFromRemix",
+                  "batch": "batchSettingsCoverFromRemix"},
+          contexts=PANEL_ITEM_BATCH, stales=("render",)),
     # PARTITION COMPLÈTE (2026-10-16, décision de Fabien) : la case qui ACTIVE le process optionnel
     # `parts` (`ProcessSpec.toggle`) — depuis le 2026-10-26 sur l'ENTRÉE : l'audio repris, comme la
     # partition réduite. Ne périme qu'elle-même : le rendu suit la réduite, jamais celle-ci.

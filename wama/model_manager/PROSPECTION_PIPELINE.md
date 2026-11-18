@@ -4937,7 +4937,12 @@ d5) ; T2 la partition complète par défaut (`a0b4d67eb`) ; T3 la borne de nivea
 (`01e397f67`). T4 (hauteur, envers) : mesuré, tranché pour la hauteur (ci-dessus), en cours chez 2a.
 ✅ **Décisions de Fabien (2026-11-17, soir)** : (1) le mixage en trois cas ci-dessus ; (2) le cover
 peut reprendre l'original OU la refusion — une option de la card originale, la refusion devenant
-alors un amont du rendu ; (3) le mixeur dans l'onglet « Pistes séparées » de l'aperçu, plus de page
+alors un amont du rendu (✅ 2026-11-18 : « Le cover reprend la refusion », `cover_from_remix` —
+l'interrupteur de LECTURE commun `upstream_switch` du rendu ET de la partition réduite que suit
+YuE2, sur leur seul audio ; la refusion cochée d'office tant qu'il est coché, jamais quand le
+cover reprend l'entrée ; sans objet sur une card piste ; sans pistes séparées, le rendu est privé
+de son entrée et le dit. Partition complète et paroles de l'entrée restent sur l'original, qu'elles
+documentent. Détail : `ROUTE §10.6` point 5) ; (3) le mixeur dans l'onglet « Pistes séparées » de l'aperçu, plus de page
 d'édition sans partition.
 ✅ **Tranché (Fabien, 2026-11-17, soir)** : « si la card originale porte la refusion en sortie de
 sous-process, pourquoi générer une nouvelle card ? » — plus de card « refusion » dans le lot, plus

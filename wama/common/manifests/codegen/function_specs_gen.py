@@ -210,6 +210,9 @@ def render_function_specs(manifest: dict) -> tuple:
             args.append(f"domains={tuple(s['domains'])!r}")
         if s.get('upstream_switch'):
             args.append(f"upstream_switch={s['upstream_switch']!r}")
+        # Les types qu'il aiguille (2026-11-18) — vide : tous ceux que l'étape consomme.
+        if s.get('switched_types'):
+            args.append(f"switched_types={tuple(s['switched_types'])!r}")
         # Une ETA ou un résultat logés dans un module de tâches que le `tasks.py` GÉNÉRÉ remplace
         # (`workers`) le suivent : sinon la déclaration pointe un module retiré.
         if s.get('eta'):

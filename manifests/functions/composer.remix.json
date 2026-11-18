@@ -17,7 +17,7 @@
         "required_fields": []
       },
       {
-        "cardinality": "one",
+        "cardinality": "many",
         "data_type": "audio",
         "description": "Ses pistes séparées.",
         "group": "travail",

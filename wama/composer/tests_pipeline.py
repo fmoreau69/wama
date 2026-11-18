@@ -753,7 +753,10 @@ class ThePipelineIsInTheCatalogueTest(SimpleTestCase):
                           # Sa partition réduite (2026-11-08, la symétrie) : une branche du rendu.
                           ('render', 'rendered_score'),
                           # La refusion lit les pistes séparées (2026-11-16).
-                          ('separate', 'remix')},
+                          ('separate', 'remix'),
+                          # Le cover reprend l'entrée OU la refusion (2026-11-18) : son audio et
+                          # celui de la partition réduite qu'il suit, aiguillés (`cover_from_remix`).
+                          ('remix', 'extract_score'), ('remix', 'render')},
                          links)
 
     def test_the_export_command_lists_it(self):

@@ -141,6 +141,7 @@ def process_specs(pipeline: dict) -> list:
             'required_by_steps': list(declared.get('required_by_steps') or []),
             'domains': list(declared.get('domains') or []),
             'upstream_switch': declared.get('upstream_switch', ''),
+            'switched_types': list(declared.get('switched_types') or []),
             'eta': declared.get('eta', ''),
             'result': declared.get('result', ''),
             'result_format': declared.get('result_format', ''),

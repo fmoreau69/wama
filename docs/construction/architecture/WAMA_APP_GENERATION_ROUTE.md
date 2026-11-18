@@ -7447,6 +7447,26 @@ Objectif : les gabarits d'app ne portent que l'emballage.
 >      « coupée ». Comportement inchangé (64 cards débruitées sans nivellement coché le jour même
 >      continuent de niveler). Gardes : `WhatTheCardShowsTest.test_a_step_another_step_imposes_…`,
 >      `tests_cap_from_js` (verrou et rendu), `tests_codegen_agreement` (rendu du générateur).
+>   5. ✅ **2026-11-18 (Fabien : « le cover peut se faire à partir de l'audio d'entrée ou de la
+>      refusion » ; « si on utilise l'audio d'entrée ou un stem en particulier la refusion n'est pas
+>      imposée […] la refusion n'est à proposer que sur la card qui permet la refusion »)** — quatre
+>      précisions des mécanismes ci-dessus, aucun neuf : (a) `ProcessSpec.switched_types` — les types
+>      que l'interrupteur de lecture (`upstream_switch`) aiguille ; vide = tous ceux que le process
+>      consomme (le transcriber, inchangé) ; le rendu du composer n'aiguille que son AUDIO, sa
+>      partition et ses paroles restent lues ; (b) une étape n'en IMPOSE une autre que si elle la
+>      LIT (`imposing_step` → `read_closure`) : le cover sur l'audio d'entrée n'impose pas la
+>      refusion ; (c) une étape imposée et lue, privée de son entrée, prive celle qui l'impose
+>      (`starved`) — jamais l'entrée de la card en silence ; (d) un interrupteur de lecture dont les
+>      amonts aiguillés sont TOUS exclus par l'élément est sans objet (`inapplicable_settings`) :
+>      « Le cover reprend la refusion » quitte la ⚙, le volet et les écritures de lot d'une card
+>      piste. Et une sortie MULTIPLE (`PortSpec.cardinality='many'` : les pistes séparées) n'est jamais
+>      lue comme UN fichier par un aval (`AppPipeline.renders_many`, `upstream_output`) — sans cela la
+>      refusion absente aurait passé au rendu l'index JSON des pistes. Composer : `cover_from_remix`
+>      (réglage de la section « Rendu »), `remix.required_by_steps=('extract_score', 'render')`,
+>      glu `tasks.cover_audio`. Exporté au manifeste, relu par `pipeline_decl`, rendu par
+>      `function_specs_gen`. Gardes : `tests_process_pipeline` (`…imposes_only_what_it_reads_and_starves_with_it`,
+>      `…switch_toward_steps_the_card_excludes_leaves_it_too`, `…renders_many_is_never_read_as_one_file`,
+>      `…switched_types_need_a_read_switch`), `composer.tests_parts…test_the_cover_takes_the_input_audio_or_the_remix`.
 > - ✅ **5.2 Gabarit GÉNÉRÉ (même jour)** : la card émise par `templates_gen` inclut la bande
 >   (`_card_processes.html`, vide sous deux process) et lit `elem.shown_state|default:
 >   elem.status` ; `views_gen._decorer` appelle `process_pipeline.decorate(item)` — le point
