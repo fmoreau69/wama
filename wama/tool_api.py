@@ -4798,6 +4798,36 @@ def launch_batch(user, app: str, batch_id: int) -> dict:
 
 
 @tool_effect(WRITE)
+def start_process_on_batch(user, app: str, batch_id: int, process: str) -> dict:
+    """
+    Run ONE step on every item of one of the user's batches — the ▶ of a step in the band of the
+    batch card (e.g. rerun « Partition complète » on all the songs of a batch). Each item runs
+    that step like its own ▶ of the step (stale upstream steps first, never its downstream);
+    items where the step does not take place, or that are already running, are skipped and said.
+
+    Args:
+        app:      app id the batch belongs to (e.g. composer, audio_enhancer).
+        batch_id: the batch id (`list_my_items` shows each item's batch).
+        process:  key of the step (`get_item_detail` on one of its items names its steps).
+
+    Returns:
+        {"started": [ids], "skipped": [{"id", "reason"}], "app", "batch_id", "process"} or {"error"}
+    """
+    if refusal := _batch_write_refusal(user, app):
+        return refusal
+    try:
+        status_code, payload = _route_view(user, 'common:api_process_on_batch',
+                                           [app, int(batch_id), process])
+    except Exception as e:
+        logger.warning(f"[tool_api] start_process_on_batch {app}/{batch_id}/{process} : {e}")
+        return {'error': f"{process} impossible sur le lot {batch_id} de {app} : {e}"}
+    if failure := _verdict(status_code, payload, f"« {process} » sur le lot"):
+        return failure
+    return {'started': payload.get('started') or [], 'skipped': payload.get('skipped') or [],
+            'app': app, 'batch_id': batch_id, 'process': process}
+
+
+@tool_effect(WRITE)
 def update_batch_settings(user, app: str, batch_id: int, settings: dict = None,
                           promote_from: int = None, realign: bool = False, scope: str = '',
                           replace_own: list = None) -> dict:
@@ -5801,6 +5831,7 @@ TOOL_REGISTRY = {
     'clear_my_queue':   clear_my_queue,
     # Les gestes d'un LOT (2026-11-02) : ceux de la card mère, par la vue que le bouton poste.
     'launch_batch':          launch_batch,
+    'start_process_on_batch': start_process_on_batch,
     'update_batch_settings': update_batch_settings,
     'duplicate_batch':       duplicate_batch,
     'delete_batch':          delete_batch,
@@ -6002,6 +6033,9 @@ TOOL_APP_OVERRIDE = {
     # `add_to_media_library` : le fil le lit comme « l'utilisateur se sert de WAMA »
     # (`conversation_store`).
     'start_process_on_items': None,
+    # Une étape lancée sur toutes les cards d'un LOT (2026-11-18) : même forme de nom, même garde
+    # dans son corps (`_batch_write_refusal`).
+    'start_process_on_batch': None,
     # Les pages du COMPTE, lues (2026-10-14) : sur le compte de l'appelant, comme leurs pages —
     # qui ne relèvent d'aucune app (`login_required` seul). Refus des non-identifiés dans les corps.
     'get_my_calendar':       None,
@@ -7540,6 +7574,8 @@ ROUTE_TOOLS = {
     # A step of the origin card from a selection of its derived cards (2026-11-16) : the tool posts
     # the route's view.
     'common:api_process_on_selection': 'start_process_on_items',
+    # A step run on every card of a batch (2026-11-18), from the band of its mother card.
+    'common:api_process_on_batch': 'start_process_on_batch',
     # Sorting of 2026-11-16 : routes an existing tool already did, body against body — each line
     # names what both sides call.
     'common:api_notifications_list': 'list_my_notifications',     # `notification_list`

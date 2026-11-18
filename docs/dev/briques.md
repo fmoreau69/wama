@@ -2412,13 +2412,16 @@ Inventaire des moteurs de WAMA, dérivé À CHAQUE AFFICHAGE des déclarations `
 
 ### ▶ d'un process (fabrique commune)
 
-La vue `start/<pk>/<process>/` d'une app à pipeline — `make_process_start_view` (2026-10-04) : process connu, ayant lieu pour cette card (`AppPipeline.applicable`), anti-course (`begin_processing`), tâche lancée bornée à ce process. Écrite à la main dans six apps avec trois formes de refus ; mêmes crochets que `make_batch_views` (`task_for`, `reset_on_start`). Le pipeline se lit de l'app de l'élément (`pipeline_of`), il n'est pas un argument. Le geste est `start_one_process` : la vue et l'outil `start_<app>(…, process=…)` de l'assistant l'appellent tous deux (2026-10-14)
+La vue `start/<pk>/<process>/` d'une app à pipeline — `make_process_start_view` (2026-10-04) : process connu, ayant lieu pour cette card (`AppPipeline.applicable`), anti-course (`begin_processing`), tâche lancée bornée à ce process. Écrite à la main dans six apps avec trois formes de refus ; mêmes crochets que `make_batch_views` (`task_for`, `reset_on_start`). Le pipeline se lit de l'app de l'élément (`pipeline_of`), il n'est pas un argument. Le geste est `start_one_process` : la vue et l'outil `start_<app>(…, process=…)` de l'assistant l'appellent tous deux (2026-10-14). 2026-11-18 (décision de Fabien : relancer un sous-process sur toutes les cards filles) : le MÊME ▶ joué sur chaque card d'un LOT (`start_on_batch`, route commune `api_process_on_batch`, outil `start_process_on_batch`), depuis la bande « Étapes du lot » de la card mère (`_batch_processes.html`, lignes lues sur celles des filles, `batch_process_rows`) ; une fille où l'étape n'a pas lieu ou déjà en cours est passée et dite
 
 - **Domicile** : `wama/common/utils/process_views.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common — La vue « ▶ d'UN process » d'une card : fabrique commune (`make_process_start_view`).
 - **API publique** (3) :
   - `process_reset_for(work_model)` — La remise à zéro par process que l'app de `work_model` déclare à sa fabrique, ou None.
   - `start_one_process(work_model, pk, process, *, user, task_for, reset_on_start=None, reset_for_process=None)` — Le ▶ d'UNE étape d'un élément : `(élément, tâche, None)`, ou `(None, None, (statut HTTP,
+  - `start_on_batch(work_model, elements, process, *, user)` — Le ▶ d'UNE étape sur chaque élément d'un LOT (2026-11-18, décision de Fabien : « le plus
+  - `selection_specs(pipeline) -> list` — Les process de `pipeline` qui se lancent depuis une SÉLECTION de cards dérivées
+  - `start_on_selection(work_model, ids, process, *, user)` — Le process `process` de la card d'ORIGINE, lancé depuis une SÉLECTION de ses cards DÉRIVÉES
   - `make_process_start_view(*, work_model, task_for, get_user=request_user, reset_on_start=None, reset_for_process=None)` — La vue `start_process(request, pk, process)` d'une app à pipeline.
 
 ### ▶ d'une card, ▶ et 🗑 de la file (fabrique commune)
@@ -4320,6 +4323,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `stop_item(user, app: str, pk: int) -> dict` — Stop ONE of the user's items that is waiting or running — the stop button of its card.
   - `update_item_settings(user, app: str, pk: int, settings: dict=None) -> dict` — Change the settings of ONE of the user's items — the settings button of its card.
   - `launch_batch(user, app: str, batch_id: int) -> dict` — Start (or restart) every item of one of the user's batches — the ▶ button of the batch card.
+  - `start_process_on_batch(user, app: str, batch_id: int, process: str) -> dict` — Run ONE step on every item of one of the user's batches — the ▶ of a step in the band of the
   - `update_batch_settings(user, app: str, batch_id: int, settings: dict=None, promote_from: int=None, realign: bool=False, scope: str='', replace_own: list=None) -…` — Set the settings of a whole batch — ONE of three gestures:
   - `duplicate_batch(user, app: str, batch_id: int) -> dict` — Duplicate one of the user's batches with all its items, to run it again with other
   - `delete_batch(user, app: str, batch_id: int, confirm: bool=False) -> dict` — Delete one of the user's batches AND all its items. Destructive and not undoable: say how

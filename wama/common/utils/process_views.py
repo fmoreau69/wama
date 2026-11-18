@@ -84,6 +84,38 @@ def start_one_process(work_model, pk, process, *, user, task_for,
     return item, task, None
 
 
+def start_on_batch(work_model, elements, process, *, user):
+    """Le ▶ d'UNE étape sur chaque élément d'un LOT (2026-11-18, décision de Fabien : « le plus
+    simple pour permettre de relancer un sous-process sur toutes les cards filles ») — LE ▶ de la
+    bande d'une card (`start_one_process`), fille par fille, avec le lancement que l'app DÉCLARE
+    (`declaration_for`, comme le clic droit sur une sélection). Une fille où l'étape n'a pas lieu,
+    déjà en cours ou que `user` ne peut pas modifier est passée, et DITE.
+    Rend `({'started': [ids], 'skipped': [{'id', 'reason'}]}, None)`, ou `(None, (statut, message))`
+    pour un modèle sans lancement déclaré."""
+    from django.http import Http404
+
+    from wama.common.utils.item_views import declaration_for
+
+    declaration = declaration_for(work_model)
+    if declaration is None:
+        return None, (400, f"{work_model.__name__} : aucun lancement déclaré")
+    started, skipped = [], []
+    for element in elements:
+        try:
+            item, _task, refused = start_one_process(
+                work_model, element.pk, process, user=user, task_for=declaration.task_of,
+                reset_on_start=declaration.reset_on_start,
+                reset_for_process=process_reset_for(work_model))
+        except Http404:
+            skipped.append({'id': element.pk, 'reason': 'card que ce compte ne peut pas modifier'})
+            continue
+        if refused:
+            skipped.append({'id': element.pk, 'reason': refused[1]})
+        else:
+            started.append(item.pk)
+    return {'started': started, 'skipped': skipped}, None
+
+
 def selection_specs(pipeline) -> list:
     """Les process de `pipeline` qui se lancent depuis une SÉLECTION de cards dérivées
     (`ProcessSpec.from_selection`), dans l'ordre du graphe — ce que le menu de card offre."""

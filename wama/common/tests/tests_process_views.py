@@ -111,6 +111,88 @@ class ProcessStartViewTest(TestCase):
         self.assertEqual((200, 'speak'), (code, body['process']))
 
 
+class BatchStepRunTest(TestCase):
+    """The ▶ of ONE step on every card of a BATCH (2026-11-18, decision of Fabien : « le plus simple
+    pour permettre de relancer un sous-process sur toutes les cards filles ») — the ▶ of the step
+    of each card (`start_one_process`), never a second launch : a card where the step does not
+    take place, a running card and a card of someone else are skipped and SAID, the others start
+    with the process ; the mother card's band reads its rows from the cards' own rows."""
+
+    def setUp(self):
+        from unittest import mock
+
+        from wama.avatarizer.models import BatchAvatarJob, BatchAvatarJobItem
+        self.user = User.objects.create_user('batch_step_owner', password='x')
+        self.sent = []
+        task = SimpleNamespace(apply_async=lambda **kw: self.sent.append(kw)
+                               or SimpleNamespace(id=f'task-{len(self.sent)}'))
+        declared = SimpleNamespace(task_of=lambda job: task, reset_on_start=None)
+        for target, value in (('wama.common.utils.item_views.declaration_for', declared),
+                              ('wama.common.utils.process_views.process_reset_for', None)):
+            patcher = mock.patch(target, return_value=value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        self.batch = BatchAvatarJob.objects.create(user=self.user, total=3)
+        self.spoken = self._job()
+        self.recorded = self._job(mode='standalone', text_content='', audio_input='x/voice.wav')
+        self.running = self._job(status='RUNNING')
+        for row, job in enumerate((self.spoken, self.recorded, self.running)):
+            BatchAvatarJobItem.objects.create(batch=self.batch, job=job, row_index=row)
+
+    def _job(self, **kw):
+        values = dict(user=self.user, mode='pipeline', text_content='Bonjour.',
+                      avatar_source='upload', avatar_upload='x/face.png')
+        values.update(kw)
+        return AvatarJob.objects.create(**values)
+
+    def _post(self, process, user=None):
+        from wama.common.views import api_process_on_batch
+        request = RequestFactory().post('/')
+        request.user = user or self.user
+        response = api_process_on_batch(request, surface='avatarizer', pk=self.batch.pk,
+                                        process=process)
+        return response.status_code, json.loads(response.content)
+
+    def test_each_card_where_the_step_takes_place_runs_it_and_the_others_are_said(self):
+        code, body = self._post('speak')
+        self.assertEqual((200, [self.spoken.pk]), (code, body['started']))
+        self.assertEqual([{'args': (self.spoken.pk,), 'kwargs': {'process': 'speak'}}], self.sent)
+        reasons = {row['id']: row['reason'] for row in body['skipped']}
+        self.assertEqual({self.recorded.pk, self.running.pk}, set(reasons))
+        self.assertIn("n'a pas lieu", reasons[self.recorded.pk])
+        self.assertIn('en cours', reasons[self.running.pk])
+        self.spoken.refresh_from_db()
+        self.assertEqual('RUNNING', self.spoken.status)
+
+    def test_a_batch_where_no_card_starts_answers_400_with_the_reasons(self):
+        AvatarJob.objects.filter(pk=self.spoken.pk).update(status='RUNNING')
+        code, body = self._post('speak')
+        self.assertEqual((400, []), (code, self.sent))
+        self.assertIn("n'a pas lieu", body['error'])
+
+    def test_the_batch_of_someone_else_is_not_found(self):
+        stranger = User.objects.create_user('batch_step_stranger', password='x')
+        with self.assertRaises(Http404):
+            self._post('animate', user=stranger)
+        self.assertEqual([], self.sent)
+
+    def test_the_mother_card_band_counts_each_step_on_the_cards_where_it_takes_place(self):
+        from django.template.loader import render_to_string
+        from wama.common.services.process_pipeline import decorate_cards
+        from wama.common.templatetags.wama_actions import batch_process_rows
+        jobs = decorate_cards([self.spoken, self.recorded, self.running])
+        info = {'obj': self.batch, 'items': [SimpleNamespace(elem=job) for job in jobs]}
+        rows = {row['key']: row for row in batch_process_rows('avatarizer', None, info)}
+        self.assertEqual((2, 3), (rows['speak']['active'], rows['animate']['active']))
+        # A step's state is read from its runs, not from the card : nothing ran yet.
+        self.assertEqual(('PENDING', 0), (rows['animate']['status'], rows['animate']['done']))
+        self.assertEqual(f'/common/api/batch/avatarizer/{self.batch.pk}/process/speak/',
+                         rows['speak']['url'])
+        html = render_to_string('common/_batch_processes.html',
+                                {'app': 'avatarizer', 'domain': None, 'batch_info': info})
+        self.assertIn(f'data-batch-process-url="{rows["animate"]["url"]}"', html)
+
+
 class EveryPipelineAppExposesTheRunButtonTest(TestCase):
     """Generic over the fleet : every app that DECLARES a pipeline routes `start/<pk>/<process>/`
     through the factory — a new pipeline app cannot forget the ▶ of a process, nor write its own."""

@@ -190,6 +190,10 @@ urlpatterns = [
     # la refusion des pistes choisies) : une route pour toutes les surfaces.
     path('api/selection/<str:surface>/<str:process>/', views.api_process_on_selection,
          name='api_process_on_selection'),
+    # UNE ÉTAPE lancée sur toutes les cards d'un LOT (2026-11-18, décision de Fabien) : le ▶ de
+    # l'étape de chaque fille, depuis la bande de la card mère.
+    path('api/batch/<str:surface>/<int:pk>/process/<str:process>/', views.api_process_on_batch,
+         name='api_process_on_batch'),
     # RECHERCHE DE LA FILE PAR CONTENU (2026-10-19, `WAMA_MEMORY §7sexies`) : les cards d'une file,
     # celles dont une image répond à la requête — la barre de file commune l'appelle.
     path('api/queue/content-search/', vector_views.api_queue_content_search,

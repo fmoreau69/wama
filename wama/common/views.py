@@ -2874,6 +2874,37 @@ def api_process_on_selection(request, surface: str, process: str):
 
 @login_required
 @require_POST
+def api_process_on_batch(request, surface: str, pk: int, process: str):
+    """LANCER UNE ÉTAPE SUR TOUTES LES CARDS D'UN LOT (2026-11-18, décision de Fabien : « le plus
+    simple pour permettre de relancer un sous-process sur toutes les cards filles ») — le ▶ de
+    l'étape de la bande d'une card, joué sur chaque fille (`process_views.start_on_batch`). Le lot
+    se lit comme « Renommer » (`batch_model_for_app`, lot modifiable par le compte) ; ses éléments,
+    dans l'ordre des lignes (`batch_elements`). Rend les cards lancées et celles passées, avec leur
+    raison ; 400 quand aucune ne part."""
+    from wama.common.utils.batch_common import batch_elements, batch_model_for_app
+    from wama.common.utils.preview_registry import PreviewRegistry
+    from wama.common.utils.process_views import start_on_batch
+    from wama.common.utils.scoping import editable_or_404
+
+    work_model = PreviewRegistry.get_model(surface)
+    batch_model = batch_model_for_app(surface)
+    if work_model is None or batch_model is None:
+        return JsonResponse({'error': f"{surface} n'a pas de lot"}, status=404)
+    batch = editable_or_404(batch_model, request.user, pk=pk)
+    result, refused = start_on_batch(work_model, batch_elements(batch, work_model), process,
+                                     user=request.user)
+    if refused:
+        status, message = refused
+        return JsonResponse({'error': message}, status=status)
+    if not result['started']:
+        reasons = sorted({s['reason'] for s in result['skipped']})
+        return JsonResponse({'error': 'Aucune card lancée : ' + ' ; '.join(reasons), **result},
+                            status=400)
+    return JsonResponse({'success': True, 'process': process, **result})
+
+
+@login_required
+@require_POST
 def api_batch_label(request, surface: str, pk: int):
     """NOMMER UN LOT — POST `label` (vide = effacer le nom, le lot reprend son titre dérivé).
 

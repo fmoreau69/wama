@@ -215,6 +215,8 @@ lot… » du menu de la card.{% endcomment %}
             </div>
         </div>
     </div>
+    {# Les ÉTAPES du lot, chacune lancée sur toutes les filles (2026-11-18) — rien sans pipeline. #}
+    {% include 'common/_batch_processes.html' %}
     {# Ligne fine d'ÉVALUATION (comparaison des modèles contre la référence) — seulement si le #}
     {# lot a été mesuré ; la donnée vient de `build_batches_list`, commune aux 10 apps.        #}
     {% if batch_info.evaluation %}{% include 'common/_batch_evaluation_line.html' %}

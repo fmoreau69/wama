@@ -1,0 +1,28 @@
+{% comment %}
+WAMA — Les ÉTAPES d'un LOT, sur sa card mère (2026-11-18, décision de Fabien : « le plus simple pour
+permettre de relancer un sous-process sur toutes les cards filles »). Le pendant de la bande d'une
+card (`_card_processes.html`) : une ligne par étape qui a lieu sur au moins une fille, dans l'ordre du
+pipeline (`batch_process_rows`, lue sur les lignes que les filles portent déjà), son état commun, le
+compte des filles où elle est à jour, et son ▶ — le ▶ de l'étape joué sur chaque fille
+(`common:api_process_on_batch`, `process_views.start_on_batch`). Les filles où l'étape n'a pas lieu,
+ou déjà en cours, sont passées et dites. Le clic est tenu par `queue-actions.js`
+(`.batch-proc-run[data-batch-process-url]`), avec la suite que l'app déclare au ▶ du lot.
+Variables : `app`, `domain`, `batch_info` (ceux de `_batch_card.html`). Rien à moins de deux étapes.
+{% endcomment %}
+{% load wama_actions %}{% batch_process_rows app domain batch_info as batch_steps %}
+{% if batch_steps %}
+<div class="wcv3-processes wama-batch-processes" data-batch-processes>
+  <span class="wcv3-lbl">Étapes du lot</span>
+  <span class="wcv3-proc-flow">
+  {% for p in batch_steps %}
+    {% if not forloop.first %}<i class="fas fa-arrow-right-long wcv3-proc-sep" aria-hidden="true"></i>{% endif %}
+    <span class="wcv3-proc" data-process="{{ p.key }}" title="{{ p.label }} : à jour sur {{ p.done }} card{{ p.done|pluralize }} sur {{ p.active }}">
+      <span class="wama-status-dot" data-s="{{ p.status }}"></span>
+      <span class="wcv3-proc-name">{{ p.label }}</span>
+      <small class="wcv3-proc-note text-body-secondary">{{ p.done }}/{{ p.active }}</small>
+      {% if p.url %}<button type="button" class="btn btn-sm btn-outline-primary wcv3-proc-run batch-proc-run" data-batch-id="{{ batch_info.obj.id }}" data-batch-process-url="{{ p.url }}" data-confirm="Lancer « {{ p.label }} » sur les {{ p.active }} card{{ p.active|pluralize }} du lot où l'étape a lieu ?" title="Lancer « {{ p.label }} » sur toutes les cards du lot (ses amonts périmés d'abord)"><i class="fas fa-play"></i></button>{% endif %}
+    </span>
+  {% endfor %}
+  </span>
+</div>
+{% endif %}

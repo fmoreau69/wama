@@ -7354,6 +7354,19 @@ Objectif : les gabarits d'app ne portent que l'emballage.
 >   de la vue ; le composer seul). ⏳ Les actions PROGRAMMÉES passent par le même outil mais ne
 >   retiennent pas d'étape : non ouvert, faute de besoin (on y programme des traitements
 >   complets) — l'ajout se limiterait à retenir l'étape et à l'offrir au menu « Programmer… ».
+>   ✅ **Le même ▶ d'étape sur tout un LOT (2026-11-18, décision de Fabien : « le plus simple
+>   pour permettre de relancer un sous-process sur toutes les cards filles »)** — il n'avait
+>   jamais existé (recherché dans `git log -S` : la ⚙ du lot ligne par ligne, 05/11, et le clic
+>   droit sur une sélection, 16/11, sont deux gestes voisins ; le ▶ du lot ne refait que le
+>   périmé). La card mère porte la bande « Étapes du lot » (`common/_batch_processes.html`,
+>   incluse par `_batch_card.html`), lue sur les lignes que les filles portent déjà
+>   (`wama_actions.batch_process_rows` : étapes qui ont lieu sur au moins une fille, dans l'ordre
+>   du pipeline, « à jour sur n / m ») ; son ▶ poste la route commune
+>   `common:api_process_on_batch` → `process_views.start_on_batch`, qui joue `start_one_process`
+>   fille par fille avec le lancement DÉCLARÉ de l'app (comme `start_on_selection`) — une fille
+>   où l'étape n'a pas lieu, déjà en cours ou d'un autre compte est passée et dite. Le clic
+>   (`queue-actions.js`, `.batch-proc-run`) reprend la suite que l'app déclare au ▶ du lot.
+>   Outil `start_process_on_batch`. Garde : `tests_process_views.BatchStepRunTest`.
 > - ✅ **⚙ par process (2026-10-03, 5ᵉ pièce)** : chaque ligne de la bande porte le MÊME
 >   `.settings-btn[data-id]` que la card, avec `data-only` = les réglages que le process
 >   SURVEILLE (`ProcessSpec.watched`, remonté par `card_rows`) ; `queue-actions.js` le passe à

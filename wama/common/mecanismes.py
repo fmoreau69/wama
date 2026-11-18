@@ -2077,7 +2077,12 @@ MECHANISMS = (
               "(`task_for`, `reset_on_start`). Le pipeline se lit de l'app de l'élément "
               "(`pipeline_of`), il n'est pas un argument. Le geste est `start_one_process` : "
               "la vue et l'outil `start_<app>(…, process=…)` de l'assistant l'appellent tous deux "
-              "(2026-10-14)",
+              "(2026-10-14). 2026-11-18 (décision de Fabien : relancer un sous-process sur toutes "
+              "les cards filles) : le MÊME ▶ joué sur chaque card d'un LOT (`start_on_batch`, "
+              "route commune `api_process_on_batch`, outil `start_process_on_batch`), depuis la "
+              "bande « Étapes du lot » de la card mère (`_batch_processes.html`, lignes lues sur "
+              "celles des filles, `batch_process_rows`) ; une fille où l'étape n'a pas lieu ou déjà "
+              "en cours est passée et dite",
               'wama/common/utils/process_views.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6',
               depends_on=('process_pipeline',)),

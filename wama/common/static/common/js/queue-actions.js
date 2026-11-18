@@ -728,6 +728,25 @@
         },
     });
 
+    // ▶ D'UNE ÉTAPE SUR TOUT LE LOT (2026-11-18, décision de Fabien : « le plus simple pour
+    // permettre de relancer un sous-process sur toutes les cards filles ») — la bande des étapes de
+    // la card mère (`_batch_processes.html`). Même réponse que le ▶ du lot (`started`), donc la
+    // MÊME suite déclarée par l'app ; les cards passées (étape sans objet, déjà en cours) se disent.
+    batchAction('batch-proc-run', 'data-batch-process-url', {
+        followUp: function (data, id, btn) {
+            const skipped = data.skipped || [];
+            if (skipped.length && window.WamaApp && WamaApp.toast) {
+                WamaApp.toast((data.started || []).length + ' card(s) lancée(s), ' + skipped.length
+                              + ' passée(s) : ' + skipped.map(function (s) { return s.reason; })
+                                  .filter(function (r, i, all) { return all.indexOf(r) === i; })
+                                  .join(' ; '), 'warning');
+            }
+            const followUp = pick(batchFollowUps, btn);
+            if (followUp) { followUp(data, id, btn); return true; }
+            return false;
+        },
+    });
+
     // ⚙ du lot : comme pour l'élément, la brique tient le clic et l'app déclare son ouvreur —
     // la modale de lot reste propre à l'app (schéma, contexte 'batch').
     const batchOpeners = [];

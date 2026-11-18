@@ -220,6 +220,48 @@ def _selection_processes(app) -> str:
 
 
 @register.simple_tag
+def batch_process_rows(app, domain, batch_info):
+    """Les étapes d'un LOT pour la bande de sa card mère (`_batch_processes.html`, 2026-11-18,
+    décision de Fabien : relancer un sous-process sur toutes les cards filles). Lues sur les lignes
+    que chaque fille porte déjà (`elem.processes`, `process_pipeline.decorate_cards`), dans l'ordre
+    du pipeline : `[{key, label, status, active, done, url}]` — `active` : les filles où l'étape a
+    lieu, `done` : celles où elle est à jour, `status` : l'état commun (en cours, échec, périmé, à
+    jour, à faire). Une étape qui n'a lieu sur aucune fille n'est pas rendue ; rien à moins de DEUX
+    étapes, la règle de la bande d'une card."""
+    from django.urls import NoReverseMatch, reverse
+    from wama.common.services.process_pipeline import pipeline_of
+    from wama.common.utils.app_modes import domain_surface as _surface
+
+    elems = [getattr(it, 'elem', it) for it in (batch_info or {}).get('items', ())]
+    elems = [e for e in elems if e is not None and getattr(e, 'processes', None)]
+    pipeline = pipeline_of(elems[0]) if elems else None
+    if pipeline is None:
+        return []
+    surface = _surface(app, domain) if domain else app
+    by_key = {}
+    for elem in elems:
+        for row in elem.processes:
+            by_key.setdefault(row['key'], []).append(row)
+    rows = []
+    for spec in pipeline.ordered():
+        active = [r for r in by_key.get(spec.key, ()) if r.get('state') == 'active']
+        if not active:
+            continue
+        statuses = [r.get('status') for r in active]
+        done = statuses.count('SUCCESS')
+        status = next((s for s in ('RUNNING', 'FAILURE', 'STALE') if s in statuses),
+                      'SUCCESS' if done == len(active) else 'PENDING')
+        try:
+            url = reverse('common:api_process_on_batch',
+                          args=[surface, batch_info['obj'].pk, spec.key])
+        except NoReverseMatch:
+            url = ''
+        rows.append({'key': spec.key, 'label': spec.label or spec.key, 'status': status,
+                     'active': len(active), 'done': done, 'url': url})
+    return rows if len(rows) > 1 else []
+
+
+@register.simple_tag
 def domain_route_prefix(app, domain=None):
     """Préfixe des routes de ce domaine, LU dans la déclaration (`app_modes.route_prefix`).
 
