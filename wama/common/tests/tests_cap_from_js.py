@@ -1437,6 +1437,60 @@ class DuringVariantsOfThePreviewTest(SimpleTestCase):
 
 
 @skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')
+class TheTextFaceListensThroughTheCommonVoiceTest(SimpleTestCase):
+    """2026-11-18 (Fabien : « une lecture via le service de vocalisation avec un bouton de lecture à
+    côté du bouton copier ») : every TEXT face of the common preview reads its text through THE
+    common voice (`WamaAssistantVoice.speak`, forced : an explicit gesture, even when muted) — the
+    same text Copier copies ; pressed while reading, it stops. Without the voice brick, no button."""
+
+    def setUp(self):
+        from py_mini_racer import MiniRacer
+        self.v8 = MiniRacer()
+        self.v8.eval(FAKE_DOM + """
+        document.createElement = function (tag) {
+          var el = {tagName: tag, children: [], attrs: {}, listeners: {}, className: '', textContent: '',
+                    innerHTML: '', hidden: false, style: {},
+                    appendChild: function (c) { el.children.push(c); return c; },
+                    setAttribute: function (k, v) { el.attrs[k] = v; },
+                    addEventListener: function (t, fn) { el.listeners[t] = fn; }};
+          return el;
+        };
+        var spoken = [], stopped = 0, copied = [];
+        window.WamaApp = {copyText: function (t) { copied.push(t); }};
+        window.WamaAssistantVoice = {
+          speak: function (t, o) { spoken.push([t, !!(o && o.force)]); return new Promise(function () {}); },
+          stop: function () { stopped++; }};""")
+        self.v8.eval((JS / 'media-preview.js').read_text(encoding='utf-8'))
+
+    def _buttons(self, data):
+        self.v8.eval(f"var pane = window.WamaMediaPreview.textPane({json.dumps(data)}, 'text/plain');"
+                     " var bar = pane.children[0];")
+        return json.loads(self.v8.eval(
+            "JSON.stringify(bar.children.slice(1).map(function (b) {"
+            " return [b.innerHTML.replace(/<[^>]+>/g, ''), b.hidden]; }))"))
+
+    def test_the_listen_button_sits_beside_copy_and_reads_the_same_text(self):
+        self.assertEqual([['Copier', False], ['Écouter', False]],
+                         self._buttons({'content': 'Bonjour à tous. Merci.'}))
+        out = json.loads(self.v8.eval(
+            "bar.children[1].listeners.click(); bar.children[2].listeners.click();"
+            " JSON.stringify([copied, spoken, bar.children[2].innerHTML.replace(/<[^>]+>/g, '')])"))
+        self.assertEqual([['Bonjour à tous. Merci.'], [['Bonjour à tous. Merci.', True]], 'Arrêter'], out,
+                         'the same text, read even when muted ; the button now stops')
+        again = json.loads(self.v8.eval(
+            "bar.children[2].listeners.click();"
+            " JSON.stringify([stopped, spoken.length, bar.children[2].innerHTML.replace(/<[^>]+>/g, '')])"))
+        self.assertEqual([1, 1, 'Écouter'], again, 'pressed while reading : it stops, nothing more is said')
+
+    def test_a_face_without_text_offers_neither_copy_nor_listen(self):
+        self.assertEqual([['Copier', True], ['Écouter', True]], self._buttons({'error': 'absent'}))
+
+    def test_without_the_common_voice_there_is_no_listen_button(self):
+        self.v8.eval('delete window.WamaAssistantVoice;')
+        self.assertEqual([['Copier', False]], self._buttons({'content': 'Bonjour.'}))
+
+
+@skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')
 class PreviewOverlayTest(SimpleTestCase):
     """The detections drawn over a preview (2026-10-05) : the frame shown at a playing time, and
     where the picture really sits in its element (`object-fit: contain`, bars included)."""

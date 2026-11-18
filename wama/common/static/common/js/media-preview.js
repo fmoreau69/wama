@@ -2000,10 +2000,41 @@
             + (!drawn && !formatted && CODE_TEXT.test(mimeType || '') ? ' is-code' : '');
         body.textContent = 'Chargement…';
 
+        // Le TEXTE de la face — celui d'origine pour un résultat mis en forme ou dessiné — : ce que
+        // Copier copie et ce qu'Écouter lit.
+        const textOf = () => (formatted || drawn) ? data.content : body.textContent;
         // Le geste commun (`WamaApp.copyText`) : la coche, le repli hors https, l'échec dit.
         copyBtn.addEventListener('click', () => {
-            window.WamaApp.copyText((formatted || drawn) ? data.content : body.textContent, copyBtn);
+            window.WamaApp.copyText(textOf(), copyBtn);
         });
+        // « Écouter » (2026-11-18, Fabien : « rajouter dans la preview commune une lecture via le
+        // service de vocalisation, avec un bouton de lecture à côté du bouton copier ») : LA voix
+        // commune (`WamaAssistantVoice.speak`, montée par `base.html` sur toute page) — la voix et le
+        // modèle du compte, le texte préparé par le serveur (`text_for_speech`), lue même en muet :
+        // c'est un geste explicite (`force`, la règle du bouton « Écouter » d'un message de
+        // l'assistant). Pendant SA lecture, le bouton l'arrête. Toute face texte de toute app en
+        // profite : transcription, résumé, description, document lu, traduction.
+        const voice = window.WamaAssistantVoice;
+        const listenBtn = voice ? document.createElement('button') : null;
+        if (listenBtn) {
+            const listenLabel = '<i class="fas fa-volume-up" aria-hidden="true"></i><span>Écouter</span>';
+            const stopLabel = '<i class="fas fa-stop" aria-hidden="true"></i><span>Arrêter</span>';
+            listenBtn.type = 'button';
+            listenBtn.className = 'wama-text-action';
+            listenBtn.innerHTML = listenLabel;
+            listenBtn.title = 'Lire ce texte à voix haute';
+            let reading = false;
+            const done = () => { reading = false; listenBtn.innerHTML = listenLabel;
+                                 listenBtn.title = 'Lire ce texte à voix haute'; };
+            listenBtn.addEventListener('click', () => {
+                if (reading) { voice.stop(); done(); return; }
+                reading = true;
+                listenBtn.innerHTML = stopLabel;
+                listenBtn.title = 'Arrêter la lecture';
+                Promise.resolve(voice.speak(textOf(), { force: true })).then(done, done);
+            });
+            toolbar.appendChild(listenBtn);
+        }
 
         pane.appendChild(toolbar);
         pane.appendChild(body);
@@ -2028,6 +2059,7 @@
             body.textContent = data.error ? `Aperçu indisponible : ${data.error}` : 'Aperçu indisponible.';
         }
         copyBtn.hidden = !(typeof data.content === 'string' || data.url);
+        if (listenBtn) listenBtn.hidden = copyBtn.hidden;
         return pane;
     }
 
@@ -2536,7 +2568,7 @@
         // faces
         sidesBar: sidesBar, viewerKind: viewerKind, compareFaces: compareFaces, compareView: compareView,
         variantToggle: variantToggle, followDuring: followDuring, mountCardFaces: mountCardFaces,
-        faceViewer: faceViewer,
+        faceViewer: faceViewer, textPane: _textPane,
         takeClock: takeClock, giveClock: giveClock, releaseMedia: _releaseHost,
         playOnAxis: playOnAxis, axisOf: axisOf, soundOnAxis: _soundOnAxis, videoWithStrip: _videoWithStrip,
         isRunningCard: isRunningCard, cardOfPreview: cardOfPreview, cardElement: cardElement,

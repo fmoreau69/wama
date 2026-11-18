@@ -1942,7 +1942,8 @@ manifeste** (ce que le kind `app` capte + cible de projection).
     l'emplacement dédié est AU-DESSUS, jamais sur le contenu.
     - **Visionneuse** : `sidesBar` rend des onglets (`role=tablist`), répartis sur la largeur
       (bornés à 280 px à tout l'écran) ; une face texte a son cadre (`_textPane` : mots, Copier,
-      colonne de lecture, chasse fixe pour CSV/JSON) ; largeur selon la nature (`viewerKind`),
+      Écouter — le même texte lu par la voix commune, `WamaAssistantVoice.speak`, 2026-11-18,
+      `WAMA_QUALITE §2 M4` —, colonne de lecture, chasse fixe pour CSV/JSON) ; largeur selon la nature (`viewerKind`),
       hauteur = ce que laisse l'écran (`--wv-stage`) au lieu de 70vh/65vh figés ; ouvrir / plein
       écran / fermer dans l'en-tête ; flèches de navigation dans leurs MARGES (`has-nav`).
     - **Volet** : les mêmes onglets ; trop étroits, ils se RESSERRENT (`_fitFaceTabs` : icônes,

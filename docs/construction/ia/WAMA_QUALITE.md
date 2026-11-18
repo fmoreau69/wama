@@ -695,6 +695,49 @@ source (sans lequel elle mesure la fluidité et pas la fidélité, cf. `TRANSCRI
   élément mesuré sans référence est gardée sur la route d'aperçu servie
   (`test_the_viewer_offers_the_evaluation_face_for_a_measure_alone`).
 
+**Le texte confronté à SON audio — deux pistes (2026-11-18, proposition de Fabien).** *« Pour
+vérifier la qualité verbatim d'une transcription, faire lire la retranscription par le service de
+vocalisation et comparer par analyse phonétique l'audio original et l'audio synthétisé ; et ajouter
+dans la preview commune une lecture par le service de vocalisation, un bouton à côté de Copier. »*
+
+1. ✅ **L'écoute humaine — le bouton « Écouter » de toute face texte** (livré le jour même) : le
+   panneau texte de l'aperçu commun (`media-preview.js`, `_textPane`) lit le texte que Copier
+   copie par LA voix commune (`WamaAssistantVoice.speak`, forcée : geste explicite, même en muet ;
+   voix et modèle du compte, texte préparé par le serveur, `text_for_speech`) ; pendant sa lecture
+   il l'arrête. Toutes les apps en profitent sans rien déclarer (transcription, résumé,
+   description, document lu, traduction). Garde : `tests_cap_from_js.TheTextFaceListensThrough…`
+   (contre-épreuves : bouton retiré, lecture non forcée → rouges).
+   ⏳ **Lire dans la langue du TEXTE** : `/api/tts-kokoro/` dit tout dans la voix et la langue du
+   PROFIL (`assistant_voice`) — une transcription anglaise est lue par une voix française. La langue
+   est souvent connue (`Transcript.language`, celle que la transcription a entendue) ; manquent une
+   langue par demande à la route de voix et sa transmission par la face (la voix de cette langue :
+   `voices.kokoro_voice`).
+   ⚠ Ce n'est pas un outil de VÉRIFICATION : réécouter le texte sans l'original ne dit pas ce qui
+   a été mal entendu. La page de correction le fait déjà (segment rejoué sur l'original, mot lu en
+   surbrillance).
+2. ⏳ **La mesure automatique — pas par synthèse, par le texte posé sur l'audio d'origine.**
+   Comparer l'audio d'origine à un audio SYNTHÉTISÉ du texte mesurerait d'abord ce qui les sépare
+   légitimement — voix, timbre, débit, pauses, bruit de fond, prise de son —, que ni les MFCC ni un
+   alignement DTW n'effacent entre deux locuteurs ; et la synthèse ajoute SES erreurs (noms propres,
+   nombres, sigles : la normalisation de M10). C'est l'écart de domaine déjà relevé pour M10
+   (analyse du 2026-09-25, ci-dessous), sans même un ASR qualifié pour lire le résultat.
+   ✅ **La forme qui ne quitte pas l'audio d'origine** : poser le TEXTE sur l'audio et lire ce que
+   l'acoustique en dit, mot par mot —
+   - **alignement forcé avec score** : l'aligneur acoustique du catalogue (étape « Alignement »,
+     `common/services/acoustic_alignment.py`) place déjà chaque mot ; sa probabilité d'alignement
+     (CTC) n'est pas encore exposée. Un mot que l'audio ne porte pas s'aligne mal. Précédent dans le
+     même module : `doubt_words_over_silence` marque déjà un mot posé sur du silence ;
+   - **phonèmes contre phonèmes** : reconnaître les phonèmes de l'original (modèle CTC de phonèmes),
+     les comparer à ceux du texte (graphème → phonème) — un taux d'erreur phonétique par segment,
+     qui voit l'homophone et la syllabe avalée là où un texte « corrigé » par un LLM les masque.
+   **Où ça se range, sans chemin neuf** : une mesure SANS RÉFÉRENCE de la ligne Transcription, comme
+   `speech_coverage` (`ProcessSpec.checks`, `result_evaluation.register_check`) — score sur la bande
+   et la face « Évaluation » — et, par segment, une couche de plus de la heatmap de la page de
+   correction (à côté de la divergence M1 et de la confiance du moteur). **Avant de s'y fier** : le
+   CALIBRER contre M3 sur le corpus corrigé (le score bas doit tomber là où le WER est haut —
+   corrélation par segment), comme toute mesure sans référence (§4.1). Modèle de phonèmes : par la
+   route d'installation (ligne de catalogue), jamais tiré au premier usage.
+
 ### M5 — Juge modèle indépendant 🔄 (briques présentes, zéro consommateur)
 - **Mesure** : un LLM ou un VLM d'une **autre famille** que le générateur note la sortie par rapport
   à la demande, en JSON strict, avec un drapeau « à revoir ». Pour le visuel : le VLM décrit la
@@ -1883,3 +1926,6 @@ derniers — décision à prendre à ce moment-là, pas avant.
   M8 (étoiles lues comme des duels), M9 (répétabilité et reproductibilité, courbe par modèle),
   question des modes musique / paysages sonores, intention de publier les évaluations
   (`WAMA_VISION_COMPLET §10.4`, `ROADMAP §30`). Rien d'implémenté.
+- **2026-11-18** — le texte confronté à son audio (proposition de Fabien, sous M4) : bouton
+  « Écouter » de l'aperçu commun ✅ ; mesure par alignement forcé / phonèmes de l'original ⏳ —
+  la comparaison à un audio synthétisé est écartée, avec sa raison.
