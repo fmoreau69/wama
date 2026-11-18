@@ -1063,30 +1063,18 @@
     // `data-batch-update-url` de la card mère (`_batch_card.html`). Une app ne passe `saveItem` /
     // `saveBatch` que pour un envoi qui n'est pas celui-là.
     const qc = cfg.queueContainer || document;
-    function sayRefused(text) {
-      if (global.WamaApp && WamaApp.toast) WamaApp.toast(text, 'error');
-    }
+    // Le volet devient un FormData (une valeur par case d'une liste, booléens en `true`/`false`) ;
+    // l'écriture et le refus dit sont LE geste commun (`WamaApp.postSettings`).
     function postSettings(url, values) {
+      const app = global.WamaApp;
+      if (!(app && app.postSettings)) return Promise.resolve(false);
       const body = new FormData();
       Object.keys(values || {}).forEach(function (k) {
         [].concat(values[k]).forEach(function (v) {
           body.append(k, v === true ? 'true' : v === false ? 'false' : (v == null ? '' : v));
         });
       });
-      return fetch(url, { method: 'POST', body: body, credentials: 'same-origin',
-                          headers: { 'X-CSRFToken': _cookie('csrftoken') } })
-        .then(function (r) {
-          return r.json().catch(function () { return {}; })
-            .then(function (d) { return { ok: r.ok, data: d || {} }; });
-        })
-        .then(function (res) {
-          if (!res.ok || res.data.error || res.data.success === false) {
-            sayRefused('Réglages refusés — ' + (res.data.error || 'le serveur les a rejetés'));
-            return false;
-          }
-          return true;
-        })
-        .catch(function () { sayRefused('Réglages non enregistrés — erreur réseau'); return false; });
+      return app.postSettings(url, body);
     }
     function cardOf(id) {
       return qc.querySelector((cfg.cardSelector || '.wama-card[data-id]') + '[data-id="' + id + '"]');

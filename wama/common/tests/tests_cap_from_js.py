@@ -765,6 +765,11 @@ class InspectorSavesThroughTheCommonPathTest(SimpleTestCase):
         self.v8 = MiniRacer()
         self.v8.eval(FAKE_DOM)
         self.v8.eval(SAVE_DOM)
+        # The writing and the refusal said are THE common gesture (`WamaApp.postSettings`) : the real
+        # brick is loaded, its `fetch` is the fake one above.
+        self.v8.eval("var navigator = {}; var localStorage = "
+                     "{getItem: function () { return null; }, setItem: function () {}};")
+        self.v8.eval((JS / 'wama-app-base.js').read_text(encoding='utf-8'))
         self.v8.eval((JS / 'wama-inspector.js').read_text(encoding='utf-8'))
 
     def _save(self, which, own=''):
@@ -796,6 +801,16 @@ class InspectorSavesThroughTheCommonPathTest(SimpleTestCase):
         # Counter-proof: the default only fills what the app leaves empty.
         sent = self._save('saveItem(7)', own="saveItem: function () { sent.push({url: 'own'}); },")
         self.assertEqual(['own'], [s['url'] for s in sent])
+
+    def test_writing_settings_and_saying_no_is_one_gesture(self):
+        """Reverification of 2026-11-18 : the checkbox of a step, « Relancer avec … » and the panel
+        each wrote « POST, read the answer, say the refusal ». One gesture now."""
+        base = (JS / 'wama-app-base.js').read_text(encoding='utf-8')
+        self.assertEqual(1, base.count("'Réglage refusé par le serveur'"))
+        self.assertEqual(3, base.count('postSettings('), 'its definition and its two callers')
+        inspector = (JS / 'wama-inspector.js').read_text(encoding='utf-8')
+        self.assertIn('app.postSettings(url, body)', inspector)
+        self.assertNotIn("'Réglage refusé", inspector)
 
 
 #: The apps that still pass their OWN panel save to `initFromSchema` (2026-11-17) — a list that can

@@ -43,6 +43,27 @@
     return fetch(url, opts);
   }
 
+  // ÉCRIRE des réglages (un élément, un lot) et DIRE un refus : POST de `body` (FormData), rend la
+  // promesse de `true` si le serveur les a pris, `false` sinon — refus (statut, `error`,
+  // `success: false`) ou réseau, annoncés par `toast`. Un geste, trois appelants qui l'écrivaient
+  // chacun (revérification du 2026-11-18) : la case d'un process et « Relancer avec … » (plus
+  // bas), l'enregistrement du volet (`WamaInspector.initFromSchema`).
+  function postSettings(url, body) {
+    return csrfFetch(url, csrfToken(), { method: 'POST', body: body, credentials: 'same-origin' })
+      .then(function (r) {
+        return r.json().catch(function () { return {}; })
+          .then(function (d) { return { ok: r.ok, data: d || {} }; });
+      })
+      .then(function (res) {
+        if (!res.ok || res.data.error || res.data.success === false) {
+          toast(res.data.error || 'Réglage refusé par le serveur', 'error');
+          return false;
+        }
+        return true;
+      })
+      .catch(function () { toast('Erreur réseau', 'error'); return false; });
+  }
+
   // Lit une réponse JSON en DISANT ce qui s'est passé quand ce n'en est pas.
   //
   // ⚠⚠ MESURÉ le 2026-09-23. Les deux surfaces de l'assistant faisaient `await r.json()` sans
@@ -1569,15 +1590,10 @@
     const body = new FormData();
     body.append(field, box.checked ? 'true' : 'false');
     box.disabled = true;
-    csrfFetch(url, csrfToken(), { method: 'POST', body: body })
-      .then(function (r) {
-        return r.json().catch(function () { return {}; })
-          .then(function (d) { return { ok: r.ok, data: d || {} }; });
-      })
-      .then(function (res) {
-        if (!res.ok || res.data.error) {
+    postSettings(url, body)
+      .then(function (ok) {
+        if (!ok) {
           box.checked = !box.checked;
-          toast(res.data.error || 'Réglage refusé par le serveur', 'error');
           return;
         }
         const proc = box.closest('.wcv3-proc');
@@ -1589,7 +1605,6 @@
             .then(function (fresh) { if (fresh) card.replaceWith(fresh); });
         }
       })
-      .catch(function () { box.checked = !box.checked; toast('Erreur réseau', 'error'); })
       .then(function () { box.disabled = false; });
   });
 
@@ -1607,21 +1622,13 @@
     const body = new FormData();
     body.append(field, btn.dataset.value || '');
     btn.disabled = true;
-    csrfFetch(url, csrfToken(), { method: 'POST', body: body })
-      .then(function (r) {
-        return r.json().catch(function () { return {}; })
-          .then(function (d) { return { ok: r.ok, data: d || {} }; });
-      })
-      .then(function (res) {
-        if (!res.ok || res.data.error) {
-          toast(res.data.error || 'Réglage refusé par le serveur', 'error');
-          return;
-        }
+    postSettings(url, body)
+      .then(function (ok) {
+        if (!ok) return;
         const proc = btn.closest('.wcv3-proc');
         const run = proc && proc.querySelector('.wcv3-proc-run');
         if (run) run.click();
       })
-      .catch(function () { toast('Erreur réseau', 'error'); })
       .then(function () { btn.disabled = false; });
   });
 
@@ -1711,6 +1718,7 @@
     getUrl: getUrl,
     csrfHeaders: csrfHeaders,
     csrfFetch: csrfFetch,
+    postSettings: postSettings,
     csrfToken: csrfToken,
     jsonOrExplain: jsonOrExplain,
     wordCount: wordCount,
