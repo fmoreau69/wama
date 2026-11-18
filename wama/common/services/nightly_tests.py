@@ -408,10 +408,30 @@ def free_vram() -> None:
 
 # ── Runner sérialisé ────────────────────────────────────────────────────────
 
+#: Le DOMAINE de la page que mesure le scénario en cours (`<app>.<domaine>.<geste>`, pages d'une app
+#: à plusieurs domaines — `ui_smoke.discoverable_pages`) ; '' pour le premier domaine et une page à
+#: une file. Posé par `run_one` (les scénarios se jouent l'un après l'autre) et lu par les
+#: instruments pour viser l'ÉLÉMENT de ce domaine (`ui_smoke._element_model`) — une variable de
+#: module, pas de contexte : leurs lectures de base passent par des fils ordinaires.
+current_page_domain = ''
+
+
+def scenario_domain(sc: Scenario) -> str:
+    """Le domaine que nomme l'id d'un scénario (`enhancer.audio.preview` → `audio`), '' sinon."""
+    rest = (sc.id or '')[len(sc.app or '') + 1:] if (sc.id or '').startswith(f'{sc.app}.') else ''
+    first = rest.split('.', 1)[0] if '.' in rest else ''
+    if not first:
+        return ''
+    from wama.common.utils.app_modes import get_domains
+    return first if first in [d.get('id') for d in get_domains(sc.app)] else ''
+
+
 def run_one(sc: Scenario, ctx: dict) -> ScenarioResult:
     """Exécute UN scénario (timing + capture d'exception). NB : timeout dur = TODO prod
     (Celery soft_time_limit / subprocess) ; ici on mesure la durée, sans kill cross-platform."""
+    global current_page_domain
     start = time.time()
+    current_page_domain = scenario_domain(sc)
     try:
         ok, detail = sc.run(ctx)
         return ScenarioResult(
@@ -432,6 +452,8 @@ def run_one(sc: Scenario, ctx: dict) -> ScenarioResult:
             stage_reached="error", duration_s=round(time.time() - start, 2),
             error=f"{type(exc).__name__}: {exc}",
         )
+    finally:
+        current_page_domain = ''
 
 
 def run_all(scenarios: Optional[List[Scenario]] = None, write: bool = True,

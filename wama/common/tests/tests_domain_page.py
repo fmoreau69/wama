@@ -164,6 +164,74 @@ class EveryPageIsThePiecesTest(SimpleTestCase):
         self.assertNotIn('window.WAMA_GLOBAL_PROGRESS_URL =', source)
 
 
+class TheNightlyGesturesSweepEveryDomainTest(SimpleTestCase):
+    """The gestures of the night measure EVERY domain of a page, each opened by its address
+    (`ui_smoke.discoverable_pages`, `?domain=`) — not the one the test account remembered from the
+    scenario before (2026-11-17, « on balaye les apps, on balaye les domaines »)."""
+
+    def test_every_domain_of_every_app_is_a_page_of_its_own(self):
+        from wama.common.services.ui_smoke import discoverable_apps, discoverable_pages
+        pages = discoverable_pages()
+        keys = [key for _app, _path, key in pages]
+        self.assertEqual(len(keys), len(set(keys)), 'two pages share a scenario prefix')
+        several = 0
+        for app, path in discoverable_apps():
+            domains = [d['id'] for d in get_domains(app)]
+            mine = [(p, k) for a, p, k in pages if a == app]
+            with self.subTest(app=app):
+                if len(domains) < 2:
+                    self.assertEqual([(path, app)], mine)
+                    continue
+                several += 1
+                self.assertEqual([f'{path}?domain={d}' for d in domains], [p for p, _k in mine])
+                # The first domain keeps the historical id, the others are prefixed by their domain.
+                self.assertEqual([app] + [f'{app}.{d}' for d in domains[1:]], [k for _p, k in mine])
+        self.assertGreater(several, 0, 'no app of the park has several domains')
+
+    def test_a_scenario_is_registered_for_every_domain_page(self):
+        from wama.common.services import nightly_tests
+        from wama.common.services.ui_smoke import discoverable_pages
+        nightly_tests.load_scenarios()
+        ids = {s.id for s in nightly_tests.REGISTRY}
+        for _app, _path, key in discoverable_pages():
+            with self.subTest(page=key):
+                self.assertIn(f'{key}.ui', ids)
+
+    def test_a_scenario_measures_the_element_of_its_page_domain(self):
+        """The runner reads the domain a scenario's id names (`nightly_tests.scenario_domain`), and
+        the instruments measure THAT domain's element (`ui_smoke._element_surface`) — the audio page
+        of the enhancer counted image elements before (2026-11-17, a false green)."""
+        from wama.common.services import nightly_tests
+        from wama.common.services.ui_smoke import _element_surface, discoverable_pages
+        from wama.common.utils.app_modes import domain_surface
+        seen = 0
+        for app, _path, key in discoverable_pages():
+            sc = nightly_tests.Scenario(id=f'{key}.ui', app=app, stage='ui', description='',
+                                        run=lambda ctx: (True, ''))
+            domain = nightly_tests.scenario_domain(sc)
+            with self.subTest(page=key):
+                self.assertEqual(key[len(app) + 1:] if key != app else '', domain)
+                nightly_tests.current_page_domain = domain
+                try:
+                    self.assertEqual(domain_surface(app, domain) if domain else app,
+                                     _element_surface(app))
+                finally:
+                    nightly_tests.current_page_domain = ''
+            seen += bool(domain)
+        self.assertGreater(seen, 0)
+        # The runner sets it for the run and leaves nothing behind.
+        sc = nightly_tests.Scenario(id='enhancer.audio.x', app='enhancer', stage='ui',
+                                    description='', run=lambda ctx: (
+                                        nightly_tests.current_page_domain == 'audio', 'domain'))
+        self.assertTrue(nightly_tests.run_one(sc, {}).ok)
+        self.assertEqual('', nightly_tests.current_page_domain)
+
+    def test_the_page_of_a_domain_is_the_page_asked_for(self):
+        """The arrival check compares the PATH: the page of a domain is asked with its query."""
+        from wama.common.services.ui_smoke import _verdict_d_arrivee
+        self.assertIsNone(_verdict_d_arrivee('http://x/enh/?domain=audio', '', 200, '/enh/?domain=audio'))
+
+
 class TheServedPageCarriesTheDomainsTest(TestCase):
     """Sur la page SERVIE : un hôte d'onglets, une barre par domaine, chacune son adresse."""
 

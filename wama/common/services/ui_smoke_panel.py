@@ -23,7 +23,7 @@ ne redéfinit rien. ⚠ Tout l'ORM est HORS du contexte Playwright (`Synchronous
 """
 from .ui_smoke import (BASE_URL, _clic_de_deselection, _exiger_la_page, _garde_de_montage,
                        _monter_un_lot, _motif_skip, _test_session_key, _total_nettoye,
-                       discoverable_apps)
+                       discoverable_apps, discoverable_pages)
 from .ui_smoke_matching import _cookie
 
 #: Les champs générés du volet droit et leur valeur, normalisée (case → 'true'/'false').
@@ -185,9 +185,9 @@ def register_panel_reflect_scenarios():
     """Enregistre un scénario `<app>.panel_reflect` par app disposant d'un index."""
     from wama.common.services.nightly_tests import register
 
-    for label, path in discoverable_apps():
+    for label, path, key in discoverable_pages():
         register(
-            id=f"{label}.panel_reflect", app=label, stage="ui",
+            id=f"{key}.panel_reflect", app=label, stage="ui",
             description=(f"Volet {label} : la card sélectionnée y montre ses réglages, le ✕ y "
                          f"remet ceux de la file (champs générés du schéma)"),
             run=(lambda p=path, a=label: (lambda ctx: check_app_panel_reflect(a, p)))(),

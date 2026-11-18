@@ -35,7 +35,8 @@ import os
 
 from .ui_smoke import (BASE_URL, IDS_CARDS_JS, _exiger_la_page, _garde_de_montage, _image_temoin,
                        _in_plain_thread, _monter_un_lot, _motif_skip, _test_session_key,
-                       _total_nettoye, _wav_silence, discoverable_apps)
+                       _total_nettoye, _wav_silence, discoverable_apps, discoverable_pages,
+                       _element_model, _element_surface)
 from .ui_smoke_matching import _cookie
 
 PAGE_TIMEOUT_MS = 90000
@@ -235,8 +236,8 @@ def _store_a_witness_result(app: str, item_id) -> tuple:
     from wama.common.utils.media_paths import app_media_dir
     from wama.common.utils.preview_registry import PreviewRegistry
 
-    model = PreviewRegistry.get_model(app)
-    spec = (DetailRegistry.get(app) or {}).get('spec') or {}
+    model = _element_model(app)
+    spec = (DetailRegistry.get(_element_surface(app)) or {}).get('spec') or {}
     fields = {f.name: f for f in model._meta.fields}
     changes = {'status': 'SUCCESS'} if 'status' in fields else {}
     text_field = spec.get('result_text')
@@ -267,7 +268,7 @@ def _store_a_witness_result(app: str, item_id) -> tuple:
 def _entry_declared(app: str) -> bool:
     """La spec déclare-t-elle une entrée (`source_file` ou `source_text`) ?"""
     from wama.common.utils.detail_registry import DetailRegistry
-    spec = (DetailRegistry.get(app) or {}).get('spec') or {}
+    spec = (DetailRegistry.get(_element_surface(app)) or {}).get('spec') or {}
     return bool(spec.get('source_file') or spec.get('source_text'))
 
 
@@ -399,7 +400,7 @@ def check_app_preview(app: str, url_path: str):
     from wama.common.services.nightly_tests import SkipScenario
     from wama.common.utils.preview_registry import PreviewRegistry
 
-    if PreviewRegistry.get_model(app) is None:
+    if _element_model(app) is None:
         raise SkipScenario("aucun modèle d'élément déclaré (PreviewRegistry) — rien à prévisualiser")
     if app in twins_with_copied_views():
         # Même règle que les contrats génériques : une COPIE figée ne suit pas le code réel.
@@ -1512,9 +1513,9 @@ def register_preview_scenarios():
         timeout_s=180, vram_gb=0.0,
     )
 
-    for label, path in discoverable_apps():
+    for label, path, key in discoverable_pages():
         register(
-            id=f"{label}.preview", app=label, stage="ui",
+            id=f"{key}.preview", app=label, stage="ui",
             description=(f"Aperçu {label} : le nom d'entrée de la card ouvre son entrée (puis la "
                          f"Sortie par la bascule), l'aperçu de la card ouvre sa sortie — résultat "
                          f"posé en base, aucun traitement"),

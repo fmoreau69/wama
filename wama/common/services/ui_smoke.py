@@ -399,13 +399,69 @@ def discoverable_apps():
     return sorted(out)
 
 
+def discoverable_pages():
+    """`[(app, chemin, préfixe d'id)]` — les PAGES que les gestes mesurent : une par app à une file,
+    UNE PAR DOMAINE pour une app qui en a plusieurs (`app_modes.has_domain_tabs`), ouverte sur ce
+    domaine par l'ADRESSE (`?domain=`, `navigation.PAGE_DOMAIN_PARAM` — le mécanisme de la page).
+
+    Pourquoi (2026-11-17, demande de Fabien : « on balaye les apps, on balaye les domaines ») : une
+    page à plusieurs domaines s'ouvrait sur celui que le compte de test avait RETENU au passage
+    précédent — que les scénarios d'un autre domaine déplaçaient. Les gestes mesuraient donc un
+    domaine imprévisible, et jamais tous. Le premier domaine garde l'id historique (`<app>.<geste>`),
+    les autres le préfixent (`<app>.<domaine>.<geste>`) : `--id <app>.` les prend tous."""
+    from wama.common.services.navigation import PAGE_DOMAIN_PARAM
+    from wama.common.utils.app_modes import get_domains, has_domain_tabs
+    out = []
+    for label, path in discoverable_apps():
+        domains = [d.get('id') for d in get_domains(label)] if has_domain_tabs(label) else []
+        if not domains:
+            out.append((label, path, label))
+            continue
+        for i, domain in enumerate(domains):
+            out.append((label, f'{path}?{PAGE_DOMAIN_PARAM}={domain}',
+                        label if i == 0 else f'{label}.{domain}'))
+    return out
+
+
+def _element_surface(app: str) -> str:
+    """La SURFACE de l'élément que mesure le scénario en cours : celle du domaine de sa page
+    (`nightly_tests.current_page_domain`, `app_modes.domain_surface` — `audio_enhancer` sur la page
+    audio de l'enhancer), sinon l'app. Les instruments lisaient le modèle de l'APP : sur la page d'un
+    domaine qui a son élément à lui, ils comptaient les éléments d'un autre (2026-11-17)."""
+    from wama.common.services import nightly_tests
+    from wama.common.utils.app_modes import domain_surface
+    domain = nightly_tests.current_page_domain
+    return domain_surface(app, domain) if domain else app
+
+
+def _element_model(app: str):
+    """Le modèle de l'élément que mesure le scénario en cours (`_element_surface`)."""
+    from wama.common.utils.preview_registry import PreviewRegistry
+    return PreviewRegistry.get_model(_element_surface(app)) or PreviewRegistry.get_model(app)
+
+
+#: La même portée côté navigateur : le volet que montre la page à plusieurs domaines, sinon le document.
+PAGE_ROOT_JS = "(document.querySelector('.tab-pane[data-domain].active') || document)"
+
+
+def _page_scope(page) -> str:
+    """Le volet que montre une page à plusieurs domaines (`.tab-pane[data-domain].active`, posé par
+    `WamaModes.showDomain` — le domaine que l'ADRESSE nomme, `discoverable_pages`), en préfixe de
+    sélecteur ; '' sur une page à une file. Ses cards d'entrée et ses barres de lot sont celles
+    qu'un utilisateur voit : la PREMIÈRE de la page est celle du premier domaine, masquée sur la page
+    d'un autre."""
+    return ('.tab-pane[data-domain].active '
+            if page.query_selector('.tab-pane[data-domain].active') else '')
+
+
 def register_ui_scenarios():
-    """Enregistre un scénario `<app>.ui` par app disposant d'une page d'index."""
+    """Enregistre un scénario `<app>.ui` par PAGE disposant d'une page d'index — une par domaine
+    pour une app qui en a plusieurs (`discoverable_pages`)."""
     from wama.common.services.nightly_tests import register
 
-    for label, path in discoverable_apps():
+    for label, path, key in discoverable_pages():
         register(
-            id=f"{label}.ui", app=label, stage="ui",
+            id=f"{key}.ui", app=label, stage="ui",
             description=f"Page {label} : HTTP 200, zéro erreur console JS",
             # Sélecteur MESURÉ sur les 13 pages (2026-07-31), pas supposé : `#appTabsContent`
             # vient du gabarit commun (10 apps) ; media_library, model_manager et studio ont
@@ -899,7 +955,9 @@ def _verdict_d_arrivee(url_arrivee: str, dit: str, status, cible: str):
 
     from wama.common.services.nightly_tests import SkipScenario
 
-    url_path = urlparse(cible).path if '://' in (cible or '') else (cible or '/')
+    # Le CHEMIN seul : la page d'un domaine se demande avec sa requête (`?domain=`,
+    # `discoverable_pages`), le serveur y répond sur le même chemin.
+    url_path = urlparse(cible or '/').path or '/'
     if status is None:
         return False, f"page {url_path} : aucune réponse"
     if status != 200:
@@ -1074,7 +1132,8 @@ def check_app_import(app: str, url_path: str):
     _nettoyes = []
     url = f"{BASE_URL.rstrip('/')}{url_path}"
     ETAT = """(() => {
-        const dz = document.querySelector('[id$="DropZone"], [data-wama-nic] .dropzone, .dropzone');
+        const root = """ + PAGE_ROOT_JS + """;
+        const dz = root.querySelector('[id$="DropZone"], [data-wama-nic] .dropzone, .dropzone');
         // Le champ d'IMPORT, pas le premier venu : une page porte souvent plusieurs
         // input[type=file] (image de référence, avatar, voix de clonage…). On vise d'abord
         // celui de la card d'entrée, puis la convention de nommage, puis le premier.
@@ -1097,11 +1156,11 @@ def check_app_import(app: str, url_path: str):
         // audio_input (avatarizer) — des champs de référence qui ne créent aucun élément,
         // d'où trois faux échecs. Avec le seul cran 2, on rejetait 5 apps qui importent très
         // bien mais nomment leur champ autrement (transcriber-file…).
-        const carte = document.querySelector('[data-wama-nic]');
+        const carte = root.querySelector('[data-wama-nic]');
         const exclus = '[id*="atch"], [id*="elody"], [id*="eference"], [id*="voice"], [id*="avatar"]';
-        const tous = [...document.querySelectorAll(`input[type=file]:not(${exclus})`)];
+        const tous = [...root.querySelectorAll(`input[type=file]:not(${exclus})`)];
         const fi = (dz && dz.querySelector(`input[type=file]:not(${exclus})`))
-                || document.querySelector(`[id$="FileInput"]:not(${exclus})`)
+                || root.querySelector(`[id$="FileInput"]:not(${exclus})`)
                 || (carte && carte.querySelector(`input[type=file]:not(${exclus})`))
                 // Dernier cran : UN SEUL champ candidat dans la page = aucune ambiguïté.
                 // S'il y en a plusieurs et qu'aucun marqueur ne les départage, on ne devine
@@ -1113,15 +1172,15 @@ def check_app_import(app: str, url_path: str):
         // 2026-10-19). 'attache' = le fichier se
         // joint au formulaire et c'est le bouton primaire qui crée l'élément.
         const carteDepot = (dz && dz.closest('[data-wama-depot]')) || carte
-                || document.querySelector('[data-wama-depot]');
+                || root.querySelector('[data-wama-depot]');
         return {cable: !!window._import || typeof window.WamaImport === 'function',
                 instancie: !!window._import,
                 depot: (carteDepot && carteDepot.getAttribute('data-wama-depot')) || 'cree',
                 dropzone: !!dz, champ: !!fi,
                 accept: fi ? (fi.getAttribute('accept') || '') : '',
                 champ_id: fi ? (fi.id || '(sans id)') : '',
-                champs_total: document.querySelectorAll('input[type=file]').length,
-                cards: document.querySelectorAll('.wama-card').length};
+                champs_total: root.querySelectorAll('input[type=file]').length,
+                cards: root.querySelectorAll('.wama-card').length};
     })()"""
 
     # NETTOYAGE : un test qui laisse des traces ne peut pas tourner toutes les nuits. Le modèle
@@ -1130,7 +1189,7 @@ def check_app_import(app: str, url_path: str):
     modele = None
     try:
         from wama.common.utils.preview_registry import PreviewRegistry
-        modele = PreviewRegistry.get_model(app)
+        modele = _element_model(app)
     except Exception:
         modele = None
     ids_avant = set()
@@ -1303,9 +1362,9 @@ def register_import_scenarios():
     """
     from wama.common.services.nightly_tests import register
 
-    for label, path in discoverable_apps():
+    for label, path, key in discoverable_pages():
         register(
-            id=f"{label}.import", app=label, stage="ui",
+            id=f"{key}.import", app=label, stage="ui",
             description=f"Card d'entrée {label} : un dépôt crée un élément",
             run=(lambda p=path, a=label: (lambda ctx: check_app_import(a, p)))(),
             timeout_s=180, vram_gb=0.0,
@@ -1353,7 +1412,7 @@ def check_app_add(app: str, url_path: str):
     model = None
     try:
         from wama.common.utils.preview_registry import PreviewRegistry
-        model = PreviewRegistry.get_model(app)
+        model = _element_model(app)
         ids_before = set(model.objects.values_list('id', flat=True)) if model is not None else set()
     except Exception:
         model, ids_before = None, set()
@@ -1474,9 +1533,9 @@ def register_add_scenarios():
     une app NOUVELLE (générée comprise) est couverte le jour où elle expose son index."""
     from wama.common.services.nightly_tests import register
 
-    for label, path in discoverable_apps():
+    for label, path, key in discoverable_pages():
         register(
-            id=f"{label}.add", app=label, stage="ui",
+            id=f"{key}.add", app=label, stage="ui",
             description=f"Card d'entrée {label} : le bouton primaire ajoute un élément sans le lancer",
             run=(lambda p=path, a=label: (lambda ctx: check_app_add(a, p)))(),
             timeout_s=180, vram_gb=0.0,
@@ -1538,7 +1597,7 @@ def check_app_send_to(app: str, url_path: str):
     ids_avant = set()
     try:
         from wama.common.utils.preview_registry import PreviewRegistry
-        modele = PreviewRegistry.get_model(app)
+        modele = _element_model(app)
         ids_avant = set(modele.objects.values_list('id', flat=True))
     except Exception:
         modele = None
@@ -1719,9 +1778,9 @@ def register_send_to_scenarios():
     """Enregistre un scénario `<app>.send_to` par app d'index — geste 14, part « Envoyer vers »."""
     from wama.common.services.nightly_tests import register
 
-    for label, path in discoverable_apps():
+    for label, path, key in discoverable_pages():
         register(
-            id=f"{label}.send_to", app=label, stage="ui",
+            id=f"{key}.send_to", app=label, stage="ui",
             description=f"« Envoyer vers {label} » depuis le gestionnaire de fichiers",
             run=(lambda p=path, a=label: (lambda ctx: check_app_send_to(a, p)))(),
             timeout_s=180, vram_gb=0.0,
@@ -2005,9 +2064,9 @@ def register_tree_drop_scenarios():
     """Enregistre un scénario `<app>.tree_drop` par app d'index — glisser depuis l'arbre sur la card v4."""
     from wama.common.services.nightly_tests import register
 
-    for label, path in discoverable_apps():
+    for label, path, key in discoverable_pages():
         register(
-            id=f"{label}.tree_drop", app=label, stage="ui",
+            id=f"{key}.tree_drop", app=label, stage="ui",
             description=f"Card d'entrée {label} : glisser un fichier de l'arbre (temporaire, dossier "
                         f"connecté) sur chaque tuile — travail, port, Lot — fait ce qu'elle promet",
             run=(lambda p=path, a=label: (lambda ctx: check_app_tree_drop(a, p)))(),
@@ -2523,7 +2582,7 @@ def _fichiers_des_objets_neufs(app: str, taille: int):
     trouves = []
     try:
         from wama.common.utils.preview_registry import PreviewRegistry
-        modele = PreviewRegistry.get_model(app)
+        modele = _element_model(app)
         if modele is None:
             return trouves
         champs = [f.name for f in modele._meta.get_fields()
@@ -2548,9 +2607,9 @@ def register_url_import_scenarios():
     """Enregistre un scénario `<app>.url_import` par app d'index — geste 14, part « URL »."""
     from wama.common.services.nightly_tests import register
 
-    for label, path in discoverable_apps():
+    for label, path, key in discoverable_pages():
         register(
-            id=f"{label}.url_import", app=label, stage="ui",
+            id=f"{key}.url_import", app=label, stage="ui",
             description=f"Card d'entrée {label} : une URL collée crée un élément",
             run=(lambda p=path, a=label: (lambda ctx: check_app_url_import(a, p)))(),
             timeout_s=240, vram_gb=0.0,
@@ -2672,7 +2731,7 @@ def check_app_folder_import(app: str, url_path: str):
     # comportement parfaitement correct. La base, elle, ne présente rien — elle compte.
     try:
         from wama.common.utils.preview_registry import PreviewRegistry
-        modele = PreviewRegistry.get_model(app)
+        modele = _element_model(app)
     except Exception:
         modele = None
     ids_avant = set()
@@ -2905,9 +2964,9 @@ def register_folder_import_scenarios():
     """Enregistre un scénario `<app>.folder_import` par app d'index — geste 14, part dossier."""
     from wama.common.services.nightly_tests import register
 
-    for label, path in discoverable_apps():
+    for label, path, key in discoverable_pages():
         register(
-            id=f"{label}.folder_import", app=label, stage="ui",
+            id=f"{key}.folder_import", app=label, stage="ui",
             description=f"Card d'entrée {label} : importer un dossier crée un élément par fichier",
             run=(lambda p=path, a=label: (lambda ctx: check_app_folder_import(a, p)))(),
             timeout_s=240, vram_gb=0.0,
@@ -2950,7 +3009,7 @@ def check_app_attach_lot(app: str, url_path: str):
     token = _test_session_key(app)
     if not token:
         raise SkipScenario("aucun compte de test disponible : les droits ne sont pas simulables")
-    model = PreviewRegistry.get_model(app)
+    model = _element_model(app)
     if model is None:
         raise SkipScenario(f"{app} ne déclare pas de modèle d'élément au registre")
     known = set(model.objects.values_list('id', flat=True))
@@ -3031,9 +3090,9 @@ def register_attach_lot_scenarios():
     """Un scénario `<app>.attach_lot` par app d'index — SKIP nommé sur une card dont le dépôt crée."""
     from wama.common.services.nightly_tests import register
 
-    for label, path in discoverable_apps():
+    for label, path, key in discoverable_pages():
         register(
-            id=f"{label}.attach_lot", app=label, stage="ui",
+            id=f"{key}.attach_lot", app=label, stage="ui",
             description=f"Card d'entrée {label} : plusieurs fichiers déposés sur un port font un lot",
             run=(lambda p=path, a=label: (lambda ctx: check_app_attach_lot(a, p)))(),
             timeout_s=240, vram_gb=0.0,
@@ -3110,7 +3169,7 @@ def check_app_duplicate_delete(app: str, url_path: str):
 
     try:
         from wama.common.utils.preview_registry import PreviewRegistry
-        modele = PreviewRegistry.get_model(app)
+        modele = _element_model(app)
     except Exception:
         modele = None
     ids_avant_orm = set()
@@ -3303,9 +3362,9 @@ def register_duplicate_delete_scenarios():
     """Enregistre un scénario `<app>.duplicate_delete` par app disposant d'une page d'index."""
     from wama.common.services.nightly_tests import register
 
-    for label, path in discoverable_apps():
+    for label, path, key in discoverable_pages():
         register(
-            id=f"{label}.duplicate_delete", app=label, stage="ui",
+            id=f"{key}.duplicate_delete", app=label, stage="ui",
             description=f"File {label} : dupliquer un élément puis supprimer le doublon",
             run=(lambda p=path, a=label: (lambda ctx: check_app_duplicate_delete(a, p)))(),
             timeout_s=180, vram_gb=0.0,
@@ -3550,7 +3609,7 @@ def check_app_settings(app: str, url_path: str):
 
     try:
         from wama.common.utils.preview_registry import PreviewRegistry
-        modele = PreviewRegistry.get_model(app)
+        modele = _element_model(app)
     except Exception:
         modele = None
     ids_avant_orm = set()
@@ -3594,7 +3653,7 @@ def check_app_settings(app: str, url_path: str):
                     # `<app>.import` nettoie derrière lui, donc la file est vide la plupart du
                     # temps et un scénario qui skippe toujours ne couvre rien.
                     exclus = '[id*="atch"], [id*="elody"], [id*="eference"], [id*="voice"], [id*="avatar"]'
-                    champ = page.query_selector(f'[data-wama-nic] input[type=file]:not({exclus})')
+                    champ = page.query_selector(f'{_page_scope(page)}[data-wama-nic] input[type=file]:not({exclus})')
                     if not champ:
                         raise SkipScenario(
                             "file vide et aucun champ d'import au contrat de la card commune "
@@ -3899,14 +3958,16 @@ class _LotRefuse(Exception):
     """
 
 
-_GABARIT_DE_LOT = """(async () => {
+_GABARIT_DE_LOT = """(async (scope) => {
     // Le gabarit est DÉCLARÉ par l'app (`batch_template_url` de la card commune) et rendu en
     // lien de téléchargement. On n'en fabrique donc aucun ici : un fichier de lot inventé
     // mesurerait NOTRE idée du format, pas celui que l'app publie à ses utilisateurs.
-    const carte = document.querySelector('[data-wama-nic]');
-    const lien = document.getElementById('batchTemplateLink')
+    // `scope` : le volet du domaine que montre la page (`_page_scope`) — son gabarit à lui.
+    const root = (scope && document.querySelector(scope)) || document;
+    const carte = root.querySelector('[data-wama-nic]');
+    const lien = (!scope && document.getElementById('batchTemplateLink'))
               || (carte && carte.querySelector('a[download][href]'))
-              || document.querySelector('a[download][href*="template"]');
+              || root.querySelector('a[download][href*="template"]');
     if (!lien) return null;
     try {
         const r = await fetch(lien.getAttribute('href'), {credentials: 'same-origin'});
@@ -4054,15 +4115,20 @@ def _monter_un_lot_par_gabarit(page, app: str = ''):
     """
     from wama.common.services.nightly_tests import SkipScenario
 
-    if not page.query_selector('#batchDetectBar'):
+    # La barre et la card du domaine que montre la page (`_page_scope` ; ids `<base>DetectBar`,
+    # `<base>CreateOnlyBtn`, `<base>CreateCount` de `batch_detect_bar.html`).
+    scope = _page_scope(page)
+    bar = f'{scope}[id$="DetectBar"]' if scope else '#batchDetectBar'
+    create = f'{scope}[id$="CreateOnlyBtn"]' if scope else '#batchCreateOnlyBtn'
+    if not page.query_selector(bar):
         raise SkipScenario("aucune barre de détection de lot dans la page (`show_batch_bar` "
                            "non déclaré) — le fichier de lot n'a pas de surface ici")
     # La card d'entrée est servie REPLIÉE par 6 apps sur 9 (mesuré le 2026-08-27) : sa barre de
     # lot existe alors au DOM avec des dimensions nulles, et « Ajouter » n'est jamais
     # actionnable. L'utilisateur l'ouvre d'un clic avant de déposer quoi que ce soit ; on fait
     # le même geste, sinon on mesurerait un repli et on l'écrirait « l'app refuse le lot ».
-    _deplier_autour(page, '#batchDetectBar')
-    texte = page.evaluate(_GABARIT_DE_LOT)
+    _deplier_autour(page, bar)
+    texte = page.evaluate(_GABARIT_DE_LOT, scope.strip() or None)
     if not texte:
         raise SkipScenario("l'app ne publie aucun gabarit de lot téléchargeable "
                            "(`batch_template_url` absent de sa card d'entrée)")
@@ -4073,10 +4139,10 @@ def _monter_un_lot_par_gabarit(page, app: str = ''):
     # Depuis le 2026-09-29 la card v4 a un onglet LOT (`[data-lot-input]`) : c'est LE champ
     # dédié, déclaré par `has_batch` — il passe en premier, sans quoi le geste mesurerait
     # encore la voie implicite (fichier de lot posé sur le port de travail).
-    champ = (page.query_selector('[data-lot-input]')
-             or page.query_selector('input[type=file][id*="atch"]')
+    champ = (page.query_selector(f'{scope}[data-lot-input]')
+             or page.query_selector(f'{scope}input[type=file][id*="atch"]')
              or page.query_selector(
-                 f'[data-wama-nic] input[type=file]:not({_CHAMPS_DE_REFERENCE})'))
+                 f'{scope}[data-wama-nic] input[type=file]:not({_CHAMPS_DE_REFERENCE})'))
     if not champ:
         raise SkipScenario("ni champ de lot dédié ni champ de fichier dans la card d'entrée — "
                            "nulle part où déposer le fichier de lot")
@@ -4093,16 +4159,17 @@ def _monter_un_lot_par_gabarit(page, app: str = ''):
         # un fichier dont il tire 0 élément laisse la barre fermée SANS message
         # (`batch-import.js:140` — repli silencieux vers l'upload direct).
         try:
-            page.wait_for_selector('#batchCreateOnlyBtn', state='visible', timeout=25000)
+            page.wait_for_selector(create, state='visible', timeout=25000)
         except Exception:
             raise _LotRefuse(
                 "le gabarit publié par l'app a bien été déposé, mais son propre aperçu de lot "
                 "n'en tire aucun élément : la barre reste fermée, sans erreur ni message")
         compte = page.evaluate(
-            "(document.getElementById('batchCreateCount') || {}).textContent || '?'")
+            "(s) => (document.querySelector(s) || {}).textContent || '?'",
+            f'{scope}[id$="CreateCount"]' if scope else '#batchCreateCount')
         try:
             with page.expect_navigation(wait_until='load', timeout=30000):
-                page.click('#batchCreateOnlyBtn', timeout=15000)
+                page.click(create, timeout=15000)
         except Exception:
             # Pas de navigation (une app peut rafraîchir sa file sans recharger) : le clic a
             # eu lieu, on ne le REJOUE PAS — un second « Ajouter » créerait un second lot.
@@ -4163,14 +4230,15 @@ def _monter_un_lot(page, app: str = '', n: int = 2):
     et en repli quand il ne groupe pas — le FICHIER DE LOT publié par l'app.
     """
     exclus = '[id*="atch"], [id*="elody"], [id*="eference"], [id*="voice"], [id*="avatar"]'
-    champ = page.query_selector(f'[data-wama-nic] input[type=file]:not({exclus})')
+    scope = _page_scope(page)     # la card d'entrée du domaine que montre la page
+    champ = page.query_selector(f'{scope}[data-wama-nic] input[type=file]:not({exclus})')
     # Ce que FAIT un dépôt ici est rendu par la card, pas deviné (`entry_form`). `attache` =
     # le fichier se joint au formulaire et rien n'est créé : déposer y perdrait 8 s pour
     # conclure « l'app ne groupe pas », ce qui serait FAUX. On passe donc directement par la
     # voie de lot, qui est la voie de création de ces apps-là.
-    depot = page.evaluate("""(() => {
-        const c = document.querySelector('[data-wama-depot]');
-        return c ? c.getAttribute('data-wama-depot') : 'cree'; })()""")
+    depot = page.evaluate("""((s) => {
+        const c = document.querySelector(s + '[data-wama-depot]');
+        return c ? c.getAttribute('data-wama-depot') : 'cree'; })""", scope)
     if not champ or depot == 'attache':
         raison = ("la card DÉCLARE `data-wama-depot=attache` (le dépôt n'y crée rien)"
                   if depot == 'attache' else
@@ -4230,7 +4298,7 @@ def _garde_de_montage(app: str, etiquette: str, model=None):
     if modele is None:
         try:
             from wama.common.utils.preview_registry import PreviewRegistry
-            modele = PreviewRegistry.get_model(app)
+            modele = _element_model(app)
         except Exception:
             pass
     ids_avant = set()
@@ -4527,9 +4595,9 @@ def register_batch_import_scenarios():
     """Enregistre un scénario `<app>.batch_import` par app disposant d'une page d'index."""
     from wama.common.services.nightly_tests import register
 
-    for label, path in discoverable_apps():
+    for label, path, key in discoverable_pages():
         register(
-            id=f"{label}.batch_import", app=label, stage="ui",
+            id=f"{key}.batch_import", app=label, stage="ui",
             description=f"Card d'entrée {label} : un FICHIER DE LOT crée N éléments sans "
                         f"rien démarrer",
             run=(lambda p=path, a=label: (lambda ctx: check_app_batch_import(a, p)))(),
@@ -4541,9 +4609,9 @@ def register_batch_actions_scenarios():
     """Enregistre un scénario `<app>.batch_actions` par app disposant d'une page d'index."""
     from wama.common.services.nightly_tests import register
 
-    for label, path in discoverable_apps():
+    for label, path, key in discoverable_pages():
         register(
-            id=f"{label}.batch_actions", app=label, stage="ui",
+            id=f"{key}.batch_actions", app=label, stage="ui",
             description=f"File {label} : ⧉ puis 🗑 sur la card MÈRE d'un lot (brique commune)",
             run=(lambda p=path, a=label: (lambda ctx: check_app_batch_actions(a, p)))(),
             timeout_s=240, vram_gb=0.0,
@@ -4715,9 +4783,9 @@ def register_delete_from_batch_scenarios():
     """Enregistre un scénario `<app>.delete_from_batch` par app disposant d'une page d'index."""
     from wama.common.services.nightly_tests import register
 
-    for label, path in discoverable_apps():
+    for label, path, key in discoverable_pages():
         register(
-            id=f"{label}.delete_from_batch", app=label, stage="ui",
+            id=f"{key}.delete_from_batch", app=label, stage="ui",
             description=(f"File {label} : supprimer les cards d'un lot une à une — card mère à "
                          f"jour, lot redevenu card simple, sans rechargement de la page"),
             run=(lambda p=path, a=label: (lambda ctx: check_app_delete_from_batch(a, p)))(),
@@ -4891,9 +4959,9 @@ def register_clear_all_scenarios():
     """Enregistre un scénario `<app>.clear_all` par app disposant d'une page d'index."""
     from wama.common.services.nightly_tests import register
 
-    for label, path in discoverable_apps():
+    for label, path, key in discoverable_pages():
         register(
-            id=f"{label}.clear_all", app=label, stage="ui",
+            id=f"{key}.clear_all", app=label, stage="ui",
             description=f"File {label} : « Effacer la file » vide la file à l'écran ET au serveur",
             run=(lambda p=path, a=label: (lambda ctx: check_app_clear_all(a, p)))(),
             timeout_s=240, vram_gb=0.0,
@@ -5012,9 +5080,9 @@ def register_queue_scopes_scenarios():
     """Enregistre un scénario `<app>.queue_scopes` par app disposant d'une page d'index."""
     from wama.common.services.nightly_tests import register
 
-    for label, path in discoverable_apps():
+    for label, path, key in discoverable_pages():
         register(
-            id=f"{label}.queue_scopes", app=label, stage="ui",
+            id=f"{key}.queue_scopes", app=label, stage="ui",
             description=(f"File {label} : les menus ▾ « Lancer la file » / « Effacer la file » "
                          f"s'ouvrent et grisent exactement les périmètres vides"),
             run=(lambda p=path, a=label: (lambda ctx: check_app_queue_scopes(a, p)))(),
@@ -5380,9 +5448,9 @@ def register_inspector_actions_scenarios():
     """Enregistre un scénario `<app>.inspector_actions` par app disposant d'un index."""
     from wama.common.services.nightly_tests import register
 
-    for label, path in discoverable_apps():
+    for label, path, key in discoverable_pages():
         register(
-            id=f"{label}.inspector_actions", app=label, stage="ui",
+            id=f"{key}.inspector_actions", app=label, stage="ui",
             description=(f"File {label} : SÉLECTIONNER une card puis un lot remplit le volet "
                          f"Actions, et le ✕ le referme (geste 6 entier ; chemin que "
                          f"`batch_actions` n'emprunte pas)"),
@@ -5395,9 +5463,9 @@ def register_settings_scenarios():
     """Enregistre un scénario `<app>.settings` par app disposant d'une page d'index."""
     from wama.common.services.nightly_tests import register
 
-    for label, path in discoverable_apps():
+    for label, path, key in discoverable_pages():
         register(
-            id=f"{label}.settings", app=label, stage="ui",
+            id=f"{key}.settings", app=label, stage="ui",
             description=f"File {label} : le ⚙ d'un élément ouvre une modale de paramètres",
             run=(lambda p=path, a=label: (lambda ctx: check_app_settings(a, p)))(),
             timeout_s=180, vram_gb=0.0,
@@ -6017,9 +6085,9 @@ def register_queue_dnd_scenarios():
     """Enregistre un scénario `<app>.queue_dnd` par app disposant d'un index."""
     from wama.common.services.nightly_tests import register
 
-    for label, path in discoverable_apps():
+    for label, path, key in discoverable_pages():
         register(
-            id=f"{label}.queue_dnd", app=label, stage="ui",
+            id=f"{key}.queue_dnd", app=label, stage="ui",
             description=(f"File {label} : sélection multiple (clic/Ctrl/Maj/Ctrl+A/Échap) et "
                          f"SEUILS de dépôt du glisser-déposer — la moitié navigateur du geste, "
                          f"invisible de tout contrôle statique"),
@@ -6150,7 +6218,7 @@ def check_app_queue_search(app: str, url_path: str):
                 return mauvaise
             page.wait_for_timeout(1000)
 
-            champ = page.query_selector('.wama-queue-toolbar [data-f-role="recherche"]')
+            champ = page.query_selector(f'{_page_scope(page)}.wama-queue-toolbar [data-f-role="recherche"]')
             if not champ:
                 return False, ("la barre de file ne porte AUCUN champ de recherche — l'outil "
                                "`recherche` a quitté `PROFILS['file']`, ou la barre n'est plus "
@@ -6170,7 +6238,7 @@ def check_app_queue_search(app: str, url_path: str):
                     raise SkipScenario(f"file vide et le semis de lot a été refusé : {exc}")
                 page.goto(url, wait_until='networkidle', timeout=45000)
                 page.wait_for_timeout(900)
-                champ = page.query_selector('.wama-queue-toolbar [data-f-role="recherche"]')
+                champ = page.query_selector(f'{_page_scope(page)}.wama-queue-toolbar [data-f-role="recherche"]')
                 avant = page.evaluate(_ENTREES_VISIBLES) or {}
             if (avant.get('total') or 0) < 1:
                 raise SkipScenario("aucune entrée en file après semis — rien à filtrer")
@@ -6289,7 +6357,7 @@ def check_app_batch_extract(app: str, url_path: str):
             page.evaluate("""() => document.querySelectorAll('.batch-group .collapse')
                                      .forEach(c => c.classList.add('show'))""")
             page.wait_for_timeout(300)
-            fille = page.query_selector('.batch-group .wama-card[data-id]:not(.is-batch)')
+            fille = page.query_selector(f'{_page_scope(page)}.batch-group .wama-card[data-id]:not(.is-batch)')
             if not fille:
                 return False, "aucune card fille atteignable après dépliage"
             fille.scroll_into_view_if_needed()
@@ -6353,9 +6421,9 @@ def register_queue_search_scenarios():
     """Un scénario `<app>.queue_search` par app d'index — déduit des URLs, comme ses sœurs."""
     from wama.common.services.nightly_tests import register
 
-    for label, path in discoverable_apps():
+    for label, path, key in discoverable_pages():
         register(
-            id=f"{label}.queue_search", app=label, stage="ui",
+            id=f"{key}.queue_search", app=label, stage="ui",
             description=(f"File {label} : la RECHERCHE de la barre filtre les entrées, se "
                          f"relâche, préserve `display:contents`, et ne déborde pas sur une "
                          f"seconde file"),
@@ -6368,9 +6436,9 @@ def register_batch_extract_scenarios():
     """Un scénario `<app>.batch_extract` par app d'index — le PONT front↔serveur du geste."""
     from wama.common.services.nightly_tests import register
 
-    for label, path in discoverable_apps():
+    for label, path, key in discoverable_pages():
         register(
-            id=f"{label}.batch_extract", app=label, stage="ui",
+            id=f"{key}.batch_extract", app=label, stage="ui",
             description=(f"File {label} : sortir une fille de son lot par le menu contextuel "
                          f"rend DEUX entrées — le geste POSTÉ, du clic jusqu'à la base"),
             run=(lambda p=path, a=label: (lambda ctx: check_app_batch_extract(a, p)))(),
@@ -6706,7 +6774,7 @@ def check_app_processing(app: str, url_path: str):
             # Un élément NEUF, à nous : on ne démarre JAMAIS un élément préexistant du compte
             # (ce serait consommer des ressources sur le travail de quelqu'un d'autre).
             exclus = '[id*="atch"], [id*="elody"], [id*="eference"], [id*="voice"], [id*="avatar"]'
-            champ = page.query_selector(f'[data-wama-nic] input[type=file]:not({exclus})')
+            champ = page.query_selector(f'{_page_scope(page)}[data-wama-nic] input[type=file]:not({exclus})')
             if not champ:
                 raise SkipScenario("aucun champ d'import au contrat de la card commune — "
                                    "impossible de créer un élément à démarrer")
@@ -6942,10 +7010,10 @@ def register_processing_scenarios():
     """
     from wama.common.services.nightly_tests import register
 
-    for label, path in discoverable_apps():
+    for label, path, key in discoverable_pages():
         vram = _vram_declaree(label)
         register(
-            id=f"{label}.processing", app=label, stage="output",
+            id=f"{key}.processing", app=label, stage="output",
             description=(f"File {label} : démarrer un élément → progression → SUCCESS → "
                          f"télécharger le résultat (gestes 8/9/10/12)"
                          + (" ⚠ TRAITEMENT GPU (tâches routées sur la file `gpu`) — écarté "
@@ -7042,7 +7110,7 @@ def check_app_batch_processing(app: str, url_path: str):
             # production est cassée » sur un défaut d'instrument. Le dépôt ordinaire, lui, est
             # exactement ce que `<app>.processing` valide déjà.
             exclus = '[id*="atch"], [id*="elody"], [id*="eference"], [id*="voice"], [id*="avatar"]'
-            champ = page.query_selector(f'[data-wama-nic] input[type=file]:not({exclus})')
+            champ = page.query_selector(f'{_page_scope(page)}[data-wama-nic] input[type=file]:not({exclus})')
             if not champ:
                 raise SkipScenario("aucun champ d'import au contrat de la card commune — "
                                    "impossible de monter un lot")
@@ -7199,10 +7267,10 @@ def register_batch_processing_scenarios():
     """Un scénario `<app>.batch_processing` par app — même régime GPU que `.processing`."""
     from wama.common.services.nightly_tests import register
 
-    for label, path in discoverable_apps():
+    for label, path, key in discoverable_pages():
         vram = _vram_declaree(label)
         register(
-            id=f"{label}.batch_processing", app=label, stage="output",
+            id=f"{key}.batch_processing", app=label, stage="output",
             description=(f"Lot {label} : « Démarrer tout » → progression qui avance → "
                          f"« Télécharger tout » (ZIP) — gestes 13 et 10"
                          + (" ⚠ TRAITEMENT GPU, écarté sans --with-gpu" if vram
@@ -7223,7 +7291,7 @@ def _start_on_a_dead_process(app: str, item_id) -> str:
 
     from celery import current_app
     from wama.common.utils.preview_registry import PreviewRegistry
-    model = PreviewRegistry.get_model(app)
+    model = _element_model(app)
     gone = subprocess.Popen(['true'])
     gone.wait()                                   # a pid that WAS alive and is gone
     node = f"wama-smoke@{socket.gethostname()}"
@@ -7246,7 +7314,7 @@ def check_app_worker_death(app: str, url_path: str):
     from playwright.sync_api import sync_playwright
 
     from wama.common.utils.preview_registry import PreviewRegistry
-    if PreviewRegistry.get_model(app) is None:
+    if _element_model(app) is None:
         raise SkipScenario("aucun modèle d'élément déclaré (PreviewRegistry) — rien à mettre en cours")
     url = f"{BASE_URL.rstrip('/')}{url_path}"
     token = _test_session_key(app)
@@ -7315,9 +7383,9 @@ def register_worker_death_scenarios():
     """Un scénario `<app>.worker_death` par app disposant d'une page d'index — aucun GPU."""
     from wama.common.services.nightly_tests import register
 
-    for label, path in discoverable_apps():
+    for label, path, key in discoverable_pages():
         register(
-            id=f"{label}.worker_death", app=label, stage="ui",
+            id=f"{key}.worker_death", app=label, stage="ui",
             description=(f"File {label} : un worker meurt pendant un traitement — la card passe "
                          "en échec relançable sans rechargement de la page"),
             run=(lambda p=path, a=label: (lambda ctx: check_app_worker_death(a, p)))(),
