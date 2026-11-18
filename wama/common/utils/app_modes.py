@@ -528,13 +528,18 @@ def surface_app(surface: str) -> str:
     surface qui est une app, ou que rien ne déclare, se rend elle-même. Remplace la table écrite
     à la main de l'assistant (`tool_api.TOOL_APP_ALIAS`, une paire, 2026-11-12) : un domaine qui
     gagne ses routes y entre sans une ligne."""
+    # Lu À L'ENVERS du nom (`surface_name` : `<préfixe>_<app>`), jamais en balayant le catalogue :
+    # balayer lisait les domaines de toutes les apps pour CHAQUE surface demandée — 11 112 lectures
+    # (et autant de `stat` du registre des jumelles sur /mnt/d) pour la liste des modèles, dont
+    # chaque ligne demande l'identité de sa source : ~60 s par appel sous gunicorn (2026-11-18).
     from wama.common.app_registry import APP_CATALOG
     if surface in APP_CATALOG:
         return surface
-    for app in APP_CATALOG:
-        for d in get_domains(app):
-            if d.get('route_prefix') and domain_surface(app, d.get('id')) == surface:
-                return app
+    parts = (surface or '').split('_')
+    for i in range(1, len(parts)):
+        prefix, app = '_'.join(parts[:i]), '_'.join(parts[i:])
+        if app in APP_CATALOG and any(d.get('route_prefix') == prefix for d in get_domains(app)):
+            return app
     return surface
 
 

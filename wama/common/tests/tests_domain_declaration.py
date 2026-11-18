@@ -360,6 +360,14 @@ class TheSettingsOfAnElementAreThoseOfItsDomainTest(SimpleTestCase):
                             self.assertEqual(domain_schema(app, expected), element_schema(element))
                             self.assertEqual(domain_schema_name(app, expected),
                                              element_schema_name(element))
+                            # The card's ⚙ carries the settings of ITS domain (2026-11-18 : the
+                            # anonymizer's document cards carried the image schema, without
+                            # `ocr_scanned_pages` — nothing for the panel to reflect).
+                            if hasattr(type(element), 'gear_data'):
+                                from wama.common.utils.card_gear import gear_data
+                                self.assertLessEqual(
+                                    set(gear_data(element, domain_schema(app, expected))),
+                                    set(element.gear_data))
                         finally:
                             for p in patches:
                                 p.stop()
@@ -489,6 +497,21 @@ class TheSurfaceOfADomainLeadsBackToItsAppTest(SimpleTestCase):
         # Counter-check: nothing is invented for what no domain declares.
         self.assertEqual('reader', app_modes.surface_app('reader'))
         self.assertEqual('no_such_surface', app_modes.surface_app('no_such_surface'))
+
+    def test_a_name_is_read_backwards_never_by_sweeping_the_catalogue(self):
+        # Each row of the model list asks its SOURCE's identity (`app_identity` → `surface_app`) :
+        # sweeping every app's domains for each one cost 11 112 reads, ~60 s a call under
+        # gunicorn (2026-11-18). A model source reads no domain ; a surface reads its app's only.
+        from unittest import mock
+        with mock.patch.object(app_modes, 'get_domains', wraps=app_modes.get_domains) as read:
+            self.assertEqual('openrouter', app_modes.surface_app('openrouter'))
+            self.assertEqual(0, read.call_count)
+            for app, decl in APP_MODES.items():
+                for d in decl.get('domains', []):
+                    if d.get('route_prefix'):
+                        read.reset_mock()
+                        self.assertEqual(app, app_modes.surface_app(domain_surface(app, d['id'])))
+                        self.assertEqual({app}, {c.args[0] for c in read.call_args_list})
 
     def test_the_grid_and_the_assistant_read_the_declared_prefixes(self):
         from wama import tool_api
