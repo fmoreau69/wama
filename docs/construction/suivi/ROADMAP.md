@@ -8216,6 +8216,11 @@ remplace l'autre.
 > ce plan dit l'ORDRE, il ne recopie pas la méthode. ⚠ Deux domiciles qu'il ne double pas : la
 > SÉLECTION centralisée vit en **§5b** (30.1 en est la suite, pointée là-bas), l'ordre des paliers
 > de MESURE en `WAMA_QUALITE §9` (P0–P6, la mesure d'entrée est P4).
+> 📜 *2026-11-18 (recadrage de Fabien)* : la mesure interne devient un **système de mesure STANDARD
+> de WAMA**, adopté app par app dans les trois mondes, déclaré au manifeste, planifié par l'existant
+> (battement, « Programmer… », campagnes nocturnes et du week-end), borné par la charge. Inventaire,
+> cible et questions : `WAMA_QUALITE §10`. **Le tirage ne change pas tant que la mesure n'est pas
+> éprouvée** : les points 3 et 4 de 30.1 attendent. Rien d'implémenté.
 
 **30.1 Trous de sélection et de notation (Q10)** — 🔄 avis et décisions de Fabien le 2026-11-12,
 avis du concile (« correcte avec corrections ») lu dans `WAMA_QUALITE §0` :

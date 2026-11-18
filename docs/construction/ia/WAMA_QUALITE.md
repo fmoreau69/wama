@@ -1905,6 +1905,206 @@ derniers — décision à prendre à ce moment-là, pas avant.
 
 ---
 
+## 10. LE SYSTÈME DE MESURE DE WAMA — inventaire de TOUT l'existant, cible, préparation (exploration du 2026-11-18, rien d'implémenté)
+
+> **Recadrage de Fabien (2026-11-18)** : *« on est en train de créer un outil de mesure STANDARD dans
+> WAMA, par adoption progressive par les applications, pas juste un outil de mesure dans le
+> Transcriber. […] Tant que l'évaluation / la mesure interne n'est pas éprouvée, on ne change rien au
+> tirage des modèles via le curseur rapide/qualité. On ne réinvente rien, on ne casse rien, on ne
+> perd rien. […] On identifie clairement les différentes mesures d'évaluation que l'on peut intégrer
+> dans WAMA à travers tous les mondes et toutes les apps. On ne met pas en place un pansement. Le
+> transcriber n'est qu'un cas particulier. […] On déclare au manifeste les mesures que l'on souhaite
+> dans les apps dès leur création, on planifie les mesures dans le planifieur déjà existant, on
+> ajoute simplement les mesures dans les tests nocturnes/week-end. Mais on va aussi devoir tenir
+> compte de la charge et de l'occupation. Les tests sont déjà extrêmement longs. Pour le moment, on
+> prépare le terrain, on mesure ce qui est fiable, stable, intégrable sans faire déborder les tests.
+> […] On ne va rien implémenter. Ce n'est pas mature. »*
+>
+> Ce paragraphe est l'ÉTAT DES LIEUX qui précède toute conception. Il a été établi en lisant le code
+> des trois mondes (`wama/`, `wama_lab/`, `wama_data/`), chaque affirmation sondée à sa ligne le
+> jour même. ⚠ Il corrige une proposition de la même session (une « marche 1 » qui touchait au
+> tirage et partait du transcriber) : voir 10.6.
+
+### 10.1 Garde de la démarche — ce qui ne bouge PAS
+
+- **Le tirage** (`model_selector._quality_ladder`, curseur rapide/qualité) reste tel qu'il est tant
+  que la mesure n'est pas éprouvée. En particulier la règle « une échelle interne comparable ou
+  l'étage s'abstient » (`model_selector.py:225`) n'est PAS remplacée par l'échelle principale et la
+  dominance décidées le 2026-11-12 (§0) : ce remplacement viendra quand la mesure le justifiera.
+- **Rien n'est retiré** de ce qui mesure déjà (10.2) ; tout ce qui sera construit l'adoptera.
+- **Pas de plateforme d'évaluation tierce** — `ROADMAP §16.5` (« Outils d'éval… sur-dimensionnés.
+  WAMA a déjà l'équivalent. NE PAS bâtir de plateforme d'éval ») : le système se compose des briques
+  existantes, il ne les double pas.
+
+### 10.2 Ce qui MESURE déjà, dans les trois mondes (relevé du 2026-11-18)
+
+Le transcriber n'est qu'UN adoptant. Le relevé, par famille de mesure (où la valeur vit, qui la lit) :
+
+| famille | mécanisme existant | monde / adoptants | où vit la valeur · qui la lit |
+|---|---|---|---|
+| **qualité contre une référence** | `result_evaluation` (`EvaluationSpec`, `evaluate`, `batch_evaluation`) + table `ResultEvaluation` ; métriques `text_metrics` (WER, CER), `diarization_metrics` (cpWER, DER) | Médias : transcriber seul | `ResultEvaluation` → `internal_quality.internal_scores` (calculé à la lecture) → sélecteur, model manager, rapports |
+| | `bench --record` : taux manqué par contenant, rappel/précision sur vraies boîtes (WIDER FACE), LPIPS par construction (DIV2K) — `bench.py:369`, `:594`, `:771` | substrat (model_manager) ; anonymizer en tire son ensemble (`model_coverage.measured_miss_rates`) | `ResultEvaluation` (app `model_manager`, objets `DetectionBench*`/`UpscaleBench`) |
+| | `cam_analyzer/utils/calibration.py::evaluate_homography` (erreur de reprojection sur points de contrôle) ; `placement_metrics.static_range_ratios` / `range_bias_curve` (distance mesurée ÷ distance vraie) | Lab, Data | retour de fonction ; `results_summary['range_bias']` |
+| | `wama_data/functions/temporal/coding.py::coding_agreement` (deux codages : humain/humain ou humain/modèle) ; `ego_rotation.yaw_disagreement` (lacet visuel ↔ cap GPS) | Data | trame typée, fonction du catalogue |
+| **sans référence** (la sortie seule) | registre `Check` + `ProcessSpec.checks` (`process_pipeline.py:342`), `run_checks`, rejoué sur l'existant par `manage.py measure_checks` ; une mesure : `speech_coverage` | Médias : transcriber (et sa jumelle) | ligne du process (`output_summary['checks']`) → `propose_defect` |
+| | cohérence par LLM (`llm_utils.verify_text_coherence`, `analyze_segments_coherence`) | transcriber, describer | `coherence_score` (`transcriber/models.py:147`, `describer/models.py:160`), gravité par segment → heatmap |
+| | sondes de garde : VAD qui rejette la parole (`speech_activity.vad_rejects_speech`), mots posés sur du silence (`acoustic_alignment.doubt_words_over_silence`), boucle d'OCR (`ocr_base.trim_repetition`), paroles mal entendues (`composer/utils/lyrics.enough_heard`), faits sans source de l'assistant (`source_facts.unsourced_facts`) | transcriber, avatarizer, reader, composer, assistant | décision immédiate (rien de gardé) ou notice de card |
+| | indicateurs de placement du Cam Analyzer (`placement_metrics` : dispersion des objets fixes, cohérence de caméra, continuité des pistes, écarts par caméra) et rapports A/B (`lane_map_matching`, `shuttle_filter`, profondeur, résidus) — fonctions de catégorie `INDICATOR` (`cam_analyzer/function_specs.py:217`, étiquettes `ab-metric`, `no-ground-truth`) | Lab, Data | `AnalysisSession.results_summary` ; console ; aucune interface |
+| | qualité de signal du Face Analyzer (SNR → confiance, `rppg.py`, `respiration.py`) | Lab | JSON par trame |
+| **accord entre modèles / sources (convergence)** | `divergence` (M1) ; `batch_agreement` (M6, médiane des désaccords deux à deux) ; `detections.support` (M2) | transcriber (accord à l'affichage de la file, `batch_common.py:498`) ; support : un rapport seul (`build_anonymizer_report.py:283`) | cache / rien |
+| | `placement_metrics.camera_pair_agreement` (accord des caméras) ; désaccord profondeur ↔ sténopé ↔ homographie (`depth_estimator`) | Lab, Data | `results_summary['camera_agreement']` → `offset_pitch_search` |
+| | verdict multi-agents sur un candidat de la prospection (`assess_models`, consensus et taux d'accord) | substrat | `AIModel.confidence` |
+| **stabilité sur passes répétées** (M9) | `llm_gateway_check --repeat` (taux d'appels d'outils sur N essais, « instable ») — **seul** mécanisme | substrat (fournisseurs LLM) | console |
+| | fait DÉCLARÉ `reproducible` d'un moteur (`backends/base.py:824` ; Kokoro, YuE) ; réglages de tirage communs (`param_schema.sampling_of`) | Médias | fiche du modèle ; rien ne le mesure |
+| **coût** | `ModelRuntimeStat` (durées apprises, `eta_estimator.record_run`, écrit par le squelette de toutes les apps, le banc, l'imager, le Cam Analyzer, l'assistant) ; VRAM mesurée (`extra_info['vram_measured']`) ; `ProcessRun.duration_s` ; usage des outils de l'assistant (`tool_trace`) | tous les mondes | ETA, sélecteur, page des apps |
+| **usage humain** | `RunOutcome` (gestes) ; corrections du transcriber (`corrected_segments_json`) | toutes les apps (squelette, middleware) | journal, mémoire, calendrier ; agrégat par modèle non lu |
+| **confiance du moteur** (par élément) | ASR (`avg_logprob`, probabilité par mot), détection (`conf`), OCR docTR (`conf`), segmentation de route, langue parlée, fin de tour | transcriber, anonymizer, reader, Cam Analyzer, assistant | champs d'élément, heatmap, portes |
+| juge LLM (M5) | `qc.assess_output_quality` — **aucun appelant** | — | — |
+
+**Ce que le relevé dit de l'ensemble** :
+1. La mesure est ÉPARPILLÉE : quatre lieux de valeur (`ResultEvaluation`, ligne de process,
+   `results_summary` du Lab, champs d'élément), sans forme commune. Seule `ResultEvaluation` alimente
+   un indice de modèle.
+2. **Deux formes de déclaration d'une mesure qui s'ignorent** : celle des Médias (`EvaluationSpec`,
+   `ProcessSpec.checks`) et celle du catalogue des fonctions (`FunctionCategory.INDICATOR` + la
+   facette estimateur de `PortSpec` — `estimates`, `uncertainty`, `derived_from`,
+   `function_catalog.py:70-121` —, adoptée par le Lab et le monde Data). La règle des mondes
+   (`AGENTS.md`) veut qu'un mécanisme commun ne dépende d'aucun monde : la mesure standard devra
+   couvrir les deux sans en faire dépendre un de l'autre.
+3. **Rien ne mesure la stabilité d'un modèle sur un même élément** (M9) ; la seule répétition mesurée
+   est celle des appels d'outils des LLM.
+4. **La convergence n'est rangée nulle part** hors d'un affichage (M6) ou d'un résumé de session (Lab).
+5. Nombre d'apps sans aucune mesure de qualité de leur résultat : synthesizer, enhancer (hors banc),
+   converter, imager (coût seul).
+
+### 10.3 Où une mesure se DÉCLARE aujourd'hui — et ce qui manque pour « déclarer au manifeste dès la création »
+
+- **Manifeste `app`** : AUCUN champ de mesure (ni dans `builtin/app.py`, ni dans
+  `WAMA_MANIFEST_SPEC §3`, ni réservé dans `WAMA_APP_CONVENTIONS`). Seules les capacités de RÉSULTAT
+  existent (`has_reference_result`, `has_result_import` → ports `reference_result` / `work_result`,
+  `app_registry.py:588-589`), déclarées par le seul transcriber.
+- **`EvaluationSpec` est du CODE** (`register_evaluation` dans `apps.py:ready()`), avec un vocabulaire
+  de métriques fermé (`wer|cer|cpwer|der`) ; le générateur d'apps ne l'émet pas. Mesuré : la jumelle
+  `transcriber_01` a perdu sa déclaration d'évaluation (elle ne vit plus que dans son témoin
+  `apps.py.temoin`) tout en gardant `checks=('speech_coverage',)`, que le générateur émet
+  (`function_specs_gen`, depuis le nœud `process.checks` du manifeste `pipeline`). **Trou du
+  générateur**, la preuve que « déclaré dès la création » n'est vrai aujourd'hui que pour les
+  mesures sans référence.
+- **Manifeste `pipeline`** : `process.checks` sur un nœud — la seule déclaration de mesure qui passe
+  déjà par un manifeste.
+- **Manifeste `function`** : `INDICATOR` + facette estimateur (Lab, Data).
+- **Manifeste `dataset`** : plan d'expérience `axes[]` validé ; `task`, `splits`, provenance
+  réel/synthétique (A2), catégorie : non validés — l'intention de les porter est écrite
+  (`WAMA_APPRENTISSAGE.md` §8bis, proposition DATASETS, point 2 : « identité, licence, tâche,
+  classes, splits, comptes, format, provenance »). Les références du banc (WIDER FACE, DIV2K) ne sont
+  que des `reference.json` sous la racine des jeux, sans manifeste.
+- **Manifeste `model`** : `quality.defect` seulement ; les faits mesurés en sont exclus exprès.
+- **Registres** : aucun registre de mesures dans `registries_builtin` (dix-neuf clés) ; trois
+  dictionnaires hors registre (`result_evaluation._REGISTRY`, `CHECKS`, contrat `quality-metric`).
+- **Intention de la vision** (`WAMA_VISION_COMPLET §10.3`) : *« chaque capacité déclarée référence
+  son jeu de test interne et ses métriques ; la veille ne propose un remplacement qu'avec un delta
+  mesuré ; les tests nocturnes tirent ces jeux »* — c'est exactement la cible énoncée par Fabien.
+
+### 10.4 Où une mesure se PLANIFIE — le planifieur et les campagnes existants, et leur charge
+
+- **Deux planifieurs, aucun à créer** : le battement fixe de l'instance (`CELERY_BEAT_SCHEDULE`,
+  `settings.py`, avec la réservation de créneau `calendar.BEAT_WINDOWS`, `calendar.py:78`, gardée par
+  `tests_calendar`) ; et le planifieur des utilisateurs, « Programmer… » (`ScheduledAction`,
+  `common/models.py:1719`, placement `auto | asap | off_peak | manual` par `scheduled_actions.place`,
+  `:270`, qui refuse un créneau réservé et envoie aux heures creuses mesurées toute tâche de 30 min ou
+  plus ; distribué chaque minute par `dispatch-scheduled-actions`, `settings.py:997`). Il n'admet
+  aujourd'hui que les outils `start_*` d'une card.
+- **Les campagnes de tests** : registre de scénarios (`nightly_tests.register`, `:145`, inscrits par
+  `add_registrar` depuis le `apps.py` de chaque app), étapes `wired | ui | consistency | suite |
+  model_loaded | output`, cadence quotidienne (lun.–sam. 04:30) ou hebdomadaire (dim. 04:30,
+  `settings.py:1144`, `:1150`) ; **un scénario qui déclare de la VRAM devient hebdomadaire de lui-même**
+  (`scenario_cadence`, `:216`). **Aucun scénario ne mesure un modèle aujourd'hui** (le banc,
+  `asr_eval_corpus`, `divergence_asr` ne sont que des commandes à la main).
+- **La charge, mesurée** (`WAMA_VERIFICATION §11`, 2026-11-10) : campagne quotidienne 147 min (99 %
+  d'interface) ; hebdomadaire 247 min ; la suite du commun dépasse son plafond (`nightly_suite.TIMEOUT_S`
+  = 2400 s) et ne rend plus de verdict depuis le 26/10 (quatre dimanches au 15/11) ; le `timeout_s`
+  d'un scénario n'est pas appliqué (`nightly_tests`, TODO). Les créneaux réservés se mesurent (médiane
+  des campagnes complètes × 1,25) ; seul 05:00–08:00 est sans activité d'utilisateur. Le délai de
+  visibilité du courtier est de 6 h. **Ajouter une mesure GPU au dimanche aujourd'hui rallonge une
+  campagne qui déborde déjà.**
+- **La priorité** existe : `resource_governor.TIER_VALUES` (« basse » = 9), déjà donnée aux
+  campagnes nocturnes et aux passes de fond ; elle réordonne la file, elle ne préempte pas.
+
+### 10.5 La cible, telle qu'elle se dessine — À EXPLORER, rien de décidé
+
+1. **Une mesure STANDARD de WAMA**, commune aux trois mondes, adoptée app par app : une mesure se
+   déclare (famille, sens, unité, agrégation, ce qu'elle lit, sur quoi elle se compare), une app ou
+   une fonction l'adopte par sa déclaration, la valeur se range au même endroit selon sa famille.
+   Familles déjà nommées au §0 (qualité, coût, caractérisation) et au §2 (M1–M10) : **qualité contre
+   référence**, **sans référence**, **accord / convergence**, **caractérisation** (répétabilité,
+   reproductibilité), **coût**, **usage**, **confiance du moteur**.
+2. **Déclarée au manifeste dès la création** : un champ du manifeste `app` (et du nœud de `pipeline`,
+   où `checks` existe déjà), émis par le générateur — ce qui ferme le trou de la jumelle. Le
+   vocabulaire du catalogue des fonctions (`INDICATOR`, facette estimateur) est la forme existante
+   côté Lab et Data : la forme standard doit l'absorber ou s'y raccorder, pas le doubler.
+3. **Planifiée par l'existant** : un scénario de campagne inscrit par l'app (cadence dérivée, VRAM
+   déclarée), créneau mesuré par le calendrier, priorité « basse » ; les corpus en manifestes
+   `dataset`. La « mesure d'entrée » d'un modèle neuf (P4) en est un cas, pas un mécanisme à part.
+4. **Bornée par la charge** : chaque mesure déclare son coût, et une campagne ne l'admet que si son
+   créneau le permet. On commence par ce qui ne coûte presque rien.
+5. **Le tirage ne lit une mesure qu'une fois ÉPROUVÉE** (stable sur ses répétitions, intervalle de
+   confiance, calibrée là où une référence existe).
+
+**Premier tri de ce qui est « fiable, stable, intégrable » sans faire déborder les campagnes** (à
+confirmer par une mesure de durée, rien n'est lancé) :
+- *sans GPU, sur des résultats déjà produits* : rejouer les `checks` (`measure_checks`), l'accord des
+  moteurs des lots existants (`batch_agreement`), `coding_agreement`, les indicateurs de placement
+  déjà calculés dans les sessions du Cam Analyzer, l'agrégat des `RunOutcome` par modèle ;
+- *GPU, coûteux, hebdomadaire au mieux et seulement après que la suite du commun a retrouvé son
+  verdict* : `asr_eval_corpus`, `bench` (vraies boîtes, LPIPS), et toute répétition (M9).
+
+### 10.6 Ce que la session a corrigé dans sa propre proposition, et l'avis du concile
+
+Proposition du matin (même session), revérifiée au code puis soumise au concile de WAMA (quatre avis :
+Albert gemma-4-31b, ILaaS gemma-4-31b, ILaaS qwen-3.8-27b, Albert deepseek-v4-flash coupé ; relecture
+croisée ; décideur Albert qwen3-coder-30b ; 897 s). Ses défauts, trouvés à la revérification :
+- elle partait du transcriber et voulait changer le tirage d'abord (« marche 2 : principale et
+  dominance dans le sélecteur ») — contraire au 10.1 ;
+- un registre « tâche → échelles » à côté de `TASK_CONTRACTS` (le contrat des backends) alors que la
+  déclaration « tâche → échelles ordonnées » existe pour les bancs tiers
+  (`benchmark_sync.TASK_TO_BENCH_CATEGORY`) ;
+- un « registre commun des mesures » neuf, alors que trois lieux les définissent déjà ;
+- un bloc `evaluation` inventé dans le manifeste `dataset`, à côté de l'intention écrite (10.3) ;
+- un « tableau corpus × modèles × réglages » neuf : c'est déjà des LOTS d'évaluation et l'état
+  `STALE` d'une ligne de process (`process_runs.mark_stale`) ;
+- « des intervalles qui se chevauchent ne classent pas » : la règle décidée est le bootstrap APPARIÉ
+  de la différence (§0) ;
+- la répétabilité « proposée comme un défaut » : une mesure qui contredit le fait déclaré
+  `reproducible` le RÉFUTE, elle ne note pas le modèle.
+Le concile (avis, pas mesure ; les agents n'ont pas lu le code) : une seule déclaration
+« tâche → échelles », typée par étage ; un seul registre des métriques, qui DÉCLARE son type
+d'agrégation (le bootstrap par items vaut pour un WER de corpus, pas pour une statistique d'ensemble
+comme le FAD) ; la **catégorie de l'entrée** en tête (§4.4), sans laquelle la population mêle des
+classements qui s'inversent ; la convergence calculée à la lecture, jamais une note ; la mesure
+d'entrée seulement là où un corpus est déclaré pour la tâche. Partagés : le banc hors des apps
+(absorbé par des lots ou gardé), le domicile d'une mesure de répétabilité (gardée ou recalculée).
+Écartés à la lecture : un registre `ModelCharacteristic` (invention) ; « le WER interne et le WER
+tiers se comparent » (faux : ni même corpus, ni même protocole) ; « le banc n'a pas de population »
+(faux : ses lignes portent l'empreinte de leur référence, `bench.py:373`, `:598`, `:775`).
+
+### 10.7 Questions ouvertes — à instruire avant toute ligne de code
+
+1. **La forme commune d'une mesure** : quelle déclaration unique couvre la mesure d'une app média
+   (`EvaluationSpec`, `checks`) ET l'indicateur d'une fonction (Lab, Data), sans faire dépendre un
+   monde d'un autre (`common/catalog/`, glu inter-mondes, est le candidat naturel — à vérifier).
+2. **Le champ du manifeste `app`** qui déclare les mesures voulues, et ce que le générateur en émet.
+3. **Le domicile des valeurs** par famille : `ResultEvaluation` reste « contre une référence » (règle
+   écrite) ; où vivent l'accord, la caractérisation, et les indicateurs du Lab qui ne sortent pas
+   aujourd'hui de `results_summary` ?
+4. **La charge** : comment une mesure déclare son coût, et comment une campagne l'admet sans déborder
+   — sachant que la suite du commun a d'abord à retrouver son verdict (`WAMA_VERIFICATION §11`).
+5. **La catégorie de l'entrée** (§4.4) : vocabulaire, domicile, lien aux corpus.
+6. **Ce qui fait qu'une mesure est « éprouvée »** et peut entrer au tirage (répétabilité de la mesure
+   elle-même, intervalle, calibration contre une référence).
+7. **Le banc hors des apps** (détection, agrandissement) : lots d'app ou banc doté d'un état périmé.
+
+---
+
 ## Voir aussi
 - `docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F4b` — le plan acté de la
   qualification nocturne comparative (source de ce document, non recopiée)
@@ -1929,3 +2129,8 @@ derniers — décision à prendre à ce moment-là, pas avant.
 - **2026-11-18** — le texte confronté à son audio (proposition de Fabien, sous M4) : bouton
   « Écouter » de l'aperçu commun ✅ ; mesure par alignement forcé / phonèmes de l'original ⏳ —
   la comparaison à un audio synthétisé est écartée, avec sa raison.
+- **2026-11-18 (soir)** — §10, le système de mesure de WAMA (recadrage de Fabien : un outil de mesure
+  STANDARD, adopté app par app dans les trois mondes, déclaré au manifeste, planifié par l'existant,
+  borné par la charge ; le tirage inchangé tant que la mesure n'est pas éprouvée) : inventaire de
+  tout ce qui mesure déjà, déclarations, planifieurs et campagnes, cible, avis du concile, sept
+  questions. Rien d'implémenté.
