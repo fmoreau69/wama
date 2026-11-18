@@ -852,16 +852,23 @@ index = IndexView.as_view()   # la même vue sous forme de FONCTION (route `view
     # au chargement de la page (idiome converter).
     up_wrap = (f"\n    wrap_in_batch(item, batch_model={batch}, item_model={link}, fk_name='{link_fk}')"
                if is_link else '')
+    # TÉLÉVERSÉ ou DÉSIGNÉ (médiathèque, glisser depuis l'arbre) — brique `received_inputs`, comme
+    # les sources (`enhancer.upload`, 2026-09-30) et la forme attache ci-dessous. Lire
+    # `request.FILES` seul répondait « Aucun fichier fourni » au glisser depuis l'arbre
+    # (`<jumelle>.tree_drop`, 2026-11-18).
     vues['upload'] = f'''@require_POST
 def upload(request):
+    from wama.common.utils.media_paths import received_inputs
     user = _user(request)
-    f = request.FILES.get('file')
-    if not f:
-        return JsonResponse({{'error': 'Aucun fichier fourni'}}, status=400)
-    kwargs = {{'user': user, '{d['input_field']}': f}}
+    received = received_inputs(request, user, '{app}')
+    if not received:
+        return JsonResponse({{'error': received.refusal or 'Aucun fichier fourni'}}, status=400)
+    f = received[0]
+    kwargs = {{'user': user, '{d['input_field']}': f.value}}
     {f"kwargs['{d['name_field']}'] = f.name" if d['name_field'] else ''}
     {up_nature}{up_reglages}
     item = {item}.objects.create(**kwargs){up_wrap}
+    f.record(item, '{d['input_field']}')   # provenance d'un fichier DÉSIGNÉ
     return JsonResponse({{'id': item.id, 'status': item.status, 'warning': _avert}})'''
     if d['entry']['adds']:
         # Formes ATTACHE et MIXTE : la consigne et les réglages arrivent par la cascade (POST >

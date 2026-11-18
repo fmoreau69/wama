@@ -148,6 +148,25 @@ class RoutesHaveTheirViewsTest(_Rendered):
         self.assertRegex(views, r"(?m)^download_all_media = _pv\['download_all'\]")
 
 
+class TheGeneratedUploadReceivesADesignationTest(_Rendered):
+    """A DESIGNATED file (library tile, drag from the tree) reaches the generated `upload` view as
+    it reaches the sources' (`received_inputs`, `tests_import_contract.UploadViewsReceive…`) :
+    reading `request.FILES` alone answered « Aucun fichier fourni » to the twins' tree drop
+    (2026-11-18, both entry forms — the create form had it, the attach form did)."""
+
+    def test_every_generated_upload_reads_the_common_receiver(self):
+        from wama.common.manifests.codegen.views_gen import render_views
+        wrong = {}
+        for app, manifest in self.manifests.items():
+            views, _ = render_views(manifest)
+            if views is None or '\ndef upload(request):' not in views:
+                continue
+            body = views.split('\ndef upload(request):', 1)[1].split('\n@', 1)[0]
+            if 'received_inputs(request, user,' not in body or "request.FILES.get('file')" in body:
+                wrong[app] = body[:120]
+        self.assertEqual({}, wrong)
+
+
 class TheGeneratedCardReadsWhatTheViewsSetTest(_Rendered):
     """The generated card titles itself with `elem.input_filename` and names its output with
     `elem.output_filename`; on a real model both are @property glue the generated model loses

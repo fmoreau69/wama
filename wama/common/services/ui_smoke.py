@@ -434,6 +434,20 @@ def _element_surface(app: str) -> str:
     return domain_surface(app, domain) if domain else app
 
 
+def _page_domain_extensions(app: str, exts) -> list:
+    """Les extensions d'entrée de l'app que le DOMAINE de la page prend (`accepts`, lu par
+    `app_modes.domain_nature`) ; toutes hors d'une page de domaine. Un geste qui fait ARRIVER un
+    fichier (« Envoyer vers… », URL collée) le choisit ici : une image envoyée depuis la page audio
+    de l'enhancer, ou collée sur la page document de l'anonymizer, crée un élément d'un AUTRE
+    domaine, et la page mesurée n'en voit aucun (2026-11-18)."""
+    from wama.common.services import nightly_tests
+    domain = nightly_tests.current_page_domain
+    if not domain:
+        return list(exts)
+    from wama.common.utils.app_modes import domain_nature
+    return [e for e in exts if domain_nature(app, domain, f"x.{e.lstrip('.')}")]
+
+
 def _element_model(app: str):
     """Le modèle de l'élément que mesure le scénario en cours (`_element_surface`)."""
     from wama.common.utils.preview_registry import PreviewRegistry
@@ -1582,17 +1596,11 @@ def check_app_send_to(app: str, url_path: str):
     if not exts:
         raise SkipScenario("l'app ne déclare aucune extension d'entrée : elle ne peut pas "
                            "apparaître au menu « Envoyer vers… » — geste non applicable")
-    # La page d'un DOMAINE mesure l'arrivée dans ce domaine : le témoin est un fichier que ce
-    # domaine prend (`accepts`, lu par `domain_nature`) — sinon une image envoyée depuis la page
-    # audio de l'enhancer crée un élément image, et la page audio n'en voit aucun (2026-11-18).
-    from wama.common.services import nightly_tests
-    if nightly_tests.current_page_domain:
-        from wama.common.utils.app_modes import domain_nature
-        domain = nightly_tests.current_page_domain
-        exts = [e for e in exts if domain_nature(app, domain, f"x.{e.lstrip('.')}")]
-        if not exts:
-            raise SkipScenario(f"le domaine `{domain}` ne prend aucune des extensions d'entrée de "
-                               "l'app : rien ne lui arrive par « Envoyer vers… »")
+    # La page d'un DOMAINE mesure l'arrivée dans CE domaine (`_page_domain_extensions`).
+    exts = _page_domain_extensions(app, exts)
+    if not exts:
+        raise SkipScenario("le domaine de la page ne prend aucune des extensions d'entrée de "
+                           "l'app : rien ne lui arrive par « Envoyer vers… »")
 
     # Deux conditions, pas une : accepter des extensions ne suffit pas, encore faut-il que le
     # gestionnaire de fichiers sache REMPLIR l'app (`filemanager.views.IMPORTERS`). Depuis le
@@ -2374,7 +2382,11 @@ def check_app_url_import(app: str, url_path: str):
     # extension que l'app DÉCLARE accepter, et rien ne sort de la machine. C'est la seule
     # façon d'exercer le geste sans dépendre d'Internet toutes les nuits.
     from wama.common.app_registry import APP_CATALOG
-    exts = list((APP_CATALOG.get(app) or {}).get('input_extensions') or ())
+    # La page d'un DOMAINE mesure l'arrivée dans CE domaine (`_page_domain_extensions`).
+    exts = _page_domain_extensions(app, (APP_CATALOG.get(app) or {}).get('input_extensions') or ())
+    if not exts:
+        raise SkipScenario("le domaine de la page ne prend aucune des extensions d'entrée de "
+                           "l'app : rien ne lui arrive par une URL")
     source = _fichier_temoin(','.join(e if e.startswith('.') else f'.{e}' for e in exts))
     dossier = Path(settings.MEDIA_ROOT) / f'users/{uid}/temp'
     dossier.mkdir(parents=True, exist_ok=True)
@@ -5395,7 +5407,10 @@ def check_app_inspector_actions(app: str, url_path: str):
             const base = portee === 'lot'
                 ? (hote.querySelector(':scope > .batch-group-header, :scope > .wama-card.is-batch') || hote)
                 : hote;
-            if (portee === 'lot') base.scrollIntoView({block: 'center'});
+            // À l'écran d'abord, pour les DEUX chemins : un centre hors de l'écran rend
+            // `atterrit_bien` muet (null, « on tente »), et le clic d'une card haute tombait sur
+            // son aperçu, que la délégation ignore (anonymizer, 487 px, 2026-11-18).
+            base.scrollIntoView({block: 'center'});
             const candidats = [base, ...base.querySelectorAll('*')];
             for (const c of candidats) {
                 if (c.closest(IGNORE) || c.matches(IGNORE)) continue;

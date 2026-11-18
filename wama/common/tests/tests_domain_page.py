@@ -226,6 +226,33 @@ class TheNightlyGesturesSweepEveryDomainTest(SimpleTestCase):
         self.assertTrue(nightly_tests.run_one(sc, {}).ok)
         self.assertEqual('', nightly_tests.current_page_domain)
 
+    def test_a_file_made_to_arrive_is_one_the_page_domain_takes(self):
+        """« Envoyer vers… » and a pasted URL make a file ARRIVE : on a domain page, its witness is
+        of a nature THAT domain accepts (`ui_smoke._page_domain_extensions`) — an image sent from
+        the audio page created an image element, and the page saw none (2026-11-18)."""
+        from wama.common.app_registry import APP_CATALOG, category_of_path
+        from wama.common.services import nightly_tests
+        from wama.common.services.ui_smoke import _page_domain_extensions, discoverable_pages
+        from wama.common.utils.app_modes import accepts
+        seen = 0
+        for app, _path, key in discoverable_pages():
+            exts = list((APP_CATALOG.get(app) or {}).get('input_extensions') or ())
+            domain = key[len(app) + 1:] if key != app else ''
+            nightly_tests.current_page_domain = domain
+            try:
+                kept = _page_domain_extensions(app, exts)
+            finally:
+                nightly_tests.current_page_domain = ''
+            with self.subTest(page=key):
+                if not domain:
+                    self.assertEqual(exts, kept)
+                    continue
+                self.assertTrue(set(kept) <= set(exts))
+                self.assertTrue(all(category_of_path(f"x.{e.lstrip('.')}") in accepts(app, domain)
+                                    for e in kept), kept)
+                seen += len(kept) < len(exts)
+        self.assertGreater(seen, 0, 'a domain page keeps only part of its app extensions')
+
     def test_the_instruments_read_cards_in_the_shown_pane(self):
         """A page with several domains carries every domain's pane, the hidden ones included: an
         instrument that reads cards, batches, the entry card or the queue from the whole document
