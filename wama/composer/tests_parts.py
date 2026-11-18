@@ -536,6 +536,16 @@ class StemSeparationTest(_InputProcessCase):
         tracks = page.context_of(gen)['stems']
         self.assertEqual({'vocals': 1.0, 'drums': 0.5}, {t['key']: t['gain'] for t in tracks['tracks']})
         self.assertTrue(tracks['original'].endswith(gen.melody_reference.name.rsplit('/', 1)[-1]))
+        # The PLAYER of the original plays its playback copy once it has one (2026-11-18, Fabien :
+        # AAC copy of every MP3 — a MP3 seeks 8 to 771 ms off) ; the exact mix still decodes it.
+        self.assertEqual(tracks['original'], tracks['playback'], 'no copy yet : the original')
+        from wama.common.utils.video_compat import playback_copy_rel
+        copy = Path(self.tmp) / playback_copy_rel(gen.melody_reference.name)
+        copy.parent.mkdir(parents=True, exist_ok=True)
+        copy.write_bytes(b'm4a')
+        played = page.context_of(gen)['stems']
+        self.assertTrue(played['playback'].endswith(copy.name), played['playback'])
+        self.assertNotEqual(played['playback'], played['original'])
         self.assertEqual({'remix_levels', 'remix_without'}, set(page.page_settings()))
         gen = self._run(gen, process='remix')
         self.assertEqual(JOB_SUCCESS, self._states(gen)['remix'], gen.error_message)

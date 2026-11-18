@@ -544,7 +544,15 @@ def stem_tracks(gen):
         gains = remix_gains(keys, getattr(gen, 'remix_without', ''), getattr(gen, 'remix_levels', None))
     except RuntimeError as refused:
         gains, error = {}, str(refused)
-    return {'original': default_storage.url(gen.melody_reference.name), 'error': error,
+    # Ce que le LECTEUR de l'original joue (2026-11-18, décision de Fabien : copie de lecture AAC de
+    # tous les MP3 — un MP3 se positionne à 8–771 ms près dans le navigateur) : sa copie à jour,
+    # sinon lui-même (`video_compat.playback_url`) ; le mélange exact décode toujours l'original.
+    # ⚠ Par `getattr` sur le module : un service lancé avant cette fonction l'a en mémoire SANS elle.
+    from wama.common.utils import video_compat
+    played = getattr(video_compat, 'playback_url', None)
+    original = default_storage.url(gen.melody_reference.name)
+    return {'original': original, 'error': error,
+            'playback': played(gen.melody_reference.name) if played else original,
             'tracks': [{'key': s['stem'], 'label': s.get('label') or instrument_label(s['stem']),
                         'url': default_storage.url(s['path']), 'gain': gains.get(s['stem'], 1.0)}
                        for s in files]}
