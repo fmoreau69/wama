@@ -148,8 +148,10 @@ class ProtocoleTest(TestCase):
     def test_la_liste_est_le_registre_filtre_par_les_droits(self):
         async def names(session):
             return sorted(t.name for t in (await session.list_tools()).tools)
-        with mock.patch('wama.accounts.permissions.tool_accessible',
-                        side_effect=lambda user, name: name != 'list_registries'):
+        # La lecture UNIQUE de ce qu'on annonce (`accessible_tools`, 2026-11-18) — la liste du
+        # serveur, celle de l'API v1 et celle du tour de l'assistant.
+        with mock.patch('wama.accounts.permissions.accessible_tools',
+                        side_effect=lambda user, names: [n for n in names if n != 'list_registries']):
             vus = self._with_session(names)
         self.assertEqual(sorted(n for n in TOOL_REGISTRY if n != 'list_registries'), vus)
 

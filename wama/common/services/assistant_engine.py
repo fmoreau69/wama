@@ -2605,7 +2605,17 @@ def run_assistant_turn(user, message: str, provider: str = None,
                   and provider not in _SUBSCRIPTION_PROVIDERS
                   and (allowed_tools is None or DELEGATE_TOOL in allowed_tools))
     delegate_line, delegate_spec = _delegate_tool() if delegation else ('', None)
-    tools_prompt = (WAMA_TOOLS_PROMPT.replace('{TOOLS}', build_tools_list(allowed_tools)
+    # Ce qui est ANNONCÉ : les outils que le compte peut exécuter (`accessible_tools`, la décision
+    # de la porte — 2026-11-18, `WAMA_HARNESS §9`, B0), la même lecture que la déclaration native
+    # (`mcp_server.tools_for`, filtrée par `names` pour un tour borné : l'intersection). Un
+    # administrateur a tout ; un compte, ses apps. `allowed_tools` reste la borne d'EXÉCUTION.
+    announced = None
+    if user is not None:
+        from wama.accounts.permissions import accessible_tools
+        from wama.tool_api import TOOL_REGISTRY
+        announced = frozenset(accessible_tools(
+            user, TOOL_REGISTRY if allowed_tools is None else sorted(allowed_tools)))
+    tools_prompt = (WAMA_TOOLS_PROMPT.replace('{TOOLS}', build_tools_list(announced)
                                               + delegate_line
                                               + mcp_client.tools_block(dev_tools, dev_down))
                     + (_DELEGATION_RULE if delegation else '')

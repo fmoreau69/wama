@@ -324,6 +324,49 @@ def _account(username, tier='utilisateur', role=''):
     return get_user_model().objects.get(pk=user.pk)
 
 
+class EveryAnnouncedToolCanRunTest(TestCase):
+    """What is ANNOUNCED is what the gate lets the account run (2026-11-18, `WAMA_HARNESS §9`, B0):
+    one reading (`permissions.accessible_tools`) for the assistant's turn, the MCP server and
+    `/api/v1/tools/`. An administrator has every tool ; an account, the apps it may open. The turn's
+    text list announced every tool to everyone while its native list was already filtered."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.plain = _account('announce_plain')
+        cls.member = _account('announce_member', role='communication')
+        cls.admin = get_user_model().objects.create_superuser('announce_admin', password='x')
+
+    def test_the_list_is_the_gate_decision_tool_by_tool(self):
+        from wama.accounts.permissions import accessible_tools, tool_accessible
+        for user in (self.plain, self.member, self.admin):
+            with self.subTest(user=user.username):
+                self.assertEqual([n for n in T.TOOL_REGISTRY if tool_accessible(user, n)],
+                                 accessible_tools(user, T.TOOL_REGISTRY))
+        self.assertEqual(list(T.TOOL_REGISTRY), accessible_tools(self.admin, T.TOOL_REGISTRY))
+
+    def _system_prompt(self, user):
+        from wama.common.services import assistant_engine
+        seen = {}
+
+        def fake_llm(messages, llm_model, provider, user=None, **kwargs):
+            seen['system'] = messages[0]['content']
+            return 'ok', {'input_tokens': 0, 'output_tokens': 0}
+
+        with mock.patch.object(assistant_engine, '_llm_call', side_effect=fake_llm):
+            assistant_engine.run_assistant_turn(user, 'bonjour')
+        return seen['system']
+
+    def test_the_turn_announces_what_the_account_can_run(self):
+        """The imager asks for the `communication` role : its tools are announced to a member and
+        to an administrator, never to an account that the gate would refuse."""
+        self.assertNotIn('- add_to_imager(', self._system_prompt(self.plain))
+        self.assertIn('- add_to_imager(', self._system_prompt(self.member))
+        admin = self._system_prompt(self.admin)
+        for name in T.TOOL_REGISTRY:
+            with self.subTest(tool=name):
+                self.assertIn(f'- {name}(', admin)
+
+
 class StopAndSettingsToolsTest(TestCase):
     """⏹ and ⚙ by the app's own view — the imager's, as the factory serves it to the ten apps."""
 

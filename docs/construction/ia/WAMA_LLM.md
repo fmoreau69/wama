@@ -524,10 +524,10 @@ de Fabien : « purement amélioratif »), **5 ✅ le 26/09** ; seul 3 reste une 
    local ; il ne traite ni la place prise dans la fenêtre, ni le coût cloud (aucun cache de
    prompt). Ce levier reste ⏳ ; le multi-agents ouvert le même jour en est l'une des réponses,
    et la recherche d'outils par le modèle (`tool_search` de Codex) l'autre — `WAMA_HARNESS §7.4`.
-   ⏳ **Ordonné le 2026-11-18** (`WAMA_HARNESS §9`, « Plan du 2026-11-18 », B0 → B1 → B2) : d'abord
-   n'annoncer que ce que le compte peut exécuter (la décision de la porte, `accessible_apps`),
-   puis la décision sur les outils du bac à sable, puis la recherche d'outils, rejouée sur les
-   tours réels avant de basculer. Mesuré ce jour-là : 168 outils à l'exécution, 47 192 caractères
+   🔄 **Ordonné le 2026-11-18** (`WAMA_HARNESS §9`, « Plan du 2026-11-18 », B0 puis B2) : ✅ B0,
+   n'annoncer que ce que le compte peut exécuter — la décision de la porte
+   (`permissions.accessible_tools`), un administrateur gardant tout ; ⏳ B2, la recherche d'outils,
+   rejouée sur les tours réels avant de basculer. Mesuré ce jour-là : 168 outils à l'exécution, 47 192 caractères
    de liste.
 4. ✅ **TTS par phrases** : la première phrase part au service dès qu'elle est complète, la
    suivante est demandée PENDANT la lecture ; l'avatar met les morceaux en file (TalkingHead), le

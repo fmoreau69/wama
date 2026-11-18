@@ -35,16 +35,13 @@ class ListToolsView(APIView):
         # Filtré par le gating d'app (§F7) : un outil non exécutable par ce compte ne doit pas
         # non plus être ANNONCÉ — sinon un client (assistant, agent externe) le propose puis
         # se prend un 403, et `tools/list` ment sur ce que `tools/run/` accepte.
-        from wama.accounts.permissions import tool_accessible
+        from wama.accounts.permissions import accessible_tools
 
         # Descriptions DÉRIVÉES (schéma de l'app + signature réelle) : plus de `.get(name, {})`
         # à vide — tout outil du registre est décrit, avec ses types, choix et défauts.
         described = tool_descriptions()
-        tools = [
-            {"name": name, **described[name]}
-            for name in TOOL_REGISTRY
-            if tool_accessible(request.user, name)
-        ]
+        tools = [{"name": name, **described[name]}
+                 for name in accessible_tools(request.user, TOOL_REGISTRY)]
         return Response({"tools": tools})
 
 

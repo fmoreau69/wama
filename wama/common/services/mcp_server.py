@@ -134,7 +134,7 @@ def tools_for(user) -> list:
     Un outil non exécutable par ce compte n'est pas ANNONCÉ : sinon le client le propose puis se
     prend un refus."""
     import mcp.types as types
-    from wama.accounts.permissions import tool_accessible
+    from wama.accounts.permissions import accessible_tools
     from wama.tool_api import TOOL_REGISTRY, tool_annotations, tool_descriptions, tool_input_schema
 
     descriptions = tool_descriptions()
@@ -144,7 +144,7 @@ def tools_for(user) -> list:
                        description=(descriptions.get(name) or {}).get('description') or '',
                        inputSchema=tool_input_schema(name),
                        annotations=types.ToolAnnotations(**tool_annotations(name)))
-            for name in sorted(TOOL_REGISTRY) if tool_accessible(user, name)]
+            for name in accessible_tools(user, sorted(TOOL_REGISTRY))]
 
 
 def call(user, name: str, arguments) -> dict:

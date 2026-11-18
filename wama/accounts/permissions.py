@@ -661,6 +661,22 @@ def accessible_apps(user, app_ids):
     return [a for a in app_ids if _app_accessible(user, a, policies, (owners, granted))]
 
 
+def accessible_tools(user, tool_names):
+    """Sous-ensemble des outils `tool_api` que `user` peut exécuter (préserve l'ordre) — la
+    décision de `tool_accessible`, outil par outil, mais les apps qui les gardent se décident UNE
+    fois pour la liste (`accessible_apps`).
+
+    LA lecture de tout ce qui ANNONCE des outils (2026-11-18, `WAMA_HARNESS §9`, B0) : le tour de
+    l'assistant, le serveur MCP, `/api/v1/tools/`. Un outil que la porte refuserait n'est pas
+    annoncé — un administrateur a tout, un compte n'a que ses apps. Avant, le MCP et l'API v1
+    filtraient chacun par leur boucle, et la liste du prompt de l'assistant ne filtrait rien."""
+    from wama.tool_api import app_id_for_tool
+    names = list(tool_names)
+    gates = {name: app_id_for_tool(name) for name in names}
+    allowed = set(accessible_apps(user, sorted({g for g in gates.values() if g})))
+    return [name for name in names if gates[name] is None or gates[name] in allowed]
+
+
 class _CaseUser:
     """Compte FICTIF (tier + rôles) passé à `accessible()` pour énumérer les cas d'accès.
 
