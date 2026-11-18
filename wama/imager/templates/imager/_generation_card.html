@@ -150,31 +150,11 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt.
 
   </div>{# /.wcv3 #}
 
-  {% comment %}Preview PERMANENTE (§11) du RÉSULTAT — mécanisme COMMUN n°30 (portage 2026-08-22,
-  dernière des 10 apps). La card ne décide PLUS du rendu : les deux branches qu'elle portait
-  (player vidéo à vignette+pastille, et grille d'images en style inline) sont remplacées par
-  UN placeholder ; le commun choisit vidéo / image / grille d'après la charge, comme il le fait
-  pour converter, anonymizer et avatarizer depuis le 18/08.
-
-  La grille vient de la clé canonique `result_files` (apps.py) que le commun sait rendre depuis
-  ce jour — c'est ce qui manquait pour qu'imager entre dans le mécanisme, et c'est pour ça qu'il
-  était resté « partiel » : `result_file` seul n'aurait montré qu'UNE image sur N.
-
-  Ce que le portage RÉPARE au passage : la visionneuse tire sa navigation de la COLLECTION, plus
-  d'un balayage du DOM (`openImagePreview` collectait un sélecteur qui rendait 0 — les images
-  ne peuvent plus se désaccorder du markup, elles VIENNENT de la donnée).
-  `openImagePreview`/`openVideoPreview` RETIRÉES le 31/08 (REMOVAL_LEDGER — 0 appelant).
-  ⚠ Garde obligatoire : `?side=output` sans sortie replie sur l'ENTRÉE (mesuré 22/08).{% endcomment %}
-  {% if elem.status == 'SUCCESS' %}
-    {% if elem.output_video or elem.output_images %}
-    {% url 'common:unified_preview' 'imager' elem.id as pv_out %}
-    <div class="wcv3-preview wama-card-preview" id="preview-row-{{ elem.id }}" data-preview-url="{{ pv_out }}?side=output" data-id="{{ elem.id }}"
-         data-card-preview="{{ pv_out }}?side=output" data-player-id="{{ elem.id }}"></div>
-    {% endif %}
-  {% else %}
-  {# l'hôte de la face PENDANT : la card montre l'image qui se construit #}
-  <div id="preview-row-{{ elem.id }}" {% url 'common:unified_preview' 'imager' elem.id as pv_during %}data-card-during="{{ pv_during }}" data-preview-mode="excerpt"></div>
-  {% endif %}
+  {% comment %}APERÇU PERMANENT (§11) : les faces de l'élément, par l'hôte commun (2026-11-18) — la
+  consigne (et l'image de référence) avant, l'image qui se construit pendant, la vidéo, l'image ou
+  la GRILLE après (clé canonique `result_files`, que le commun rend en grille ; la visionneuse tire
+  sa navigation de la collection).{% endcomment %}
+  {% include 'common/_card_preview.html' with surface='imager' id=elem.id mode='excerpt' %}
 
 </div>
 </div>

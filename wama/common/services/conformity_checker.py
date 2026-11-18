@@ -417,17 +417,21 @@ def _card_gear(f: _AppFiles):
 
 
 def _card_preview_hydratee(f: _AppFiles):
-    """Aperçu de résultat DANS la card via le mécanisme commun n°30 (placeholder hydraté).
+    """Aperçu DANS la card via le mécanisme commun n°30.
 
-    Contrat : la card déclare `data-card-preview="<unified_preview>?side=output"` et
-    la brique d'aperçu la remplit (`WamaMediaPreview.hydrateCardPreviews`, `media-preview.js` ;
-    `WamaInspector` en garde le nom en renvoi) (mime-driven : image/vidéo/audio+onde/pdf/
-    texte). `partial` = la card porte encore son propre `<img>`/`<video>` de résultat : ça
-    s'affiche, mais chaque app redécide du rendu et les corrections ne profitent qu'à elle.
+    Contrat (2026-11-18) : la card inclut L'HÔTE COMMUN (`common/_card_preview.html`), monté
+    par l'afficheur de faces (`WamaMediaPreview.mountCardFaces`, `media-preview.js`) — Entrée,
+    Pendant, Sortie et les faces des process, rendues mime-driven. `partial` = un hôte écrit à la
+    main (`data-card-preview`, la forme d'avant, posée seulement une fois la sortie produite), ou
+    le propre `<img>`/`<video>` de résultat de la card : ça s'affiche, mais chaque app redécide de
+    ce qu'elle montre et les corrections ne profitent qu'à elle.
     """
-    commun = f.find_code(CARD_TPL, r'data-card-preview')
+    commun = f.find_code(CARD_TPL, r'common/_card_preview\.html')
     if commun:
         return True, commun
+    hand = f.find_code(CARD_TPL, r'data-card-preview=')
+    if hand:
+        return 'partial', f"{hand} (hôte d'aperçu écrit à la main, hors hôte commun)"
     maison = f.find_code(CARD_TPL, r'<(?:img|video|audio)[^>]+(?:output|result|generated)')
     if maison:
         return 'partial', f"{maison} (markup de résultat propre à l'app, hors mécanisme n°30)"

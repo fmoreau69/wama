@@ -1041,19 +1041,27 @@ def check_preview_navigation():
 _DURING_ITEM = '/common/preview/during_probe/1/'
 _DURING_FRAMES = ('p1', 'p2', 'p3')
 
-JS_DURING_CARD = """(item) => {
+JS_DURING_CARD = """([item, host]) => {
     const pane = document.createElement('div');
     pane.className = 'tab-pane active';
     pane.id = 'wamaDuringProbe';
     // Au centre, au premier plan : les volets fixes de la page ne la recouvrent pas.
     pane.style.cssText = 'position:fixed;left:45%;top:45%;z-index:1040;background:#fff;padding:8px;';
-    // L'hôte d'attente que chaque card pose (`data-card-during`, 2026-10-20) : la CARD suit la
-    // face Pendant comme la visionneuse.
-    pane.innerHTML = `<div class="wama-card" data-id="during1" data-status="RUNNING">`
+    // L'hôte que chaque card pose (`common/_card_preview.html`, rendu par le serveur), dans une
+    // card EN ATTENTE : elle montre son entrée, puis, lancée, ce qui se construit.
+    pane.innerHTML = `<div class="wama-card" data-id="during1" data-status="PENDING">`
         + `<a href="#" class="preview-media-link" data-preview-url="${item}">en cours</a>`
-        + `<div id="wamaDuringHost" data-card-during="${item}" data-preview-mode="excerpt"></div></div>`;
+        + host + `</div>`;
     document.body.prepend(pane);
 }"""
+
+
+def _card_host_html(surface: str, pk: int) -> str:
+    """L'hôte d'aperçu d'une card, tel que le gabarit COMMUN le rend (`common/_card_preview.html`) :
+    le geste joue la vraie card, pas une copie de son balisage."""
+    from django.template.loader import render_to_string
+    return render_to_string('common/_card_preview.html',
+                            {'surface': surface, 'id': pk, 'mode': 'excerpt'})
 
 
 def _during_payload(url: str, base: str, state: dict) -> dict:
@@ -1084,11 +1092,13 @@ def _during_witnesses(folder: str):
 def check_preview_during():
     """La face PENDANT dans la visionneuse, de bout en bout dans le navigateur (2026-10-20 :
     « dans Composer, la preview est censée se charger au fur et à mesure »). Un élément fictif EN
-    COURS : sa CARD montre déjà ce qui se construit, sans geste (l'hôte `data-card-during`, suivi
-    par `followCard` — 2026-10-20) ; ouvert, la visionneuse le montre (onglet Pendant) ; chaque nouveau
-    partiel la met à jour sans geste ; l'élément terminé, elle passe d'elle-même à sa Sortie.
-    Le suiveur commun (`followDuring`) et sa reprise de lecture sont tenus en V8
-    (`tests_cap_from_js`) ; ce geste tient le câblage dans une vraie page. (ok, détail)."""
+    ATTENTE : sa CARD montre son ENTRÉE (2026-11-18, Fabien : « à partir du moment où on a une
+    entrée, on devrait avoir accès à la preview ») ; lancé (`data-status`), elle montre ce qui se
+    construit, sans geste (l'hôte commun `common/_card_preview.html`, monté par l'afficheur de
+    faces) ; ouvert, la visionneuse le montre (onglet Pendant) ; chaque nouveau partiel la met à
+    jour sans geste ; l'élément terminé, elle passe d'elle-même à sa Sortie.
+    Le suiveur commun (`followDuring`), l'afficheur de la card et sa reprise de lecture sont tenus
+    en V8 (`tests_cap_from_js`) ; ce geste tient le câblage dans une vraie page. (ok, détail)."""
     import json
     import shutil
 
@@ -1103,6 +1113,7 @@ def check_preview_during():
         raise SkipScenario("aucun compte de test disponible (wama_nightly_test / wama_ui_smoke_v3)")
     folder, base = _witness_folder(token, 'smoke_preview_during')
     _in_plain_thread(_during_witnesses, folder)
+    host_html = _card_host_html('during_probe', 1)
     state = {'running': True, 'turns': 0}
     faults, seen = [], []
     try:
@@ -1119,17 +1130,24 @@ def check_preview_during():
                     body=json.dumps(_during_payload(route.request.url, base, state))))
                 page.goto(f"{BASE_URL.rstrip('/')}{apps[0][1]}", wait_until='networkidle',
                           timeout=PAGE_TIMEOUT_MS)
-                page.evaluate(JS_DURING_CARD, _DURING_ITEM)
-                # La CARD elle-même montre ce qui se construit, sans geste (suiveur de card).
-                card_js = """() => { const h = document.getElementById('wamaDuringHost');
+                page.evaluate(JS_DURING_CARD, [_DURING_ITEM, host_html])
+                shown = ("(part) => { const h = document.querySelector('#wamaDuringProbe [data-card-preview]');"
+                         " const img = h && h.querySelector('img');"
+                         " return !!(img && img.src.indexOf('/smoke_preview_during/' + part) >= 0); }")
+                card_js = """() => { const h = document.querySelector('#wamaDuringProbe [data-card-preview]');
                     const img = h && h.querySelector('img');
                     return {src: img ? img.src : '', card: !!(h && h.classList.contains('wama-card-preview'))}; }"""
+                # La card EN ATTENTE montre son entrée.
                 try:
-                    page.wait_for_function(
-                        "() => { const h = document.getElementById('wamaDuringHost');"
-                        " const img = h && h.querySelector('img');"
-                        " return !!(img && img.src.indexOf('/smoke_preview_during/p') >= 0); }",
-                        timeout=8000)
+                    page.wait_for_function(shown, arg='i.png', timeout=8000)
+                except Exception:
+                    faults.append(f"la card en attente ne montre pas son entrée (vu {page.evaluate(card_js)})")
+                # Lancée (son `data-status`, que toutes les apps écrivent) : ce qui se construit,
+                # sans geste.
+                page.evaluate("() => document.querySelector('#wamaDuringProbe .wama-card')"
+                              ".setAttribute('data-status', 'RUNNING')")
+                try:
+                    page.wait_for_function(shown, arg='p', timeout=8000)
                     if not page.evaluate(card_js)['card']:
                         faults.append("la card montre la face Pendant mais son hôte n'a pas le geste commun")
                 except Exception:
@@ -1489,7 +1507,8 @@ def register_preview_scenarios():
     )
     register(
         id="common.preview_during", app="common", stage="ui",
-        description=("Visionneuse : un élément EN COURS s'ouvre sur sa face Pendant, chaque nouveau "
+        description=("Card et visionneuse : une card EN ATTENTE montre son entrée, lancée elle montre "
+                     "ce qui se construit ; la visionneuse s'ouvre sur la face Pendant, chaque nouveau "
                      "partiel s'y affiche sans geste, et l'élément terminé elle passe d'elle-même à "
                      "sa Sortie — élément fictif servi par la page, aucun traitement"),
         run=lambda ctx: check_preview_during(),

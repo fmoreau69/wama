@@ -837,6 +837,16 @@ tranchent une fois sur les briques communes et se propagent. Consignés au fil d
   **Orientation : réutiliser le système de faces de l'inspecteur** (`preview_utils`
   entrée / pendant `?side=during` / sortie, clic pour switcher) — un seul système de preview,
   la card en devient un consommateur compact. Étude des meilleures préviz par app = 2e temps.
+  ✅ **Réalisé le 2026-11-18** (Fabien : « la preview est censée afficher entrée / during (selon
+  le modèle) / sortie / etc. selon les sous-process que porte la card. À partir du moment où on
+  a une entrée, on devrait avoir accès à la preview ») : chaque card — les dix réelles et la
+  card générée — inclut UN hôte commun (`common/_card_preview.html`), monté par l'AFFICHEUR DE
+  FACES du volet et de l'échange de l'assistant (`WamaMediaPreview.mountCardFaces`) : l'Entrée
+  dès l'ajout (le récapitulatif de sortie écrit à la main disparaît : l'entrée réelle le
+  remplace), la face Pendant suivie, la Sortie, et les onglets des faces (Entrée, process,
+  Pendant, Comparer, Sortie) quand il y en a plusieurs. Les cards réelles ne posaient l'hôte
+  qu'une fois la sortie produite. Gardes : `tests_card_pending_face` (gabarits et générateur),
+  `tests_cap_from_js` (afficheur de la card, en V8), geste nocturne `common.preview_during`.
 - **Barre de progression : VERTE (dégradé reader) sur tout le cycle** (décision Fabien —
   « trop de couleurs » sinon ; l'état est déjà porté par liseré + point + badge). Réversible.
 - **ÉCHEC : la barre reste FIGÉE au % atteint** (comportement observé sur les batchs actuels,

@@ -940,21 +940,8 @@ On ne corrige JAMAIS ce fichier dans la jumelle : on corrige le générateur et 
       </div>
 
     </div>{{# /.wcv3 #}}
-    {{% comment %}}`wama-card-preview` + `data-preview-url` = le GESTE commun (media-preview.js :
-    double-clic → overlay niveau 3, pattern Reader) ; `data-card-preview` = le CONTENU
-    (hydrateur commun). Sans la classe, la preview s'affichait mais ne s'AGRANDISSAIT pas
-    (constat Fabien 31/08 — câblage manquant, mécanisme déjà en place).{{% endcomment %}}
-    {{% if elem.status == 'SUCCESS' %}}
-    {{% url 'common:unified_preview' '{surface}' elem.id as pv_out %}}
-    <div class="wcv3-preview wama-card-preview" id="preview-row-{{{{ elem.id }}}}" data-card-preview="{{{{ pv_out }}}}?side=output" data-preview-url="{{{{ pv_out }}}}?side=output" data-id="{{{{ elem.id }}}}" data-player-id="{{{{ elem.id }}}}"></div>
-    {{% else %}}
-    {{% comment %}}Preview de la SOURCE en attendant le résultat (demande Fabien 31/08 : « la
-    preview n'apparaît pas dans les cards, uniquement dans le volet droit ») — MÊME hydrateur
-    commun (hydrateCardPreviews), face input. Les cards réelles n'affichent qu'une icône à ce
-    stade : écart voulu jumelle>réel, à porter au parc après validation écran (CARD_DESIGN §11).{{% endcomment %}}
-    {{% url 'common:unified_preview' '{surface}' elem.id as pv_in %}}
-    <div class="wcv3-preview wama-card-preview" id="preview-row-{{{{ elem.id }}}}" data-card-preview="{{{{ pv_in }}}}?side=input" data-preview-url="{{{{ pv_in }}}}?side=input" data-id="{{{{ elem.id }}}}" data-player-id="{{{{ elem.id }}}}"></div>
-    {{% endif %}}
+    {{# APERÇU PERMANENT (§11) : les faces de l'élément, par l'hôte COMMUN des cards (2026-11-18) #}}
+    {{% include 'common/_card_preview.html' with surface='{surface}' id=elem.id mode='excerpt' %}}
   </div>
 </div>
 '''

@@ -7,8 +7,9 @@ Rendue au chargement (cards autonomes ET filles) et par describer:card_html (ref
 
 ⚠ Contrats JS à ne pas casser (relevés dans describer/index.js) : .wama-card[data-id]
   [data-status], .settings-btn + data-* (:220/:393), .delete-btn (:208),
-  .duplicate-btn[data-duplicate-url] (brique commune), .result-preview (:506 — partial_text
-  live), .wama-progress-fill (:558), .progress-text (:565), .wama-eta (:572).
+  .duplicate-btn[data-duplicate-url] (brique commune), .wama-progress-fill (:558),
+  .progress-text (:565), .wama-eta (:572). Le texte qui se construit vient de la face Pendant de
+  l'aperçu commun (`common/_card_preview.html`) — `.result-preview` n'a plus de lecteur.
   L'ancien .status-badge n'existe plus : les transitions SUCCESS/FAILURE re-rendent la card
   côté serveur (refreshCard), l'update en place ne garde que barre/%/ETA/preview.
 {% endcomment %}
@@ -141,42 +142,10 @@ process optionnel reste à compléter se montre « en attente » sans être rela
 
   </div>{# /.wcv3 #}
 
-  {% comment %}Preview PERMANENTE (§11) — récap avant, texte réel après. `.result-preview`
-  = contrat JS (partial_text live pendant le RUN, index.js:519).
-
-  L'extrait n'est plus écrit ici : il vient du mécanisme COMMUN n°30 (portage 2026-08-22), qui
-  sait désormais rendre du TEXTE à la densité d'une card — l'hôte DÉCLARE sa densité
-  (data-preview-mode/max-chars) au lieu que chaque app réécrive son propre `truncatechars`.
-  La classe `.result-preview` est CONSERVÉE sur l'hôte : le rendu commun écrit dans son
-  contenu et ne touche ni aux classes ni aux attributs, donc le polling du RUN continue d'y
-  écrire le texte partiel exactement comme avant.
-  ⚠ La garde sur `elem.result_text` ci-dessous est OBLIGATOIRE et non cosmétique :
-  mesuré le 22/08, `?side=output` sur un item SANS sortie
-  ne renvoie pas « rien » mais REPLIE SILENCIEUSEMENT SUR L'ENTRÉE (preview_utils:287) — sans
-  garde, une card PENDING afficherait son image source à la place de son blueprint.{% endcomment %}
-  {% if elem.result_text %}
-  {% url 'common:unified_preview' 'describer' elem.id as pv_out %}
-  {% comment %}`wama-card-preview` = le GESTE commun (media-preview.js : double-clic →
-  overlay). Posé le 2026-09-01 avec les 8 autres apps : describer n'a AUCUN double-clic
-  propre (seul `.result-preview` sert au polling), donc pas de double-feu.{% endcomment %}
-  <div class="wcv3-preview result-preview wama-card-preview" title="Description générée"
-       data-card-preview="{{ pv_out }}?side=output"
-       data-preview-url="{{ pv_out }}?side=output" data-id="{{ elem.id }}"
-       data-preview-mode="excerpt" data-preview-max-chars="400"></div>
-  {% else %}
-  {% comment %}L'attente est aussi l'hôte de la face PENDANT : la card
-  remplace « Description en cours… » par le texte qui se construit (suiveur commun, 2026-10-20 —
-  le JS de l'app l'y écrivait lui-même, coupé à 150 caractères).{% endcomment %}
-  <div class="wcv3-preview wcv3-preview--blueprint result-preview" {% url 'common:unified_preview' 'describer' elem.id as pv_during %}data-card-during="{{ pv_during }}" data-preview-mode="excerpt">
-    {% if elem.status == 'RUNNING' %}
-      Description en cours…
-    {% elif elem.status == 'FAILURE' %}
-      Aucune description — le traitement a échoué.
-    {% else %}
-      {{ elem.properties|default:"Description du média — formats après traitement : TXT · PDF · DOCX" }}
-    {% endif %}
-  </div>
-  {% endif %}
+  {% comment %}APERÇU PERMANENT (§11) : les faces de l'élément, par l'hôte commun (2026-11-18) — l'image
+  décrite avant, la description qui se construit pendant, la description après, à la densité
+  d'une card (extrait de 400 signes).{% endcomment %}
+  {% include 'common/_card_preview.html' with surface='describer' id=elem.id mode='excerpt' max_chars=400 %}
 
 </div>
 </div>

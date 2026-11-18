@@ -679,7 +679,7 @@ class OnePreviewBrickTest(SimpleTestCase):
 
     MOVED = ('renderInline', 'compareView', 'followDuring', 'variantToggle', 'duringUrl',
              'hydrateCardPreviews', 'sidesBar', 'compareFaces', 'cardOfPreview', 'isRunningCard',
-             'faceViewer')
+             'faceViewer', 'mountCardFaces')
 
     def test_each_preview_function_is_defined_once_in_the_common_js(self):
         sources = {path.name: path.read_text(encoding='utf-8') for path in JS.glob('*.js')}

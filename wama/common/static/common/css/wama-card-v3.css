@@ -253,6 +253,10 @@
    n°30 aux apps à sortie fichier les rend atteignables. */
 .wcv3-preview:has(img, video, audio, embed, iframe, .wama-audio-player) { max-height: none; }
 
+/* Rien à montrer (ni entrée ni sortie lisibles, 2026-11-18 — l'afficheur de faces vide l'hôte) :
+   la zone se replie au lieu de laisser un cadre vide sous la card. */
+.wcv3-preview:empty { display: none; }
+
 /* État « rien encore produit » : récapitulatif de ce qui sortira, en retrait typographique. */
 .wcv3-preview--blueprint { color: var(--wama-text-label); font-style: italic; }
 

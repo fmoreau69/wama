@@ -129,21 +129,10 @@ Contexte : elem (Enhancement, décorée .chips), in_batch (bool).
 
   </div>{# /.wcv3 #}
 
-  {% comment %}Preview PERMANENTE (§11) du RÉSULTAT — mécanisme COMMUN n°30 (portage 2026-08-22).
-  AJOUT, pas une substitution : cette card ne montrait NULLE PART l'image/vidéo améliorée — elle
-  se contentait d'une ligne « fichier produit » (:57-61), alors que l'app produit précisément un
-  média à regarder, et que sa card audio sœur affichait son résultat depuis la v3. Le rendu vient
-  du commun (mime-driven) : image ET vidéo sans markup par app.
-  Une FILLE de lot a son aperçu comme une card seule — comme describer, reader, anonymizer :
-  la garde `not in_batch` qui l'en privait est retirée le 2026-10-12 (décision de Fabien).{% endcomment %}
-  {% if elem.output_file %}
-  {% url 'common:unified_preview' 'enhancer' elem.id as pv_out %}
-  <div class="wcv3-preview wama-card-preview" id="preview-row-{{ elem.id }}" data-preview-url="{{ pv_out }}?side=output" data-id="{{ elem.id }}"
-       data-card-preview="{{ pv_out }}?side=output" data-player-id="{{ elem.id }}"></div>
-  {% else %}
-  {# l'hôte de la face PENDANT : la card montre ce qui se construit #}
-  <div id="preview-row-{{ elem.id }}" {% url 'common:unified_preview' 'enhancer' elem.id as pv_during %}data-card-during="{{ pv_during }}" data-preview-mode="excerpt"></div>
-  {% endif %}
+  {% comment %}APERÇU PERMANENT (§11) : les faces de l'élément, par l'hôte commun (2026-11-18) —
+  l'image ou la vidéo d'entrée, puis l'améliorée (Comparer entre les deux). Une FILLE de lot a son
+  aperçu comme une card seule (2026-10-12, décision de Fabien).{% endcomment %}
+  {% include 'common/_card_preview.html' with surface='enhancer' id=elem.id mode='excerpt' %}
 
 </div>
 </div>

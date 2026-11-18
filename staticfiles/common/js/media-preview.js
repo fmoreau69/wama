@@ -3,9 +3,12 @@
  *
  * Ce qu'elle porte, et qui la tire (window.WamaMediaPreview) :
  *   • le RENDU EN LIGNE d'une face (`renderInline` : image, vidéo, lecteur audio commun, PDF, HTML
- *     isolé, texte, grille d'une sortie multiple) — l'aperçu DANS les cards (`hydrateCardPreviews`),
- *     le VOLET droit (`wama-inspector.js`), la fenêtre de sélection de la médiathèque
- *     (`media-picker.js`), la page du synthesizer ;
+ *     isolé, texte, grille d'une sortie multiple) — l'aperçu DANS les cards, le VOLET droit
+ *     (`wama-inspector.js`), la fenêtre de sélection de la médiathèque (`media-picker.js`), la page
+ *     du synthesizer ;
+ *   • l'AFFICHEUR DE FACES d'un élément (`faceViewer`), monté dans le volet, chaque ligne de job de
+ *     l'échange de l'assistant et, depuis le 2026-11-18, l'aperçu de CHAQUE card (`mountCardFaces`,
+ *     hôte commun `common/_card_preview.html`) ;
  *   • les FACES d'un élément : la bascule Entrée | <process> | Pendant | Comparer | Sortie
  *     (`sidesBar`, la MÊME au volet et dans la visionneuse), Comparer (`compareFaces` +
  *     `compareView`), la face Pendant suivie en direct (`followDuring`, `variantToggle`, `duringUrl`) ;
@@ -699,27 +702,66 @@
         });
     }
 
-    // ── Preview de RÉSULTAT dans les CARDS — mécanisme COMMUN n°30 (18/08, décision Fabien) ─────
-    // Une card déclare UNIQUEMENT un placeholder
-    //   <div class="wcv3-preview" data-card-preview="<unified_preview>?side=output"
-    //        data-player-id="<pk>"></div>
-    // et l'hydrateur fetch le JSON unified_preview puis rend via le MÊME `renderInline` que le
-    // volet (mime-driven). L'adresse de l'élément accompagne la face : une vignette de la grille
-    // ouvre la visionneuse de l'élément.
+    // ── L'APERÇU des CARDS : l'afficheur de faces commun (2026-11-18, demande de Fabien) ─────────
+    // « La preview est censée afficher entrée / during (selon le modèle) / sortie / etc. selon les
+    // sous-process que porte la card. À partir du moment où on a une entrée, on devrait avoir accès
+    // à la preview. » Chaque card pose UN hôte (`common/_card_preview.html`) dont
+    // `data-card-preview` est l'adresse de son ÉLÉMENT ; il est monté par L'AFFICHEUR DE FACES
+    // (`faceViewer`), celui du volet et de l'échange de l'assistant : la Sortie d'un élément fini,
+    // l'Entrée sinon, la face Pendant suivie tant qu'il tourne puis la Sortie, les onglets des faces
+    // (Entrée, process du pipeline, Pendant, Comparer, Sortie) quand il y en a plusieurs. Rendu par
+    // le MÊME `renderInline`, à la densité que l'hôte déclare (`data-preview-mode`, `-max-chars`).
+    // Jusque-là, DEUX chemins : un hydrateur de la Sortie seule — l'hôte n'était posé qu'une fois le
+    // résultat produit, une card en attente ne montrait rien de son entrée — et un suiveur de la
+    // face Pendant sur un hôte d'attente (`data-card-during`, 2026-10-20). Le double-clic reste le
+    // geste COMMUN de la page (`.wama-card-preview`, `wama:card-expand`) : l'hôte porte en
+    // `data-preview-url` la face qu'il montre, que la visionneuse ouvre.
+    const PREVIEW_HOST = '[data-card-preview]';
+    function _cardOf(host) { return host.closest ? host.closest('[data-status]') : null; }
+    function _cardStatus(card) { return (card && card.dataset && card.dataset.status) || ''; }
+    function mountCardFaces(host) {
+        if (!host || host._wamaFaces) return host ? host._wamaFaces : null;
+        const base = _itemAddress(host.getAttribute('data-card-preview'));
+        if (!base) return null;
+        host.setAttribute('data-preview-hydrated', '1');
+        const card = _cardOf(host);
+        const viewer = faceViewer(host, base, {
+            compact: true,
+            card: card,
+            pageGesture: true,
+            status: function () { return _cardStatus(card); },
+            onShown: function (d) {
+                host.setAttribute('data-preview-url', d.side === 'during'
+                    ? duringUrl(base, null) : faceUrl(base, d.side));
+            },
+            // Rien à montrer (ni entrée ni sortie lisibles) : la zone se vide, la CSS la replie.
+            onEmpty: function () { _releaseHost(host); host.innerHTML = ''; },
+        });
+        host._wamaFaces = viewer;
+        host._wamaFacesStatus = _cardStatus(card);
+        viewer.refresh();
+        return viewer;
+    }
     function hydrateCardPreviews(root) {
         const scope = root || document;
-        const hosts = scope.querySelectorAll('[data-card-preview]:not([data-preview-hydrated])');
+        const self = scope.matches && scope.matches(PREVIEW_HOST) ? [scope] : [];
+        self.concat(Array.prototype.slice.call(scope.querySelectorAll(PREVIEW_HOST)))
+            .forEach(mountCardFaces);
+    }
+    // Une card qui CHANGE d'état (en attente → en cours → finie, relancée) : l'afficheur de SON
+    // aperçu rejoue la face par défaut — sauf pendant qu'il suit la face Pendant, qui passe d'elle-
+    // même à la Sortie quand le calcul finit. L'aperçu d'une fille de lot appartient à la fille :
+    // l'état de la mère n'y touche pas.
+    function _cardStatusChanged(card) {
+        const status = _cardStatus(card);
+        const hosts = card && card.querySelectorAll ? card.querySelectorAll(PREVIEW_HOST) : [];
         Array.prototype.forEach.call(hosts, function (host) {
-            host.setAttribute('data-preview-hydrated', '1');
-            const url = host.getAttribute('data-card-preview');
-            _json(url)
-                .then(function (d) {
-                    // La face Pendant est déjà montrée (card relancée) : l'ancienne sortie attend.
-                    if (!showable(d) || host._wamaDuringShown) return;
-                    d._baseUrl = _itemAddress(url);
-                    renderInline(host, d, false);
-                })
-                .catch(function () { /* best-effort : la card reste lisible sans preview */ });
+            if (_cardOf(host) !== card) return;
+            const viewer = host._wamaFaces;
+            if (!viewer) { mountCardFaces(host); return; }
+            if (host._wamaFacesStatus === status) return;
+            host._wamaFacesStatus = status;
+            if (!viewer.following()) viewer.refresh();
         });
     }
 
@@ -729,59 +771,6 @@
     // une page à fort brassage DOM et SANS card (filemanager et son arbre jstree, polling des
     // stats), chaque ajout de nœud déclenchait un `querySelectorAll` sur tout le document, pour
     // rien (2026-08-20, préalable au chargement global demandé par Fabien).
-    // ── La CARD suit la face PENDANT (2026-10-20, demande de Fabien) ─────────────────────────────
-    // Une card EN COURS montre ce qui se construit, comme le volet et la visionneuse : son hôte
-    // d'aperçu — celui de la sortie (`data-card-preview`), ou, tant qu'il n'y a pas de sortie,
-    // celui que le gabarit pose à l'adresse de l'élément (`data-card-during`) — est confié au MÊME
-    // suiveur (`followDuring`) et rendu par le MÊME `renderInline`, à la densité de la card. Le
-    // suivi démarre quand la card passe en cours (`data-status`, que toutes les apps écrivent) ou
-    // quand l'hôte arrive dans la page ; il s'arrête quand la card n'est plus en cours ou que
-    // l'hôte quitte la page (une card re-rendue apporte le sien). SI la face existe, le serveur le
-    // dit (`sides.during_capable`, la capacité déclarée) : une surface qui ne publie rien coûte un
-    // tour, puis arrêt. Le describer écrivait seul son texte partiel dans sa card, coupé à 150
-    // caractères : c'était la seule card qui montrait son calcul.
-    const PREVIEW_HOST = '[data-card-preview], [data-card-during]';
-    function followCard(host) {
-        if (!host || host._wamaDuring || !window.WamaApp || !window.WamaApp.Poller) return;
-        const card = host.closest ? host.closest('[data-status]') : null;
-        if (!isRunningCard(card)) return;
-        const own = host.getAttribute('data-card-during');
-        const base = own || _itemAddress(host.getAttribute('data-card-preview'));
-        if (!base) return;
-        host._wamaDuring = followDuring(base, {
-            every: 2000,
-            isRunning: function () { return host.isConnected !== false && isRunningCard(card); },
-            host: function () { return host; },
-            onFrame: function (d) {
-                d._baseUrl = base;
-                if (own) {
-                    // L'hôte d'attente devient une zone d'aperçu de card : son style, et le geste
-                    // commun (double-clic → la visionneuse, qui suit elle aussi la face Pendant).
-                    host.classList.add('wcv3-preview');
-                    host.classList.add('wama-card-preview');
-                    host.classList.remove('wcv3-preview--blueprint');
-                    host.setAttribute('data-preview-url', duringUrl(base, null));
-                }
-                host._wamaDuringShown = true;
-                renderInline(host, d, false);
-            },
-            onEnd: function () {
-                host._wamaDuring = null;
-                host._wamaDuringShown = false;
-                // Card relancée qui avait déjà une sortie : sa sortie reprend la place.
-                if (host.isConnected !== false && host.hasAttribute('data-card-preview')) {
-                    host.removeAttribute('data-preview-hydrated');
-                    hydrateCardPreviews(host.parentNode || document);
-                }
-            },
-        });
-    }
-    function followRunningCards(root) {
-        const scope = root || document;
-        const self = scope.matches && scope.matches(PREVIEW_HOST) ? [scope] : [];
-        self.concat(Array.prototype.slice.call(scope.querySelectorAll(PREVIEW_HOST))).forEach(followCard);
-    }
-
     function _holdsHost(n) {
         if (!n || n.nodeType !== 1) return false;
         return (n.matches && n.matches(PREVIEW_HOST)) ||
@@ -789,24 +778,23 @@
     }
     function _watchCardPreviews() {
         hydrateCardPreviews(document);
-        followRunningCards(document);
         try {
             new MutationObserver(function (muts) {
                 let added = false;
                 for (let i = 0; i < muts.length; i++) {
                     const m = muts[i];
-                    // Une card qui PASSE en cours : ses hôtes suivent la face Pendant.
+                    // L'état d'une card (`data-status`, que toutes les apps écrivent) a changé.
                     if (m.type === 'attributes') {
-                        if (isRunningCard(m.target)) followRunningCards(m.target);
+                        if (m.oldValue !== _cardStatus(m.target)) _cardStatusChanged(m.target);
                         continue;
                     }
                     for (let j = 0; !added && m.addedNodes && j < m.addedNodes.length; j++) {
                         added = _holdsHost(m.addedNodes[j]);
                     }
                 }
-                if (added) { hydrateCardPreviews(document); followRunningCards(document); }
-            }).observe(document.body, { childList: true, subtree: true,
-                                        attributes: true, attributeFilter: ['data-status'] });
+                if (added) hydrateCardPreviews(document);
+            }).observe(document.body, { childList: true, subtree: true, attributes: true,
+                                        attributeOldValue: true, attributeFilter: ['data-status'] });
         } catch (e) { /* très vieux navigateur (ou banc V8) : hydratation au chargement seulement */ }
     }
 
@@ -1073,13 +1061,16 @@
     // `compareView`), la lecture reprise d'une face à l'autre (`takeClock`/`giveClock`) et le
     // double-clic vers la visionneuse (`openForCard`). Extrait pour l'échange de l'assistant
     // (Fabien : « intégrer la preview dans l'échange […] entrée/during/comparaison/sortie »), où
-    // chaque ligne de job a le sien ; le volet l'emprunte — une seule construction.
+    // chaque ligne de job a le sien ; le volet l'emprunte — une seule construction. Depuis le
+    // 2026-11-18, l'aperçu de chaque CARD aussi (`mountCardFaces`).
     //   opts = { compact, status() → l'état de l'élément ('RUNNING'…), card (les voisines de la
     //            visionneuse), sequence() → {urls, index, onMove(i)} (les voisines quand elles
     //            n'ont pas de card dans la page : les filles d'un lot dans l'échange, 2026-11-05),
-    //            autoplay, onShown(données), onEmpty() }
-    //   rend { refresh(), show(face), open(), stop() } — `refresh` rejoue la face par défaut, à
-    //   appeler quand l'élément CHANGE d'état (un élément en attente qui démarre, ou qui finit).
+    //            autoplay, pageGesture (le double-clic est celui de la page : une card),
+    //            onShown(données), onEmpty() }
+    //   rend { refresh(), show(face), open(), stop(), following() } — `refresh` rejoue la face par
+    //   défaut, à appeler quand l'élément CHANGE d'état (un élément en attente qui démarre, ou qui
+    //   finit) ; `following` dit s'il suit la face Pendant.
     function faceViewer(host, baseUrl, opts) {
         opts = opts || {};
         let during = null, clock = null, last = null;
@@ -1102,14 +1093,18 @@
         }
         // Double-clic sur l'aperçu → la visionneuse, sur la face montrée. Une vignette de la grille
         // l'ouvre déjà sur SON fichier (au clic), et un double-clic sur les onglets change de face.
+        // Une CARD (`pageGesture`) garde le geste COMMUN de la page (`.wama-card-preview`), qui
+        // laisse une app ouvrir son détail (`wama:card-expand`) : l'afficheur n'en pose pas un second.
         function attach(d) {
             last = d;
-            host.title = 'Double-clic : plein écran';
-            host.ondblclick = function (e) {
-                if (e && e.target && e.target.closest
-                    && e.target.closest('.wama-preview-tile, .wama-face-tabs, .wama-preview-variants')) return;
-                open();
-            };
+            if (!opts.pageGesture) {
+                host.title = 'Double-clic : plein écran';
+                host.ondblclick = function (e) {
+                    if (e && e.target && e.target.closest
+                        && e.target.closest('.wama-preview-tile, .wama-face-tabs, .wama-preview-variants')) return;
+                    open();
+                };
+            }
             if (opts.onShown) opts.onShown(d);
         }
         // Les onglets des faces AU-DESSUS de l'aperçu ; changer de face arrête le suivi en direct.
@@ -1137,6 +1132,7 @@
                     return;
                 }
                 d._baseUrl = baseUrl;      // une vignette de la grille ouvre l'élément sur son fichier
+                if (!d.side) d.side = side;
                 renderInline(host, d, !!opts.autoplay);
                 giveClock(host, clock, baseUrl);
                 sides(d);
@@ -1149,10 +1145,17 @@
             stopDuring();
             const follower = followDuring(baseUrl, {
                 isRunning: running,
-                onEnd: function () { if (host.isConnected !== false) fetchSide('output'); },
+                // Fin du suivi : le calcul est fini → la Sortie. Encore en cours, c'est que la
+                // surface ne publie rien (`sides.during_capable`) : ce qui est montré reste, et
+                // la Sortie viendra du `refresh` de la fin (l'état de l'élément qui change).
+                onEnd: function () {
+                    if (during === follower) during = null;
+                    if (host.isConnected !== false && !running()) fetchSide('output');
+                },
                 host: function () { return host; },   // la lecture reprend d'un partiel au suivant
                 onFrame: function (d) {
                     d._baseUrl = baseUrl;
+                    if (!d.side) d.side = 'during';
                     renderInline(host, d, false);
                     sides(d);
                     if (d.variants && d.variants.length > 1) {
@@ -1187,7 +1190,8 @@
             fetchSide(status() === 'SUCCESS' ? 'output' : 'input');
             if (running()) follow();
         }
-        return { refresh: refresh, show: show, open: open, stop: stopDuring };
+        return { refresh: refresh, show: show, open: open, stop: stopDuring,
+                 following: function () { return !!during; } };
     }
 
     // ════════════════════════════════════════════════════════════════════════════════════════
@@ -2531,7 +2535,7 @@
         documentFrameHtml: documentFrameHtml, documentFrame: documentFrame,
         // faces
         sidesBar: sidesBar, viewerKind: viewerKind, compareFaces: compareFaces, compareView: compareView,
-        variantToggle: variantToggle, followDuring: followDuring, followCard: followCard,
+        variantToggle: variantToggle, followDuring: followDuring, mountCardFaces: mountCardFaces,
         faceViewer: faceViewer,
         takeClock: takeClock, giveClock: giveClock, releaseMedia: _releaseHost,
         playOnAxis: playOnAxis, axisOf: axisOf, soundOnAxis: _soundOnAxis, videoWithStrip: _videoWithStrip,

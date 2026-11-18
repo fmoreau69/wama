@@ -2488,11 +2488,13 @@ MECHANISMS = (
               "visionneuse offre les TÉLÉCHARGEMENTS que l'app déclare (`export_formats`) et "
               "compte les mots de toute face texte — ce que portaient les modales propres du "
               "describer et du transcriber, retirées (R125, R126). Depuis le 2026-10-20, la CARD "
-              "suit la face PENDANT comme le volet et la visionneuse (`followCard`, par le même "
-              "suiveur et le même rendu en ligne) : son hôte de sortie, ou l'hôte d'attente "
-              "`data-card-during` que chaque card pose à l'adresse de son élément — le describer "
-              "y écrivait seul son texte partiel, le transcriber le recopiait dans le panneau de "
-              "Speak (R158, R162). Depuis le 2026-10-28, la VIGNETTE d'un fichier est une brique "
+              "suit la face PENDANT comme le volet et la visionneuse — le describer y écrivait "
+              "seul son texte partiel, le transcriber le recopiait dans le panneau de Speak (R158, "
+              "R162). Depuis le 2026-11-18, l'aperçu de CHAQUE card est l'AFFICHEUR DE FACES "
+              "commun (`mountCardFaces`), posé par UN hôte (`common/_card_preview.html`, cards "
+              "réelles et générateur) : l'Entrée dès qu'elle existe, la face Pendant suivie, la "
+              "Sortie, les onglets des faces — l'hôte n'était posé qu'une fois la sortie produite, "
+              "avec un hôte d'attente à part (`data-card-during`, retiré). Depuis le 2026-10-28, la VIGNETTE d'un fichier est une brique "
               "(`tileHtml` : l'image, la 1ʳᵉ image d'une vidéo, sinon l'icône de la famille du "
               "type), décidée par le type que le serveur résout — lue par la grille d'une sortie "
               "multiple, la fenêtre de sélection et la médiathèque, qui l'écrivaient chacune et "
@@ -2509,6 +2511,7 @@ MECHANISMS = (
               'wama/common/utils/preview_registry.py', '',
               annexes=('wama/common/utils/preview_utils.py',
                        'wama/common/static/common/js/media-preview.js',
+                       'wama/common/templates/common/_card_preview.html',
                        'wama/common/static/common/js/wama-preview-overlay.js',
                        'wama/common/services/ui_smoke_preview_sync.py',
                        'wama/common/static/common/js/wama-3d-viewer.js',

@@ -159,17 +159,8 @@ pas la variable de gabarit.
 
   {% comment %}Preview PERMANENTE (§11) — vidéo en SUCCESS ; le placeholder #preview-row
   reste dans tous les cas (contrat JS historique).{% endcomment %}
-  {% if elem.status == 'SUCCESS' and elem.output_video %}
-  {% comment %}MÉCANISME COMMUN « Preview unifiée » (route n°30) : placeholder seul, hydraté
-  par WamaInspector.hydrateCardPreviews (unified_preview ?side=output, rendu mime-driven
-  commun). Le <video> à la main était hors-route (18/08).{% endcomment %}
-  {% url 'common:unified_preview' 'avatarizer' elem.id as pv_out %}
-  <div class="wcv3-preview wama-card-preview" id="preview-row-{{ elem.id }}" data-preview-url="{{ pv_out }}?side=output" data-id="{{ elem.id }}"
-       data-card-preview="{{ pv_out }}?side=output" data-player-id="{{ elem.id }}"></div>
-  {% else %}
-  {# l'hôte de la face PENDANT : la card montre ce qui se construit #}
-  <div id="preview-row-{{ elem.id }}" {% url 'common:unified_preview' 'avatarizer' elem.id as pv_during %}data-card-during="{{ pv_during }}" data-preview-mode="excerpt"></div>
-  {% endif %}
+  {# APERÇU PERMANENT (§11) : les faces de l'élément, par l'hôte commun (2026-11-18) #}
+  {% include 'common/_card_preview.html' with surface='avatarizer' id=elem.id mode='excerpt' %}
 
 </div>
 </div>

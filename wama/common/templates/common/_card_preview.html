@@ -1,0 +1,18 @@
+{% comment %}L'APERÇU d'une card — UN hôte, posé par toutes les cards (réelles et générées).
+
+Fabien, 2026-11-18 : « la preview est censée afficher entrée / during (selon le modèle) / sortie /
+etc. selon les sous-process que porte la card. À partir du moment où on a une entrée, on devrait
+avoir accès à la preview. » Les cards réelles ne posaient un hôte de SORTIE qu'une fois le
+résultat produit (sinon un hôte d'attente, `data-card-during`) : une card en attente ne montrait
+rien de son entrée. Cet hôte est désormais monté par L'AFFICHEUR DE FACES commun
+(`WamaMediaPreview.faceViewer`, `media-preview.js`) — celui du volet et de l'échange de
+l'assistant : la Sortie d'un élément fini, l'Entrée sinon, la face Pendant suivie tant qu'il
+tourne, les onglets des faces (Entrée, process du pipeline, Pendant, Comparer, Sortie) quand il y
+en a plusieurs. Le double-clic reste le geste commun de la page (`.wama-card-preview` → la
+visionneuse, sur la face montrée).
+
+Arguments : `surface` (la clé de l'aperçu unifié — l'app, ou la surface d'un domaine), `id`
+(l'élément) ; facultatifs, la DENSITÉ texte de la card (`mode`, `max_chars`), une classe propre
+à l'app (`classes`, que son JS vise), un geste de clic (`action`) et une infobulle (`title`).{% endcomment %}
+{% url 'common:unified_preview' surface id as card_preview_url %}<div class="wcv3-preview wama-card-preview{% if classes %} {{ classes }}{% endif %}" id="preview-row-{{ id }}" data-id="{{ id }}" data-player-id="{{ id }}"
+     data-card-preview="{{ card_preview_url }}" data-preview-url="{{ card_preview_url }}"{% if mode %} data-preview-mode="{{ mode }}"{% endif %}{% if max_chars %} data-preview-max-chars="{{ max_chars }}"{% endif %}{% if action %} data-action="{{ action }}"{% endif %}{% if title %} title="{{ title }}"{% endif %}></div>

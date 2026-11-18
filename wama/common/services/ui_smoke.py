@@ -6889,8 +6889,8 @@ def check_app_processing(app: str, url_path: str):
                 constats.append("⚠ aucun aperçu au contrat commun `.wama-card-preview"
                                 "[data-preview-url]` dans la card")
             else:
-                # ⚠ L'aperçu est rendu VIDE puis hydraté en asynchrone
-                # (`WamaInspector.hydrateCardPreviews` va chercher `unified_preview`). Un div
+                # ⚠ L'aperçu est rendu VIDE puis monté en asynchrone (l'afficheur de faces de
+                # la card, `WamaMediaPreview.mountCardFaces`, va chercher `unified_preview`). Un div
                 # de hauteur nulle n'est pas cliquable : sans cette attente, Playwright échoue
                 # et l'app se fait accuser de ne pas ouvrir sa visionneuse. Deux défauts
                 # DIFFÉRENTS — « l'aperçu ne se remplit jamais » et « le clic n'ouvre rien » —
@@ -6906,7 +6906,7 @@ def check_app_processing(app: str, url_path: str):
                         }""", arg=str(ident), timeout=15000)
                 except Exception:
                     constats.append("⚠ aperçu JAMAIS HYDRATÉ (reste vide et de hauteur nulle) "
-                                    "— `hydrateCardPreviews` n'a rien rendu ; le geste 11 n'est "
+                                    "— l'afficheur de faces n'a rien rendu ; le geste 11 n'est "
                                     "pas atteignable, mais ce n'est pas la visionneuse qui est "
                                     "en cause")
                     apercu = None

@@ -1653,87 +1653,122 @@ class PreviewModalTest(SimpleTestCase):
             removeAttribute: function (k) { delete a[k]; },
             closest: function () { return card; }, matches: function () { return true; },
             querySelector: function () { return null; }, querySelectorAll: function () { return []; },
-            appendChild: function () {}};
-          h.parentNode = {querySelectorAll: function () { return a['data-preview-hydrated'] ? [] : [h]; }};
+            appendChild: function () {}, insertBefore: function () {}, firstChild: null};
           return h;
         }
         var text = function (t) { return {mime_type: 'text/plain', content: t,
           sides: {during_capable: true, has_during: true}}; };
+        var mount = function (host) { return window.WamaMediaPreview.mountCardFaces(host); };
     """
 
-    def test_a_running_card_shows_its_pending_face_then_stops(self):
-        """2026-10-20 (Fabien : « la card doit suivre la face Pendant ») : the host the template
-        lays out while there is no output (`{% card_during %}`) is followed by THE follower, and
-        rendered by THE inline renderer at the card's density — what the describer alone wrote in
-        its card by hand."""
+    def test_a_waiting_card_shows_its_input(self):
+        """2026-11-18 (Fabien : « à partir du moment où on a une entrée, on devrait avoir accès à la
+        preview ») : a card not yet launched shows its INPUT, by THE face viewer of the panel and
+        of the assistant's exchange, at the card's density ; the page's double-click opens the
+        face shown. Mounting twice asks nothing more."""
+        v8 = self._follower_v8()
+        v8.eval(self.CARD_HOST)
+        out = v8.eval("""(function () {
+            var host = cardHost({'data-card-preview': '/common/preview/composer/5/'},
+                                {dataset: {status: 'PENDING'}});
+            payloads = [{mime_type: 'text/plain', content: 'Une valse lente',
+                         sides: {has_input: true}}];
+            var first = mount(host);
+            var again = mount(host);
+            tick();
+            return [calls.slice(), host.textContent, host.getAttribute('data-preview-url'),
+                    first === again, host.ondblclick || null];
+        })()""")
+        self.assertEqual(['/common/preview/composer/5/?side=input'], list(out[0]),
+                         'one request, and nothing followed while the card waits')
+        self.assertEqual('Une valse lente', out[1])
+        self.assertEqual('/common/preview/composer/5/?side=input', out[2])
+        self.assertTrue(out[3], 'a second mount reuses the viewer')
+        self.assertIsNone(out[4], "the card keeps the page's common double-click")
+
+    def test_a_running_card_follows_its_pending_face_then_shows_its_output(self):
+        """2026-10-20 (Fabien : « la card doit suivre la face Pendant ») : the input first, then
+        THE follower's frames, rendered by THE inline renderer — what the describer alone wrote in
+        its card by hand ; when the card is done, its output."""
         v8 = self._follower_v8()
         v8.eval(self.CARD_HOST)
         out = v8.eval("""(function () {
             var card = {dataset: {status: 'RUNNING'}};
-            var host = cardHost({'data-card-during': '/common/preview/describer/5/'}, card);
-            payloads = [text('Un chat noir'), text('Un chat noir dort sur un canapé')];
-            window.WamaMediaPreview.followCard(host);
-            window.WamaMediaPreview.followCard(host);        // a second call adds no follower
+            var host = cardHost({'data-card-preview': '/common/preview/describer/5/'}, card);
+            payloads = [{mime_type: 'image/png', url: '/m/chat.png', sides: {has_input: true}},
+                        text('Un chat noir'), text('Un chat noir dort sur un canapé'),
+                        {mime_type: 'text/plain', content: 'Un chat noir dort.', side: 'output'}];
+            var viewer = mount(host);
             var first = host.textContent;
             tick();
             var second = host.textContent;
-            card.dataset.status = 'SUCCESS'; tick(); tick(); // the card is done → the follow ends
-            return [first, second, calls.slice(), host.classList.contains('wama-card-preview'),
-                    host.getAttribute('data-preview-url'), host._wamaDuring];
+            var during = host.getAttribute('data-preview-url');
+            card.dataset.status = 'SUCCESS'; tick(); tick();  // the card is done → its output
+            return [first, second, during, host.textContent, calls.slice(), viewer.following()];
         })()""")
         self.assertEqual('Un chat noir', out[0])
         self.assertEqual('Un chat noir dort sur un canapé', out[1])
-        self.assertEqual(['/common/preview/describer/5/?side=during'] * 2, list(out[2]),
-                         'one follower, and no request once the card is done')
-        self.assertTrue(out[3], 'the waiting host becomes a card preview (style and gesture)')
-        self.assertEqual('/common/preview/describer/5/?side=during', out[4])
-        self.assertIsNone(out[5])
+        self.assertEqual('/common/preview/describer/5/?side=during', out[2])
+        self.assertEqual('Un chat noir dort.', out[3])
+        self.assertEqual(['/common/preview/describer/5/?side=input']
+                         + ['/common/preview/describer/5/?side=during'] * 2
+                         + ['/common/preview/describer/5/?side=output'], list(out[4]))
+        self.assertFalse(out[5], 'nothing followed once the card is done')
 
-    def test_a_surface_that_publishes_nothing_costs_one_request(self):
+    def test_a_surface_that_publishes_nothing_keeps_the_input(self):
         """The template does not copy the declaration : the server says whether the face exists
-        (`sides.during_capable`, read from `during_preview`) — the enhancer's audio does not."""
+        (`sides.during_capable`, read from `during_preview`) — the enhancer's audio does not. One
+        request for it, and the input stays shown until the card is done."""
         v8 = self._follower_v8()
         v8.eval(self.CARD_HOST)
         out = v8.eval("""(function () {
-            var host = cardHost({'data-card-during': '/common/preview/audio_enhancer/4/'},
+            var host = cardHost({'data-card-preview': '/common/preview/audio_enhancer/4/'},
                                 {dataset: {status: 'RUNNING'}});
-            payloads = [{sides: {during_capable: false, has_during: false}}];
-            window.WamaMediaPreview.followCard(host);
+            payloads = [{mime_type: 'text/plain', content: 'entrée', sides: {has_input: true}},
+                        {sides: {during_capable: false, has_during: false}}];
+            mount(host);
             tick(); tick();
-            return [calls.length, host.textContent, host.classList.contains('wama-card-preview')];
+            return [calls.length, host.textContent];
         })()""")
-        self.assertEqual([1, '', False], list(out))
+        self.assertEqual([2, 'entrée'], list(out))
 
-    def test_a_card_not_running_is_not_followed(self):
+    def test_a_finished_card_shows_its_output_and_a_relaunch_follows_again(self):
+        """A done card shows its OUTPUT ; launched again (`data-status` changes, what every app
+        writes), it follows the Pending face, then gets its output back when the run ends."""
         v8 = self._follower_v8()
         v8.eval(self.CARD_HOST)
         out = v8.eval("""(function () {
-            var host = cardHost({'data-card-during': '/common/preview/reader/3/'},
-                                {dataset: {status: 'PENDING'}});
-            window.WamaMediaPreview.followCard(host);
-            return calls.length;
-        })()""")
-        self.assertEqual(0, out)
-
-    def test_a_relaunched_card_shows_the_pending_face_then_its_output_again(self):
-        """A card that already had an output and is launched again : its OUTPUT host follows the
-        Pending face, then gets its output back when the run ends."""
-        v8 = self._follower_v8()
-        v8.eval(self.CARD_HOST)
-        out = v8.eval("""(function () {
-            var card = {dataset: {status: 'RUNNING'}};
-            var host = cardHost({'data-card-preview': '/common/preview/transcriber/9/?side=output',
-                                 'data-preview-hydrated': '1'}, card);
-            payloads = [text('Bonjour'), {mime_type: 'text/plain', content: 'Bonjour à tous.'}];
-            window.WamaMediaPreview.followCard(host);
+            var card = {dataset: {status: 'SUCCESS'}};
+            var host = cardHost({'data-card-preview': '/common/preview/transcriber/9/'}, card);
+            payloads = [{mime_type: 'text/plain', content: 'Bonjour.'}];
+            var viewer = mount(host);
+            var done = host.textContent;
+            card.dataset.status = 'RUNNING';
+            payloads = [{mime_type: 'image/png', url: '/m/spectre.png', sides: {has_input: true}},
+                        text('Bonjour'), {mime_type: 'text/plain', content: 'Bonjour à tous.'}];
+            viewer.refresh();                                 // what the status watcher calls
             var during = host.textContent;
             card.dataset.status = 'SUCCESS'; tick();
-            return [during, host.textContent, calls.slice()];
+            return [done, during, host.textContent, calls.slice()];
         })()""")
-        self.assertEqual('Bonjour', out[0])
-        self.assertEqual('Bonjour à tous.', out[1])
-        self.assertEqual(['/common/preview/transcriber/9/?side=during',
-                          '/common/preview/transcriber/9/?side=output'], list(out[2]))
+        self.assertEqual('Bonjour.', out[0])
+        self.assertEqual('Bonjour', out[1])
+        self.assertEqual('Bonjour à tous.', out[2])
+        self.assertEqual(['/common/preview/transcriber/9/?side=output',
+                          '/common/preview/transcriber/9/?side=input',
+                          '/common/preview/transcriber/9/?side=during',
+                          '/common/preview/transcriber/9/?side=output'], list(out[3]))
+
+    def test_the_status_watcher_refreshes_the_cards_own_preview_only(self):
+        """The page watches `data-status` (old value kept) and refreshes the viewer of the card
+        whose state changed — not while it follows the Pending face, and never the preview of a
+        batch child for its mother's state."""
+        watcher = self._body('media-preview.js', 'function _cardStatusChanged')
+        self.assertIn('_cardOf(host) !== card', watcher)
+        self.assertIn('if (!viewer.following()) viewer.refresh();', watcher)
+        observe = self._body('media-preview.js', 'function _watchCardPreviews')
+        self.assertIn("attributeOldValue: true, attributeFilter: ['data-status']", observe)
+        self.assertIn('m.oldValue !== _cardStatus(m.target)', observe)
 
     def test_both_consumers_hand_their_host_to_the_follower(self):
         self.assertIn('host: function () { return host; }',

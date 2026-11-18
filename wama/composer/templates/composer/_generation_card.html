@@ -143,22 +143,8 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt (texte), pas un fichier.
 
   </div>{# /.wcv3 #}
 
-  {% comment %}Preview PERMANENTE (§11) du RÉSULTAT — mécanisme COMMUN n°30 (portage 2026-08-22).
-  L'include statique `_audio_waveform.html` est REMPLACÉ par le placeholder hydraté :
-  WamaInspector.hydrateCardPreviews fetch unified_preview ?side=output et rend en mime-driven
-  (renderInlinePreview). Pour l'audio ce rendu passe par WamaAudioPlayer.create, dont le DOM est
-  IDENTIQUE à celui de l'include (mêmes classes/ids/bouton, vérifié wama-audio-player.js:248) —
-  donc même exclusivité inter-cards et mêmes contrats de navette, sans markup par app. Gain :
-  l'app cesse de décider du rendu (une correction du commun profite à tous) et les pics calculés
-  serveur pourront être servis sans retoucher la card.{% endcomment %}
-  {% if elem.audio_output %}
-  {% url 'common:unified_preview' 'composer' elem.id as pv_out %}
-  <div class="wcv3-preview wama-card-preview" id="preview-row-{{ elem.id }}" data-preview-url="{{ pv_out }}?side=output" data-id="{{ elem.id }}"
-       data-card-preview="{{ pv_out }}?side=output" data-player-id="{{ elem.id }}"></div>
-  {% else %}
-  {# l'hôte de la face PENDANT : la card montre ce qui se construit #}
-  <div id="preview-row-{{ elem.id }}" {% url 'common:unified_preview' 'composer' elem.id as pv_during %}data-card-during="{{ pv_during }}" data-preview-mode="excerpt"></div>
-  {% endif %}
+  {# APERÇU PERMANENT (§11) : les faces de l'élément, par l'hôte commun (2026-11-18) #}
+  {% include 'common/_card_preview.html' with surface='composer' id=elem.id mode='excerpt' %}
 
 </div>
 </div>
