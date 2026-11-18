@@ -867,7 +867,7 @@ def _fill_required_ports(page) -> list:
     `set_input_files` fait échouer la requête en « Failed to fetch » (mesuré le 2026-09-29).
     Un groupe « l'un OU l'autre » (`is-required-one-of`, 2026-09-30 : image OU objet 3D chez
     l'avatarizer) ne demande qu'UN port : on remplit son premier (`is-one-of-first`)."""
-    ports = page.evaluate("""() => [...document.querySelectorAll(
+    ports = page.evaluate("""() => [...(document.querySelector('.tab-pane[data-domain].active') || document).querySelectorAll(
             '.wama-port-pane.is-required [data-port-import-self] input[type=file],'
             + '.wama-port-pane.is-one-of-first [data-port-import-self] input[type=file]')]
         .map(i => ({id: i.id, accept: i.getAttribute('accept') || ''}))""") or []
@@ -2271,7 +2271,7 @@ _URL_EN_ETAT = """(() => {
     // (`_new_item_card.html`) — pas par un id d'app, qui varie (youtubeSubmitBtn,
     // converterUrlSubmit, anonUrlSubmit…). Le champ est son voisin dans le même groupe.
     // ⚠ `title^="Importer depuis l"` viserait AUSSI « Importer depuis la médiathèque ».
-    const btn = document.querySelector('button[title$="URL"]');
+    const btn = (document.querySelector('.tab-pane[data-domain].active') || document).querySelector('button[title$="URL"]');
     const grp = btn ? btn.closest('.input-group') : null;
     const nic = (document.querySelector('.tab-pane[data-domain].active') || document).querySelector('[data-wama-nic]');
     const inp = grp ? grp.querySelector('input[type=text], input[type=url]')
@@ -5288,8 +5288,12 @@ def check_app_inspector_actions(app: str, url_path: str):
     #   lot  : un descendant sûr d'un `.batch-group[data-batch-id]` qui n'est DANS
     #          aucune card — sinon la délégation sélectionne l'item et jamais le lot
     #          (elle teste la card AVANT le lot : `wama-inspector.js`).
+    # ⚠ La CASE de sélection multiple (`wama-queue-dnd.js`, `BOX = 'wama-select-box'`) est un AUTRE
+    # geste : un clic la coche, la file l'annonce, et l'inspecteur ne sélectionne pas la card. Visible
+    # au survol depuis le 2026-11-18 (`wama-reveal`), c'était la première feuille venue : le volet
+    # restait « VIDE » sur toutes les pages alors qu'un clic sur la card le remplit (6 boutons).
     CIBLE = """(portee) => {
-        const IGNORE = 'button, a, input, select, textarea, .wama-card-preview, .btn-group-actions';
+        const IGNORE = 'button, a, input, select, textarea, .wama-card-preview, .btn-group-actions, .wama-select-box';
         const visible = (e) => { const r = e.getBoundingClientRect();
                                  return r.width > 4 && r.height > 4; };
         document.querySelectorAll('[data-wama-nightly-cible]')
@@ -5333,12 +5337,20 @@ def check_app_inspector_actions(app: str, url_path: str):
         };
         for (const hote of hotes) {
             if (!visible(hote)) continue;
-            const candidats = [hote, ...hote.querySelectorAll('*')];
+            // Un LOT se sélectionne par l'EN-TÊTE de sa card mère, pas par son emballage : une fois
+            // ses filles DÉPLIÉES (le chemin « card » les déplie pour les atteindre), le centre du
+            // `.batch-group` tombe hors de l'écran ou sur une fille (mesuré le 2026-11-18 : 958 px de
+            // haut, volet « VIDE » sur l'anonymizer et l'enhancer). On vise l'en-tête, amené à l'écran.
+            const base = portee === 'lot'
+                ? (hote.querySelector(':scope > .batch-group-header, :scope > .wama-card.is-batch') || hote)
+                : hote;
+            if (portee === 'lot') base.scrollIntoView({block: 'center'});
+            const candidats = [base, ...base.querySelectorAll('*')];
             for (const c of candidats) {
                 if (c.closest(IGNORE) || c.matches(IGNORE)) continue;
                 if (portee === 'lot' && c.closest('[data-id]')) continue;
                 if (!visible(c)) continue;
-                if (c.children.length && c !== hote) continue;   // feuille de préférence
+                if (c.children.length && c !== base) continue;   // feuille de préférence
                 if (atterrit_bien(c, hote) === false) continue;  // null = hors écran, on tente
                 c.setAttribute('data-wama-nightly-cible', '1');
                 return {ok: true, id: hote.dataset.id || hote.dataset.batchId,

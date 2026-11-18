@@ -1101,6 +1101,18 @@ class FilterBarForMeTest(TestCase):
         rule.assert_not_called()
         self.assertEqual([(True, True)], [(r['open_to_me'], r['drawn_for_me']) for r in rows])
 
+    def test_the_list_reads_the_domain_the_options_of_a_select_declare(self):
+        # A select's capabilities are read here WITH the query of its options (`wama-params.js`,
+        # `_catalogCaps`) : `model_type` is a domain key of the options API, and the list ignored
+        # it — the whole catalogue for `?model_type=llm`, ~60 s a call (2026-11-18).
+        AIModel.objects.create(model_key='imager:img', name='img', model_type='diffusion',
+                               source='imager', execution='local', is_available=True)
+        for query in ('?model_type=llm', '?type=llm'):
+            keys = {r['model_key'] for r in
+                    self.client.get('/model-manager/api/models/db/' + query).json()['models']}
+            self.assertIn('albert:a', keys, query)
+            self.assertNotIn('imager:img', keys, query)
+
     def test_the_bar_offers_the_rings_and_costs_of_the_registry(self):
         from wama.common import external_sources
         admin = get_user_model().objects.create_superuser('filter_bar_admin', password='x')

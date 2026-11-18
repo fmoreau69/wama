@@ -215,10 +215,14 @@ class Media(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
         modale mais laisse le VOLET sans rien à refléter — le `cardSettings` par défaut de
         `WamaInspector.initFromSchema` lit les data-* du gear, et il n'y en avait pas. Les
         valeurs viennent des champs de modèle homonymes (schéma `derive_from_model`).
+
+        Le schéma est celui du DOMAINE de l'élément (`element_schema`, comme l'imager) : avec le
+        schéma image/vidéo pour tous, une card document ne portait pas son réglage
+        (`ocr_scanned_pages`), et le volet n'avait rien à en refléter (2026-11-18).
         """
+        from wama.common.utils.app_modes import element_schema
         from wama.common.utils.card_gear import gear_data
-        from .params import PARAMS
-        return gear_data(self, PARAMS)
+        return gear_data(self, element_schema(self))
 
 
 # `GlobalSettings` et `UserSettings` RETIRÉS le 2026-09-27 (REMOVAL_LEDGER R73) : les réglages de

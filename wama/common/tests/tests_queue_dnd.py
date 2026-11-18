@@ -1173,6 +1173,20 @@ class SelectionBoxTest(TestCase):
         smoke = (RACINE / 'wama' / 'common' / 'services' / 'ui_smoke.py').read_text(encoding='utf-8')
         self.assertIn('constats.append("deux cases cochées → 2")', smoke)
 
+    def test_the_nightly_inspector_gesture_never_clicks_the_box(self):
+        """Ticking the box is ANOTHER gesture (multiple selection) : the inspector selects nothing.
+        The instrument that measures the inspector (`check_app_inspector_actions`, its `CIBLE`)
+        avoids what the inspector's delegation ignores AND the box (2026-11-18 : shown on hover, the
+        box was its first target — « Actions panel EMPTY » on every page, the app being sound)."""
+        smoke = (RACINE / 'wama' / 'common' / 'services' / 'ui_smoke.py').read_text(encoding='utf-8')
+        ignored = re.search(r"CIBLE = \"\"\"\(portee\) => \{\s+const IGNORE = '([^']+)'", smoke).group(1)
+        ignored = {s.strip() for s in ignored.split(',')}
+        inspector = re.search(r"if \(e\.target\.closest\('([^']+)'\)\) return;",
+                              _common('js/wama-inspector.js')).group(1)
+        box = re.search(r"const BOX = '([\w-]+)';", _common('js/wama-queue-dnd.js')).group(1)
+        expected = {s.strip() for s in inspector.split(',')} | {f'.{box}'}
+        self.assertEqual(set(), expected - ignored)
+
     def test_the_served_copies_are_the_sources(self):
         for rel in ('js/wama-queue-dnd.js', 'css/wama-queue-dnd.css', 'css/wama-inspector.css',
                     'css/app_modern.css', 'css/wama-touch.css'):

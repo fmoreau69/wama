@@ -1075,7 +1075,12 @@ def api_models_db(request):
 
     # Optional filters
     source = request.GET.get('source')
-    model_type = request.GET.get('type')
+    # `model_type`, le nom du champ et celui de l'API des options (`api_model_options`) : les
+    # capacités d'un select se lisent ICI avec la requête de ses options (`wama-params.js`,
+    # `_catalogCaps`). Seul `type` était lu : `?model_type=llm` rendait le catalogue ENTIER —
+    # 1,9 Mo, ~60 s par appel, trois appels par page du describer, des workers gunicorn tenus et
+    # les pages voisines en attente (mesuré le 2026-11-18). `type` reste lu.
+    model_type = request.GET.get('model_type') or request.GET.get('type')
     downloaded_only = request.GET.get('downloaded') == 'true'
     format_filter = request.GET.get('format')
     # `task` (2026-09-01, route F4b ②) : borne le domaine par CAPACITÉ, comme le select.

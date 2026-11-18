@@ -220,7 +220,7 @@ def _render_from_data(app_id: str, data: dict, ingest: dict = None,
                 imports.update(i for i in (val.get('imports') or []) if i != f'import {own_module}')
             corps.append(f"    {f['name']} = {cls_expr}({', '.join(morceaux)})")
         # Les data-* du bouton ⚙ de la card : la brique COMMUNE `card_gear`, dérivés du schéma
-        # comme dans les dix sources (`gear_data(self, PARAMS)`, 2026-10-31). Une PROPRIÉTÉ :
+        # comme dans les dix sources (schéma du domaine de l'élément, 2026-11-18). Une PROPRIÉTÉ :
         # aucun champ, aucune migration. Les réglages hors colonnes viennent du conteneur
         # `options` quand le modèle en a un. Sans elle, la card générée écrivait ses data-* à la
         # génération (critère `card_gear`) et son bouton ⚙ ne portait rien.
@@ -336,13 +336,18 @@ def _gear_data_lines(params_symbol: str, has_options: bool) -> list:
     COMMUNE `card_gear`, dérivés du schéma (`gear_data(self, PARAMS)`, comme les dix sources,
     2026-10-31). Une PROPRIÉTÉ : aucun champ, aucune migration. Les réglages hors colonnes
     viennent du conteneur `options` quand le modèle en a un. UNE émission pour les deux chemins
-    de rendu (introspecté et squelette)."""
+    de rendu (introspecté et squelette).
+
+    Le schéma est celui du DOMAINE de l'élément (`app_modes.element_schema`, le principal pour une
+    app sans domaine), comme la source de l'imager et de l'anonymizer (2026-11-18) : avec le
+    principal pour tous, une card du second domaine d'`anonymizer_01` ne portait pas ses réglages.
+    `params_symbol` reste exigé : il dit que l'app a un schéma."""
     values = ', values=dict(self.options or {})' if has_options else ''
     return ['', '    @property', '    def gear_data(self):',
-            '        """data-* du bouton ⚙ — brique commune `card_gear` (dérivés du schéma)."""',
+            '        """data-* du bouton ⚙ — brique commune `card_gear`, dérivés du schéma du domaine."""',
+            '        from wama.common.utils.app_modes import element_schema',
             '        from wama.common.utils.card_gear import gear_data',
-            f'        from .params import {params_symbol}',
-            f'        return gear_data(self, {params_symbol}{values})']
+            f'        return gear_data(self, element_schema(self){values})']
 
 
 def _spine_name_lines(item_name: str, input_field: str, name_field: str,

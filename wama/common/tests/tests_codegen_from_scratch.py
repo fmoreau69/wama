@@ -118,7 +118,9 @@ class DeclaredResultFieldsAreGeneratedTest(SimpleTestCase):
         self.assertIsNotNone(src, reason)
         item = src[src.index('class WriterDocument('):src.index('class WriterBatch(')]
         self.assertIn('def gear_data(self):', item, 'the item has no ⚙ settings')
-        self.assertIn('from .params import PARAMS_JSON', item)
+        # The schema of the element's DOMAIN (`element_schema`, the main one without a domain —
+        # 2026-11-18 : a second-domain card of anonymizer_01 carried the main schema's settings).
+        self.assertIn('return gear_data(self, element_schema(self)', item)
         compile(src, 'models.py', 'exec')
         bare = copy.deepcopy(manifest)
         bare['body']['params'] = {}

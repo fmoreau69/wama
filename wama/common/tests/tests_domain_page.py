@@ -236,6 +236,7 @@ class TheNightlyGesturesSweepEveryDomainTest(SimpleTestCase):
         whole_page = re.compile(
             r"document\.querySelector(?:All)?\(['\"](?:\.wama-card(?!-menu)|\[data-id\]|"
             r"\.batch-group\[data-batch-id|\[data-wama-dnd\]|\[data-wama-nic\]|\[data-wama-depot|"
+            r"button\[title\$=\"URL\"\]|\.wama-port-pane|"
             r"input\[type=file\]\[webkitdirectory\])"
             # The same read from Python : the entry card's field, unscoped (inline or on its line).
             r"|(?:query_selector\(|^\s*)f?['\"]\[data-wama-nic\] input")
