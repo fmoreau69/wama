@@ -635,15 +635,18 @@ class VoletParametresGenereTest(SimpleTestCase):
 
     def test_la_card_non_terminee_montre_la_preview_de_sa_source(self):
         # Demande Fabien 31/08 (« la preview n'apparaît pas dans les cards, uniquement dans
-        # le volet droit ») : même hydrateur commun, face input, tant que le résultat
-        # n'existe pas ; face output en SUCCESS, comme avant.
+        # le volet droit ») : la card en attente montre sa SOURCE. Depuis le 2026-11-18 (Fabien :
+        # « à partir du moment où on a une entrée, on devrait avoir accès à la preview »), c'est
+        # l'hôte COMMUN des cards (`common/_card_preview.html`), monté par l'afficheur de faces —
+        # l'Entrée tant que l'élément n'est pas fini, Pendant, la Sortie : plus de `?side=` écrit
+        # par la card (la garde générique de toutes les cards : `tests_card_pending_face`).
         src, _ = render_index(_manifeste(SOURCE))
         card = (src or {}).get('_generic_card.html') or ''
         if not card:
             self.skipTest('card non générée')
-        self.assertIn('?side=output', card)
-        self.assertIn('?side=input', card,
-                      'la card en attente doit hydrater la preview de sa SOURCE')
+        self.assertIn("{% include 'common/_card_preview.html' with surface=", card,
+                      'la card en attente doit montrer sa SOURCE, par l’hôte commun')
+        self.assertNotIn('data-card-preview=', card, 'aucun hôte écrit à la main')
         # ⚠ `elem` et non `item` depuis le 2026-09-09 (la card générée lit l'élément sous le
         # nom commun de `_queue_entry.html`). Laisser `item.id` ici aurait gardé un test VERT
         # incapable d'échouer : il aurait cherché une chaîne que le générateur ne peut plus
