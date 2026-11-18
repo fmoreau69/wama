@@ -355,7 +355,7 @@ Une app DÉCLARE les process de sa card (`ProcessSpec` : amonts, réglages surve
 
 - **Domicile** : `wama/common/services/process_pipeline.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Pipeline DÉCLARÉ d'une app — la pièce du moteur commun qui dit « cette card porte PLUSIEURS process, dans cet ordre, et voici lesquels sont à (re)jouer ». Doc : `WAMA_APP_GENERATION_ROUTE.md §10.6` points 3.2, 4.3 à 4.5 (marche P3, palier B) et décision n°11.
-- **API publique** (14) :
+- **API publique** (15) :
   - `segments_text(segments) -> str` — Des SEGMENTS de parole (`result_format='segments'` : `[{speaker, time_range, text}]`) en
   - `preload(items) -> None` — Lit en UNE requête les lignes d'exécution de tous ces éléments (même modèle) et les pose
   - `release(item) -> None` — Referme la fenêtre de `preload` sur cet élément : une instance gardée par l'appelant (un
@@ -366,6 +366,7 @@ Une app DÉCLARE les process de sa card (`ProcessSpec` : amonts, réglages surve
   - `register_app_pipeline(app: str, specs, *, label: str, description: str='', source_ref: str='', model_of=None) -> AppPipeline` — Déclare le pipeline d'une app et l'inscrit comme source de manifeste `pipeline` sous la
   - `process_of_function(function_key: str)` — `(pipeline, ProcessSpec)` de l'ÉTAPE de card qu'est la fonction `function_key` — le process
   - `pipeline_of(item) -> AppPipeline | None` — Le pipeline de CETTE card : celui que son app déclare, ÉTENDU de ce que la card lui ajoute
+  - `inapplicable_settings(item, rows=None, pipeline=None) -> tuple` — Les réglages SANS OBJET pour cette card (2026-11-17, Fabien : « une card de piste séparée
   - `app_pipeline(app: str) -> AppPipeline | None` — Le pipeline déclaré par l'app `app`, ou None — même lecture que `pipeline_of`, quand on
   - `card_view(item, model_key=DECLARED, preloaded: bool=False)` — Ce que la card et la vue de progression montrent du PIPELINE d'un élément (`§10.6` 5.1) :
   - `decorate(item, model_key=DECLARED, preloaded: bool=False)` — Pose `processes`, `shown_state`, `shown_state_label` sur l'élément — ce que lisent les
@@ -2758,7 +2759,9 @@ Chips des cards GÉNÉRÉS du schéma params (chip=True), groupés par section v
 
 - **Domicile** : `wama/common/utils/card_chips.py` · **doc** : [docs/construction/ui/CARD_DESIGN.md §10.3](../construction/ui/CARD_DESIGN.md)
 - **Module** : WAMA Common — CHIPS méta des cards (CARD_DESIGN §10.3, pilote Reader 2026-07-06).
-- **API publique** (7) :
+- **API publique** (9) :
+  - `catalog_name(model_key: str) -> str` — Le NOM lisible d'un modèle du catalogue (`AIModel.name`) — '' s'il n'y est pas. Mémoïsé
+  - `catalog_names(model_keys) -> dict` — `{clé: nom}` de plusieurs modèles en UNE requête pour ceux que le mémo n'a pas — ce que lit
   - `field_unit(field) -> str` — L'UNITÉ d'un champ numérique : `unit` s'il est déclaré, sinon un `chip_label` COURT en
   - `chips_for(instance, params_json, extra=None, values=None)` — Construit la liste des chips d'une card depuis le schéma sérialisé (schema_to_dicts).
   - `input_props_for(instance, file_field='input_file', name='')` — Sous-ligne « propriétés RÉELLES du média » de la section ENTRÉE (CARD_DESIGN §11).
