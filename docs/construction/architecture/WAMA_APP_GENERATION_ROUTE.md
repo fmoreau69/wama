@@ -321,7 +321,8 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   manque chez lui, et c'est du code VIVANT de bout en bout : son worker publie par la brique
   (`describer/workers.py:205`, `publish_partial_text`), sa route de progression le sert
   (`describer/views.py:534`, `partial_text`), son JS l'écrit, coupé à 150 caractères, dans
-  l'hôte que la card en cours rend (`.result-preview` du gabarit, `_description_card.html:167`,
+  l'hôte que la card en cours rend (`.result-preview` du gabarit `_description_card.html` — hôte
+  remplacé le 2026-11-18 par l'hôte commun des cards, `common/_card_preview.html`,
   « Description en cours… » ; `describer/static/describer/js/index.js:48-50`). Ce n'est pas une
   copie de code commun : c'est la seule card qui montre quelque chose pendant le calcul, par un
   chemin à elle, faute de surface commune — il disparaît quand la card suivra Pendant. L'hôte

@@ -3408,27 +3408,31 @@ Emplacements canoniques des entrées/sorties par app et par utilisateur (`app_me
   - `upload_to_user_output(app_name: str)` — Convenience function to create an UploadToUserPath for output folder.
   - `migrate_file_to_user_path(old_path: Union[str, Path], app_name: str, user_id: Union[int, str], subfolder: str='input', move: bool=True) -> Optional[str]` — Migrate a file from old location to new user-specific location.
 
-### Copie de lecture des vidéos
+### Copie de lecture des vidéos et des audios
 
-Une vidéo qu'une card porte et que le navigateur ne lit pas (conteneur, profil H.264, pixels — pas le seul nom du codec) reçoit, DÈS SON IMPORT et quelle que soit la voie, une copie de lecture H.264 servie par l'aperçu SEULEMENT ; l'original reste intact pour les traitements (2026-10-06, décision de Fabien). Rangée dans le dossier CACHÉ de l'utilisateur (`users/<id>/.preview/`), jamais à côté de l'original ni dans un dossier connecté ; balayée quand l'original part ; ni orpheline pour l'intégrité, ni dédupliquée, ni sauvegardée. Récepteur générique sur les champs fichier, tâche `common.make_playback_copy` (CPU), rattrapage `manage.py playback_copies`. Le verdict lit la sonde COMMUNE (`media_probe.probe_video_format`) ; l'écriture partage le geste de `ensure_h264`. 2026-11-16 : une PAGE D'ÉDITION lit aussi la copie (`surface_views._media_url`) et, la trouvant absente, la DIT et la remet en file (`playback_state`, une fois par quart d'heure) ; la vidéo se charge d'elle-même quand la copie est prête
+Une vidéo qu'une card porte et que le navigateur ne lit pas (conteneur, profil H.264, pixels — pas le seul nom du codec) reçoit, DÈS SON IMPORT et quelle que soit la voie, une copie de lecture H.264 servie par l'aperçu SEULEMENT ; l'original reste intact pour les traitements (2026-10-06, décision de Fabien). Rangée dans le dossier CACHÉ de l'utilisateur (`users/<id>/.preview/`), jamais à côté de l'original ni dans un dossier connecté ; balayée quand l'original part ; ni orpheline pour l'intégrité, ni dédupliquée, ni sauvegardée. Récepteur générique sur les champs fichier, tâche `common.make_playback_copy` (CPU), rattrapage `manage.py playback_copies`. Le verdict lit la sonde COMMUNE (`media_probe.probe_video_format`) ; l'écriture partage le geste de `ensure_h264`. 2026-11-16 : une PAGE D'ÉDITION lit aussi la copie (`surface_views._media_url`) et, la trouvant absente, la DIT et la remet en file (`playback_state`, une fois par quart d'heure) ; la vidéo se charge d'elle-même quand la copie est prête. 2026-11-18 : un AUDIO que le navigateur ne POSITIONNE pas juste (MP3 : jusqu'à 771 ms ; AAC brut et Vorbis : ~23 ms) reçoit la sienne, AAC en M4A, par la même voie — formats déclarés une fois (`SEEK_INEXACT_AUDIO`, verdict `seekability` sur `media_probe.probe_audio_format`), déclaration tenue par le banc nocturne `common.audio_seek` (mesure dans Chromium) ; servie à tout lecteur (`playback_url`) : aperçu, pages, mixage des pistes ; même cycle que les vidéos, une copie manquante remise en file par la page qui l'ouvre — UNE décision pour l'import, le rattrapage et la page (`copy_verdict`)
 
 - **Domicile** : `wama/common/utils/video_compat.py` · **doc** : [docs/construction/exploitation/MEDIA_STORAGE_TIERING.md](../construction/exploitation/MEDIA_STORAGE_TIERING.md)
 - **Module** : Browser-compatibility helpers for video files.
-- **API publique** (15) :
+- **API publique** (19) :
   - `get_video_codec(file_path: str, *, timeout: int=10) -> Optional[str]` — Return the codec name of the first video stream, lowercased
   - `is_browser_compatible_codec(codec: Optional[str]) -> bool` — True when the codec is one HTML5 ``<video>`` can play directly.
   - `ensure_h264(file_path: str, *, timeout: int=1800) -> Union[bool, str]` — Ensure a video is browser-compatible. When the codec is already in
+  - `seekability(info: Optional[dict]) -> tuple` — `(positionnable, raison)` d'un audio décrit par la sonde commune (`media_probe.
   - `playability(info: Optional[dict]) -> tuple` — `(lisible, raison)` d'une vidéo décrite par la sonde COMMUNE (`media_probe.
   - `derived_rel(rel: str, suffix: str) -> str` — Le chemin (relatif à MEDIA_ROOT) d'un fichier DÉRIVÉ d'un média — pure. Sous
-  - `playback_copy_rel(rel: str) -> str` — Le chemin de la copie de lecture d'un média (`derived_rel`, suffixe `.mp4`) — pure.
+  - `playback_copy_rel(rel: str) -> str` — Le chemin de la copie de lecture d'un média (`derived_rel`) — `.m4a` pour un audio, `.mp4`
   - `playback_copy_for(rel: str) -> str` — La copie de lecture À JOUR d'un média (chemin relatif), ou '' — plus ancienne que
-  - `make_playback_copy(rel: str, *, timeout: int=3600) -> str` — Crée la copie de lecture d'un média si le navigateur ne le lit pas — idempotent. Rend le
+  - `playback_url(rel: str) -> str` — L'adresse qu'un LECTEUR reçoit pour le média `rel` : celle de sa copie de lecture à jour,
+  - `audio_copy_args(codec: str) -> list` — La recette ffmpeg de la copie de lecture d'un audio : AAC en M4A, index en tête (faststart).
+  - `copy_verdict(rel: str, source: str) -> tuple` — `(copie à faire, raison, recette ffmpeg)` d'un média présent sur le disque — LA décision,
+  - `make_playback_copy(rel: str, *, timeout: int=3600) -> str` — Crée la copie de lecture d'un média si le navigateur ne le lit pas — ou, pour un audio, ne
   - `drop_playback_copy(rel: str) -> bool` — Retire les fichiers DÉRIVÉS d'un média — sa copie de lecture et, depuis le 2026-10-21, ses
   - `original_of_copy(copy_rel: str) -> str` — L'original (chemin relatif) d'un fichier dérivé — l'inverse de `derived_rel`, pour chacun
   - `sweep_orphan_playback_copies(dry_run: bool=False) -> dict` — Retire les fichiers dérivés (copies de lecture, pics fins) dont l'original n'existe plus, ou
-  - `schedule_playback_copy(rel: str) -> bool` — Met en file la copie de lecture d'un média vidéo, UNE fois par version du fichier (chemin,
+  - `schedule_playback_copy(rel: str) -> bool` — Met en file la copie de lecture d'un média vidéo ou audio, UNE fois par version du fichier
   - `playback_state(rel: str)` — Ce qu'une page doit DIRE de la lecture d'un média qu'elle montre (2026-11-16, Fabien : « on
-  - `backfill_playback_copies(dry_run: bool=False) -> dict` — Le RATTRAPAGE : les vidéos que des cards portaient AVANT le récepteur (aucun import ne
+  - `backfill_playback_copies(dry_run: bool=False, audio_only: bool=False) -> dict` — Le RATTRAPAGE : les médias que des cards portaient AVANT le récepteur (aucun import ne
   - `register_playback_copy_receivers()` — Branche le récepteur sur tout modèle à champ fichier (le recensement COMMUN,
 
 ### Décodage audio robuste
@@ -3915,11 +3919,12 @@ Durée/codec/dimensions/pages d'un média pour les propriétés de card (via ffm
 
 - **Domicile** : `wama/common/utils/media_probe.py` · **doc** : [docs/construction/suivi/ROADMAP.md §17ter](../construction/suivi/ROADMAP.md)
 - **Module** : WAMA Common — Sonde média (durée / codec / dimensions / pages / entrées).
-- **API publique** (8) :
+- **API publique** (9) :
   - `format_duration(seconds: float) -> str` — ``95.4 -> '1:35'``, ``3750 -> '1:02:30'`` — affichage court ('' si inconnu/zéro).
   - `probe_audio(path: str) -> dict` — Sonde le premier flux audio d'un fichier.
   - `probe_video(path: str) -> dict` — Sonde le premier flux vidéo : codec • L×H • fps, + durée (stream puis format).
   - `probe_video_format(path: str, *, timeout: int=20) -> dict` — Ce que le NAVIGATEUR regarde du premier flux vidéo : `{container, codec, profile,
+  - `probe_audio_format(path: str, *, timeout: int=20) -> dict` — Ce que le NAVIGATEUR regarde du premier flux audio : `{container, codec}`, ou {} (pas
   - `probe_object3d(path: str) -> dict` — Sonde d'un OBJET 3D (ROADMAP §17ter, trou 2) — ce que le fichier DÉCLARE, sans le décoder.
   - `probe_media(path: str) -> dict` — Sonde générique TOUS types (dispatch par extension).
   - `input_property(info: dict, name: str, path: str='')` — `{'value', 'note'}` de la propriété `name` sur la sonde `info` (`probe_media`) du fichier
