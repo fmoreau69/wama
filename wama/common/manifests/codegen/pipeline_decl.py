@@ -110,7 +110,7 @@ def declared_pipeline(app_key: str, root: Path = None):
 def process_specs(pipeline: dict) -> list:
     """Les process du manifeste dans l'ORDRE du registre, à la forme des champs de
     `process_pipeline.ProcessSpec` : {key, function, label, depends_on, watched, degree, gpu,
-    card_model, share, outputs, toggle, domains, eta, result, checks}. Les dépendances sont les LIENS (`from` →
+    card_model, share, outputs, toggle, required_by_steps, domains, eta, result, checks}. Les dépendances sont les LIENS (`from` →
     `to`), comme à l'export. La déclaration se lit dans le `process` du nœud, jamais dans ses
     `params` — les valeurs de réglage, que l'inspecteur du Studio écrit (D1, 2026-10-18)."""
     body = (pipeline or {}).get('body') or {}
@@ -138,6 +138,7 @@ def process_specs(pipeline: dict) -> list:
             'share': int(declared.get('share') or 1),
             'outputs': list(declared.get('outputs') or []),
             'toggle': declared.get('toggle', ''),
+            'required_by_steps': list(declared.get('required_by_steps') or []),
             'domains': list(declared.get('domains') or []),
             'upstream_switch': declared.get('upstream_switch', ''),
             'eta': declared.get('eta', ''),

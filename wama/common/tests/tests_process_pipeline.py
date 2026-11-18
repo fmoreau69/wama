@@ -295,7 +295,8 @@ class ACardExtendedPipelineTest(SimpleTestCase):
 
     def test_an_added_process_carries_no_field_of_the_card(self):
         for name, value in (('toggle', 'with_measure'), ('outputs', ['measured']),
-                            ('upstream_switch', 'reads'), ('card_model', True)):
+                            ('upstream_switch', 'reads'), ('card_model', True),
+                            ('required_by_steps', ['render'])):
             with self.subTest(name), self.assertRaisesMessage(ValueError, name):
                 self.pipeline.extended(self._graph(('measure', self.ADDED, {name: value}),
                                                   links=[('render', 'measure')]))
@@ -994,6 +995,73 @@ class WhatTheCardShowsTest(TestCase):
             AppPipeline('demo_pipeline', (ProcessSpec('score', degree='optional',
                                                       required_by='follows_a_score'),), label='Demo')
         self.assertIn('required_by', str(refused.exception))
+
+    # ── a step another step IMPOSES when switched on (`required_by_steps`, 2026-11-18) ──────────
+    def _with_an_imposed_step(self):
+        """The transcriber's shape: the cleaning never hears unprepared input, so switching it on
+        imposes the preparation — whose OWN switch stays the user's."""
+        return AppPipeline('demo_pipeline', (
+            ProcessSpec('prepare', label='Préparation', degree='optional', toggle='wants_prepare',
+                        required_by_steps=('clean',)),
+            ProcessSpec('clean', label='Nettoyage', depends_on=('prepare',), degree='optional',
+                        toggle='wants_clean'),
+            ProcessSpec('render', label='Rendu', depends_on=('prepare', 'clean')),
+        ), label='Demo')
+
+    def test_a_step_another_step_imposes_takes_place_whatever_its_switch_and_says_why(self):
+        """2026-11-18 (Fabien, on the transcriber's leveling : « il a un toggle, mais il est dans
+        l'accordéon […] on aligne ») : the rule « the denoising levels first » lived in the
+        `applies` of the leveling, which then judged a choice of the user — its switch was not
+        declared, and switched off it was said « sans objet ». Declared, the switch is the step's ;
+        the imposing step checks and locks it, and the strip says by which step."""
+        from django.template.loader import render_to_string
+        pipeline = self._with_an_imposed_step()
+        item = _Element(status=JOB_PENDING, wants_prepare=False, wants_clean=True)
+        self.assertEqual(['prepare', 'clean', 'render'], _keys(pipeline.applicable(item)))
+        prepare = {r['key']: r for r in pipeline.card_rows(item)}['prepare']
+        self.assertEqual(('active', True, True, "Imposée par l'étape « Nettoyage »"),
+                         (prepare['state'], prepare['enabled'], prepare['imposed'],
+                          prepare['imposed_by']))
+        html = render_to_string('common/_card_processes.html', {
+            'processes': pipeline.card_rows(item), 'card_id': 7, 'settings_url': '/demo/settings/7/'})
+        self.assertRegex(html, r'data-toggle-field="wants_prepare"[^>]*checked disabled '
+                               r'title="« Préparation » — Imposée par l&#x27;étape « Nettoyage »"')
+        item.wants_clean = False
+        self.assertEqual(['render'], _keys(pipeline.applicable(item)))
+        prepare = {r['key']: r for r in pipeline.card_rows(item)}['prepare']
+        self.assertEqual(('off', False, ''), (prepare['state'], prepare['imposed'], prepare['imposed_by']),
+                         'its own switch, unchecked : « off », never « sans objet »')
+        item.wants_prepare = True
+        self.assertEqual(['prepare', 'render'], _keys(pipeline.applicable(item)),
+                         'the user switches it on alone')
+
+    def test_what_a_step_imposes_is_declared_on_the_graph_and_read_back(self):
+        """Exported to the `pipeline` manifest and read back by the generator's reader
+        (`pipeline_decl.process_specs`) : a regenerated twin imposes the same step."""
+        from wama.common.manifests.codegen.pipeline_decl import process_specs
+        graph = self._with_an_imposed_step().graph()
+        declared = {n['id']: n['process'].get('required_by_steps') for n in graph['nodes']}
+        self.assertEqual({'prepare': ['clean'], 'clean': None, 'render': None}, declared)
+        self.assertEqual({'prepare': ['clean'], 'clean': [], 'render': []},
+                         {s['key']: s['required_by_steps'] for s in process_specs({'body': graph})})
+
+    def test_a_step_imposed_by_steps_is_refused_without_switches_or_downstream_imposers(self):
+        cases = {
+            'no switch to impose': (
+                ProcessSpec('prepare', degree='optional', required_by_steps=('clean',)),
+                ProcessSpec('clean', depends_on=('prepare',), degree='optional', toggle='c')),
+            'an imposer without switch': (
+                ProcessSpec('prepare', degree='optional', toggle='p', required_by_steps=('clean',)),
+                ProcessSpec('clean', depends_on=('prepare',))),
+            'an imposer that does not read it': (
+                ProcessSpec('prepare', degree='optional', toggle='p', required_by_steps=('clean',)),
+                ProcessSpec('clean', degree='optional', toggle='c')),
+            'an unknown imposer': (
+                ProcessSpec('prepare', degree='optional', toggle='p', required_by_steps=('nowhere',)),),
+        }
+        for name, specs in cases.items():
+            with self.subTest(name), self.assertRaisesMessage(ValueError, 'required_by_steps'):
+                AppPipeline('demo_pipeline', specs, label='Demo')
 
     def test_an_option_switched_off_does_not_take_place_and_no_longer_weighs_on_the_card(self):
         """Rule 4.4: « les optional désactivés sont ignorés ». A failed summary keeps the card

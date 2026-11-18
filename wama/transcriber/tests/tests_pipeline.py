@@ -275,13 +275,14 @@ class TheCardShowsItsFourProcessesTest(_Pipeline):
         client = self._client()
         payload = client.get(reverse('transcriber:progress', args=[self.item.pk])).json()
         # Le débruitage (2026-10-21) se montre en CASE À COCHER, désactivé, comme tout optionnel
-        # à interrupteur ; le nivellement, que la card ne demande pas, n'a pas lieu. Depuis le
-        # 2026-11-07 TOUTES les étapes sont portées (décision de Fabien) : celles sans objet le disent.
+        # à interrupteur ; le nivellement aussi depuis le 2026-11-18 (son interrupteur déclaré,
+        # `toggle`) — il était « sans objet » tant que son `applies` lisait la case. Depuis le
+        # 2026-11-07 TOUTES les étapes sont portées (décision de Fabien).
         states = {p['key']: p['state'] for p in payload['processes']}
         self.assertEqual(['transcribe', 'diarize', 'summarize', 'coherence'],
                          [k for k, s in states.items() if s == 'active'])
         self.assertEqual('off', states['denoise'])
-        self.assertEqual('na', states['level'])
+        self.assertEqual('off', states['level'])
         self.assertFalse(next(p for p in payload['processes'] if p['key'] == 'denoise')['enabled'])
         self.assertEqual(('SUCCESS', 'SUCCESS'), (payload['status'], payload['shown_state']))
 
@@ -557,8 +558,13 @@ class ThePreparationIsDeclaredTest(_Pipeline):
 
     def test_denoising_comes_after_leveling_and_is_what_the_engine_hears(self):
         """Order fixed by the preprocessing bench (2026-10-01): DeepFilterNet erases speech
-        recorded low, so asking for it levels first — even without the leveling option."""
+        recorded low, so asking for it levels first — even without the leveling option. Since
+        2026-11-18 the denoising IMPOSES the leveling (`required_by_steps`) : its switch, checked
+        and locked, says so on the strip."""
         self._set(preprocess_audio=True, level_speech=False)
+        level = {r['key']: r for r in PIPELINE.card_rows(self.item, 'auto')}['level']
+        self.assertEqual(('level_speech', True, "Imposée par l'étape « Débruitage »"),
+                         (level['toggle'], level['enabled'], level['imposed_by']))
         item = self._run()
         self.assertEqual(['level', 'denoise', 'transcribe'],
                          [k for k in ('level', 'denoise', 'transcribe') if k in self._states()])
@@ -659,8 +665,9 @@ class ThePreparationIsDeclaredTest(_Pipeline):
         self.assertEqual(set(), PIPELINE.refresh(item), 'replayed without it: valid again')
         self.assertEqual(JOB_SUCCESS, PIPELINE.card_state(item))
         rows = {row['key']: row['state'] for row in PIPELINE.card_rows(item, 'auto')}
-        self.assertEqual('na', rows['level'],
-                         'a process the card no longer plays is said « sans objet » (2026-11-07)')
+        # « off » since 2026-11-18 : the leveling has its own switch (`toggle`), unchecked — it was
+        # « sans objet » while the switch was read in its `applies`, and folded with the useless steps.
+        self.assertEqual('off', rows['level'], 'its switch is unchecked : the user can check it back')
 
     def test_a_card_transcribed_before_the_split_stays_valid(self):
         """Its transcription leveled the audio itself : its photo holds the leveling settings,

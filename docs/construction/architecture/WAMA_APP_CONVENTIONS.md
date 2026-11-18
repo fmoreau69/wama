@@ -1971,8 +1971,11 @@ en-têtes repliés forment la rangée des interrupteurs), une étape coupée est
 que le modèle choisi ne sert pas est **grisée avec sa raison** (jamais cachée). Les réglages
 communs à plusieurs étapes (consigne, modèle, curseur) restent en tête.
 **Rien à écrire par app** : la page dérive tout de la déclaration — `ProcessSpec.toggle`, ce que
-chaque process surveille (`Param.stales`, `ProcessSpec.watched`), `needs` / `required_by`. Une
-app aligne sa page en déclarant juste ces faits ; ses groupes déclarés (`ParamGroup`) vivent dans
+chaque process surveille (`Param.stales`, `ProcessSpec.watched`), `needs` / `required_by` /
+`required_by_steps` (une étape qu'impose une autre étape activée, 2026-11-18). ⚠ L'interrupteur
+d'une étape se DÉCLARE (`toggle`) — jamais lu dans son `applies`, qui juge l'élément : sinon il
+tombe dans le corps de la section et l'étape coupée se dit « sans objet » (vécu : le nivellement du
+transcriber, corrigé le 2026-11-18). Une app aligne sa page en déclarant juste ces faits ; ses groupes déclarés (`ParamGroup`) vivent dans
 la section de leur étape. Mécanique et gardes : `WAMA_APP_GENERATION_ROUTE.md §10.6` 5.1.
 
 ### 10.2 ~~Persistance localStorage (volet droit)~~ Persistance des défauts du volet — en base

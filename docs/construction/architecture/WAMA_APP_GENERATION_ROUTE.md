@@ -7418,6 +7418,23 @@ Objectif : les gabarits d'app ne portent que l'emballage.
 >      aval (sortie, partition et paroles de sortie) ; sans la précision, couper l'OCR de
 >      l'anonymizer aurait retiré la détection du texte. Garde sur les pipelines RÉELS :
 >      `…test_a_cut_switch_starves_only_what_reads_a_link_from_it_in_every_real_app`.
+>   4. ✅ **2026-11-18 (Fabien, sur le nivellement du transcriber : « il a un toggle, mais il est
+>      dans l'accordéon au lieu d'être en en-tête […] on aligne »)** — `ProcessSpec.required_by_steps` :
+>      le jumeau de `required_by`, jugé sur l'ÉLÉMENT (l'interrupteur d'une autre étape) au lieu du
+>      modèle. L'étape est imposée quand une étape qui la LIT, à interrupteur, est activée
+>      (`AppPipeline.imposing_step`, lu par `switched_on`) ; l'écran coche et verrouille sa case en
+>      nommant l'étape (`card_rows[…]['imposed_by']`, `wama-params.js` `IMPOSED_BY_STEP_NOTE`, mêmes
+>      phrases — garde V8) ; `read()` poste la valeur de l'utilisateur. Le pendant de `starved` dans
+>      l'autre sens : couper un amont PRIVE son aval, activer un aval qui ne peut s'en passer
+>      MAINTIENT l'amont. Exporté au manifeste, relu par `pipeline_decl`, rendu par
+>      `function_specs_gen`. **Cause** : la règle « le débruitage nivelle d'abord » (banc du
+>      2026-10-01) vivait dans l'`applies` du nivellement — qui jugeait alors un CHOIX de
+>      l'utilisateur, contre « `applies` juge l'élément » —, son interrupteur `level_speech`
+>      n'était pas déclaré (`toggle`) et portait `stales=("level",)` : la page le rangeait dans le
+>      corps de la section, et la bande disait l'étape coupée « sans objet » (repliée) au lieu de
+>      « coupée ». Comportement inchangé (64 cards débruitées sans nivellement coché le jour même
+>      continuent de niveler). Gardes : `WhatTheCardShowsTest.test_a_step_another_step_imposes_…`,
+>      `tests_cap_from_js` (verrou et rendu), `tests_codegen_agreement` (rendu du générateur).
 > - ✅ **5.2 Gabarit GÉNÉRÉ (même jour)** : la card émise par `templates_gen` inclut la bande
 >   (`_card_processes.html`, vide sous deux process) et lit `elem.shown_state|default:
 >   elem.status` ; `views_gen._decorer` appelle `process_pipeline.decorate(item)` — le point

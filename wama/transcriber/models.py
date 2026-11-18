@@ -35,8 +35,8 @@ class Transcript(ProcessingTimeMixin, ScopedVisibility):
     # Options
     preprocess_audio = models.BooleanField(default=False)
     # Nivellement de la parole (`common/utils/speech_leveling.py`), EN PREMIER — et imposé quand
-    # le débruitage est demandé (banc du 2026-10-01, `function_specs._levels`). Optionnel,
-    # coupé par défaut.
+    # le débruitage est demandé (banc du 2026-10-01, `ProcessSpec.required_by_steps` du process
+    # `level`). Optionnel, coupé par défaut.
     level_speech = models.BooleanField(default=False, db_default=False)
     # Sorties des process `level` et `denoise` (préparation de l'audio, 2026-10-21) : l'audio
     # nivelé, puis débruité, que la transcription et les locuteurs ÉCOUTENT — gardés comme toute

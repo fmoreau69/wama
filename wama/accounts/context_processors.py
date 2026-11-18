@@ -233,7 +233,9 @@ def user_role(request):
                 # `stales` et ce qu'il déclare, la sortie ses réglages communs) : la page range
                 # chaque réglage dans la section du process qui le surveille, l'interrupteur dans
                 # l'en-tête de la sienne. `required_by` : ce qui, chez le modèle choisi, IMPOSE
-                # l'étape (l'interrupteur se coche et se verrouille).
+                # l'étape (l'interrupteur se coche et se verrouille). `required_by_steps`
+                # (2026-11-18) : les étapes qui l'imposent quand elles sont activées, chacune par
+                # son interrupteur et son nom — la page coche et verrouille de même, en la nommant.
                 from wama.common.utils.auto_model import catalog_field
                 model_field = (catalog_field(current_app) or {}).get('name') or ''
                 current_app_processes_json = _json.dumps([
@@ -243,7 +245,11 @@ def user_role(request):
                      **({'needs': spec.needs, 'model_field': model_field}
                         if spec.needs and model_field else {}),
                      **({'required_by': spec.required_by, 'model_field': model_field}
-                        if spec.required_by and model_field else {})}
+                        if spec.required_by and model_field else {}),
+                     **({'required_by_steps': [
+                         {'toggle': pipeline.spec(key).toggle,
+                          'label': pipeline.spec(key).label or key}
+                         for key in spec.required_by_steps]} if spec.required_by_steps else {})}
                     for spec in pipeline.ordered()])
         except Exception:
             current_app_processes_json = '[]'

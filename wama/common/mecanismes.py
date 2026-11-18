@@ -222,7 +222,10 @@ MECHANISMS = (
               "amonts (`upstream_switch`, `read_upstreams`). 2026-11-05 : ce qu'un process EXIGE du "
               "modèle de la card est une DONNÉE (`needs`, grammaire `show_if` sur la fiche du "
               "catalogue, `model_serves`), posée dans `WAMA_APP_PROCESSES` : l'écran cache les "
-              "réglages d'un process que le modèle choisi ne sert pas",
+              "réglages d'un process que le modèle choisi ne sert pas. 2026-11-18 : une étape peut "
+              "être IMPOSÉE par une autre étape activée qui la lit (`required_by_steps`, "
+              "`imposing_step`) comme par le modèle (`required_by`) — sa case cochée, verrouillée, "
+              "et la raison dite (`imposed_by`)",
               'wama/common/services/process_pipeline.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/tests/tests_process_pipeline.py',),
               depends_on=('process_runs', 'input_provenance')),

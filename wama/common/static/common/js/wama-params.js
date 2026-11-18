@@ -918,8 +918,10 @@
   // L'EN-TÊTE d'une section d'étape porte son interrupteur (2026-11-07) : le MÊME champ que le
   // renderer `toggle` (même identité `name=` / `data-param=`, même id, même valeur lue par
   // `read()`), sans son libellé — c'est le titre de la section qui le nomme. Son aide passe en
-  // tête du corps. Ce que le process exige du modèle (`needs`) et ce qui l'IMPOSE
-  // (`required_by`) sont posés sur l'interrupteur : `_bindProcessNeeds` le grise ou le verrouille.
+  // tête du corps. Ce que le process exige du modèle (`needs`) et ce qui l'IMPOSE — le modèle
+  // (`required_by`) ou une autre étape activée (`required_by_steps`, 2026-11-18 : leurs
+  // interrupteurs et leurs noms) — sont posés sur l'interrupteur : `_bindProcessNeeds` le grise ou
+  // le verrouille.
   function _processSectionHtml(section, toggleP, inner, ctx, value, proc) {
     const key = section.key;
     let sw = '', help = '', on = true;
@@ -934,6 +936,9 @@
         attrs += ' data-imposed-by="' + esc(JSON.stringify(proc.required_by)) + '"';
       }
       if (attrs) attrs += ' data-needs-field="' + esc(field) + '"';
+      if (proc && proc.required_by_steps && proc.required_by_steps.length) {
+        attrs += ' data-imposed-by-steps="' + esc(JSON.stringify(proc.required_by_steps)) + '"';
+      }
       sw = '<span class="wama-proc-switch" data-param-row="' + esc(toggleP.name) + '"' + attrs + '>' +
         '<span class="form-check form-switch"><input class="form-check-input" type="checkbox" id="' +
         id + '" ' + idAttr(ctx, toggleP.name) + (on ? ' checked' : '') + ' aria-label="' +
@@ -2103,16 +2108,49 @@
   // bande de la card. La valeur reste celle de l'utilisateur, `read()` l'envoie toujours.
   // Et l'interrupteur d'une étape que le modèle IMPOSE (`required_by`, `data-imposed-by`) se coche
   // et se verrouille sous un tel modèle, en le disant ; il retrouve la valeur de l'utilisateur
-  // sous un autre.
+  // sous un autre. De même pour une étape qu'impose une autre étape activée (`required_by_steps`,
+  // `data-imposed-by-steps`, 2026-11-18 : le débruitage impose le nivellement).
   // La MÊME phrase que la bande de la card (`AppPipeline.REASONS['model']`) — garde V8.
   var UNSERVED_NOTE = 'Le modèle choisi ne fait pas cette étape.';
+  // Les MÊMES phrases que la bande (`AppPipeline.IMPOSED_BY_MODEL` / `IMPOSED_BY_STEP`) — garde V8.
   var IMPOSED_NOTE = 'Imposée par le modèle choisi.';
+  var IMPOSED_BY_STEP_NOTE = "Imposée par l'étape « {label} ».";
 
   function _sectionNote(section, text) {
     var note = section.querySelector && section.querySelector('.wama-proc-note');
     if (!note) return;
     note.textContent = text || '';
     note.hidden = !text;
+  }
+
+  // Ce que dit l'interrupteur d'une étape imposée : par le modèle d'abord (la règle du serveur,
+  // `AppPipeline.imposed_by`), sinon par l'étape activée qui l'impose.
+  function _imposedNote(group) {
+    if (group._wpImposedModel) return IMPOSED_NOTE;
+    return group._wpImposedStep ? IMPOSED_BY_STEP_NOTE.replace('{label}', group._wpImposedStep) : '';
+  }
+
+  // UNE règle coche et verrouille l'interrupteur d'une étape imposée, quelle que soit la source —
+  // le modèle choisi (`required_by`) ou une autre étape activée (`required_by_steps`,
+  // 2026-11-18) : chacune pose son verdict sur la ligne (`_wpImposedModel`, `_wpImposedStep`).
+  // La valeur de l'UTILISATEUR est gardée (`_wpUserChecked`, ce que `read()` envoie — le serveur
+  // impose de lui-même) et lui revient quand plus rien n'impose.
+  function _settleImposed(group, box) {
+    var imposed = !!(group._wpImposedModel || group._wpImposedStep);
+    group._wpImposed = imposed;
+    group.title = group._wpUnserved ? UNSERVED_NOTE : _imposedNote(group);
+    if (!box) return;
+    if (imposed && !box.disabled) {
+      box._wpUserChecked = box.checked;
+      box.checked = true;
+      box.disabled = true;
+      box.dispatchEvent(new Event('change', { bubbles: true }));
+    } else if (!imposed && box.disabled && box._wpUserChecked !== undefined) {
+      box.disabled = false;
+      box.checked = box._wpUserChecked;
+      box._wpUserChecked = undefined;
+      box.dispatchEvent(new Event('change', { bubbles: true }));
+    }
   }
 
   function _bindProcessNeeds(container, schema, ctx) {
@@ -2126,49 +2164,55 @@
           group.classList.toggle('wama-proc-section--unserved', unserved);
         }
         var imposed = group.querySelector && group.querySelector('.wama-proc-switch');
-        _sectionNote(group, unserved ? UNSERVED_NOTE
-                     : (imposed && imposed._wpImposed ? IMPOSED_NOTE : ''));
+        _sectionNote(group, unserved ? UNSERVED_NOTE : (imposed ? _imposedNote(imposed) : ''));
       });
     }
-    container.querySelectorAll('[data-param-row][data-needs], [data-param-row][data-imposed-by]').forEach(function (group) {
+    container.querySelectorAll('[data-param-row][data-needs], [data-param-row][data-imposed-by], ' +
+                               '[data-param-row][data-imposed-by-steps]').forEach(function (group) {
+      var box = group.querySelector && group.querySelector('input[type="checkbox"]');
+      // Imposée par une autre étape ACTIVÉE (`required_by_steps`) : son interrupteur, tel qu'il
+      // s'affiche — coché par l'utilisateur, ou lui-même imposé —, celui que juge le serveur
+      // (`AppPipeline.switched_on`). Le débruitage coché coche et verrouille le nivellement.
+      var rawSteps = group.getAttribute('data-imposed-by-steps');
+      if (rawSteps) {
+        var imposers = JSON.parse(rawSteps).map(function (step) {
+          return { label: step.label, input: container.querySelector(
+            '[name="' + CSS.escape(step.toggle) + '"],[data-param="' + CSS.escape(step.toggle) + '"]') };
+        }).filter(function (step) { return step.input; });
+        var applySteps = function () {
+          var on = imposers.filter(function (step) { return step.input.checked; })[0];
+          group._wpImposedStep = on ? on.label : '';
+          _settleImposed(group, box);
+          groups();
+        };
+        imposers.forEach(function (step) { step.input.addEventListener('change', applySteps); });
+        (container._wpCapApply = container._wpCapApply || []).push(applySteps);
+        applySteps();
+      }
       var raw = group.getAttribute('data-needs');
       var needs = raw ? JSON.parse(raw) : null;
       var rawImposed = group.getAttribute('data-imposed-by');
       var imposedBy = rawImposed ? JSON.parse(rawImposed) : null;
+      if (!needs && !imposedBy) return;
       var field = group.getAttribute('data-needs-field');
       var modelP = (schema || []).filter(function (q) { return q.name === field; })[0];
       var sel = modelP && container.querySelector(
         '#' + CSS.escape(perCtx(modelP.dom_id, ctx) || ('wp-' + ctx + '-' + modelP.name)));
       if (!modelP || !sel || !modelP.help_source) return;   // sans le choix du modèle : intacte
-      var box = group.querySelector && group.querySelector('input[type="checkbox"]');
       _catalogCaps(modelP.help_source, _catalogDomain(modelP)).then(function (capsByKey) {
         function apply() {
           var caps = capsByKey[sel.value];
           var read = function (name) { return caps[name]; };
           // Sous « auto » ou une fiche inconnue (`caps` absent) : rien n'est jugé.
           var unserved = !!(caps && needs) && !conditionMet(needs, read);
-          var imposed = !!(caps && imposedBy) && conditionMet(imposedBy, read);
           group._wpUnserved = unserved;
-          group._wpImposed = imposed;
+          group._wpImposedModel = !!(caps && imposedBy) && conditionMet(imposedBy, read);
           if (group.classList) {
             // Le marqueur, et l'estompage de `cap_from` (« reads ») — un seul idiome pour « grisé ».
             group.classList.toggle('wama-param--unserved', unserved);
             group.classList.toggle('opacity-50', unserved);
           }
-          group.title = unserved ? UNSERVED_NOTE : (imposed ? IMPOSED_NOTE : '');
-          if (box) {
-            if (imposed && !box.disabled) {
-              box._wpUserChecked = box.checked;
-              box.checked = true;
-              box.disabled = true;
-              box.dispatchEvent(new Event('change', { bubbles: true }));
-            } else if (!imposed && box.disabled && box._wpUserChecked !== undefined) {
-              box.disabled = false;
-              box.checked = box._wpUserChecked;
-              box._wpUserChecked = undefined;
-              box.dispatchEvent(new Event('change', { bubbles: true }));
-            }
-          }
+          _settleImposed(group, box);
           groups();
         }
         (container._wpCapApply = container._wpCapApply || []).push(apply);
@@ -2366,7 +2410,8 @@
   }
 
   function _fieldValue(el) {
-    // Un interrupteur qu'impose le modèle choisi (`_bindProcessNeeds`, `required_by`) est coché
+    // Un interrupteur qu'impose le modèle choisi ou une autre étape (`_bindProcessNeeds`,
+    // `required_by`, `required_by_steps`) est coché
     // pour l'œil : c'est la valeur de l'UTILISATEUR qui part — le serveur impose de lui-même.
     if (el.type === 'checkbox') return el._wpUserChecked !== undefined ? el._wpUserChecked : el.checked;
     return el.value;

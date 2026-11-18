@@ -40,7 +40,8 @@ Variables :
 TOUTES LES ÉTAPES, TOUJOURS (2026-11-07, décision de Fabien) : chaque process a une ligne et un
 `state` — `active` (▶), `off` (coupé par sa case : estompé, sans ▶), `na` (« sans objet » :
 pointillé, sans ▶, sa `reason` au survol) ; `imposed` : la case est cochée et verrouillée, le
-modèle choisi impose l'étape (`ProcessSpec.required_by`).
+modèle choisi impose l'étape (`ProcessSpec.required_by`) ou une autre étape activée
+(`ProcessSpec.required_by_steps`, 2026-11-18) — `imposed_by` dit laquelle des deux.
 PRÉCISÉ LE 2026-11-08 (Fabien : « une étape inutile n'a pas lieu d'apparaître ») : une étape sans
 objet par ses entrées ou par le modèle désigné, sans rien avoir produit (`hidden`, colonne None)
 sort du flux et se replie en fin de bande, « + n sans objet » — dépliable, jamais perdue. La

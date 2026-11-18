@@ -1013,7 +1013,7 @@ class TranscriberSpeakListensThroughTheCommonBrickTest(TestCase):
         self.assertIn('record: true', source)
         self.assertNotIn('webkitSpeechRecognition', source, "l'audio partait chez Google")
 
-    def _save(self, engine):
+    def _save(self, engine, **extra):
         import shutil
         import tempfile
         from django.core.files.uploadedfile import SimpleUploadedFile
@@ -1024,9 +1024,67 @@ class TranscriberSpeakListensThroughTheCommonBrickTest(TestCase):
         with override_settings(MEDIA_ROOT=media):
             response = self.client.post(reverse('transcriber:save_realtime'), {
                 'audio': SimpleUploadedFile('realtime.webm', b'\x1aE\xdf\xa3', 'audio/webm'),
-                'text': 'Bonjour', 'language': 'fr', 'engine': engine})
+                'text': 'Bonjour', 'language': 'fr', 'engine': engine, **extra})
         self.assertEqual(200, response.status_code, response.content)
         return Transcript.objects.get(pk=response.json()['id'])
+
+    def test_a_realtime_card_opens_the_correction_page_with_its_timed_phrases(self):
+        """Les phrases situées par la capture deviennent les segments de la card — ceux que la
+        page de correction lit. Avant le 2026-11-16 elle s'ouvrait vide : seul le texte était
+        gardé, et il fallait retranscrire pour corriger."""
+        import json
+        from wama.transcriber.views import _editor_segments
+        t = self._save('local', text='Bonjour\nÀ demain', segments=json.dumps([
+            {'start_time': 3.2, 'end_time': 4.9, 'text': 'À demain'},
+            {'start_time': 0.4, 'end_time': 1.5, 'text': 'Bonjour'},
+            {'start_time': 'x', 'end_time': 2, 'text': 'illisible'}]))
+        self.assertEqual([(0.4, 1.5, 'Bonjour'), (3.2, 4.9, 'À demain')],
+                         [(s['start_time'], s['end_time'], s['text']) for s in _editor_segments(t)])
+        self.assertEqual(2, t.segments.count(), "les lignes de segments (SRT, aperçus) aussi")
+
+    def test_without_timed_phrases_each_line_becomes_an_untimed_turn(self):
+        """Contre-épreuve : une page servie avant la capture horodatée n'envoie que le texte —
+        chaque phrase devient un tour SANS heure, comme un document repris ; rien n'est inventé."""
+        from wama.transcriber.views import _editor_segments
+        t = self._save('local', text='Bonjour\n\nÀ demain')
+        self.assertEqual([(None, 'Bonjour'), (None, 'À demain')],
+                         [(s['start_time'], s['text']) for s in _editor_segments(t)])
+        self.assertEqual(0, t.segments.count())
+
+    def test_a_realtime_card_is_finished_at_one_hundred_percent(self):
+        """Elle disait « Terminé 0 % » : la progression restait à son défaut."""
+        t = self._save('local')
+        self.assertEqual(('SUCCESS', 100), (t.status, t.progress))
+
+    def test_the_live_pass_is_the_transcription_line_of_the_card_up_to_date(self):
+        """La passe en direct EST la transcription de la card : sa ligne réussie, à jour."""
+        from wama.common.services import process_runs
+        from wama.common.services.process_runs import JOB_SUCCESS
+        from wama.transcriber.function_specs import PIPELINE
+        t = self._save('local')
+        line = process_runs.line(t, 'transcribe')
+        self.assertEqual(JOB_SUCCESS, line.status)
+        self.assertEqual('en direct (whisper)', line.output_summary.get('label'))
+        self.assertNotIn('transcribe', PIPELINE.refresh(t))
+
+    def test_another_model_makes_the_live_transcription_stale(self):
+        """Contre-épreuve : un meilleur modèle choisi ensuite périme la ligne — ▶ retranscrit
+        avec lui (décision du 2026-10-12 : la qualité vient de la relance de la card)."""
+        from wama.transcriber.function_specs import PIPELINE
+        from wama.transcriber.models import Transcript
+        t = self._save('local')
+        Transcript.objects.filter(pk=t.pk).update(backend='transcriber:whisper-large-v3')
+        t.refresh_from_db()
+        self.assertIn('transcribe', PIPELINE.refresh(t))
+
+    def test_the_served_capture_situates_each_phrase_on_the_recording(self):
+        """La brique commune rend les phrases horodatées, et le Speak les poste."""
+        static = Path(settings.BASE_DIR) / 'staticfiles'
+        listen = (static / 'common' / 'js' / 'wama-assistant-listen.js').read_text(encoding='utf-8')
+        self.assertIn('segments: self.segments', listen)
+        self.assertIn('self.fed += frame.length', listen)
+        speak = (static / 'transcriber' / 'js' / 'index.js').read_text(encoding='utf-8')
+        self.assertIn("fd.append('segments'", speak)
 
     def test_a_realtime_card_names_the_engine_that_listened(self):
         self.assertEqual('albert', self._save('albert:whisper-large-v3').used_backend)

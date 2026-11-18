@@ -241,28 +241,31 @@ class FunctionSpecsReadTheDeclaredTaskTest(_Rendered):
 
     def test_what_reserves_a_process_to_a_domain_is_rendered(self):
         """⑦ (a), 2026-11-14: `process.domains` of the manifest is rendered on the line of ITS
-        process — the generated twin of a several-domain app offered every process to every card."""
+        process — the generated twin of a several-domain app offered every process to every card.
+        Same for the steps that IMPOSE a process when switched on (`required_by_steps`,
+        2026-11-18) : a twin without them would not level before denoising."""
         from wama.common.manifests.codegen.function_specs_gen import render_function_specs
         from wama.common.manifests.codegen.pipeline_decl import declared_pipeline, process_specs
-        measured = 0
-        for app, manifest in self.manifests.items():
-            pipeline, _ = declared_pipeline(app)
-            specs = process_specs(pipeline) if pipeline else []
-            if not any(s['domains'] for s in specs):
-                continue
-            source, _ = render_function_specs(manifest)
-            block = source.split('PIPELINE = register_app_pipeline')[1]
-            entries = [line for line in block.splitlines()
-                       if line.strip().startswith(('ProcessSpec(', 'output_spec('))]
-            self.assertEqual(len(specs), len(entries), app)
-            for spec, line in zip(specs, entries):
-                with self.subTest(app=app, process=spec['key']):
-                    measured += bool(spec['domains'])
-                    if spec['domains']:
-                        self.assertIn(f"domains={tuple(spec['domains'])!r}", line)
-                    else:
-                        self.assertNotIn('domains=', line)
-        self.assertTrue(measured, 'no manifest reserves a process to a domain: nothing measured')
+        for field in ('domains', 'required_by_steps'):
+            measured = 0
+            for app, manifest in self.manifests.items():
+                pipeline, _ = declared_pipeline(app)
+                specs = process_specs(pipeline) if pipeline else []
+                if not any(s[field] for s in specs):
+                    continue
+                source, _ = render_function_specs(manifest)
+                block = source.split('PIPELINE = register_app_pipeline')[1]
+                entries = [line for line in block.splitlines()
+                           if line.strip().startswith(('ProcessSpec(', 'output_spec('))]
+                self.assertEqual(len(specs), len(entries), app)
+                for spec, line in zip(specs, entries):
+                    with self.subTest(field=field, app=app, process=spec['key']):
+                        measured += bool(spec[field])
+                        if spec[field]:
+                            self.assertIn(f"{field}={tuple(spec[field])!r}", line)
+                        else:
+                            self.assertNotIn(f'{field}=', line)
+            self.assertTrue(measured, f'no manifest declares `{field}`: nothing measured')
 
     def test_what_a_process_takes_from_a_selection_is_rendered_and_has_its_glue(self):
         """2026-11-16 (the remix of chosen stems) : `process.from_selection` of the manifest is

@@ -228,7 +228,20 @@ class ProcessSpec:
                   IMPOSÉE quand le modèle reprend le cover par sa partition (YuE2) : sans elle, il
                   n'aurait rien à suivre. L'écran coche et verrouille l'interrupteur sous un tel
                   modèle, en le disant. Sous « auto », rien n'est imposé : on ne devine pas le tirage.
-      checks      les MESURES SANS RÉFÉRENCE de la sortie de ce process — des clés du registre
+      required_by_steps  les process du pipeline qui IMPOSENT celui-ci quand ils sont activés,
+                  quel que soit son interrupteur — le jumeau de `required_by`, jugé sur l'ÉLÉMENT
+                  (l'interrupteur d'une autre étape) au lieu du modèle, au même effet : la case
+                  cochée et verrouillée, en le disant (`imposing_step`). 2026-11-18, décision de
+                  Fabien (« le nivellement a un toggle, mais il est dans l'accordéon […] on
+                  aligne ») : le débruitage du transcriber n'écoute jamais un audio non nivelé
+                  (banc du 2026-10-01, `WAMA_QUALITE §9bis`) ; cette règle vivait dans l'`applies`
+                  du nivellement, qui jugeait alors un choix de l'utilisateur — d'où un
+                  interrupteur rangé dans le corps de la section au lieu de son en-tête. Le pendant
+                  de `starved` dans l'autre sens : couper un amont PRIVE son aval ; activer un aval
+                  qui ne peut pas s'en passer MAINTIENT l'amont. Chacun porte un interrupteur et
+                  dépend de celui-ci (sinon il n'y aurait rien à imposer, ou l'imposition tournerait
+                  en rond).
+      checks     les MESURES SANS RÉFÉRENCE de la sortie de ce process — des clés du registre
                   commun (`result_evaluation.register_check`), jouées par le squelette quand la
                   card a réussi, gardées sur la LIGNE du process (`output_summary['checks']`) : la
                   bande des process les montre sur sa ligne, la face « Évaluation » de l'aperçu
@@ -276,6 +289,7 @@ class ProcessSpec:
     checks: tuple = ()
     writes: tuple = ()
     required_by: object = None
+    required_by_steps: tuple = ()
     from_selection: object = None
     pipeline: str = ''
 
@@ -329,7 +343,7 @@ def declared_stales(app: str) -> dict:
 #: Ce que la déclaration d'un process AJOUTÉ par une card ne peut pas porter (`AppPipeline.extended`) :
 #: des champs de l'élément — la card n'en a pas pour lui — et des chemins de code.
 _NOT_ADDABLE = ('watched', 'outputs', 'toggle', 'upstream_switch', 'card_model', 'eta', 'result',
-                'result_format', 'writes', 'from_selection')
+                'result_format', 'writes', 'from_selection', 'required_by_steps')
 
 
 class AppPipeline:
@@ -392,6 +406,28 @@ class AppPipeline:
                     raise ValueError(f"pipeline de {app} : « {spec.key} » déclare des mesures "
                                      f"inconnues ({', '.join(unknown)}) — `register_check`")
         self.ordered()                      # un cycle se refuse à la DÉCLARATION, pas au lancement
+        for spec in self.specs:
+            if not spec.required_by_steps:
+                continue
+            if not spec.toggle:
+                raise ValueError(f"pipeline de {app} : « {spec.key} » est imposé par d'autres "
+                                 f"étapes (`required_by_steps`) sans interrupteur à imposer (`toggle`)")
+            for key in spec.required_by_steps:
+                imposer = self._by_key.get(key)
+                if imposer is None or not imposer.toggle or spec.key not in self.upstream_of(imposer):
+                    raise ValueError(f"pipeline de {app} : « {spec.key} » se dit imposé par « {key} » "
+                                     f"(`required_by_steps`), qui doit être une étape du pipeline, "
+                                     f"porter un interrupteur et en dépendre")
+
+    def upstream_of(self, spec: ProcessSpec) -> set:
+        """Les clés de TOUS les amonts de `spec` — ses dépendances, et les leurs."""
+        seen, stack = set(), list(spec.depends_on)
+        while stack:
+            key = stack.pop()
+            if key not in seen:
+                seen.add(key)
+                stack.extend(self._by_key[key].depends_on)
+        return seen
 
     # ── Déclaration ─────────────────────────────────────────────────────────────────────────
     def spec(self, key: str) -> ProcessSpec:
@@ -567,6 +603,9 @@ class AppPipeline:
                   'process': {'degree': spec.degree, 'gpu': spec.gpu,
                              'watched': list(self.watched_of(spec)),
                              **({'toggle': spec.toggle} if spec.toggle else {}),
+                             # 2026-11-18 : écrit seulement quand il est posé (ajout pur).
+                             **({'required_by_steps': list(spec.required_by_steps)}
+                                if spec.required_by_steps else {}),
                              # 2026-11-14 : écrit seulement quand il est posé (ajout pur).
                              **({'domains': list(spec.domains)} if spec.domains else {}),
                              # 2026-10-14 (ROADMAP §8d étape 4) : écrit seulement quand il est
@@ -865,10 +904,34 @@ class AppPipeline:
             return REQUIRED
         return spec.degree
 
+    def imposing_step(self, spec: ProcessSpec, item, model_key=None):
+        """L'étape ACTIVÉE qui impose celle-ci à cet élément (`ProcessSpec.required_by_steps`),
+        ou None. Activée au sens de `switched_on` — l'intention de l'utilisateur, celle que lit
+        l'écran (`wama-params.js`) : le débruitage coché impose le nivellement, qu'il ait lieu ou
+        non sur cette card (un document repris ne transcrit pas : aucun des deux n'y a lieu)."""
+        for key in spec.required_by_steps:
+            imposer = self._by_key[key]
+            if self.switched_on(imposer, item, model_key):
+                return imposer
+        return None
+
     def switched_on(self, spec: ProcessSpec, item, model_key=None) -> bool:
-        """Activé pour cet élément : son interrupteur (`enabled`), ou imposé par le modèle de la
-        card (`imposed`)."""
-        return self.enabled(spec, item) or self.imposed(spec, model_key)
+        """Activé pour cet élément : son interrupteur (`enabled`), ou imposé — par le modèle de la
+        card (`imposed`) ou par une autre étape activée (`imposing_step`)."""
+        return (self.enabled(spec, item) or self.imposed(spec, model_key)
+                or self.imposing_step(spec, item, model_key) is not None)
+
+    #: Ce que l'écran DIT d'une étape imposée — sur la bande (`card_rows`, `imposed_by`) et dans
+    #: les réglages (`wama-params.js`, `IMPOSED_NOTE` / `IMPOSED_BY_STEP_NOTE` : garde V8).
+    IMPOSED_BY_MODEL = "Imposée par le modèle choisi"
+    IMPOSED_BY_STEP = "Imposée par l'étape « {label} »"
+
+    def imposed_by(self, spec: ProcessSpec, item, model_key=None) -> str:
+        """Pourquoi l'étape est imposée à cet élément — '' si elle ne l'est pas."""
+        if self.imposed(spec, model_key):
+            return self.IMPOSED_BY_MODEL
+        imposer = self.imposing_step(spec, item, model_key)
+        return self.IMPOSED_BY_STEP.format(label=imposer.label or imposer.key) if imposer else ''
 
     def starved(self, spec: ProcessSpec, item, model_key=None) -> bool:
         """Le process est-il PRIVÉ de son entrée par l'utilisateur ? Une de ses entrées REQUISES
@@ -1343,6 +1406,7 @@ class AppPipeline:
         out = []
         for spec in self.ordered():
             row = rows.get(spec.key)
+            imposed_by = self.imposed_by(spec, item, model_key)
             # TOUTES les étapes, toujours (2026-11-07, décision de Fabien : « toujours afficher
             # toutes les étapes de sous-process sur la card […] trouver un moyen d'indiquer les
             # sous-process actifs de ceux qui ne le sont pas » ; « grisée » — la règle de
@@ -1388,8 +1452,11 @@ class AppPipeline:
                 # L'interrupteur d'un `optional` (case à cocher de la bande) et son état.
                 'toggle': spec.toggle,
                 'enabled': self.switched_on(spec, item, model_key),
-                # Imposé par le modèle de la card (`required_by`) : la case est cochée, verrouillée.
-                'imposed': self.imposed(spec, model_key),
+                # Imposé par le modèle de la card (`required_by`) ou par une autre étape activée
+                # (`required_by_steps`, 2026-11-18) : la case est cochée, verrouillée, et
+                # `imposed_by` dit pourquoi.
+                'imposed': bool(imposed_by),
+                'imposed_by': imposed_by,
                 # Ce que la bande en DIT (2026-11-07) : `active` / `off` / `na`, et pourquoi.
                 'state': state,
                 'reason': reason,

@@ -150,8 +150,11 @@ PARAMS = derive_from_model(
                  "remontées, les fortes rabaissées, sans remonter le bruit des silences). Appliqué "
                  "en premier, avant le prétraitement. Mesuré : aide les enregistrements lointains "
                  "ou faits à bas niveau, neutre sur un enregistrement propre.",
-            # Le process `level` (2026-10-21) ; la transcription, qui écoute son audio, le suit.
-            stales=("level",)),
+            # L'INTERRUPTEUR du process `level` (`ProcessSpec.toggle`, 2026-11-18) : comme ceux des
+            # autres process optionnels, il ne déclare pas de `stales` — la transcription, qui
+            # écoute son audio, le suit par l'empreinte de cet audio. Coché d'office et verrouillé
+            # quand le débruitage est activé (`required_by_steps`).
+        ),
         "use_prepared_audio": dict(
             label="Transcrire l'audio préparé", icon="fa-ear-listen",
             help="Décoché : l'audio nivelé ou débruité reste produit et écoutable (aperçu, page de "

@@ -590,6 +590,9 @@ class SettingsFollowWhatTheModelServesTest(SimpleTestCase):
         from wama.common.services.process_pipeline import AppPipeline
         js = (JS / 'wama-params.js').read_text(encoding='utf-8')
         self.assertIn(f"var UNSERVED_NOTE = '{AppPipeline.REASONS['model']}.';", js)
+        # And an imposed step says what the strip says (2026-11-18 : by the model, or by a step).
+        self.assertIn(f"var IMPOSED_NOTE = '{AppPipeline.IMPOSED_BY_MODEL}.';", js)
+        self.assertIn(f'var IMPOSED_BY_STEP_NOTE = "{AppPipeline.IMPOSED_BY_STEP}.";', js)
 
     def test_under_auto_nothing_is_greyed(self):
         """The draw is not known : nothing is guessed (the rule of `cap_from`)."""
@@ -638,6 +641,58 @@ class SettingsFollowWhatTheModelServesTest(SimpleTestCase):
             "m.value = 'composer:melody'; host._wpCapApply.forEach(function (f) { f(); });"
             " JSON.stringify([box.checked, box.disabled, sw.title])"))
         self.assertEqual([False, False, ''], back, 'another model gives the user value back')
+
+    def test_a_step_another_step_imposes_is_checked_and_locked_while_that_step_is_on(self):
+        """`required_by_steps` (2026-11-18, the transcriber's denoising imposes its leveling) : the
+        imposing step's switch, checked, checks and locks this one and says which step ; `read()`
+        still posts the USER's value (the server imposes on its own) ; unchecked, it gives it back.
+        No model is involved : the lock holds without a model select (`schema` empty)."""
+        self.v8.eval("""
+            var heard = [];
+            var box = {type: 'checkbox', checked: false, disabled: false, dataset: {},
+                       getAttribute: function (a) { return a === 'name' ? 'wants_prepare' : null; },
+                       dispatchEvent: function () {}};
+            var imposer = {type: 'checkbox', checked: true,
+                           addEventListener: function (t, f) { heard.push(f); }};
+            var sw = {hidden: false, classList: {toggle: function () {}},
+                      querySelector: function (s) { return s === 'input[type="checkbox"]' ? box : null; },
+                      getAttribute: function (a) {
+                        return a === 'data-imposed-by-steps'
+                          ? JSON.stringify([{toggle: 'wants_clean', label: 'Nettoyage'}]) : null; }};
+            var host = {_wpCapApply: [],
+                        querySelector: function (sel) { return sel.indexOf('wants_clean') !== -1 ? imposer : null; },
+                        querySelectorAll: function (sel) {
+                          if (sel === '[data-group]') return [];
+                          if (sel === '[name],[data-param]') return [box];
+                          if (sel === '[data-replace-own="1"]') return [];
+                          return [sw]; },
+                        addEventListener: function () {}};
+            window.WamaParams.bindProcessNeeds(host, [], 'panel');""")
+        locked = json.loads(self.v8.eval(
+            "JSON.stringify([box.checked, box.disabled, window.WamaParams.read(host).wants_prepare, sw.title])"))
+        self.assertEqual([True, True, False, "Imposée par l'étape « Nettoyage »."], locked,
+                         'checked and locked for the eye ; the user value (unchecked) is posted')
+        freed = json.loads(self.v8.eval(
+            "imposer.checked = false; heard.forEach(function (f) { f(); });"
+            " JSON.stringify([box.checked, box.disabled, sw.title])"))
+        self.assertEqual([False, False, ''], freed, 'the imposing step off : the user value is back')
+
+    def test_the_rendered_switch_carries_the_steps_that_impose_it(self):
+        schema = [{'name': 'wants_prepare', 'type': 'toggle'}, {'name': 'wants_clean', 'type': 'toggle'}]
+        processes = [{'key': 'prepare', 'label': 'Préparation', 'toggle': 'wants_prepare', 'optional': True,
+                      'watched': [], 'required_by_steps': [{'toggle': 'wants_clean', 'label': 'Nettoyage'}]},
+                     {'key': 'clean', 'label': 'Nettoyage', 'toggle': 'wants_clean', 'optional': True,
+                      'watched': []}]
+        out = self.v8.eval(
+            "(function () { var host = {innerHTML: '', querySelectorAll: function () { return []; },"
+            " querySelector: function () { return null; }, addEventListener: function () {}};"
+            f" window.WamaParams.render(host, {json.dumps(schema)},"
+            f" {{context: 'panel', processes: {json.dumps(processes)}}});"
+            " return host.innerHTML; })()")
+        head = out[out.index('data-process="prepare"'):out.index('data-process="clean"')]
+        self.assertIn('class="wama-proc-switch" data-param-row="wants_prepare" data-imposed-by-steps=', head,
+                      'the switch is in the HEADER of its step, and carries what imposes it')
+        self.assertNotIn('data-imposed-by-steps', out[out.index('data-process="clean"'):])
 
     def test_the_rendered_row_carries_what_its_processes_require(self):
         schema = [{'name': 'duration', 'type': 'number', 'stales': ['render']},
@@ -1161,6 +1216,24 @@ class ProcessesOfThePageTest(SimpleTestCase):
 
     def test_a_page_outside_the_apps_hands_nothing(self):
         self.assertEqual([], self._processes('/accounts/profile/'))
+
+    def test_a_step_imposed_by_another_hands_the_switch_and_the_name_of_that_step(self):
+        """`required_by_steps` (2026-11-18) : the page locks the switch when the imposing step is
+        switched on — it needs THAT step's switch, and its name to say why."""
+        from unittest import mock
+        from wama.common.services import process_pipeline as pp
+        declared = pp.AppPipeline('composer', (
+            pp.ProcessSpec('prepare', label='Préparation', degree='optional', toggle='wants_prepare',
+                           required_by_steps=('clean',)),
+            pp.ProcessSpec('clean', label='Nettoyage', depends_on=('prepare',), degree='optional',
+                           toggle='wants_clean'),
+        ), label='Demo')
+        with mock.patch.dict(pp.APP_PIPELINES, {'composer': declared}, clear=True), \
+                mock.patch.object(pp, '_load_declarations'):
+            processes = {p['key']: p for p in self._processes('/composer/')}
+        self.assertEqual([{'toggle': 'wants_clean', 'label': 'Nettoyage'}],
+                         processes['prepare']['required_by_steps'])
+        self.assertNotIn('required_by_steps', processes['clean'], 'nothing imposes it : nothing said')
 
 
 @skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')

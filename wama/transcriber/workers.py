@@ -533,8 +533,8 @@ def _level_step(t, ctx):
     d'ensemble jamais abaissé (brique commune `speech_leveling`) —, gardée sur la card
     (`leveled_audio`). Ordre fixé par le banc des prétraitements du 2026-09-30/10-01
     (`WAMA_QUALITE §9bis`, décisions de Fabien) : le nivellement passe AVANT le débruitage, et on
-    ne débruite jamais un audio non nivelé — demander le débruitage nivelle donc d'abord
-    (`function_specs._levels`). Son échec ne fait pas échouer la card : sa ligne le dit, la
+    ne débruite jamais un audio non nivelé — le débruitage activé impose donc le nivellement
+    (`ProcessSpec.required_by_steps`). Son échec ne fait pas échouer la card : sa ligne le dit, la
     transcription écoute l'original."""
     from wama.common.utils.speech_leveling import level_file
     if t.preprocess_audio and not t.level_speech:
@@ -1099,8 +1099,6 @@ def import_existing_result(t: Transcript) -> None:
     ▶ le rejoue par le pipeline (process `import`, `_import_step`) — jamais l'ASR à sa place.
     Lève si le document ne contient aucune parole."""
     from django.utils import timezone
-    from wama.common.services import process_runs
-    from .function_specs import PIPELINE
 
     _import_document(t)                   # un document refusé lève ICI : aucune ligne n'est écrite
     t.progress = 100
@@ -1110,16 +1108,53 @@ def import_existing_result(t: Transcript) -> None:
     t.save(update_fields=['progress', 'status', 'error_message', 'finished_at'])
     # La ligne du process `import` s'écrit ICI aussi : la card montre « Import ✓ » dès le dépôt,
     # et un ▶ ultérieur (résumé, locuteurs) ne ré-importe pas un document inchangé.
-    spec = PIPELINE.spec('import')
+    _record_given_result(t, 'import',
+                         f"document repris ({os.path.basename(t.work_result.name)})")
+    # L'ÉTAGE B (aligneur acoustique) ne part PAS d'ici : c'est le process `align` de la card,
+    # joué à son lancement — un document posé sur une card jamais lancée ne mobilise pas le GPU.
+
+
+def _record_given_result(t: Transcript, key: str, label: str) -> None:
+    """La ligne RÉUSSIE du process `key` pour un résultat POSÉ sur la card hors de toute tâche —
+    un document repris (`import`), la transcription en direct (`transcribe`). Sa photo est celle
+    des réglages de la card à cet instant : la card est à jour, et changer un réglage que le
+    process surveille (le modèle, les mots-clés…) la périme comme toute transcription — ▶ rejoue
+    alors le process avec les nouveaux réglages."""
+    from wama.common.services import process_runs
+    from .function_specs import PIPELINE
+    spec = PIPELINE.spec(key)
     process_runs.safely(process_runs.start, t, spec.key, process_key=PIPELINE.function_key(spec),
                         kind='function', settings_snapshot=PIPELINE.snapshot(spec, t),
                         model_key=t.model_key)
-    process_runs.safely(
-        process_runs.succeed, t, spec.key, model_key=t.model_key,
-        output_summary={'label': f"document repris ({os.path.basename(t.work_result.name)})",
-                        'fingerprint': _transcript_fingerprint(t)})
-    # L'ÉTAGE B (aligneur acoustique) ne part PAS d'ici : c'est le process `align` de la card,
-    # joué à son lancement — un document posé sur une card jamais lancée ne mobilise pas le GPU.
+    process_runs.safely(process_runs.succeed, t, spec.key, model_key=t.model_key,
+                        output_summary={'label': label, 'fingerprint': _transcript_fingerprint(t)})
+
+
+def keep_realtime_result(t: Transcript, turns, text: str) -> None:
+    """Le résultat de la transcription EN DIRECT (port « En direct », `views.save_realtime`)
+    devient celui de la card : ses SEGMENTS — ce que lit la page de correction — et la ligne du
+    process `transcribe`, réussie.
+
+    Horodatés (les phrases que la capture a situées sur l'enregistrement), les segments s'écrivent
+    comme une sortie ASR (`_save_turns` : lignes comprises, donc SRT et aperçus). Sans heures (une
+    page servie avant la capture horodatée), chaque phrase devient un tour SANS temps, comme un
+    document repris sans heures : aucune heure n'est inventée.
+
+    Avant le 2026-11-16 la card ne portait que le texte : la page de correction s'ouvrait vide,
+    la card disait « Terminé 0 % » et sa bande n'avait aucune ligne de transcription (relevé par
+    Fabien). La passe en direct EST la transcription de la card, faite par le moteur d'écoute du
+    profil : `model_key` reste vide (un texte découpé phrase à phrase n'est pas une mesure du
+    modèle), et une meilleure transcription s'obtient en relançant la card avec d'autres
+    réglages (décision du 2026-10-12, `WAMA_LLM.md §1bis`)."""
+    if turns:
+        _save_turns(t, turns)
+    else:
+        lines = [line.strip() for line in (text or '').splitlines() if line.strip()]
+        if lines:
+            t.segments_json = [{'speaker_id': '', 'start_time': None, 'end_time': None,
+                                'text': line} for line in lines]
+            t.save(update_fields=['segments_json'])
+    _record_given_result(t, 'transcribe', f"en direct ({t.used_backend})")
 
 
 def _save_turns(t: Transcript, turns) -> int:

@@ -1165,6 +1165,17 @@ Trois pièges, tous rencontrés :
    littéral `show_live`) s'ajoutera AVEC son lecteur, à l'émission v3.5 — jamais une
    déclaration sans consommateur. *(✅ 2026-09-28 : `has_live_input`, lu par les cards v3 et v4 —
    §11.11 Étape 2 ; vérifié le 2026-10-31.)*
+   ⏳ **ROUVERT le 2026-11-16 (Fabien) — le temps réel n'est pas terminé, et c'est une notion
+   GLOBALE de WAMA** : transcriber, synthesizer, translator, et le Face Analyzer à son portage
+   (sa page « Live » décidée le 29/10, `PROJECT_STATUS §PALIER 2026-10-29`). Déjà essayés et
+   retirés : le switch live / file d'attente (mode `realtime`, §5bis de `MODES_QUEUE_UX`) ;
+   aujourd'hui : le port « En direct » de la card d'entrée v4. Piste de Fabien, **non décidée** :
+   un ONGLET temps réel AVANT la file d'attente, pour l'UI/UX — fonctionnement et apparence à
+   préciser. Question ouverte qui en dépend : **garder ou non le résultat en card**. Le Speak
+   crée la card à l'arrêt, sans demander (`transcriber.save_realtime`), alors que l'utilisateur
+   peut ne vouloir qu'un essai, ou seulement copier le texte. L'ancien flux du §5 (« preview live
+   → [Ajouter à la file] ») le prévoyait, mais il est SUPERSEDED avec le mode. Ordre retenu :
+   finir ce qui est en cours, puis trancher ici, ou dans un chantier dédié.
 7. **Les fichiers injectés d'une card doivent pouvoir se REMPLACER** (4ᵉ message, 30/08) :
    aujourd'hui on ne peut remplacer ni le fichier de travail ni la référence d'une card
    existante — dupliquer permet « mêmes entrées, autres réglages » mais JAMAIS « autres

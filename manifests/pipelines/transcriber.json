@@ -88,10 +88,12 @@
           "outputs": [
             "leveled_audio"
           ],
+          "required_by_steps": [
+            "denoise"
+          ],
           "share": 2,
-          "watched": [
-            "level_speech"
-          ]
+          "toggle": "level_speech",
+          "watched": []
         }
       },
       {
@@ -134,6 +136,7 @@
           "watched": [
             "backend",
             "hotwords",
+            "clean_mode",
             "vad_mode",
             "language_mode"
           ]

@@ -705,6 +705,19 @@ chez Google, il fallait envoyer soi-même, et elle n'existait que sur l'accueil.
   de construire la card à la main : elle avait les défauts du modèle et une diarisation FORCÉE.
   Gardes : préférences portées par la card, défauts sans préférence (diarisation active), le
   POST de Speak ne réécrit pas les préférences, la relance part dans la tâche ordinaire.
+  **La card en direct porte ses SEGMENTS et sa ligne « Transcription » (2026-11-16, relevé par
+  Fabien : page de correction vide, « Terminé 0 % »)** — le reste « ni segments ni mots » de la
+  clôture du 12/10, dont l'« option A » n'avait pas été consignée. `capture()` situe chaque phrase
+  sur l'enregistrement (`segments` de `onEnd` : échantillons donnés au découpage, depuis le
+  départ de l'enregistreur ; fin = dernier échantillon moins le silence qui l'a fermée) ;
+  `save_realtime` les passe à `workers.keep_realtime_result`, qui les écrit comme une sortie ASR
+  (`_save_turns`) et inscrit la ligne `transcribe` RÉUSSIE par le même écrivain que l'import
+  (`_record_given_result`) : à jour avec les réglages de la card, périmée dès qu'on change le
+  modèle ou un autre réglage surveillé — la relance par la card. Progression à 100 %. Sans
+  heures (une page d'avant), une phrase devient un tour sans temps, comme un document repris.
+  Gardes : `tests_assistant_listen.TranscriberSpeakListensThroughTheCommonBrickTest`. Les mots
+  (`words`) restent absents : l'écoute rend des phrases. ⏳ Garder ou non la card à l'arrêt :
+  `CARD_DESIGN §11.8` exigence 6 (rouvert le même jour).
 
 **Premier essai au vrai micro (2026-10-11) → l'écoute par ALBERT, et les phrases fantômes.**
 Fabien a parlé à l'assistant depuis le bureau à distance (le micro passe, dans le navigateur de

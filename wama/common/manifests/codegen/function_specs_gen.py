@@ -202,6 +202,10 @@ def render_function_specs(manifest: dict) -> tuple:
             args.append(f"outputs={tuple(s['outputs'])!r}")
         if s['toggle']:
             args.append(f"toggle={s['toggle']!r}")
+        # Les étapes qui IMPOSENT celle-ci quand elles sont activées (2026-11-18) : des clés de
+        # process du même manifeste — une donnée, rendue comme l'interrupteur.
+        if s.get('required_by_steps'):
+            args.append(f"required_by_steps={tuple(s['required_by_steps'])!r}")
         if s.get('domains'):
             args.append(f"domains={tuple(s['domains'])!r}")
         if s.get('upstream_switch'):

@@ -48,7 +48,9 @@
  *   capture(opts)          : Promise<{stop()}> — écoute continue hors chat. `opts` :
  *                            onText(phrase, engine), onPhase('listening'|'hearing'|
  *                            'transcribing'|'idle'), onError(message), record (bool),
- *                            onEnd({text, language, engine, recording}) — appelé une fois, que
+ *                            onEnd({text, segments, language, engine, recording}) — `segments` :
+ *                            les phrases situées sur l'enregistrement ({start_time, end_time,
+ *                            text}, en secondes). Appelé une fois, que
  *                            l'arrêt vienne de `stop()` ou d'une autre écoute qui prend le micro.
  *                            Rejette avec le message lisible si le micro ne s'ouvre pas.
  *   stop()                 : coupe tout (micro rendu, conversation arrêtée).
@@ -709,6 +711,11 @@
     this.segmenter = null;
     this.recorder = null;                 // `WamaCapture.record` quand `record: true`
     this.texts = [];
+    // Les phrases HORODATÉES sur l'enregistrement (2026-11-16) : `{start_time, end_time, text}`
+    // en secondes. `fed` compte les échantillons donnés au découpage, qui part en même temps que
+    // l'enregistreur — une phrase se situe donc sur l'audio gardé, sans le réécouter.
+    this.segments = [];
+    this.fed = 0;
     this.language = '';
     this.pending = 0;
     this.queue = Promise.resolve();
@@ -729,12 +736,14 @@
     ctl = this;
     warmUp();
     return openMic(function (frame) {
-      if (self.segmenter) self.segmenter.feed(frame, 'normal');
+      if (!self.segmenter) return;
+      self.fed += frame.length;             // AVANT le découpage : la phrase qu'il ferme l'inclut
+      self.segmenter.feed(frame, 'normal');
     }).then(function (mic) {
       if (self.mode !== 'capture') { closeMic(mic); return self; }   // arrêté pendant l'ouverture
       self.mic = mic;
-      self.segmenter = new Segmenter(mic.rate, END_MS.capture, function (evt, samples) {
-        self.onSegment(evt, samples);
+      self.segmenter = new Segmenter(mic.rate, END_MS.capture, function (evt, samples, info) {
+        self.onSegment(evt, samples, info);
       });
       // Sans enregistreur dans ce navigateur, le texte reste, sans enregistrement.
       if (self.opts.record) self.recorder = global.WamaCapture.record(mic.stream);
@@ -748,11 +757,17 @@
     });
   };
 
-  Capture.prototype.onSegment = function (evt, samples) {
+  Capture.prototype.onSegment = function (evt, samples, info) {
     var self = this;
     if (evt === 'start') { this.setPhase('hearing'); return; }
     if (evt === 'discard') { this.setPhase('listening'); return; }
     var rate = this.mic ? this.mic.rate : TARGET_RATE;
+    // Sa place sur l'enregistrement, lue MAINTENANT (le compte avance pendant la transcription) :
+    // elle finit au dernier échantillon donné, moins le silence qui l'a fermée ; elle commence
+    // une longueur de phrase plus tôt (l'avance comprise).
+    var closedAt = this.fed / rate;
+    var startTime = Math.max(0, closedAt - samples.length / rate);
+    var endTime = Math.max(startTime, closedAt - ((info && info.quietMs) || 0) / 1000);
     this.pending++;
     this.setPhase('transcribing');
     this.queue = this.queue.then(function () {
@@ -762,6 +777,8 @@
       if (data.language) self.language = data.language;
       if (!text) return;
       self.texts.push(text);
+      self.segments.push({ start_time: Math.round(startTime * 1000) / 1000,
+                           end_time: Math.round(endTime * 1000) / 1000, text: text });
       if (self.opts.onText) self.opts.onText(text, heardBy);
     }).catch(function (e) {
       var message = (e && e.message) || String(e);
@@ -785,8 +802,8 @@
       self.mic = null;
       self.segmenter = null;
       return self.queue.then(function () {
-        var result = { text: self.texts.join('\n'), language: self.language,
-                       engine: heardBy, recording: recording };
+        var result = { text: self.texts.join('\n'), segments: self.segments,
+                       language: self.language, engine: heardBy, recording: recording };
         self.setPhase('idle');
         if (self.opts.onEnd) self.opts.onEnd(result);
         return result;

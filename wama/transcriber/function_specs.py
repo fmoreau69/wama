@@ -5,8 +5,9 @@ un registre de process en code, chaque process un `FunctionSpec binding: app`, l
 exporté en manifeste `pipeline`. `load_all()` importe ce module ; `workers.py` en lit `PIPELINE`.
 
 HUIT process (point 3.2 de la route : « une app Médias = `required` + `optional` ») :
-  • `level`      — l'audio → la parole nivelée, GARDÉE sur la card (`leveled_audio`). OPTIONNEL :
-    quand la card le demande, ou demande le débruitage (qui n'écoute jamais un audio non nivelé).
+  • `level`      — l'audio → la parole nivelée, GARDÉE sur la card (`leveled_audio`). OPTIONNEL,
+    interrupteur `level_speech` — IMPOSÉ quand le débruitage est activé, qui n'écoute jamais un
+    audio non nivelé (`required_by_steps`, 2026-11-18).
   • `denoise`    — l'audio nivelé → débruité (DeepFilterNet), GARDÉ (`denoised_audio`). OPTIONNEL,
     interrupteur `preprocess_audio`. Ces deux-là se faisaient DANS `transcribe` jusqu'au
     2026-10-21, dans un fichier temporaire (`split_from`, `ROUTE §10.6` 4.6).
@@ -80,18 +81,6 @@ def _align_applies(transcript, model_key=None) -> bool:
     from .utils.transcript_documents import TIMED_EXTENSIONS
     document = getattr(transcript, 'work_result', None)
     return bool(document) and os.path.splitext(document.name)[1].lower() not in TIMED_EXTENSIONS
-
-
-def _levels(transcript, model_key=None) -> bool:
-    """La parole est nivelée quand on la transcrit et que la card le demande — ou qu'elle demande
-    le débruitage, qui n'écoute JAMAIS un audio non nivelé (banc du 2026-10-01, `WAMA_QUALITE
-    §9bis` : DeepFilterNet efface une parole enregistrée bas)."""
-    return _transcribes(transcript) and bool(getattr(transcript, 'level_speech', False)
-                                              or getattr(transcript, 'preprocess_audio', False))
-
-
-def _denoises(transcript, model_key=None) -> bool:
-    return _transcribes(transcript)
 
 
 def _diarize_applies(transcript, model_key) -> bool:
@@ -209,11 +198,17 @@ PIPELINE = register_app_pipeline(_APP, (
     # transcription et les locuteurs l'écoutent (`upstream_output`), l'aperçu et la page de
     # correction le font entendre. `split_from` : une transcription rendue avant le détachement
     # l'a fait en elle-même — elle vaut pour eux tant que leurs réglages n'ont pas changé.
-    ProcessSpec('level', label='Nivellement', degree=OPTIONAL, applies=_levels, share=2,
+    # Le débruitage n'écoute JAMAIS un audio non nivelé (banc du 2026-10-01, `WAMA_QUALITE §9bis` :
+    # DeepFilterNet efface une parole enregistrée bas) : activé, il IMPOSE le nivellement
+    # (`required_by_steps`, 2026-11-18). Cette règle vivait dans l'`applies` du nivellement, qui
+    # jugeait alors le choix de l'utilisateur au lieu de l'élément : son interrupteur n'était pas
+    # déclaré (`toggle`), et la modale le rangeait dans le corps de la section, pas dans son en-tête.
+    ProcessSpec('level', label='Nivellement', degree=OPTIONAL, toggle='level_speech',
+                required_by_steps=('denoise',), applies=_transcribes, share=2,
                 outputs=('leveled_audio',), split_from='transcribe',
                 eta='transcriber.workers:level_eta'),
     ProcessSpec('denoise', label='Débruitage', depends_on=('level',), degree=OPTIONAL,
-                toggle='preprocess_audio', applies=_denoises, gpu=True, share=2,
+                toggle='preprocess_audio', applies=_transcribes, gpu=True, share=2,
                 outputs=('denoised_audio',), split_from='transcribe',
                 eta='transcriber.workers:denoise_eta'),
     # `upstream_switch` (2026-10-22) : « Transcrire l'audio préparé » décoché, la transcription et

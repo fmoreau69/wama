@@ -681,6 +681,8 @@ document.addEventListener('DOMContentLoaded', function () {
       const ext = (blob.type.indexOf('ogg') >= 0) ? 'ogg' : 'webm';
       fd.append('audio', blob, 'realtime.' + ext);
       fd.append('text', result.text || '');
+      // Les phrases horodatées : la page de correction les montre sans retranscrire.
+      fd.append('segments', JSON.stringify(result.segments || []));
       fd.append('language', (result.language || 'fr').slice(0, 2));
       fd.append('engine', result.engine || '');
       fetch(config.saveRealtimeUrl, { method: 'POST', headers: { 'X-CSRFToken': csrfToken }, body: fd })

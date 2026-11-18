@@ -561,6 +561,28 @@ def edit(request, pk: int):
     return redirect('common:surface', 'transcriber', 'correct', pk)
 
 
+def _realtime_turns(raw) -> list:
+    """Les phrases horodatées que la capture a situées sur l'enregistrement (`segments`, JSON
+    `[{start_time, end_time, text}]`). Une entrée illisible est écartée, jamais devinée."""
+    import json
+    try:
+        items = json.loads(raw) if raw else []
+    except (TypeError, ValueError):
+        return []
+    turns = []
+    for item in items if isinstance(items, list) else []:
+        if not isinstance(item, dict):
+            continue
+        text = str(item.get('text') or '').strip()
+        try:
+            start, end = float(item['start_time']), float(item['end_time'])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if text and 0 <= start <= end:
+            turns.append({'speaker_id': '', 'start_time': start, 'end_time': end, 'text': text})
+    return sorted(turns, key=lambda turn: turn['start_time'])
+
+
 @require_POST
 def save_realtime(request):
     """Sauvegarde une transcription temps réel (bouton Speak) comme card de la file.
@@ -600,6 +622,10 @@ def save_realtime(request):
         **_deposit_settings(user, request.POST),
         user=user,
         status='SUCCESS',
+        # Terminée : la card dit 100 %, comme tout résultat posé (`import_existing_result`). Elle
+        # disait « Terminé 0 % » — la progression restait à son défaut (relevé par Fabien, 16/11).
+        # Sa transcription est la ligne du process `transcribe` (`keep_realtime_result`).
+        progress=100,
         is_realtime=True,
         used_backend=used_backend,
         text=text,
@@ -612,6 +638,9 @@ def save_realtime(request):
         ext = '.' + name.rsplit('.', 1)[-1]
     t.audio.save(f"realtime_{int(_time.time())}{ext}", audio, save=False)
     t.save()
+    # Ses segments (la page de correction) et sa ligne « Transcription » réussie (la bande).
+    from .workers import keep_realtime_result
+    keep_realtime_result(t, _realtime_turns(request.POST.get('segments')), text)
 
     # Propriétés audio (codec/kHz/canaux) + durée, comme un import normal.
     try:
