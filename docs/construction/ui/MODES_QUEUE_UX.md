@@ -492,6 +492,33 @@ l'avatarizer) — toujours pas un domaine ni un mode.
   ⏳ Non joué au navigateur. ⏳ Les réglages ÉCRITS par un process (les paroles écoutées du
   composer, `process_runs.settle_setting`) sont au seul contexte de l'élément : le jour où l'un
   entre au lot, il est à ranger parmi les valeurs liées à l'entrée.
+  ⚠ **Trou MESURÉ le 2026-11-17** (Fabien : « on avait fait un chantier pour gérer ça et
+  permettre d'aligner les cards filles par ligne de réglage mais je ne le vois pas dans le
+  composer […] le fonctionnement n'est pas complètement aligné »). Joué au navigateur sur un lot
+  témoin du composer (compte de test) : la ⚙ du lot DIT bien « 1 garde sa valeur (réglée à la
+  main) · Remplacer aussi » et porte le bloc d'alignement ; la route répond juste sur le lot réel
+  904 (la durée, liée à l'entrée des 7 cards). Mais deux choses le rendaient invisible ou inopérant :
+  (1) une note n'apparaît que sous une ligne où une fille garde une valeur propre, et ces lignes
+  vivent souvent dans une section de process REPLIÉE — rien sur son en-tête ne le signale ⏳ ;
+  (2) **l'ENREGISTREMENT du volet était écrit par chaque app** (dix versions) — celles du composer
+  et de l'avatarizer postaient TOUT le schéma (`postPanel`) : « Remplacer aussi » choisi au volet
+  de la mère était ignoré, une ligne où les filles divergent partait avec la valeur affichée.
+  Les pièces étaient au commun, le CHEMIN ne l'était pas. ✅ **Porté le 2026-11-17** : l'envoi d'un
+  élément et d'un lot est COMMUN (`WamaInspector.initFromSchema` : `saveItem` / `saveBatch` par
+  défaut, exposés sur l'API) — la lecture du volet (`panel.read` : lignes tenues hors de l'envoi,
+  `replace_own`) vers les routes que la file DÉCLARE (`data-settings-url` de l'entrée de file,
+  `_queue_entry.html`, et de son jumeau `queue-actions.js::unwrapBatch` ; `data-batch-update-url`
+  de la card mère, `_batch_card.html`) ; l'élément est redessiné (`WamaApp.fetchCard`), le lot
+  recharge la page. Composer et avatarizer n'écrivent plus rien ; les jumelles générées, qui ne
+  passaient AUCUN envoi (volet sans enregistrement), en héritent. ⏳ Les huit autres apps passent
+  encore le leur (anonymizer, synthesizer, transcriber : `inspector.read` ; describer, reader :
+  `WamaParams.read` ; imager, converter, enhancer : un envoi propre) — à ramener au défaut, app par
+  app ; la liste, qui ne peut que baisser, est `tests_cap_from_js.OWN_PANEL_SAVE` (une jumelle de bac
+  à sable compte pour sa source). Gardes : `tests_cap_from_js.InspectorSavesThroughTheCommonPathTest` (V8),
+  `…EveryPanelSavesThroughTheCommonPathTest`,
+  `tests_queue_delete_contract.EnrobageUnitaireJumeauTest`, `tests_batch_views.BatchCardReferenceRenderTest`.
+  ✅ Même jour : le jeton du formulaire n'entre plus dans la référence du lot (2 lignes sur 3 le
+  portaient — `batch_views.TRANSPORT_FIELDS`, `58fb87637`).
   ↔ **La même forme sert la SURCHARGE d'un pipeline imbriqué du Studio** (2026-11-06) : le
   pipeline référencé est la référence, le nœud `pipeline` la fille — il ne garde que ses valeurs
   propres, reprises ligne par ligne ou toutes (`ROUTE §10.6` 3.1, marche 3).

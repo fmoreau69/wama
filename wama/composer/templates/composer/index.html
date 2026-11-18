@@ -214,17 +214,9 @@ document.addEventListener('DOMContentLoaded', function () {
     var ph = document.getElementById('composerPanelParams');
     if (!q || !ph || !window.WamaInspector || !WamaInspector.initFromSchema) return;
     var schema = {{ params_json|script_json }};
-    function getCsrf() { var m = document.cookie.match(/csrftoken=([^;]+)/); return m ? m[1] : ''; }
-    function postPanel(url) {   // POST les valeurs du volet (dom_id-aware) vers l'endpoint donné
-        var fd = new FormData();
-        schema.forEach(function (p) {
-            var key = (p.dom_id && p.dom_id.panel) || p.name;
-            var el = document.getElementById(key) || ph.querySelector('[name="' + key + '"]');
-            if (el) fd.append(p.name, el.value);
-        });
-        return fetch(url, { method: 'POST', headers: { 'X-CSRFToken': getCsrf() }, body: fd })
-            .then(function () { window.location.reload(); });
-    }
+    {% comment %}Enregistrer l'élément ou le lot : l'envoi COMMUN de `initFromSchema` (2026-11-17) — la
+    lecture du volet (lignes tenues, « Remplacer aussi ») vers les routes que la file déclare. L'envoi
+    écrit ici postait tout le schéma : le choix ligne par ligne du volet de la mère était ignoré.{% endcomment %}
     WamaInspector.initFromSchema({
         queueContainer: q,
         cardSelector: '.generation-card',
@@ -232,8 +224,6 @@ document.addEventListener('DOMContentLoaded', function () {
         panelContainer: ph,
         schema: schema,
         itemLabel: function (id) { return "l'élément #" + id; },
-        saveItem: function (id) { return postPanel(window.COMPOSER_APP.settingsUrlTemplate.replace('/0/', '/' + id + '/')); },
-        saveBatch: function (bid) { return postPanel('/composer/batch/' + bid + '/update/'); },
         // Point 3 du portage : le volet HÉRITE des boutons d'action de la card / du batch —
         // cloneActions clone le conteneur .btn-group-actions (clics fonctionnels : la délégation
         // est au niveau document dans index.js). Miroir du contrat Transcriber.

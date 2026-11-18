@@ -407,6 +407,8 @@
             entry.style.display = 'contents';
             entry.dataset.entryBatchId = group.dataset.batchId;
             entry.dataset.cardUrl = url;
+            // La route des réglages de l'élément suit l'enrobage (`_queue_entry.html`, 2026-11-17).
+            if (group.dataset.settingsUrl) entry.dataset.settingsUrl = group.dataset.settingsUrl;
             entry.appendChild(fresh);
             group.replaceWith(entry);
         });

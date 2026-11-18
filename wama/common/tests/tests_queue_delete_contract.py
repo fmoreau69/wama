@@ -1144,12 +1144,15 @@ class EnrobageUnitaireJumeauTest(TestCase):
         for attribut in self.ATTRIBUTS[1:]:
             self.assertIn(attribut, entree.group(0))
         self.assertIn(f'data-card-url="{reverse("converter:card_html", args=[0])}"', entree.group(0))
+        # 2026-11-17 : la route des réglages de l'élément, par laquelle le volet l'enregistre.
+        self.assertIn(f'data-settings-url="{reverse("converter:update_settings", args=[0])}"',
+                      entree.group(0))
 
     def test_le_js_recree_les_memes_attributs(self):
         src = (Path(__file__).parent.parent / 'static/common/js/queue-actions.js').read_text(encoding='utf-8')
         corps = src[src.index('function unwrapBatch'):src.index('function updateBatchHeader')]
         for trace in ("className = 'wama-queue-entry'", "style.display = 'contents'",
-                      'dataset.entryBatchId', 'dataset.cardUrl'):
+                      'dataset.entryBatchId', 'dataset.cardUrl', 'entry.dataset.settingsUrl ='):
             self.assertIn(trace, corps)
 
 

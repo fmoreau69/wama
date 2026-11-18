@@ -723,6 +723,125 @@ class TheBatchSaysWhatEachChildKeepsTest(SimpleTestCase):
             {querySelector: function () { return null; }}, null)"""))
 
 
+SAVE_DOM = """
+var sent = [];
+document.cookie = 'csrftoken=tok';
+function FormData() { this.entries = []; }
+FormData.prototype.append = function (k, v) { this.entries.push([k, String(v)]); };
+function fetch(url, init) {
+  sent.push({url: url, body: init.body.entries});
+  return new Promise(function () {});           // never answers: only the request is measured
+}
+function savePage() {
+  var fields = {model: {type: 'select-one', value: 'yue2', dataset: {}},
+                duration: {type: 'range', value: '95', dataset: {unset: '1'}},     // held
+                quality_intent: {type: 'range', value: '40', dataset: {}}};
+  var row = {getAttribute: function (n) { return n === 'data-param-row' ? 'quality_intent' : null; }};
+  var panel = {addEventListener: function () {},
+               querySelector: function (sel) { var m = sel.match(/name="([^"]+)"/); return m ? fields[m[1]] || null : null; },
+               querySelectorAll: function (sel) { return sel.indexOf('data-replace-own') >= 0 ? [row] : []; }};
+  var entry = {dataset: {settingsUrl: '/composer/settings/0/'}};
+  var card = {closest: function (sel) { return sel === '[data-settings-url]' ? entry : null; }};
+  var header = {getAttribute: function () { return '/composer/batch/12/update/'; }};
+  var group = {querySelector: function () { return header; }};
+  var queue = {addEventListener: function () {}, querySelectorAll: function () { return []; },
+               querySelector: function (sel) { return sel.indexOf('data-batch-id') >= 0 ? group
+                                              : sel.indexOf('data-id="7"') >= 0 ? card : null; }};
+  return {queue: queue, panel: panel};
+}
+"""
+
+
+@skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')
+class InspectorSavesThroughTheCommonPathTest(SimpleTestCase):
+    """2026-11-17, Fabien: « on avait fait un chantier pour […] aligner les cards filles par ligne
+    de réglage mais je ne le vois pas dans le composer ». Measured: ten apps wrote the panel's
+    save, the composer's and the avatarizer's posted the whole schema — « Remplacer aussi » chosen
+    on the mother's panel was ignored, a held line left with its displayed value. The common save
+    reads the panel by ITS reader and posts to the route the queue declares."""
+
+    def setUp(self):
+        from py_mini_racer import MiniRacer
+        self.v8 = MiniRacer()
+        self.v8.eval(FAKE_DOM)
+        self.v8.eval(SAVE_DOM)
+        self.v8.eval((JS / 'wama-inspector.js').read_text(encoding='utf-8'))
+
+    def _save(self, which, own=''):
+        return self.v8.eval(f"""(function () {{
+            sent.length = 0;
+            var page = savePage();
+            var api = window.WamaInspector.initFromSchema({{
+              queueContainer: page.queue, panelContainer: page.panel, {own}
+              schema: [{{name: 'model'}}, {{name: 'duration'}}, {{name: 'quality_intent'}}]}});
+            api.{which};
+            return sent;
+        }})()""")
+
+    def test_an_element_is_saved_by_the_panel_reader_on_the_route_of_its_entry(self):
+        sent = self._save('saveItem(7)')
+        self.assertEqual(1, len(sent), sent)
+        self.assertEqual('/composer/settings/7/', sent[0]['url'])
+        body = dict(sent[0]['body'])
+        self.assertEqual(('yue2', '40'), (body.get('model'), body.get('quality_intent')))
+        self.assertNotIn('duration', body, 'a held line is not posted')
+        self.assertEqual('quality_intent', body.get('replace_own'), 'the line-by-line choice travels')
+
+    def test_a_batch_is_saved_on_the_route_of_its_mother(self):
+        sent = self._save('saveBatch(12)')
+        self.assertEqual(['/composer/batch/12/update/'], [s['url'] for s in sent])
+        self.assertNotIn('duration', dict(sent[0]['body']))
+
+    def test_an_app_that_passes_its_own_save_keeps_it(self):
+        # Counter-proof: the default only fills what the app leaves empty.
+        sent = self._save('saveItem(7)', own="saveItem: function () { sent.push({url: 'own'}); },")
+        self.assertEqual(['own'], [s['url'] for s in sent])
+
+
+#: The apps that still pass their OWN panel save to `initFromSchema` (2026-11-17) — a list that can
+#: only go DOWN: each one is brought back to the common save, then leaves the list (AGENTS.md, a
+#: generic test lists its gaps). The composer and the avatarizer, which posted the whole schema,
+#: were brought back the day the common save was written.
+OWN_PANEL_SAVE = {
+    'anonymizer': 'inspector.read() posted by itself — the same as the common save',
+    'converter': 'an item payload of its own (`readParamsFrom` : output_format + options_json)',
+    'describer': 'WamaParams.read(ph), then `syncCard` of its own',
+    'enhancer': 'two domains, a FormData built by its own `postPanel`',
+    'imager': '`_panelFormData` of its own, then `imagerRefreshCard`',
+    'reader': 'WamaParams.read(ph) posted as JSON',
+    'synthesizer': 'inspector.read() posted by itself, then a page reload',
+    'transcriber': 'inspector.read() posted as JSON (`autoSave`)',
+}
+
+
+class EveryPanelSavesThroughTheCommonPathTest(SimpleTestCase):
+    """Ten apps wrote the save of their panel ; two of them lost the line-by-line choice of the
+    batch. A file of an app that configures the inspector passes no `saveItem` / `saveBatch` of
+    its own — except the apps still listed in `OWN_PANEL_SAVE`, which must really still do it."""
+
+    def _apps_with_own_save(self):
+        import re
+        found = set()
+        for world in ('wama', 'wama_lab', 'wama_data'):
+            root = Path(settings.BASE_DIR) / world
+            for path in list(root.glob('*/templates/**/*.html')) + list(root.glob('*/static/**/*.js')):
+                # A sandbox twin (`<app>_NN`) carries a copy of its source's files : it is the
+                # source's gap, and is regenerated once the source is brought back.
+                app = re.sub(r'_\d+$', '', path.relative_to(root).parts[0])
+                if app == 'common':
+                    continue
+                text = path.read_text(encoding='utf-8', errors='replace')
+                if 'initFromSchema' in text and re.search(r'\bsave(Item|Batch)\s*:', text):
+                    found.add(app)
+        return found
+
+    def test_only_the_listed_apps_still_write_their_panel_save(self):
+        found = self._apps_with_own_save()
+        self.assertEqual(set(), found - set(OWN_PANEL_SAVE), 'an app writes its panel save again')
+        self.assertEqual(set(), set(OWN_PANEL_SAVE) - found,
+                         'an app was brought back to the common save : remove it from the list')
+
+
 @skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')
 class SortAndFactsTest(SimpleTestCase):
 

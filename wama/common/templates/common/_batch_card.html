@@ -35,6 +35,10 @@ Slots/options (tous optionnels) :
                            route `batch_realign`/`batch_promote`.
                            `batch_info.reference` (de `build_batches_list`) dit si le lot a une
                            référence à reposer.
+                           Depuis le 2026-11-17 aussi `data-batch-update-url` : le volet de la
+                           mère ENREGISTRE le lot par elle (`WamaInspector.initFromSchema`, sa
+                           lecture commune — lignes tenues, « Remplacer aussi »), aucune app ne
+                           l'écrit plus.
   domain                 : id du DOMAINE de ce lot. Porté au DOM (`data-domain`, pour que les
                            briques s'y scopent) ET utilisé pour DÉRIVER le préfixe des routes
                            depuis la déclaration (`route_prefix`) — l'enhancer audio résout ainsi
@@ -63,6 +67,7 @@ ne pousse rien. Piège vérifié en rendant le partial, pas déduit.{% endcommen
 {% url app|add:':'|add:pfx|add:'batch_start' batch_info.obj.id as u_batch_start %}
 {% url app|add:':'|add:pfx|add:'batch_realign' batch_info.obj.id as u_batch_realign %}
 {% url app|add:':'|add:pfx|add:'batch_promote' batch_info.obj.id as u_batch_promote %}
+{% url app|add:':'|add:pfx|add:'batch_update' batch_info.obj.id as u_batch_update %}
 {% endif %}
 {% comment %}Le ZIP du lot se DÉRIVE ici avec les autres URLs de lot (2026-10-20, revérification de la
 FILE commune : la pièce le calculait à côté et le passait) ; un `download_url` passé reste prioritaire.{% endcomment %}
@@ -83,6 +88,7 @@ lot… » du menu de la card.{% endcomment %}
      data-batch-created="{{ batch_info.obj.created_at|date:'d/m/Y H:i' }}"
      {% if domain %}data-domain="{{ domain }}"{% endif %}
      {% if u_batch_promote %}data-batch-promote-url="{{ u_batch_promote }}"{% endif %}
+     {% if u_batch_update %}data-batch-update-url="{{ u_batch_update }}"{% endif %}
      {% if u_batch_realign %}data-batch-realign-url="{{ u_batch_realign }}" data-batch-reference="{% if batch_info.reference %}1{% else %}0{% endif %}"{% endif %}
      data-batch-total="{{ batch_info.obj.total }}" data-batch-success="{{ batch_info.success_count }}"
      data-batch-running="{{ batch_info.running_count }}" data-batch-failure="{{ batch_info.failure_count }}">

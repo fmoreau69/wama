@@ -217,18 +217,9 @@ document.addEventListener('DOMContentLoaded', function () {
     var ph = document.getElementById('avatarPanelParams');
     if (!q || !ph || !window.WamaInspector || !WamaInspector.initFromSchema) return;
     var schema = {{ params_json|script_json }};
-    var csrf = (window.AVATARIZER_CONFIG && window.AVATARIZER_CONFIG.csrfToken) || '';
-    function postPanel(url) {   // POST des valeurs du volet (dom_id-aware, radios/checkbox) vers url
-        var fd = new FormData();
-        schema.forEach(function (p) {
-            var key = (p.dom_id && p.dom_id.panel) || p.name;
-            var radios = ph.querySelectorAll('input[type="radio"][name="' + key + '"]');
-            if (radios.length) { radios.forEach(function (r) { if (r.checked) fd.append(p.name, r.value); }); return; }
-            var el = document.getElementById(key) || ph.querySelector('[name="' + key + '"]');
-            if (el) fd.append(p.name, el.type === 'checkbox' ? (el.checked ? 'true' : 'false') : el.value);
-        });
-        return fetch(url, { method: 'POST', headers: { 'X-CSRFToken': csrf }, body: fd });
-    }
+    {% comment %}Enregistrer l'élément ou le lot : l'envoi COMMUN de `initFromSchema` (2026-11-17) — la
+    lecture du volet (lignes tenues, « Remplacer aussi ») vers les routes que la file déclare. L'envoi
+    écrit ici postait tout le schéma : le choix ligne par ligne du volet de la mère était ignoré.{% endcomment %}
     WamaInspector.initFromSchema({
         queueContainer: q,
         cardSelector: '.synthesis-card',
@@ -239,10 +230,8 @@ document.addEventListener('DOMContentLoaded', function () {
         // l'avatar (masqué dès le chargement sans ce levier, mesuré le 2026-08-22). L'avatar est
         // devenu un port de la card v4 : la section redevient l'aperçu commun de l'élément.
         itemLabel: function (id) { return "l'élément #" + id; },
-        saveBatch: function (bid) { return postPanel('/avatarizer/batch/' + bid + '/update/').then(function () { window.location.reload(); }); },
         // cardSettings DÉFAUT (dérivé du schéma) : lit les data-* du gear `.settings-btn`
         // (graphie commune depuis le 23/08) — émis par la brique card_gear ; custom supprimé le 18/08.
-        saveItem: function (id) { return postPanel(window.AVATARIZER_CONFIG.urls.updateSettings.replace('/0/', '/' + id + '/')).then(function () { window.location.reload(); }); },
         renderItemActions: function (host, card) {
             WamaInspector.cloneActions(host, card.querySelector('.btn-group-actions'),
                 '<i class="fas fa-crosshairs text-info"></i> Actions — élément #' + card.dataset.id);

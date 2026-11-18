@@ -1053,8 +1053,77 @@
     const saveGlobal = cfg.saveGlobal ||
       (cfg.saveGlobalUrl ? function () { return saveUserValues(panel.read()); } : null);
 
+    // Réglages d'un ÉLÉMENT et d'un LOT depuis le volet — COMMUN (2026-11-17, Fabien : « on avait
+    // fait un chantier pour […] aligner les cards filles par ligne de réglage mais je ne le vois
+    // pas dans le composer »). Mesuré : dix apps écrivaient cet envoi ; ceux du composer et de
+    // l'avatarizer postaient TOUT le schéma — « Remplacer aussi » choisi au volet de la mère était
+    // ignoré, une ligne où les filles divergent partait avec la valeur affichée. Le volet se lit
+    // ici par SA lecture (`panel.read` : lignes tenues hors de l'envoi, `replace_own`) et part vers
+    // la route que la file DÉCLARE — `data-settings-url` de l'entrée (`_queue_entry.html`),
+    // `data-batch-update-url` de la card mère (`_batch_card.html`). Une app ne passe `saveItem` /
+    // `saveBatch` que pour un envoi qui n'est pas celui-là.
+    const qc = cfg.queueContainer || document;
+    function sayRefused(text) {
+      if (global.WamaApp && WamaApp.toast) WamaApp.toast(text, 'error');
+    }
+    function postSettings(url, values) {
+      const body = new FormData();
+      Object.keys(values || {}).forEach(function (k) {
+        [].concat(values[k]).forEach(function (v) {
+          body.append(k, v === true ? 'true' : v === false ? 'false' : (v == null ? '' : v));
+        });
+      });
+      return fetch(url, { method: 'POST', body: body, credentials: 'same-origin',
+                          headers: { 'X-CSRFToken': _cookie('csrftoken') } })
+        .then(function (r) {
+          return r.json().catch(function () { return {}; })
+            .then(function (d) { return { ok: r.ok, data: d || {} }; });
+        })
+        .then(function (res) {
+          if (!res.ok || res.data.error || res.data.success === false) {
+            sayRefused('Réglages refusés — ' + (res.data.error || 'le serveur les a rejetés'));
+            return false;
+          }
+          return true;
+        })
+        .catch(function () { sayRefused('Réglages non enregistrés — erreur réseau'); return false; });
+    }
+    function cardOf(id) {
+      return qc.querySelector((cfg.cardSelector || '.wama-card[data-id]') + '[data-id="' + id + '"]');
+    }
+    const saveItem = cfg.saveItem || function (id) {
+      const card = cardOf(id);
+      const entry = card && card.closest('[data-settings-url]');
+      if (!entry) return Promise.resolve(false);
+      return postSettings(entry.dataset.settingsUrl.replace('/0/', '/' + id + '/'), panel.read())
+        .then(function (ok) {
+          // La card est REDEMANDÉE au serveur (`WamaApp.fetchCard`, sa vue `card_html`) : sa ⚙,
+          // ses pastilles et sa bande disent les réglages enregistrés ; elle reste choisie.
+          const holder = ok && card.closest('[data-card-url]');
+          if (!holder || !(global.WamaApp && WamaApp.fetchCard)) return ok;
+          return WamaApp.fetchCard(holder.dataset.cardUrl, id).then(function (fresh) {
+            if (fresh && card.isConnected) {
+              if (card.classList.contains(cfg.highlightClass || 'inspector-selected')) {
+                fresh.classList.add(cfg.highlightClass || 'inspector-selected');
+              }
+              card.replaceWith(fresh);
+            }
+            return ok;
+          });
+        });
+    };
+    const saveBatch = cfg.saveBatch || function (bid) {
+      const group = qc.querySelector((cfg.batchSelector || '.batch-group') + '[data-batch-id="' + bid + '"]');
+      const header = group && group.querySelector('[data-batch-update-url]');
+      if (!header) return Promise.resolve(false);
+      // Le lot entier change (ses filles, sa référence) : la page se redessine, comme après la ⚙.
+      return postSettings(header.getAttribute('data-batch-update-url'), panel.read())
+        .then(function (ok) { if (ok) global.location.reload(); return ok; });
+    };
+
     const api = init(Object.assign({}, cfg, { panel: panel, cardSettings: cardSettings,
-                                              saveGlobal: saveGlobal }));
+                                              saveGlobal: saveGlobal, saveItem: saveItem,
+                                              saveBatch: saveBatch }));
 
     // `autoSave` : un réglage changé au volet s'enregistre là où il doit (élément, lot ou
     // préférences — `save()` route). Seuls les gestes RÉELS comptent (`isTrusted`) : l'inspecteur
@@ -1082,6 +1151,10 @@
     // schéma s'affichait sans jamais être lu.
     api.read = panel.read;
     api.apply = panel.apply;
+    // L'envoi d'un élément / d'un lot (le commun, ou celui que l'app a passé) : ce que `save()`
+    // route, appelable par l'app pour un geste à elle (« enregistrer et relancer »).
+    api.saveItem = saveItem;
+    api.saveBatch = saveBatch;
     // Pour les widgets HORS schéma d'un volet (classes à flouter de l'anonymizer) : même route.
     if (cfg.saveGlobalUrl) api.saveUserValues = saveUserValues;
     return api;

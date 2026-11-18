@@ -750,6 +750,9 @@ class BatchCardReferenceRenderTest(TestCase):
         self.assertRegex(html, r'data-batch-promote-url="[^"]*/batch/\d+/promote/"')
         self.assertRegex(html, r'data-batch-realign-url="[^"]*/batch/\d+/realign/"')
         self.assertIn('data-batch-reference="0"', html)
+        # 2026-11-17 : la route des réglages du LOT, par laquelle le volet de la mère enregistre
+        # (`WamaInspector.initFromSchema`, l'envoi commun) — aucune app ne l'écrit plus.
+        self.assertRegex(html, r'data-batch-update-url="[^"]*/batch/\d+/update/"')
 
     def test_a_reference_is_said_and_no_realign_button_takes_a_place_in_the_actions(self):
         html = self._render({'source': ''})
