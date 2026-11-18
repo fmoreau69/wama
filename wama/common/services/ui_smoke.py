@@ -409,17 +409,17 @@ def discoverable_pages():
     précédent — que les scénarios d'un autre domaine déplaçaient. Les gestes mesuraient donc un
     domaine imprévisible, et jamais tous. Le premier domaine garde l'id historique (`<app>.<geste>`),
     les autres le préfixent (`<app>.<domaine>.<geste>`) : `--id <app>.` les prend tous."""
-    from wama.common.services.navigation import PAGE_DOMAIN_PARAM
-    from wama.common.utils.app_modes import get_domains, has_domain_tabs
+    # Les adresses sont les LIENS de domaine de la page (`navigation.domain_links`) : lues, jamais
+    # recomposées ici (relevé à la revérification du 2026-11-18).
+    from wama.common.services.navigation import domain_links
     out = []
     for label, path in discoverable_apps():
-        domains = [d.get('id') for d in get_domains(label)] if has_domain_tabs(label) else []
-        if not domains:
+        links = domain_links(label, path)
+        if not links:
             out.append((label, path, label))
             continue
-        for i, domain in enumerate(domains):
-            out.append((label, f'{path}?{PAGE_DOMAIN_PARAM}={domain}',
-                        label if i == 0 else f'{label}.{domain}'))
+        for i, link in enumerate(links):
+            out.append((label, link['url'], label if i == 0 else f"{label}.{link['id']}"))
     return out
 
 

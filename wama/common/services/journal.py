@@ -131,13 +131,13 @@ def family_queue_url(family, model=None):
         url = app_queue_url(model._meta.app_label) or f'/{model._meta.app_label}/'
     # Une surface de DOMAINE (l'audio de l'enhancer) : la page de l'app sur CE domaine — sans
     # lui, la page s'ouvrait sur le domaine que le compte avait retenu (2026-11-17). L'adresse est
-    # celle des liens de domaine de la page (`navigation.domain_links`, `?domain=`).
+    # celle des liens de domaine de la page (`navigation.domain_links`), LUE, jamais recomposée.
     from wama.common.utils import app_modes
-    from .navigation import PAGE_DOMAIN_PARAM
+    from .navigation import domain_links
     owner = app_modes.surface_app(family) if family else ''
     served = app_modes.surface_domains(owner, family) if owner and owner != family else []
-    if len(served) == 1 and app_modes.has_domain_tabs(owner):
-        url += f'?{PAGE_DOMAIN_PARAM}={served[0]}'
+    if len(served) == 1:
+        url = next((link['url'] for link in domain_links(owner, url) if link['id'] == served[0]), url)
     return url
 
 
