@@ -763,28 +763,64 @@ def _score_face(app_name, instance, side, data, input_data, output_data):
         follows = 'input'
     if follows not in [a['key'] for a in audios]:
         follows = ''
+    field = data.get('field')
+    found = _score_surface(app_name, instance, field)
+    edit_url = ''
+    if found is not None and field in tuple(found.fields) + tuple(found.also_edits):
+        from django.urls import reverse
+        edit_url = (reverse('common:surface', args=[app_name, found.key, instance.pk])
+                    + (f'?field={field}' if field in found.also_edits else ''))
     return {**data, 'score': {'abc': abc, 'pk': instance.pk, 'audios': audios, 'follows': follows,
-                              'edit_url': _score_edit_url(app_name, instance, data.get('field')),
+                              'edit_url': edit_url,
+                              'page': _score_page_reads(found, app_name, instance,
+                                                        {'input': input_data, 'output': output_data}),
                               'scripts': _score_face_scripts(),
                               'styles': _score_face_styles(),
                               'sound_banks': _score_sound_banks()}}
 
 
-def _score_edit_url(app_name, instance, field) -> str:
-    """La page d'édition de l'app qui écrit le champ `field`, ouverte sur lui ; '' sinon."""
+def _score_surface(app_name, instance, field):
+    """La surface de l'app qui MONTRE le champ `field` — qu'elle l'écrive, ou le lise seulement (la
+    partition jouée du composer) — et s'ouvre sur l'élément ; celle qui l'écrit d'abord. None sinon."""
     if not field:
-        return ''
-    from django.urls import reverse
+        return None
     from wama.common.surfaces import surfaces_of
-    for found in surfaces_of(app_name):
-        if field not in tuple(found.fields) + tuple(found.also_edits):
-            continue
-        ok, _reason = found.can_open(instance)
-        if not ok:
-            continue
-        url = reverse('common:surface', args=[app_name, found.key, instance.pk])
-        return url + (f'?field={field}' if field in found.also_edits else '')
-    return ''
+    found = [s for s in surfaces_of(app_name) if s.can_open(instance)[0]]
+    edits = [s for s in found if field in tuple(s.fields) + tuple(s.also_edits)]
+    reads = [s for s in found if field in tuple(s.reads.values())]
+    return (edits + reads + [None])[0]
+
+
+def _score_page_reads(found, app_name, instance, faces) -> dict:
+    """Ce que la PAGE d'édition lit pour caler sa partition, servi à la face « Partition » de la
+    visionneuse (2026-11-18, Fabien : « la synchro en preview n'est pas du tout gérée — il faut
+    réutiliser TOUS les mécanismes de resynchro de la page ») : son adresse de données (la grille
+    des attaques de l'audio écouté, `?only=rhythm&source=`), le rôle audio que suit sa partition
+    (`score_view` : `media`), le fichier de ce rôle et ses VERSIONS servies (`Surface.sources_of`,
+    les mêmes que le transport de la page), et la version de chaque face de l'aperçu (`keys` :
+    Entrée, Sortie), reconnue au FICHIER qu'elle montre. {} sans surface qui s'ouvre sur l'élément :
+    la face garde alors ses audios et le tempo écrit."""
+    if found is None:
+        return {}
+    role = next(((slot.options or {}).get('media') for slot in found.slots
+                 if slot.brick == 'score_view' and (slot.options or {}).get('media')), '')
+    if not role:
+        return {}
+    from django.urls import reverse
+    from wama.common.surface_views import _media_url, _sources, _version_name
+    own = _version_name(found, instance, role)
+    names = {version['key']: version['name'] for version in found.sources_of(instance, role)}
+    if own:
+        names.setdefault('', own)
+    keys = {}
+    for side, face in faces.items():
+        shown = _media_rel((face or {}).get('url'))
+        key = next((k for k, name in names.items() if shown and name == shown), None)
+        if key is not None:
+            keys[side] = key
+    return {'data_url': reverse('common:surface_data', args=[app_name, found.key, instance.pk]),
+            'role': role, 'read': _media_url(own) if own else '',
+            'sources': _sources(found, instance, role), 'keys': keys}
 
 
 def _score_face_scripts() -> list:

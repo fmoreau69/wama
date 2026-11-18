@@ -481,11 +481,17 @@
             var id = String(playerId), self = this, a = this.getAudio(id);
             if (!a || !axis) return null;
             var s = registry.get(id);
+            // À rebours, le son s'entend à l'envers (2026-11-18, décision de Fabien : « tous les
+            // logiciels audiovisuels lisent l'audio à reculon ») : le lecteur à rebours commun
+            // (`wama-reverse-audio.js`) — un média SANS fichier (le mixage) n'en a pas : ses
+            // lecteurs propres le déclarent (`wama-stem-mix.js`).
+            var Rev = global.WamaReverseAudio;
             var drop = axis.attach(a, {
                 offset: Number(offset) || 0,
                 play: function() { return self.play(id); },
                 seek: function(t) { self.seek(id, t, false); },
                 sync: sync,
+                reverse: (Rev && (a.currentSrc || a.src)) ? Rev.forMedia(a) : null,
             });
             s.onAxis = true;
             return function() { s.onAxis = false; drop(); };

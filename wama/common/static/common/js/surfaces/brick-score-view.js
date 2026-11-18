@@ -142,9 +142,10 @@
         tools.addEventListener('mousedown', function (e) { e.stopPropagation(); });
 
         var timings = [], tl = null, rendered = null, pending = null, tune = null;
-        /** `grid` : les attaques de l'audio (null : demandées, false : aucune) ; `span` : la 1re et la
-         *  dernière note écrites (ms) ; `timing` : le temps calé (`WamaScore.timeMap`), ou null. */
-        var grid = null, span = null, timing = null, timingPairs = null, midiPairs = null;
+        /** `grid` : les attaques de l'audio ÉCOUTÉ (null : demandées, false : aucune), celui de la
+         *  version `gridKey` ('' = le champ du rôle), gardées par version (`grids`) ; `span` : la 1re
+         *  et la dernière note écrites (ms) ; `timing` : le temps calé (`WamaScore.timeMap`), ou null. */
+        var grid = null, gridKey = null, grids = {}, span = null, timing = null, timingPairs = null, midiPairs = null;
         /** Les lectures MIDI proposées (`WamaMidiPlayer.choices`), null tant qu'elles ne sont pas
          *  posées — `render` passe avant leur mise en place, en fin de brique. */
         var midiChoices = null;
@@ -367,8 +368,12 @@
             var sheet = document.createElement('div');
             sheet.style.cssText = 'position:absolute;left:-10000px;top:0;width:760px';
             document.body.appendChild(sheet);
-            // Un SVG par système : la page se coupe entre deux systèmes, jamais au milieu.
-            try { ABCJS.renderAbc(sheet, abc, { staffwidth: 720, oneSvgPerLine: true }); } catch (e) { /* vide */ }
+            // Un SVG par système : la page se coupe entre deux systèmes, jamais au milieu. Les lignes
+            // justifiées comme à l'écran (le reflux de `WamaScorePlayer`, 2026-11-18).
+            try {
+                ABCJS.renderAbc(sheet, abc, { staffwidth: 720, oneSvgPerLine: true,
+                                              wrap: global.WamaScorePlayer.WRAP });
+            } catch (e) { /* vide */ }
             var svg = sheet.innerHTML;
             sheet.remove();
             var w = global.open('', '_blank');
@@ -411,10 +416,11 @@
             var marks = Score.syncOf(wholeText());
             var anchors = (grid && span) ? Score.anchorPairs(span[0], span[1], grid.first_onset, grid.last_onset) : null;
             var key = listened();
-            // La règle commune (`WamaScore.timingFor`) : les attaques sont lues sur l'audio du rôle
-            // (`''`, la grille de `data/?only=rhythm`) — la visionneuse monte cette brique-ci.
+            // La règle commune (`WamaScore.timingFor`) : les attaques sont lues sur l'audio ÉCOUTÉ
+            // (`gridKey`, la grille de `data/?only=rhythm&source=`) — la visionneuse monte cette
+            // brique-ci. Une lecture MIDI garde la grille de l'audio écouté avant elle.
             var chosen = Score.timingFor({ marks: marks, anchors: anchors, listened: key,
-                                           follows: follows(), anchorsOf: '', ownMidi: ownMidi(key) });
+                                           follows: follows(), anchorsOf: gridKey, ownMidi: ownMidi(key) });
             timingPairs = chosen.pairs;
             midiPairs = chosen.midi;
             var how = chosen.how;
@@ -464,6 +470,7 @@
             // visionneuse aussi.
             var engraved = global.WamaScorePlayer.engrave(paper, abc,
                 { dragging: editable(), clickListener: onNote });
+            laidOut = paper.clientWidth;
             tune = engraved.tune;
             timings = engraved.timings;
             tl = engraved.tl;
@@ -573,26 +580,58 @@
             return true;
         } });
 
-        /** La grille des temps de l'audio, demandée à part : quelques secondes la 1re fois. */
+        /** La grille des temps de l'audio ÉCOUTÉ — sa version (`listened`, '' = le champ du rôle),
+         *  demandée à part : quelques secondes la 1re fois, gardée ensuite. 2026-11-18 (Fabien : « la
+         *  synchro en preview n'est pas du tout gérée ») : elle n'était demandée que pour le champ du
+         *  rôle (le Rendu du composer) — une reprise sans rendu, qu'on écoute par son Entrée, n'avait
+         *  aucune attaque à suivre, page comme visionneuse. Une lecture MIDI n'a pas de grille : elle
+         *  suit le calage de l'audio écouté avant elle (`syncMidi`). */
         function loadGrid() {
             var role = options.media || 'audio';
-            if (!(ctx.reads() || {})[role]) { grid = false; realign(); return; }
-            fetch(ctx.config.data_url + '?only=rhythm&role=' + encodeURIComponent(role), { credentials: 'same-origin' })
+            var key = listened();
+            if (key.indexOf('midi:') === 0) { realign(); return; }
+            gridKey = key;
+            if (grids.hasOwnProperty(key)) { grid = grids[key]; realign(); return; }
+            var known = key ? ((ctx.sources() || {})[role] || []).some(function (v) { return v.key === key && v.url; })
+                : !!(ctx.reads() || {})[role];
+            if (!known || !(ctx.config || {}).data_url) { grids[key] = grid = false; realign(); return; }
+            grid = null;
+            realign();
+            fetch(ctx.config.data_url + '?only=rhythm&role=' + encodeURIComponent(role)
+                  + (key ? '&source=' + encodeURIComponent(key) : ''), { credentials: 'same-origin' })
                 .then(App.jsonOrExplain)
-                .then(function (res) { grid = (res && res.rhythm && res.rhythm.beats && res.rhythm.beats.length) ? res.rhythm : false; })
-                .catch(function () { grid = false; })
-                .then(function () { realign(); if (axis) paint(axis.time(), false); });
+                .then(function (res) { grids[key] = (res && res.rhythm && res.rhythm.beats && res.rhythm.beats.length) ? res.rhythm : false; })
+                .catch(function () { grids[key] = false; })
+                .then(function () {
+                    if (gridKey !== key) return;          // une autre version écoutée entre-temps
+                    grid = grids[key];
+                    realign();
+                    if (axis) paint(axis.time(), false);
+                });
         }
 
         sync.addEventListener('change', function () { if (axis) paint(axis.time(), true); });
+        // La gravure est JUSTIFIÉE à la largeur de la zone (`WamaScorePlayer.engrave`, 2026-11-18) :
+        // une zone élargie ou rétrécie (fenêtre, disposition, plein écran) la fait regraver, une
+        // fois la largeur stable — pas pour un pixel.
+        var laidOut = 0;
+        if (global.ResizeObserver) {
+            new global.ResizeObserver(function () {
+                var w = paper.clientWidth;
+                if (!w || Math.abs(w - laidOut) < 24) return;
+                laidOut = w;
+                rendered = null;
+                schedule();
+            }).observe(paper);
+        }
         // Une AUTRE version écoutée (Entrée, Rendu, une lecture MIDI) : le calage est le sien.
         ctx.on('source', function (p) {
-            if (p && p.role === (options.media || 'audio')) { realign(); if (axis) paint(axis.time(), false); }
+            if (p && p.role === (options.media || 'audio')) { loadGrid(); if (axis) paint(axis.time(), false); }
         });
         if (axis) axis.subscribe(function (snap) { paint(snap.time, snap.playing || snap.reason === 'seek'); });
         // Un rendu refait (« Appliquer ») est un autre audio : sa grille se redemande — et une
         // partition LUE (lecture seule) a pu être réécrite par son process.
-        ctx.on('redone', function () { grid = null; realign(); loadGrid(); if (readOnly()) schedule(); });
+        ctx.on('redone', function () { grids = {}; grid = null; realign(); loadGrid(); if (readOnly()) schedule(); });
         // Une écoute qui finit apporte ses paroles (`options.lyrics`) : la vue se regrave avec elles.
         ctx.on('processes', function () { if (readOnly() || options.lyrics) schedule(); });
         // Annuler / rétablir peut rendre un texte où la note choisie n'est plus à sa place.

@@ -338,7 +338,11 @@
         function onAxis(key) {
             var p = players[key];
             if (!p || p.drop || !axis) return;
-            p.drop = axis.attach(p.el, { offset: axisOffset });
+            // À rebours, chaque lecteur se fait entendre à son niveau (2026-11-18, décision de
+            // Fabien : la lecture inversée s'entend) — le gain d'une piste, hors du volume du média.
+            var Rev = global.WamaReverseAudio;
+            p.drop = axis.attach(p.el, { offset: axisOffset, reverse: Rev ? Rev.forMedia(p.el, {
+                gain: function () { return p.level ? p.level.gain.value : 1; } }) : null });
         }
         function offAxis(key) {
             var p = players[key];

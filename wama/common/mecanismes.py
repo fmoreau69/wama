@@ -2699,7 +2699,11 @@ MECHANISMS = (
               "l'axe est la SEULE horloge (2026-11-02, Fabien : le modèle de BIND, fin du « média "
               "maître ») — les médias attachés, autant qu'il en faut, le SUIVENT, recalés par une "
               "vitesse à peine corrigée puis un repositionnement (seuils réglables), muets en "
-              "arrière ; un média qui joue et attend ses données retient l'axe le temps qu'elles "
+              "arrière — sauf un média qui DÉCLARE un lecteur à rebours (`attach(el, {reverse})`, "
+              "`wama-reverse-audio.js` : le son décodé une fois, retourné, joué à la vitesse du "
+              "recul ; 2026-11-18, Fabien : « je veux entendre le son à l'envers en lecture "
+              "inversée […] tous les logiciels audiovisuels lisent l'audio à reculon ») : le lecteur "
+              "audio commun et les lecteurs du mixage le déclarent ; un média qui joue et attend ses données retient l'axe le temps qu'elles "
               "arrivent (2026-11-08, `SYNC.hold`) ; un geste sur un média est une commande ; le pas suit la cadence la plus "
               "fine déclarée ; sous charge les avis s'espacent, jamais le temps ; vitesse CHOISIE "
               "distincte du cran de shuttle ; clavier du "
@@ -2721,6 +2725,7 @@ MECHANISMS = (
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
               annexes=('wama/common/static/common/js/wama-transport.js',
                        'wama/common/static/common/css/wama-transport.css',
+                       'wama/common/static/common/js/wama-reverse-audio.js',
                        'wama/common/static/common/js/wama-timeline.js',
                        'wama/common/utils/waveform.py',
                        'wama/common/services/ui_smoke_editor.py'),
@@ -3804,7 +3809,14 @@ MECHANISMS = (
               "la page (`WamaScore.syncOf`/`timeMap`) : la note colorée et la lecture MIDI "
               "(`WamaMidiPlayer.retimed`, un tempo par mesure) tombent où l'audio la joue. Né le "
               "2026-11-15 (cards de Fabien : le calage deviné se trompait de 6 à 16 s) ; une "
-              "partition fournie, sans repères, se cale sur la 1re et la dernière attaque",
+              "partition fournie, sans repères, se cale sur la 1re et la dernière attaque — celles "
+              "de l'audio ÉCOUTÉ depuis le 2026-11-18 (`?only=rhythm&source=`, une version de "
+              "`Surface.sources_of` : seul le Rendu les donnait, une reprise sans rendu n'avait rien "
+              "à suivre). La face « Partition » de la visionneuse reçoit ce que lit la page "
+              "(`preview_utils._score_page_reads` : adresse de données, versions, version de chaque "
+              "face) — un seul calage, page et visionneuse. Même jour : la gravure JUSTIFIÉE à la "
+              "largeur de sa zone (`WamaScorePlayer.engrave`, reflux `wrap` d'abcjs à espacement "
+              "borné, regravée plus large plutôt que coupée)",
               'wama/common/utils/score_timing.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
               depends_on=('audio_rhythm',)),

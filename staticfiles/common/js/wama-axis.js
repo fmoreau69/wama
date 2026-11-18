@@ -21,7 +21,12 @@
  * écart se rattrape par une vitesse à peine corrigée (le navigateur garde la hauteur du son), un
  * grand par un repositionnement. Les deux seuils sont des RÉGLAGES (`SYNC`, `create({sync})`,
  * `attach(el, {sync})`). En arrière ou au-delà de `MEDIA_MAX_RATE`, il se tait et l'axe le recale
- * à intervalles — la lecture arrière silencieuse de l'éditeur du transcriber. Un geste fait sur le
+ * à intervalles — la lecture arrière silencieuse de l'éditeur du transcriber. EN ARRIÈRE, un média
+ * qui DÉCLARE un lecteur à rebours (`attach(el, {reverse})`, `wama-reverse-audio.js`) se fait
+ * ENTENDRE à l'envers (2026-11-18, décision de Fabien : « je veux entendre le son à l'envers en
+ * lecture inversée. C'est un moyen de se repérer dans l'audio de la même façon qu'en avant en plus
+ * de voir la forme d'onde […] tous les logiciels audiovisuels lisent l'audio à reculon ») ; les
+ * autres restent muets. Un geste fait sur le
  * média lui-même (son bouton, un clic dans son onde) est une COMMANDE à l'axe, jamais une horloge.
  * Un média qui JOUE et attend ses données (tampon vide, positionnement en cours) RETIENT l'axe :
  * l'axe s'arrête avec lui, les autres suiveurs se taisent là où ils sont, et tout repart quand
@@ -190,6 +195,32 @@
         // ── Les suiveurs ────────────────────────────────────────────────────────────────────
         /** Les médias joueraient-ils eux-mêmes (lecture audible) ? */
         function audible() { return s.playing && s.rate > 0 && s.rate <= MEDIA_MAX_RATE; }
+        /** L'axe RECULE à une vitesse qu'un lecteur à rebours tient (`attach(el, {reverse})`). */
+        function backward() { return s.playing && s.rate < 0 && -s.rate <= MEDIA_MAX_RATE; }
+        /** Le SON À REBOURS d'un suiveur qui le déclare (2026-11-18, Fabien : « je veux entendre le
+         *  son à l'envers en lecture inversée […] tous les logiciels audiovisuels lisent l'audio à
+         *  reculon ») : son lecteur à rebours (`WamaReverseAudio.forMedia`) joue pendant que l'axe
+         *  recule — reparti quand la vitesse change ou qu'il s'écarte de l'axe au-delà de `reseek` —,
+         *  et se tait dès que l'axe ne recule plus. Le média lui-même reste muet et recalé à
+         *  intervalles (l'image, la tête de lecture), comme avant. */
+        function reverseFollow(f) {
+            if (!f.reverse) return;
+            if (backward() && covers(f)) {
+                var t = target(f), heard = f.reverse.time();
+                if (f.reverseRate !== -s.rate || (heard != null && Math.abs(heard - t) > f.sync.reseek)) {
+                    f.reverseRate = -s.rate;
+                    f.reverse.play(t, -s.rate);
+                }
+                if (f.reverse.level) f.reverse.level();
+                return;
+            }
+            reverseStop(f);
+        }
+        function reverseStop(f) {
+            if (!f.reverse || f.reverseRate == null) return;
+            f.reverseRate = null;
+            f.reverse.stop();
+        }
         /** Le temps du média qui correspond au temps de l'axe. */
         function target(f) { return s.time + f.offset; }
         /** L'axe est-il dans ce que le média couvre ? (un média décalé commence plus tard) */
@@ -266,6 +297,7 @@
         function ours(at) { return at != null && now() - at < OWN_EVENT_MS; }
         /** Recale UN suiveur sur l'axe. `at` : l'instant (ms) du battement, pour espacer les seeks. */
         function follow(f, at) {
+            reverseFollow(f);
             if (!audible() || !covers(f)) {
                 hush(f);
                 if (at == null || !s.playing || at - f.lastSeek >= SEEK_EVERY_MS) {
@@ -294,7 +326,7 @@
         function followAll(at) { followers.forEach(function (f) { follow(f, at); }); }
         /** L'axe arrêté : chaque média se tait, posé au temps de l'axe — l'image dit l'instant. */
         function settleAll() {
-            followers.forEach(function (f) { hush(f); place(f); });
+            followers.forEach(function (f) { reverseStop(f); hush(f); place(f); });
         }
         /** Une vitesse que le média sait tenir lui est posée TOUT DE SUITE, même à l'arrêt : une
          *  lecture lancée depuis le média lui-même (son bouton) part à la vitesse choisie. */
@@ -525,7 +557,10 @@
              *  devient positionnable) ; `o.sync` règle SON recalage ; `o.fps` déclare sa cadence ;
              *  `o.toggle` : un clic sur l'image lance ou arrête l'axe — le geste d'une vidéo dont
              *  les commandes sont ailleurs (bande du transport, surface) ; tant qu'elle montre ses
-             *  contrôles natifs, c'est eux qui le font. Rend la fonction qui le détache, lui seul. */
+             *  contrôles natifs, c'est eux qui le font. `o.reverse` : son lecteur À REBOURS
+             *  (`{play(t, rate), stop(), time(), level?()}`, `WamaReverseAudio.forMedia`) — il se fait
+             *  entendre quand l'axe recule ; sans lui, le média reste muet en arrière. Rend la
+             *  fonction qui le détache, lui seul. */
             attach: function (el, o) {
                 if (!el) return function () {};
                 axis.detach(el);
@@ -533,6 +568,8 @@
                 var f = { el: el, offset: Number(o.offset) || 0,
                           play: typeof o.play === 'function' ? o.play : null,
                           seek: typeof o.seek === 'function' ? o.seek : null,
+                          reverse: o.reverse && typeof o.reverse.play === 'function' ? o.reverse : null,
+                          reverseRate: null,
                           sync: Object.assign({}, sync, o.sync || {}),
                           lastSeek: 0, pausedAt: null, playedAt: null, placedTo: null,
                           drift: null, catching: 0, ownRate: null, sounding: false, here: null,
@@ -623,6 +660,7 @@
                 followers = followers.filter(function (f) { return gone.indexOf(f) < 0; });
                 gone.forEach(function (f) {
                     f.drop();
+                    reverseStop(f);
                     hush(f);
                     if (f.el.getAttribute && f.el.getAttribute('data-wama-multiplay') === 'axis') {
                         f.el.removeAttribute('data-wama-multiplay');

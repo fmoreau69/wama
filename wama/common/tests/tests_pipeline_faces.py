@@ -245,6 +245,42 @@ class ProcessFacesTest(_MediaRootMixin, TestCase):
         self.assertEqual(out, _score_face('composer', gen, 'output', out, inp, out),
                          'a face that is no score is left as it is')
 
+    def test_the_score_face_is_handed_what_the_page_reads_to_set_it(self):
+        """2026-11-18 (Fabien : « la synchro en preview n'est pas du tout gérée — réutiliser TOUS
+        les mécanismes de resynchro de la page ») : the face is handed what the PAGE reads to set
+        its score — its data address (the attacks of the audio listened to), the audio role its
+        score follows, that role's file and its VERSIONS (those of the page's transport), and the
+        version each face of the preview is, recognised by the file it shows. A score the page
+        only reads gets them too ; it just has no editing."""
+        from wama.common.surfaces import INPUT_SOURCE
+        from wama.common.utils.preview_utils import _score_face
+        from wama.composer.models import ComposerGeneration
+        cover = self._file('composer/input/cover.wav')
+        song = self._file('composer/output/song.wav')
+        abc = b'X:1\nM:4/4\nQ:1/4=60\nK:C\nC4|\n'
+        gen = ComposerGeneration.objects.create(
+            user=self.user, prompt='p', melody_reference=cover, audio_output=song,
+            extracted_score=self._file('composer/output/reduced.abc', abc),
+            rendered_score=self._file('composer/output/played.abc', abc))
+        inp, out = self._face_of(cover), self._face_of(song)
+        faces = self._faces('composer', gen, inp, out)
+        # The input as a version of the medium read (`Surface.sources_of`, its own rule, tested with
+        # it — here the composer's ports are not those of the base) : the cover.
+        from unittest import mock
+        with mock.patch('wama.common.utils.preview_utils.work_input_name', return_value=cover):
+            reduced = _score_face('composer', gen, 'extract_score', faces['extract_score'][1], inp, out)['score']
+            played = _score_face('composer', gen, 'rendered_score', faces['rendered_score'][1], inp, out)['score']
+        page = reduced['page']
+        self.assertEqual(f'/common/surface/composer/score/{gen.pk}/data/', page['data_url'])
+        self.assertEqual('audio', page['role'])
+        self.assertTrue(page['read'].endswith('song.wav'), 'the role reads the render')
+        self.assertEqual({'input': INPUT_SOURCE, 'output': ''}, page['keys'])
+        self.assertIn(INPUT_SOURCE, [v['key'] for v in page['sources']])
+        self.assertEqual(page['data_url'], played['page']['data_url'])
+        self.assertEqual({}, _score_face('composer', gen, 'extract_score',
+                                         {**faces['extract_score'][1], 'field': ''}, inp, out)['score']['page'],
+                         'no page showing it : nothing')
+
     def test_the_voice_of_the_avatarizer_is_a_face_between_the_avatar_and_the_video(self):
         from wama.avatarizer.models import AvatarJob
         avatar = self._file('avatarizer/input/face.png')

@@ -1298,6 +1298,40 @@ class ScoreRulesTest(SimpleTestCase):
         self.assertEqual(['anchors', 'a', 'a'], out['supplied'])
         self.assertEqual(['', None, None], out['nothing'])
 
+    def test_the_score_is_engraved_justified_to_its_zone(self):
+        """2026-11-18 (Fabien : « les mesures sortent de la partition sur la droite, ne sont pas
+        consistantes et ne sont pas bornées […] alignées à droite dans la zone, comme du texte
+        justifié ») : the engraving reflows its measures into the width of its zone (abcjs `wrap`,
+        spacing bounded) instead of the lines of the ABC text ; a measure too dense for it makes it
+        engrave WIDER — the score is scaled to the zone, never cut. The export prints the same."""
+        self.engine.eval(_js('common/js/wama-score-player.js'))
+        out = json.loads(self.engine.eval('''(function(){
+            var calls = [];
+            window.ABCJS = {
+              renderAbc: function (paper, abc, o) { calls.push(o); paper.width = o.staffwidth;
+                return [{ setUpAudio: function () {}, warnings: [] }]; },
+              TimingCallbacks: function () { this.noteTimings = []; }};
+            function paper(width, needs) {
+              var p = { clientWidth: width, width: 0 };
+              p.querySelector = function () { return { viewBox: { baseVal: { width: p.width + 30 } },
+                getBBox: function () { return { x: 0, width: Math.max(p.width + 20, needs) }; } }; };
+              return p; }
+            var P = window.WamaScorePlayer;
+            P.engrave(paper(1100, 0), 'X:1', {});
+            var fits = calls.slice(); calls.length = 0;
+            P.engrave(paper(700, 1000), 'X:1', {});
+            return JSON.stringify({fits: fits.map(function (o) { return [o.staffwidth, !!o.wrap, o.responsive]; }),
+                                   wider: calls.map(function (o) { return o.staffwidth; }),
+                                   narrow: P.staffWidth(300), zero: P.staffWidth(0)});
+        })()'''))
+        self.assertEqual([[1070, True, 'resize']], out['fits'], 'one engraving, at the width of its zone')
+        self.assertEqual([740, 851, 979], out['wider'], 'too dense : engraved wider, at most three times')
+        self.assertEqual(740, out['narrow'], 'a narrow zone : the score is scaled down, not cut')
+        self.assertEqual(740, out['zero'])
+        brick = _js('common/js/surfaces/brick-score-view.js')
+        self.assertIn('wrap: global.WamaScorePlayer.WRAP', brick, 'the export is laid out the same')
+        self.assertIn('new global.ResizeObserver', brick, 'a resized zone is laid out again')
+
     def test_a_clicked_note_gives_its_time_and_its_voice(self):
         timings = json.dumps([{'type': 'bar', 'milliseconds': 0},
                               {'type': 'event', 'milliseconds': 750, 'startCharArray': [12, 40]}])
@@ -1393,6 +1427,45 @@ class AxisTest(SimpleTestCase):
         self.assertAlmostEqual(0.516, out['back'][0], places=3)
         self.assertAlmostEqual(0.516, out['back'][1], places=3, msg='the silent medium is set back in step')
         self.assertTrue(out['resumed'], 'forward again : the medium plays again')
+
+    def test_backward_a_medium_with_a_reverse_player_is_heard_in_reverse(self):
+        """2026-11-18 (Fabien : « je veux entendre le son à l'envers en lecture inversée […] tous les
+        logiciels audiovisuels lisent l'audio à reculon ») : backward, a medium attached with a
+        reverse player (`attach(el, {reverse})`) is HEARD — its reverse player plays from the axis
+        time at the backward speed, restarted when the speed changes, stopped as soon as the axis
+        goes forward or stops ; the medium itself stays silent and set back in step. A medium that
+        declares nothing stays silent backward."""
+        out = self._eval('''
+            var axis = window.WamaAxis.create(opts), heard = fakeMedia(8), mute = fakeMedia(8);
+            var calls = [];
+            var rev = {now: null,
+                       play: function (t, r) { calls.push(['play', Math.round(t * 1000), r]); rev.now = t; },
+                       stop: function () { calls.push(['stop']); rev.now = null; },
+                       time: function () { return rev.now; }};
+            axis.attach(heard, {reverse: rev}); axis.attach(mute);
+            axis.seek(4); axis.play(); step(16);
+            var forward = calls.length;
+            axis.shuttle(-2); step(16);
+            var back = calls.slice(), silent = [heard.paused, mute.paused];
+            rev.now = axis.time(); step(16);
+            var steady = calls.length;
+            axis.shuttle(-3); step(16);
+            var faster = calls[calls.length - 1];
+            axis.shuttle(1); step(16);
+            var stopped = calls[calls.length - 1];
+            axis.shuttle(-1); step(16); axis.pause();
+            return {forward: forward, back: back, silent: silent, steady: steady, faster: faster,
+                    stopped: stopped, paused: calls[calls.length - 1]};
+        ''')
+        self.assertEqual(0, out['forward'], 'forward : the medium plays itself')
+        self.assertEqual('play', out['back'][0][0])
+        self.assertEqual(2, out['back'][0][2], 'at the backward speed')
+        self.assertAlmostEqual(4000, out['back'][0][1], delta=60, msg='from the axis time')
+        self.assertEqual([True, True], out['silent'], 'both media themselves stay silent')
+        self.assertEqual(1, out['steady'], 'in step : not restarted at every beat')
+        self.assertEqual(3, out['faster'][2], 'a new speed restarts it')
+        self.assertEqual(['stop'], out['stopped'], 'forward again : silent backward player')
+        self.assertEqual(['stop'], out['paused'], 'the axis stopped : silent')
 
     def test_a_follower_catches_up_at_a_fixed_speed_and_is_repositioned_when_far(self):
         """Measured on a real card (composer #880, 2026-11-02) : a speed corrected IN PROPORTION to
@@ -2957,6 +3030,37 @@ class ComposerScoreSurfaceTest(TestCase):
         self.assertAlmostEqual(11.5, grid['last_onset'], delta=0.05, msg='the last click')
         self.assertNotIn('chroma', grid, 'nothing guesses on the pitches any more')
         self.assertIsNone(self.client.get(self.base + 'data/?only=rhythm&role=nope').json()['rhythm'])
+
+    def test_the_beat_grid_is_that_of_the_version_listened_to(self):
+        """2026-11-18 (Fabien : « la synchro en preview n'est pas du tout gérée ») : the grid was
+        that of the role's field ALONE — the composer's render. A cover WITHOUT a render (Plus d'eau,
+        #1632) had no attack to follow, page and viewer alike, while its score follows the INPUT.
+        The grid is now that of a VERSION of the medium (`?source=`, `Surface.sources_of`) — only
+        one the surface offers — and the brick asks for the one listened to."""
+        import soundfile as sf
+        rate = 22050
+        track = np.zeros(rate * 12, dtype=np.float32)
+        burst = np.sin(2 * np.pi * 880 * np.arange(int(0.03 * rate)) / rate).astype(np.float32)
+        for start in range(int(0.5 * rate), len(track) - len(burst), int(0.5 * rate)):
+            track[start:start + len(burst)] = burst
+        from unittest import mock
+
+        from wama.common.surfaces import INPUT_SOURCE, Surface
+        rel = self.rel.replace('score_extracted.abc', 'cover.wav')
+        sf.write(str(Path(settings.MEDIA_ROOT) / rel), track, rate)
+        type(self.gen).objects.filter(pk=self.gen.pk).update(melody_reference=rel, audio_output='')
+        self.assertIsNone(self.client.get(self.base + 'data/?only=rhythm&role=audio').json()['rhythm'],
+                          'no render : the role read has no attacks')
+        # The versions the surface offers (`sources_of`, its own rule, tested with it) : the input.
+        offered = [{'key': INPUT_SOURCE, 'label': 'Entrée', 'name': rel}]
+        with mock.patch.object(Surface, 'sources_of', return_value=offered):
+            grid = self.client.get(self.base + f'data/?only=rhythm&role=audio&source={INPUT_SOURCE}').json()['rhythm']
+            named = self.client.get(self.base + 'data/?only=rhythm&role=audio&source=melody_reference').json()
+        self.assertAlmostEqual(0.5, grid['first_onset'], delta=0.05, msg='the attacks of the input')
+        self.assertIsNone(named['rhythm'], 'a field named by the page is never read')
+        brick = _js('common/js/surfaces/brick-score-view.js')
+        self.assertIn("(key ? '&source=' + encodeURIComponent(key) : '')", brick)
+        self.assertIn('anchorsOf: gridKey', brick, 'the attacks hold on the audio they were read on')
 
     def test_an_unchanged_score_keeps_nothing(self):
         from wama.common.models import ItemRevision

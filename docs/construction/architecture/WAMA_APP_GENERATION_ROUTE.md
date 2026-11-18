@@ -1701,7 +1701,18 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       (au milieu ±0,25 ; double-clic : ×1 ; une vitesse avant devient la vitesse choisie, une
       vitesse arrière se dit « ◀◀ ») ; les crans du shuttle J/L vont eux aussi à ±32
       (`WamaShuttle.DEFAULT_LEVELS`, ils s'arrêtaient à ±16). L'axe n'a pas changé : il tenait
-      déjà toute vitesse signée, muet en arrière et au-delà de ×4 (`MEDIA_MAX_RATE`). Et la
+      déjà toute vitesse signée, muet en arrière et au-delà de ×4 (`MEDIA_MAX_RATE`).
+      ✅ **2026-11-18 — l'arrière S'ENTEND** (décision de Fabien : *« Oui je veux entendre le son à
+      l'envers en lecture inversée. C'est un moyen de se repérer dans l'audio de la même façon
+      qu'en avant en plus de voir la forme d'onde. […] Tous les logiciels audiovisuels lisent
+      l'audio à reculon »*) : option d'attache `reverse` de l'axe — un lecteur à rebours
+      (`wama-reverse-audio.js` : le son décodé une fois, retourné, joué par WebAudio à la vitesse
+      du recul, jusqu'à ×4) ; un média qui ne la déclare pas reste muet en arrière. Déclarée par le
+      lecteur audio commun (cards, volet, visionneuse, transport) et par les lecteurs du mixage
+      (à leur niveau). Mesuré dans Chromium sur Plus d'eau (3:41) : décodage 1,2 s au premier
+      recul, 78 Mo, départ immédiat ensuite ; tampons gardés sous 600 Mo. ⏳ La VIDÉO : décoder sa
+      piste son en entier dans la page coûterait le fichier vidéo (des centaines de Mo) — à faire
+      par une copie audio côté serveur, proposé. Garde : `AxisTest`. Et la
       page de correction du transcriber tire `remember` (rouvrir une transcription reprend où
       on s'était arrêté — décision du même jour) : premier consommateur d'une option de la
       marche ②. Gardes : `AxisTest` (bornes égales des deux côtés et égales à celles du

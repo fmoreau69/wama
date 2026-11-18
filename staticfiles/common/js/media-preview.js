@@ -2108,13 +2108,33 @@
 
         // Ce qu'on écoute d'abord : l'audio de la face d'où l'on vient, sinon celui dont la
         // partition est tirée, sinon le premier ; les lectures MIDI, la partition les ajoute.
-        const audios = (sc.audios || []).map(function (a) {
-            return { key: a.key, label: 'Audio — ' + a.label, url: a.url };
+        // Quand la page d'édition s'ouvre sur l'élément (`sc.page`, 2026-11-18 — Fabien : « il faut
+        // réutiliser tous les mécanismes de resynchro de la page ») : SES versions de l'audio, son
+        // rôle et son adresse de données, donc son calage (repères, sinon attaques de l'audio
+        // écouté) ; une face (Entrée, Sortie) y est la version qui montre le même fichier.
+        const page = sc.page || {};
+        const role = page.role || 'audio';
+        const sideKey = function (side) {
+            return page.keys && Object.prototype.hasOwnProperty.call(page.keys, side) ? page.keys[side] : side;
+        };
+        const audios = (page.role ? page.sources : sc.audios || []).map(function (a) {
+            return { key: a.key, label: 'Audio — ' + a.label, url: a.url, peaks: a.peaks };
         });
         const keys = audios.map(function (a) { return a.key; });
-        const listened = keys.indexOf(data._fromSide) >= 0 ? data._fromSide
-            : (keys.indexOf(sc.follows) >= 0 ? sc.follows : (keys[0] || ''));
-        face.dataset.listened = listened;
+        const playable = function (key) {
+            return key != null && (keys.indexOf(key) >= 0 || (key === '' && !!page.read));
+        };
+        const follows = sc.follows ? sideKey(sc.follows) : '';
+        const from = data._fromSide ? sideKey(data._fromSide) : null;
+        const listened = playable(from) ? from
+            : (sc.follows && playable(follows) ? follows : (keys[0] || ''));
+        // La face (Entrée, Sortie) d'une version, quand elle en est une : ce qui passe d'une face à
+        // l'autre (`_goSide`).
+        const sideOf = function (key) {
+            const side = Object.keys(page.keys || {}).filter(function (s) { return page.keys[s] === key; })[0];
+            return side || key;
+        };
+        face.dataset.listened = sideOf(listened);
 
         const sourceBtn = document.createElement('button');
         sourceBtn.type = 'button';
@@ -2146,26 +2166,31 @@
         _scoreScripts(sc.scripts).then(function () {
             if (!face.isConnected && !document.body.contains(face)) return;     // face déjà remplacée
             stage.textContent = '';
+            const reads = { score: sc.abc };
+            if (page.read) reads[role] = page.read;
+            const sources = {}, chosen = {};
+            if (audios.length) sources[role] = audios;
+            if (listened) chosen[role] = listened;
             const ctx = window.WamaSurface.view({
-                config: { pk: sc.pk, sound_banks: sc.sound_banks },
-                reads: { score: sc.abc },
-                sources: audios.length ? { audio: audios } : {},
-                chosen: listened ? { audio: listened } : {},
+                config: { pk: sc.pk, sound_banks: sc.sound_banks, data_url: page.data_url || '' },
+                reads: reads,
+                sources: sources,
+                chosen: chosen,
                 axis: axis,
                 hostKeys: true,                 // la visionneuse donne les touches du temps à l'axe
                 status: function (text) { status.textContent = text || ''; },
                 slots: [
                     { brick: 'media_transport', body: transportHost, head: listenTools,
-                      options: { role: 'audio' } },
+                      options: { role: role } },
                     { brick: 'score_view', body: stage, head: scoreTools,
-                      options: { role: 'score', media: 'audio', follows: sc.follows } },
+                      options: { role: 'score', media: role, follows: follows } },
                 ],
             });
             // Ce qu'on écoute passe à la face suivante (`_goSide`).
-            ctx.on('source', function (p) { if (p && p.role === 'audio') face.dataset.listened = p.key; });
+            ctx.on('source', function (p) { if (p && p.role === role) face.dataset.listened = sideOf(p.key); });
             // Aucun audio : la première lecture MIDI d'office, plutôt qu'un lecteur muet.
-            const first = !listened && (ctx.sources().audio || [])[0];
-            if (first) ctx.setSource('audio', first.key);
+            const first = !listened && !reads[role] && (ctx.sources()[role] || [])[0];
+            if (first) ctx.setSource(role, first.key);
         }).catch(function (e) {
             stage.textContent = 'Partition non gravée : ' + (e && e.message || e);
         });

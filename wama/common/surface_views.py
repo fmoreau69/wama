@@ -3,7 +3,9 @@ n'écrit ni page, ni lecture, ni enregistrement (2026-10-10, chantier SURFACES).
 
   page    GET   /common/surface/<app>/<clé>/<pk>/        la page : grille des briques
   data    GET   …/data/                                  ce que les briques lisent (JSON)
-                …/data/?only=rhythm&role=<rôle>          la grille des temps d'un audio lu
+                …/data/?only=rhythm&role=<rôle>[&source=<version>]
+                                                         la grille des temps d'un audio lu — de l'une
+                                                         de ses versions (`sources_of`)
                 …/data/?only=chain&role=<rôle>&i=<image>&box=x1,y1,x2,y2[&gap=<n>]
                                                          l'OBJET d'un document de détections sur
                                                          toute la séquence (`detections.object_chain`)
@@ -319,7 +321,8 @@ def surface_data(request, app: str, key: str, pk: int):
     if not ok:
         return JsonResponse({'error': reason}, status=409)
     if request.GET.get('only') == 'rhythm':
-        return JsonResponse({'rhythm': _rhythm_of(found, item, request.GET.get('role') or '')})
+        return JsonResponse({'rhythm': _rhythm_of(_version_name(
+            found, item, request.GET.get('role') or '', request.GET.get('source') or ''))})
     if request.GET.get('only') == 'chain':
         try:
             return JsonResponse({'chain': _chain_of(found, item, request.GET)})
@@ -329,15 +332,7 @@ def surface_data(request, app: str, key: str, pk: int):
         # Les PICS FINS d'un média lu (service commun `waveform.dense_peaks`) : mis en file s'ils
         # manquent ; un échec se retente à la 1ʳᵉ demande d'une page, pas pendant qu'elle interroge.
         from wama.common.utils.waveform import dense_peaks
-        role = request.GET.get('role') or ''
-        field_name = found.reads.get(role)
-        value = getattr(item, field_name, None) if field_name and field_name not in found.documents else None
-        name = getattr(value, 'name', '') or ''
-        source = request.GET.get('source') or ''
-        if source:
-            # Une VERSION du média lu (une sortie de process, `Surface.sources_of`) : seulement
-            # l'une de celles que la surface propose — jamais un champ nommé par la page.
-            name = next((s['name'] for s in found.sources_of(item, role) if s['key'] == source), '')
+        name = _version_name(found, item, request.GET.get('role') or '', request.GET.get('source') or '')
         return JsonResponse(dense_peaks(name, retry_failed=not request.GET.get('poll')))
     from wama.common.services.edit_lock import state_token
     reads, media, sources = {}, {}, {}
@@ -535,22 +530,38 @@ def _chain_of(found, item, query) -> list:
                                    max_gap=int(query.get('gap') or 0))
 
 
-def _rhythm_of(found, item, role: str):
-    """La grille des temps (`audio_rhythm.beat_grid`) de l'AUDIO lu sous `role` — demandée à part
-    (`?only=rhythm`) par une brique qui cale une partition dessus : quelques secondes au premier
-    appel, la page ne l'attend pas. None pour un rôle inconnu, un document ou un non-audio."""
+def _version_name(found, item, role: str, source: str = '') -> str:
+    """Le fichier (chemin relatif à MEDIA_ROOT) que la page LIT sous `role` : le champ du rôle, ou
+    l'une de ses VERSIONS (`Surface.sources_of`, clé `source` — une sortie de process, l'entrée) —
+    seulement l'une de celles que la surface propose, jamais un champ nommé par la page. '' pour un
+    rôle inconnu, un document, un texte, ou un champ vide. Lu par les pics fins et la grille des
+    temps (2026-11-18 : la grille ne lisait que le champ du rôle)."""
     field_name = found.reads.get(role)
     if not field_name or role in found.documents or role in found.texts:
-        return None
-    value = getattr(item, field_name, None)
-    if not getattr(value, 'name', ''):
+        return ''
+    if source:
+        return next((s['name'] for s in found.sources_of(item, role) if s['key'] == source), '')
+    return getattr(getattr(item, field_name, None), 'name', '') or ''
+
+
+def _rhythm_of(name: str):
+    """La grille des temps (`audio_rhythm.beat_grid`) de l'AUDIO `name` (`_version_name`) —
+    demandée à part (`?only=rhythm`) par une brique qui cale une partition dessus : quelques
+    secondes au premier appel, la page ne l'attend pas. None sans fichier ou pour un non-audio.
+
+    2026-11-18 (Fabien : « la synchro en preview n'est pas du tout gérée ») : la grille était celle
+    du champ du rôle SEUL — le Rendu du composer. Une card de reprise sans rendu (Plus d'eau, #1632)
+    n'avait aucune attaque à suivre, page comme visionneuse : « Tempo écrit (pas d'audio à
+    suivre) », alors que la partition suit l'Entrée. Elle est désormais celle de la version ÉCOUTÉE."""
+    if not name:
         return None
     from wama.common.utils.mime_utils import guess_mime_type
-    if not guess_mime_type(value.name).startswith('audio/'):
+    if not guess_mime_type(name).startswith('audio/'):
         return None
+    from django.core.files.storage import default_storage
     from wama.common.utils.audio_rhythm import beat_grid
     try:
-        return beat_grid(value.path)
+        return beat_grid(default_storage.path(name))
     except Exception:
         return None
 
