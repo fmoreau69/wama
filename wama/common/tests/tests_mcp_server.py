@@ -20,7 +20,7 @@ from django.contrib.auth import get_user_model
 from django.test import SimpleTestCase, TestCase
 
 from wama.common.services import mcp_server
-from wama.tool_api import TOOL_REGISTRY, app_id_for_tool, tool_input_schema
+from wama.tool_api import TOOL_REGISTRY, tool_input_schema
 
 
 async def _inline(fn):
@@ -69,16 +69,19 @@ class SchemaArgumentsTest(SimpleTestCase):
 
     def test_un_enum_n_est_jamais_plus_strict_que_la_porte(self):
         """Chaque valeur annoncée doit être acceptée par `invalid_choice_values` — et la garde
-        doit porter sur au moins un enum réel, sinon elle passe à vide."""
-        from wama.common.utils.param_schema import schema_choice_values
+        doit porter sur au moins un enum réel, sinon elle passe à vide. Le schéma lu est CELUI de
+        la porte (`tool_param_schema` : l'app de l'outil, ou ce qu'il déclare — 2026-11-18, la
+        programmation), jamais une seconde résolution par l'app."""
+        from wama.common.utils.param_schema import choice_values
+        from wama.tool_api import tool_param_schema
         vus = 0
         for name in TOOL_REGISTRY:
-            app_id = app_id_for_tool(name)
+            index = {p['name']: p for p in tool_param_schema(name)}
             for arg, prop in tool_input_schema(name)['properties'].items():
                 if 'enum' in prop:
                     vus += 1
                     with self.subTest(outil=name, argument=arg):
-                        self.assertTrue(set(prop['enum']) <= schema_choice_values(app_id, arg))
+                        self.assertTrue(set(prop['enum']) <= set(choice_values(index.get(arg))))
         self.assertGreater(vus, 0, "aucun enum mesuré : la garde tournerait à vide")
 
 

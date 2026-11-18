@@ -982,11 +982,6 @@ def schema_extra_params(app_id: str, params: dict) -> dict:
     return {k: v for k, v in coerced.items() if k not in model_keys}
 
 
-def schema_arg_names(app_id: str) -> set:
-    """Noms de params qu'une app DÉCLARE — surface d'arguments acceptable d'un outil `**params`."""
-    return {_pget(p, 'name') for p in schema_for_app(app_id)}
-
-
 def choice_values(p) -> List[str]:
     """Valeurs VALIDES d'un select/radio : ses `choices` statiques. UNE fonction pour la porte
     (`invalid_choice_values`), l'annonce aux assistants (`tool_api` : enum JSON et ligne

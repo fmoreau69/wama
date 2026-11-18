@@ -298,9 +298,12 @@ def _scored_apps() -> tuple:
     """Apps du catalogue effectivement NOTÉES par la grille (les jumelles sandbox sont hors)."""
     try:
         from wama.common.app_registry import APP_CATALOG
+        from wama.common.sandbox import non_sandbox_apps
     except Exception:
         return ()
-    return tuple(sorted(a for a, spec in APP_CATALOG.items() if not (spec or {}).get('sandbox')))
+    # LA règle des apps notées (`sandbox.non_sandbox_apps`, que la grille lit) — elle était
+    # recopiée ici (relevé à la revérification du 2026-11-18).
+    return tuple(non_sandbox_apps(APP_CATALOG))
 
 
 #: Modules de HARNAIS — ils consomment un mécanisme pour le MESURER, jamais pour s'en servir.

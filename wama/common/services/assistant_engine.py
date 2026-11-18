@@ -1291,9 +1291,18 @@ def _unsourced_write_facts(tool_name: str, tool_args, tool_steps: list, message:
     PRÉCÉDENTS DE L'UTILISATEUR — ce qu'il a dit lui-même deux tours plus tôt est une source ;
     les réponses de l'assistant, non (règle de `_turn_sources`)."""
     from wama.common.utils.source_facts import unsourced_facts
-    from wama.tool_api import WRITE, effect_of
+    from wama.tool_api import WRITE, effect_of, tool_param_schema
     if (effect_of(tool_name) or {}).get('effect') != WRITE or not tool_args:
         return []
+    # Un INSTANT que l'outil déclare (`type: datetime` à son schéma — l'heure d'une programmation)
+    # n'est pas un fait de document : le modèle l'écrit depuis « demain soir » et l'horloge du
+    # prompt, et ses chiffres passeraient pour une année ou un téléphone non sourcés (2026-11-18,
+    # « 2026-11-19 22:00 » : `_YEAR` et `_PHONE` de `source_facts` le refusaient tous deux).
+    if isinstance(tool_args, dict):
+        moments = {p.get('name') for p in tool_param_schema(tool_name) if p.get('type') == 'datetime'}
+        tool_args = {k: v for k, v in tool_args.items() if k not in moments}
+        if not tool_args:
+            return []
     sources = [json.dumps([step.get('result') for step in tool_steps or []], ensure_ascii=False,
                           default=str), message or '']
     sources += [turn['content'] for turn in history or []

@@ -454,15 +454,32 @@ def inject_sandbox_catalog(app_catalog: dict) -> None:
         app_catalog[label] = clone
 
 
+#: L'ORIGINE d'une app du catalogue (2026-11-18) : une app de WAMA, la JUMELLE d'une app de WAMA
+#: (`generated_from`), ou une app du bac à sable NÉE D'UN MANIFESTE (`from_manifest` : le Writer, le
+#: Translator). Trois natures que Fabien distingue (« les 10 apps originelles, les 10 jumelles et
+#: 2 apps en construction ») — lues sur l'entrée que `inject_sandbox_catalog` pose, jamais sur le
+#: nom (`_NN`).
+ORIGIN_WAMA, ORIGIN_TWIN, ORIGIN_BORN = 'wama', 'twin', 'born'
+
+
+def app_origin(spec) -> str:
+    """L'origine d'une entrée d'`APP_CATALOG` (`ORIGIN_*`), '' pour une entrée du bac à sable qui
+    ne déclare ni source ni manifeste. UNE règle : `non_sandbox_apps` et `born_apps` la lisent."""
+    spec = spec or {}
+    if not spec.get('sandbox'):
+        return ORIGIN_WAMA
+    if spec.get('generated_from'):
+        return ORIGIN_TWIN
+    return ORIGIN_BORN if spec.get('from_manifest') else ''
+
+
 def non_sandbox_apps(app_catalog: dict) -> list:
     """Apps RÉELLES du catalogue (les jumelles sont exclues de la grille de conformité :
     on ne mesure pas un bac à sable, on le COMPARE à sa source)."""
-    return sorted(k for k, v in app_catalog.items() if not (v or {}).get('sandbox'))
+    return sorted(k for k, v in app_catalog.items() if app_origin(v) == ORIGIN_WAMA)
 
 
 def born_apps(app_catalog: dict) -> list:
     """Apps du bac à sable NÉES D'UN MANIFESTE (sans source) — à la différence d'une jumelle, elles
     ne doublent aucune app réelle : ce qu'elles font, aucune autre ne le fait (le Writer)."""
-    return sorted(k for k, v in app_catalog.items()
-                  if (v or {}).get('sandbox') and not v.get('generated_from')
-                  and v.get('from_manifest'))
+    return sorted(k for k, v in app_catalog.items() if app_origin(v) == ORIGIN_BORN)

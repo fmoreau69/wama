@@ -794,8 +794,9 @@ def origin(app_id: str) -> dict:
     """D'où vient l'app : WAMA, ou le bac à sable — ses DÉVELOPPEURS (créateur d'abord, puis ceux
     qui ont pris part à sa génération), l'app dont elle est la jumelle, le manifeste dont elle est
     née. Un développeur se nomme comme son compte l'affiche (nom complet, sinon identifiant)."""
+    from wama.common.sandbox import ORIGIN_WAMA, app_origin
     spec = _spec(app_id)
-    if not spec.get('sandbox'):
+    if app_origin(spec) == ORIGIN_WAMA:
         # Le monde se LIT (`app_identity` → `app_world`) et se nomme par son libellé déclaré
         # (`world_label`) : le substrat ne cite aucun monde.
         from wama.common.app_registry import world_label

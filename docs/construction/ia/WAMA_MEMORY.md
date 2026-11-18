@@ -704,6 +704,7 @@ sauvegarde déplacée à 04:20 → rouge).
 | 4 | placement automatique d'après la FILE GLOBALE + « où en est ma tâche » (pastille, calendrier) + heures creuses mesurées + plages réservées tenues sur toute la durée (`ROUTE §10.6` 13.8) | ✅ 2026-09-28 |
 | 5 | mails et posts — des OUTILS de `tool_api`, programmables sans code propre | ⏳ (quand les outils existeront) |
 | 6 | couche **Installations** de l'instance : journal DATÉ des installations et désinstallations (modèles, librairies), avec issue et voie | ✅ 2026-09-30 |
+| 7 | l'**assistant** programme, déplace et annule comme le menu de la card : outils `schedule_items`, `reschedule_action`, `cancel_scheduled_action`, qui postent les vues `common:schedule_*` ; `when` / `at` lus du schéma de l'étape 3 (`tool_api.tool_schema`) ; `get_my_calendar` rend le `schedule_id`. Jusque-là il ne faisait que LIRE le calendrier, alors que le service disait « et donc l'assistant » (`WAMA_HARNESS §9`, « Plan du 2026-11-18 », D1) | ✅ 2026-11-18 |
 
 **Décisions de Fabien (2026-09-28)** : ① ce domicile (la vue ici, le QUAND à `§10.6`) ;
 ② les installations de modèles et de librairies restent dans la couche **instance** — `AIModel` et

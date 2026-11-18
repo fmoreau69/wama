@@ -372,7 +372,7 @@ message utilisateur (+ domaine transmis par la surface, sinon 'general')
   │     3 gardes : DÉCLARÉ · DATA-GATED (rien de pertinent ⇒ prompt inchangé) · FAIL-SAFE ('')
   │     chaque extrait injecté AVEC sa référence ([transcriber:134] …)
   │
-  └─ boucle LLM à outils (90 outils au 2026-10-28, gating F7) — c'est ICI que tout se rejoint :
+  └─ boucle LLM à outils (le compte : registre « Outils de l'assistant », gating F7) — c'est ICI que tout se rejoint :
        • charger_competence(domaine)  → l'ASSISTANT charge LUI-MÊME posture + contexte labo
          (jamais la surface : un adaptateur de canal ne devine pas le domaine)
        • memory_recall(query, niveaux=…) → recall() souvenirs + RAG, sélecteur de niveaux,
@@ -387,8 +387,16 @@ message utilisateur (+ domaine transmis par la surface, sinon 'general')
    routage langue seul, pas d'enrichissement]
 ```
 
-**Le pivot API — `wama/tool_api.py`** : `TOOL_REGISTRY`, **90 outils** *(remesuré le 2026-10-28, levier 3 « Réduire le prompt d'outils » plus bas ; 73 au 2026-10-04 — dont `search_docs` / `read_doc`, la doc de WAMA elle-même, `WAMA_MEMORY §7quinquies` ; 69 au 2026-09-12 ;
-disait **51**, périmé — le compte vit ICI, c'est donc ici qu'il se re-mesure : `len(tool_descriptions())`)*
+**Le pivot API — `wama/tool_api.py`** : `TOOL_REGISTRY`. ⚠ **Le compte ne vit plus ici** (corrigé
+le 2026-11-18) : il est NOMMÉ par le registre dérivé « Outils de l'assistant » (`tools`,
+`registries_builtin.py` — effet, famille et ORIGINE de chaque outil : transverse, app de WAMA,
+surface hors catalogue, jumelle du bac à sable, app née d'un manifeste), que l'assistant lit par
+`list_registries` ; la partie VERSIONNÉE est le fait généré `outils` (`doc_facts`,
+`WAMA_APP_GENERATION_ROUTE §F6`). Cette ligne recopiait le chiffre (51, 69, 73, puis « 90 au
+2026-10-28 ») : interrogé sur lui-même le 2026-11-17 (tour 894), l'assistant l'a lu ici par
+`search_docs` et s'est décrit avec 90 outils quand le registre en comptait 168
+(`WAMA_HARNESS §9`, « Plan du 2026-11-18 »). *Les chiffres d'époque restent ceux de leur date,
+plus bas.*
 — dont **6 LECTURES TRANSVERSES** livrées le 2026-09-11 (`list_my_items`, `get_item_detail`,
 `get_item_preview`, `list_registries`, `get_my_access`, `list_my_memories`), **3 VERBES DE
 CYCLE** (`delete_item`, `duplicate_item`, `clear_my_queue`) et **`add_item_to_media_library`**
@@ -516,6 +524,11 @@ de Fabien : « purement amélioratif »), **5 ✅ le 26/09** ; seul 3 reste une 
    local ; il ne traite ni la place prise dans la fenêtre, ni le coût cloud (aucun cache de
    prompt). Ce levier reste ⏳ ; le multi-agents ouvert le même jour en est l'une des réponses,
    et la recherche d'outils par le modèle (`tool_search` de Codex) l'autre — `WAMA_HARNESS §7.4`.
+   ⏳ **Ordonné le 2026-11-18** (`WAMA_HARNESS §9`, « Plan du 2026-11-18 », B0 → B1 → B2) : d'abord
+   n'annoncer que ce que le compte peut exécuter (la décision de la porte, `accessible_apps`),
+   puis la décision sur les outils du bac à sable, puis la recherche d'outils, rejouée sur les
+   tours réels avant de basculer. Mesuré ce jour-là : 168 outils à l'exécution, 47 192 caractères
+   de liste.
 4. ✅ **TTS par phrases** : la première phrase part au service dès qu'elle est complète, la
    suivante est demandée PENDANT la lecture ; l'avatar met les morceaux en file (TalkingHead), le
    canal commun attend la fin d'un morceau avant le suivant. L'attente avant la première parole

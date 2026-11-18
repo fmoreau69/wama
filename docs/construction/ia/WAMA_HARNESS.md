@@ -148,6 +148,11 @@ déchargement (*offloading*), isolation, récupération, compaction, cache.
 
 ## 4. WAMA axe par axe — état MESURÉ le 2026-09-19
 
+> ⚠ **Une table DATÉE, pas l'état présent** (ajouté le 2026-11-18). L'assistant la lit par
+> `search_docs` et l'a prise pour son état du jour (tour 894 : « ~90 outils ») ; les cases ont été
+> complétées à leurs dates, pas remesurées ensemble. Pour l'état présent : les REGISTRES
+> (`list_registries` — dont « Outils de l'assistant »), et le plan du 2026-11-18 au §9.
+
 > ⚠ **Précision de vocabulaire (Fabien, 2026-09-20)** : **l'assistant est COMMUN et inter-mondes**
 > — son moteur vit dans `wama/common/services/assistant_engine.py` et sert **quatre** surfaces
 > (web, API v1, canaux, et le registre d'outils côté MCP). `home.html` n'est **pas** son domicile,
@@ -164,7 +169,7 @@ déchargement (*offloading*), isolation, récupération, compaction, cache.
 | 2 | **approbation humaine** | déclarée hors du code de l'outil : `approval_policy` (Codex), Plan/Act (Cline), interruptions (deepagents), `pre_tool_call` → `block`/`approve` (Hermes) | **autorisation ✅, approbation ✗** — et il faut séparer deux cas (mesuré 2026-09-20). **Ajouter une capacité** est déjà fermé : ~~`install_model` est gardé `model_manager`, dont `AppAccessPolicy.min_tier` vaut **`developpeur`**~~ *(corrigé le 2026-10-31, mesuré : depuis le 2026-10-14, `a44b890a`, les outils de gestion des modèles relèvent de `registries` — `tool_api.py:4232-4236` — et le geste est refusé DANS LE CORPS hors développeur : `_registry_management_refusal` `tool_api.py:2247` → `can_manage_registries` `accounts/permissions.py:326`, décidé par le niveau du PROFIL)*. **Agir sur ses propres données** ne l'est pas : `_refus_app()` répond « peut-il agir dans cette app » (`tool_api.py:3389`), puis l'exécution est immédiate (`assistant_engine.py:726`) ; `grep -c confirm` sur `home.html` → **0** | **écart 1** (recadré) |
 | 3 | **planification** | mode plan séparé de l'exécution (Claude Code, Cline, OpenCode) | aucun côté assistant. Le plan EXISTE ailleurs, sous forme déclarative : `StudioPipeline` (nœuds typés, exécution topologique) | l'assistant ne sait pas **proposer** un plan |
 | 4 | **sous-agents** | délégation à fenêtre de contexte **isolée** (deepagents, Goose, Claude Code) | **0 occurrence** de « sous-agent » dans `ROADMAP.md` + `WAMA_LLM.md` *(état du 19/09)*. ✅ **2026-10-29** — délégation en lecture seule : verbe `delegate` de la boucle (`DELEGATE_TOOL`, `assistant_engine.py:1384` ; `_delegate` `:1893`), contexte neuf, profondeur 1 (`MAX_AGENT_DEPTH`), couloirs par serveur, council — §7.4 (remesuré le 2026-10-31). Présélection d'outils / `tool_search` toujours ouverts | **écart 3** 🔄 |
-| 5 | **surface d'outils** | 0 à 37 outils ; Pi en expose 4 | **71** (`len(TOOL_REGISTRY)`, mesuré le 19/09 ; la doc disait 69 au 12/09, +2 le 19/09) — **90 au 2026-10-28** (§9, « sous-agents ») | pas un retard — une **nature** (surface métier). Mais 71 descriptions par prompt système |
+| 5 | **surface d'outils** | 0 à 37 outils ; Pi en expose 4 | **71** (`len(TOOL_REGISTRY)`, mesuré le 19/09 ; la doc disait 69 au 12/09, +2 le 19/09) — **90 au 2026-10-28** (§9, « sous-agents ») — 168 à l'exécution le 2026-11-18, dont 36 du bac à sable ; **le compte vivant n'est plus recopié** : registre « Outils de l'assistant » (`tools`) et fait `outils` (`ROUTE §F6`) | pas un retard — une **nature** (surface métier). Mais 71 descriptions par prompt système |
 | 6 | **registre de fournisseurs** | entrée déclarative par fournisseur : adresse, clé, protocole, **reprises et délais** | ✅ `external_sources.ExternalSource` porte `base`/`setting`/`env`/`api_key_env`/`hosting`/`cost_tier` **et `protocol`** (= le `wire_api` de Codex) `external_sources.py:91-127`. ✗ mais **deux tables coexistent** : `CLOUD_DEFAULT_MODELS` (9 fournisseurs, dont **8 sans entrée** au registre) et `OPENAI_COMPATIBLE_PROVIDERS = {'albert': 'albert'}` — **dérivable** de `protocol == 'openai'` (`llm_utils.py:256-270`). ✗ aucun délai ni reprise par fournisseur (`timeout=180.0` en signature, `llm_utils.py:291`) *(état du 19/09)*. ✅ **Refermé le 2026-10-11** (chantier 5, R113) : les deux tables n'existent plus dans `wama/` — `llm_utils.declared_llm_source` / `openai_compatible_source` / `default_cloud_model` (`llm_utils.py:324-360`) les dérivent du registre (remesuré le 2026-10-31) | **écart 5** ✅ |
 | 7 | **isolation d'exécution** | point de **convergence** de tous les harnais : bac à sable OS, conteneur, VM | WAMA n'exécute **pas** de code arbitraire pour l'utilisateur : les outils sont des **verbes métier** fermés. Le seul chemin d'exécution large est `ask_claude_code`, gardé développeur **dans son corps** et en lecture seule par défaut (`claude_code.py:102-237`) | **rien à faire — frontière voulue** (§6) |
 | 8 | **standards** | MCP serveur (resources/prompts/tools) + client | serveur = **outils seuls** (`mcp_server.py:213,221`) ; client 🔄 (interne, surface `wama-dev`, 2026-09-22 — `mcp_client.py` ; serveur MCP tiers ⏳ ; corrigé le 2026-10-31) ; `AGENTS.md` ✅ | **écart 10** |
@@ -1157,10 +1162,84 @@ aucune migration, aucun changement de contrat de surface.
   parlent des registres et des librairies de WAMA, non d'Hermes. Passe dédiée, jamais en même
   temps qu'autre chose — *un déplacement qui trie n'est plus un déplacement.*
 
+### Plan du 2026-11-18 — l'assistant en agent : quatre axes, confrontés au code puis au concile
+
+> **Origine** : Fabien a demandé à l'assistant (fil Discord, tour 894) comment il se situe sur
+> quatre axes d'agent — auto-correction, mémoire longue, planification, routage d'outils. Il s'est
+> décrit avec « ~90 outils » et a proposé un tour de critique, une consolidation de mémoire « sans
+> intervention humaine », un graphe de tâches et un classifieur d'intention. **Mesuré** : un seul
+> outil appelé, `search_docs`, qui lui a rendu la table §4 ci-dessus (datée du 19/09) et
+> `WAMA_LLM.md` §1 (« 90 outils au 2026-10-28 ») — le registre en compte 168 à l'exécution. *Sa
+> description était fausse parce que la DOC qu'il lit recopie des chiffres datés.* Un premier
+> plan (le mien) a été revérifié contre le code à la demande de Fabien : il proposait cinq choses
+> qui existent (un contrôle d'échec d'écriture, une critique outillée, un verbe de plan avec ses
+> états, un rappel automatique de mémoire, un routage « par app courante » qu'aucun signal ne
+> permet). Le plan ci-dessous est l'amendé, soumis au concile (`review`, cinq agents Albert/ILaaS,
+> 767 s) puis confronté au code une seconde fois.
+
+**Ce qui existe — à ne PAS reconstruire** (lu le 2026-11-18) :
+
+| axe | brique | où |
+|---|---|---|
+| auto-correction | liens sans source, tour inventé (reprise ou aveu), faits non sourcés dans les arguments d'une écriture, outil dont AUCUN appel n'a réussi (lecture ou écriture) | `assistant_engine._strip_unsourced_urls`, `_invented_turn`, `_unsourced_write_facts`, `_refusals_notice` |
+| critique outillée | concile `review` dont les relecteurs VÉRIFIENT avec les outils de lecture (depuis le 04/11), à la main par `/concile` | `_peer_review`, `_REVIEW_BRIEF`, `assistant_commands.COMMANDS` |
+| planification | vocabulaire d'états COMMUN (+ `STALE`), lignes d'exécution par process, pipeline porteur universel exécuté par le moteur commun, run du Studio suivi comme une card, calendrier des tâches (`ScheduledAction` = un outil + ses arguments, placement auto / dès que possible / heures creuses / date, récurrence) | `common/models.py` (`JOB_*`, `PROCESS_STATUS_CHOICES`), `process_runs`, `ROUTE §10.6`, `job_families`, `scheduled_actions` |
+| mémoire | `remember_fact` (non approuvé), `memory_recall`, rappel AUTOMATIQUE des souvenirs approuvés et du RAG pour les domaines `rag=True` (le général exclu à dessein), `merge()` qui propose | `tool_api.py`, `assistant_skills.laboratory_context`, `WAMA_MEMORY §6` |
+| routage | levier 3 « réduire le prompt d'outils » (⏳) et piste `tool_search` (§7.4) ; la porte refuse déjà ce que le compte ne peut pas exécuter | `WAMA_LLM §1bis`, `accounts.permissions.tool_accessible` / `accessible_apps` |
+
+**Le plan, dans l'ordre** (✅ fait · 🔄 en cours · ⏳ à faire · ❓ décision de Fabien) :
+
+| # | quoi | pourquoi / contrat |
+|---|---|---|
+| **A** ✅ 2026-11-18 | Les outils, nommés par un registre DÉRIVÉ (`tools` : effet, famille, ORIGINE de l'app qui le garde — WAMA, jumelle, née d'un manifeste, surface hors catalogue, transverse — lue dans `APP_CATALOG` et `app_identity`) ; le fait généré `outils` (`doc_facts`, `ROUTE §F6`) en tire son décompte par origine ; les docs que lit l'assistant renvoient à ces deux sources au lieu de recopier un chiffre | la cause mesurée du tour 894. Le bac à sable (10 jumelles, 2 apps nées d'un manifeste : writer, translator) reste hors du fait VERSIONNÉ — gitignoré, il ne vaut pas sur un clone (règle du 2026-10-12, `doc_facts._fait_outils`) — mais le registre le compte à l'exécution |
+| **D1** ✅ 2026-11-18 | Programmer, déplacer, annuler par l'assistant (le geste « Programmer… » de la card) : trois outils sur `scheduled_actions`, arguments `when`/`at` lus du schéma qui les déclare déjà (`schedule_params`), `get_my_calendar` rend l'identifiant de la programmation ; la garde de couverture de l'API étendue au MENU de la card (`queue_dnd_attrs`), budget exact | philosophie point 5. Mesuré : l'assistant ne faisait que LIRE le calendrier, et la garde ne voyait que les routes `api/` (« Programmer… » passe par `schedule/`) |
+| **B0** ⏳ | N'annoncer au tour que les outils que le compte peut exécuter — la MÊME décision que la porte (`accessible_apps`), jamais une règle recopiée | aucun outil exécutable ne peut être écarté. Mesuré : 47 192 → 35 032 caractères pour la plupart des comptes non staff (ce sont alors les 12 apps du bac à sable qui sortent), jusqu'à 12 471 ; rien pour un administrateur |
+| **C1** ⏳ | `_refusals_notice` juge par APPEL, plus par outil : un outil qui échoue APRÈS son dernier succès se dit aussi | mesuré : 3 tours sur 332 (`ask_claude_code`), 2 sans avis |
+| **B1** ❓ | Le tour principal d'un administrateur annonce-t-il les outils des apps du bac à sable (36 outils, ~12 000 caractères) ? | décision |
+| **E1** ❓ | Le propriétaire approuve-t-il son souvenir PRIVÉ (le staff gardant les partagés) ? Ouverte depuis le 2026-10-11 (`WAMA_MEMORY §6`) | le concile l'a soutenu à l'unanimité ; la décision reste à Fabien |
+| **S** ❓ | Un signal « page / app courante » transmis au tour | absent (le chat n'envoie aucun chemin) ; signal NEUF, à décider avant d'en faire un critère |
+| **B2** ⏳ | Recherche d'outils par le modèle (`tool_search`), réglage Auto / Tous | rejouer d'abord les tours réels ; bascule si l'outil réellement appelé est dans les 5 proposés pour ≥ 95 % des tours, le top 20 toujours trouvé, la liste réduite d'au moins 40 % ; la latence mesurée. Sinon « Tous » par défaut |
+| **D2** ⏳ | L'assistant PROPOSE un pipeline (`ROUTE §10.6` point 3 ②, « généré par l'assistant ») : d'abord une ÉBAUCHE de manifeste montrée dans le fil (une lecture) ; l'ENREGISTRER attend l'approbation du chantier 2 | concile unanime : enregistrer est une écriture durable. « Si A échoue, ne lance pas B » est natif (un run s'arrête au nœud en échec, `studio/tasks.py:638-639`) ; « si A échoue, lance C » reste au tour |
+| **C2** ⏳ | Un déclenchement automatique du concile | seulement sur une MESURE de faute que les contrôles ne voient pas (1 tour inventé sur 332 aujourd'hui) |
+| **E2** ⏳ | Propositions de souvenirs en fin de fil, non approuvées | nouveau producteur (pas une redite de `merge()`, qui fusionne des souvenirs EXISTANTS — affirmation du concile, fausse). Jamais de consolidation autonome (§6) |
+
+> **A et D1 livrés le 2026-11-18 — ce que la livraison a fait de plus, et pourquoi.**
+> - **L'origine d'une app est UNE règle** (`sandbox.app_origin`) : `non_sandbox_apps`, `born_apps`
+>   et `app_about.origin` l'écrivaient chacun (et `mecanismes_scan._scored_apps` recopiait
+>   `non_sandbox_apps`, ramené à la revérification). Le registre `tools` la lit, et lit l'identité
+>   des apps hors catalogue dans son domicile (`app_identity`) ; le fait `outils` lit le registre
+>   (mesuré à la livraison : 135 outils versionnés — 63 transverses, dont les trois de la
+>   programmation et `start_process_on_items`, 40 des apps de WAMA, 32 des surfaces hors catalogue,
+>   registres, Studio, médiathèque ; 36 de plus à l'exécution, 30 des jumelles et 6 des apps nées
+>   d'un manifeste. Le compte vivant est le fait `outils`, pas cette ligne). ⚠ *Ma première version classait ces surfaces par la table des politiques
+>   d'accès (`DEFAULT_APP_ACCESS`) et les appelait « pages du substrat » : une seconde lecture de
+>   « qu'est-ce que cette app ? » à côté d'`app_identity`, trouvée à la revérification.*
+> - **Le schéma des arguments d'un outil a UN accesseur** (`tool_api.tool_param_schema`) : la
+>   description, le schéma JSON, la coercition et la porte des choix relisaient chacun
+>   `schema_for_app(app_id)`, et la garde MCP (`tests_mcp_server`) une cinquième fois. Un outil
+>   transverse déclare le sien sur sa fonction (`tool_schema`, comme `tool_effect`) — la
+>   programmation lit ainsi `schedule_params`, le schéma de la fenêtre et du fichier batch.
+> - **Un instant déclaré n'est pas un fait de document** (`_unsourced_write_facts`) : « 2026-11-19
+>   22:00 » était lu comme une année ET comme un téléphone non sourcés (`source_facts`), et la
+>   programmation aurait été refusée à chaque appel. La règle lit le type `datetime` du schéma.
+> - **Défaut d'autrui relevé par le registre** : `start_process_on_items` (2026-11-16), verbe
+>   transverse à nom de triade, était gardé par une app « process_on_items » qu'aucune politique ne
+>   déclare — déclaré transverse (`TOOL_APP_OVERRIDE`), une garde refuse désormais toute famille
+>   que rien ne nomme. Son RÔLE de triade est gardé, comme celui d'`add_to_media_library` : le fil
+>   le lit comme « l'utilisateur se sert de WAMA » (`conversation_store`).
+> - **Garde du menu de la card** (`tests_tool_api_coverage`, `CARD_MENU_TOOLS`) : 7 gestes sans
+>   outil, budget qui ne peut que baisser — réordonner, déplacer dans / retirer d'un lot, fusionner,
+>   résultat de référence, résultat existant.
+>
+> ⚠ *Relu après le concile* : un avis l'a rejoint (« E2 réinvente `merge()` ») et l'arbitre l'a
+> retenu — c'était faux, lu dans `store.merge` (`memory/store.py:540-547`). *Un concile se
+> confronte au code comme une veille : l'unanimité n'est pas une mesure.*
+
 ## 10. Journal
 
 | date | ce qui a été fait |
 |---|---|
+| **2026-11-18** | **Plan « l'assistant en agent »** (§9, « Plan du 2026-11-18 ») : l'auto-description fausse de l'assistant tracée jusqu'à la doc qu'il lit ; mon premier plan revérifié contre le code (cinq propositions recréaient l'existant : contrôle d'échec, critique outillée, verbe de plan et ses états, rappel de mémoire, routage par app courante) ; concile `review` sur le plan amendé, ses affirmations confrontées au code (une fausse, retirée ; un trou d'échec partiel mesuré, 3 tours sur 332). Ordre : A → D1 → B0 → C1, décisions B1 / E1 / S, puis B2, D2, C2, E2. |
 | **2026-10-29** | **Étape 1 du §7.4 livrée — le socle des sous-agents** : un sous-agent est un tour de LA boucle avec des bornes (outils permis, itérations, échéance, profondeur), défauts inchangés, lecture seule tenue par le moteur dès la profondeur 1. Usage visé par Fabien consigné au §7.4 (travaux menés ensemble, réflexion de recherche, bibliographie) avec son manque mesuré : aucune source savante parmi les outils. Puis le parallèle par serveur décidé (étape 2 bis), le `timeout` de gunicorn **mesuré** inoffensif en `gthread`, et les **étapes 2 et 3** livrées (le verbe `delegate`, l'interrupteur « Sous-agents ») — avec un trou de l'étape 1 fermé : un tour borné passait par l'abonnement, dont la boucle MCP ignore les bornes. Puis l'**étape 2 bis** : la vague parallèle, un couloir par serveur, mesurée sur Albert, ILaaS et le local. Puis l'**étape 4**, le council comme COMPOSITION (agents du registre de 1 à n, vote, décideur, ou relecture croisée puis décideur — le LLM Council de Karpathy, lu dans son code) ; REA et Ghidra évalués, rien d'installé ; la « limite temporelle » d'ILaaS mesurée : une requête muette coupée vers 165-175 s, un flux tient — les sous-agents appellent donc en flux. |
 | **2026-10-28** | **Multi-agents ouvert par Fabien** (socle du council) — et le déclencheur « prompt système = poste de coût dominant » **mesuré atteint** le même jour (24 676 car. fixes, 90 outils, ~2/3 de chaque appel ; détail au §9). Cinq recherches lancées depuis l'assistant (Codex et OpenCode **lus dans leur code**, synthèse) consignées en **§7.4** — leurs journaux ne sont pas versionnés. **Chantier 1 livré** (`61e3e947`) : borne à 24 000 (et non 8 000, qui coupait les outils déjà bornés), bascule jugée après chaque résultat. Constats périmés corrigés : « 5 tours » (8 depuis le 05/10), ligne OpenCode de §3.1 (serveur HTTP, sous-agents, Plan n'est pas une lecture seule), `untrusted` retiré chez Codex. ⚠ *Les deux rapports de veille proposaient l'un une table d'approbation en base, l'autre Celery pour les sous-agents : le §9 avait déjà tranché le premier (cache, sans migration), et la mesure écarte le second (le parent attend, un seul GPU). Un rapport de veille se confronte à la route comme le reste.* |
 | **2026-09-30** | **AnythingLLM évalué** (demande de Fabien) : rejeté comme composant et comme UI (`ROADMAP §16.2`), compatible comme client MCP de WAMA sans rien écrire ; une piste ajoutée à l'écart 3 (présélection d'outils). ⚠ Ma première réponse confondait le niveau `project` du RAG avec un « sac de documents » : `Project` est le **projet de recherche** inter-établissements (`common/models.py:353`), et le « sac » n'ajoutait rien au RAG par niveaux — corrigé avant consignation. |

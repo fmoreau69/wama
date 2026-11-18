@@ -730,3 +730,79 @@ register(Registry(
                 "`doc_facts` — jamais rédigée en parallèle. `check_docs` dérive sa liste de la même "
                 "déclaration : un doc ajouté ici est contrôlé sans rien toucher d'autre.",
 ))
+
+
+# ──────────────────────────────────────────────────────────────────────────────────────────────
+# OUTILS — l'API de l'assistant, NOMMÉE (2026-11-18, `WAMA_HARNESS §9` « Plan du 2026-11-18 », A)
+#
+# POURQUOI. Interrogé sur lui-même (fil Discord, tour 894), l'assistant a dit « ~90 outils » : il
+# l'avait lu dans la doc (`search_docs`), qui recopiait une mesure du 2026-10-28. Le registre en
+# comptait 168. Un chiffre recopié se périme ; un registre DÉRIVÉ ne le peut pas. Celui-ci lit
+# `TOOL_REGISTRY` — dont dérivent l'API REST v1, le serveur MCP et l'exécuteur du Studio — et
+# n'écrit rien : l'effet est celui que chaque outil DÉCLARE (`tool_effect`), la famille celle de la
+# trace (`tool_trace.family` : l'app qui garde l'outil, ou `transverse`), l'origine celle de l'app
+# au catalogue (`sandbox.app_origin`). Une famille qui n'est pas une app du catalogue (registres,
+# Studio, médiathèque, model manager) est une page du SUBSTRAT.
+# ──────────────────────────────────────────────────────────────────────────────────────────────
+
+#: L'origine d'un outil dont la famille n'est pas une app du catalogue : transverse (aucune app ne
+#: le garde), ou une SURFACE hors catalogue (Studio, médiathèque, registres… — `app_registry`,
+#: « une surface transversale n'entre pas dans APP_CATALOG »).
+TOOL_ORIGIN_TRANSVERSE, TOOL_ORIGIN_SURFACE = 'transverse', 'surface'
+
+#: Le libellé de chaque origine d'outil — lu par le fait `outils` (`doc_facts`).
+TOOL_ORIGIN_LABELS = {
+    TOOL_ORIGIN_TRANSVERSE: 'transverses',
+    'wama': 'apps de WAMA',
+    TOOL_ORIGIN_SURFACE: 'surfaces hors catalogue',
+    'twin': 'jumelles du bac à sable',
+    'born': "apps nées d'un manifeste (en construction)",
+}
+
+
+def tool_origin(family: str) -> str:
+    """L'origine d'un outil de la famille `family` : `transverse`, celle de son app au catalogue
+    (`sandbox.app_origin` : wama, twin, born), `surface` pour une app hors catalogue que
+    l'identité DÉCLARE (`app_identity` : `register_surface`, `register_pageless_tool`), '' sinon —
+    une famille que rien ne déclare est un défaut, que `tests_tool_api_coverage` refuse."""
+    from .app_registry import APP_CATALOG, app_identity
+    from .sandbox import app_origin
+    if family == TOOL_ORIGIN_TRANSVERSE:
+        return TOOL_ORIGIN_TRANSVERSE
+    if family in APP_CATALOG:
+        return app_origin(APP_CATALOG[family])
+    return TOOL_ORIGIN_SURFACE if app_identity(family)['declared'] else ''
+
+
+def _entries_tools() -> dict:
+    """Les outils de `TOOL_REGISTRY`, par nom : effet, famille, origine."""
+    from wama.common.services.tool_trace import family
+    from wama.tool_api import TOOL_REGISTRY, effect_of
+    out = {}
+    for name in sorted(TOOL_REGISTRY):
+        fam = family(name)
+        out[name] = {'effect': (effect_of(name) or {}).get('effect', ''), 'family': fam,
+                     'origin': tool_origin(fam)}
+    return out
+
+
+def _count_tools() -> int:
+    from wama.tool_api import TOOL_REGISTRY
+    return len(TOOL_REGISTRY)
+
+
+register(Registry(
+    key='tools', label="Outils de l'assistant", nature=DERIVED,
+    source="`tool_api.TOOL_REGISTRY` (l'effet que chaque outil déclare) et `APP_CATALOG` (l'origine "
+           "de l'app qui le garde)",
+    count=_count_tools, entries=_entries_tools,
+    permission='auth', provenance=SYSTEM,
+    doc='docs/construction/ia/WAMA_LLM.md',
+    description="L'API de l'assistant — la même pour l'API REST, le serveur MCP et le Studio. Chaque "
+                "outil dit son effet (lecture, écriture, destruction) et son origine : transverse, "
+                "app de WAMA, jumelle du bac à sable, app née d'un manifeste (en construction), ou "
+                "surface hors catalogue (Studio, médiathèque, registres…). Les outils du bac à "
+                "sable n'existent que là où il est installé. "
+                "Hors de cette liste : les outils de développement (surface à part) et la "
+                "délégation à des sous-agents (un verbe de la boucle).",
+))

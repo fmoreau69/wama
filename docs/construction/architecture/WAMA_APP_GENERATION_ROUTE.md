@@ -2978,9 +2978,10 @@ le passé.*
   **Surface outils courante** (couche factuelle auto-générée, ROADMAP §16.9 ①) :
 
   <!-- WAMA:FAITS(outils) — généré par « python manage.py doc_facts », ne pas éditer -->
-- Outils au registre (`TOOL_REGISTRY`) : **129**
-- Outils décrits (`tool_descriptions()`, dérivé) : **129/129**
-- Arguments documentés (types/choix/bornes/défauts) : **497**
+- Outils au registre (`TOOL_REGISTRY`), hors bac à sable : **135** — transverses : 63 · apps de WAMA : 40 · surfaces hors catalogue : 32
+- Outils décrits (`tool_descriptions()`, dérivé) : **135/135**
+- Arguments documentés (types/choix/bornes/défauts) : **515**
+- Les jumelles du bac à sable et les apps nées d'un manifeste (en construction) ajoutent leurs outils là où le bac à sable est installé (gitignoré) : le registre « Outils de l'assistant » (`tools`) les compte à l'exécution, ce fait non
 <!-- /WAMA:FAITS(outils) -->
 - 🔴 **PANNE TROUVÉE ET CORRIGÉE au passage — `describer.output_format`** (signalée par Fabien) :
   `output_style` est un **STYLE de description** (résumé / détaillée / synthèse scientifique / points
@@ -8355,6 +8356,13 @@ Cette route (§0, F5, F8, §10.4, §11 #6 et #32-#35) ; `WAMA_MANIFEST_ARCHITECT
 > surface : **« Programmer… » vit dans le menu de card** (clic droit et « … »), pas sur le ▶, qui garde
 > UNE action ; le ▶ lance maintenant et **annule la programmation sans confirmation**. Détail et
 > gardes : 13.7 ci-dessous.
+>
+> ✅ **L'ASSISTANT passe par la même porte depuis le 2026-11-18** (13.1 le promettait, aucun outil ne
+> le faisait) : `schedule_items`, `reschedule_action`, `cancel_scheduled_action` postent les vues
+> `common:schedule_*`, avec le schéma de 13.7 déclaré sur eux (`tool_api.tool_schema`) ; le
+> calendrier lu par l'assistant rend le `schedule_id`. ⏳ Reste de 13.1 et 13.5 : programmer autre
+> chose qu'un `start_<app>` (`run_studio_pipeline`, une récurrence) — `scheduled_actions.target_of`
+> ne prend encore que le lancement d'une card. Détail : `WAMA_HARNESS §9`, « Plan du 2026-11-18 », D1.
 
 **13.1 La seule table neuve : `ScheduledAction`** (étape 3, ✅). Tout le reste du calendrier dérive.
 - `user` + `ScopedVisibility` (un planning de projet ou d'équipe se partage comme le reste) ;

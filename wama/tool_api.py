@@ -125,6 +125,52 @@ def effect_of(tool_name: str) -> dict | None:
     return getattr(TOOL_REGISTRY.get(tool_name), 'wama_effect', None)
 
 
+# ---------------------------------------------------------------------------
+# SCHÉMA des arguments d'un outil (2026-11-18). Celui d'un outil d'APP est le schéma de l'app
+# (`schema_for_app`, `wama/<app>/params.py`). Un outil TRANSVERSE dont les arguments sont déjà
+# déclarés ailleurs — la programmation : `when` / `at`, que la fenêtre « Programmer… » et le
+# fichier batch lisent dans `scheduled_actions.schedule_params` — le dit sur sa fonction, comme son
+# effet, au lieu de recopier choix et libellés dans sa docstring. UN accesseur pour les quatre
+# lecteurs : la description (`tool_descriptions`), le schéma JSON (`tool_input_schema`), la
+# coercition (`sanitize_tool_args`) et la porte des choix (`execute_tool`).
+# ---------------------------------------------------------------------------
+
+def tool_schema(provider):
+    """Déclare le schéma des arguments d'un outil : `provider()` rend une liste de `Param` (ou de
+    dicts) — la déclaration qui sert déjà ailleurs, jamais une copie."""
+    def mark(fn):
+        fn.wama_schema = provider
+        return fn
+    return mark
+
+
+def tool_param_schema(tool_name: str) -> list:
+    """Le schéma (liste de dicts) des arguments que lit l'outil : celui qu'il déclare
+    (`tool_schema`) ; sinon celui de la SURFACE qui le garde — le schéma du domaine qu'elle sert
+    quand elle n'est pas l'app (`add_to_audio_enhancer` → le domaine audio de l'enhancer,
+    `app_modes.domain_schema`), le schéma principal de l'app sinon ; [] pour un outil transverse.
+
+    ⚠ Le domaine (2026-11-18, revérification) : la lecture par l'app seule annonçait au modèle les
+    réglages IMAGE de l'enhancer (`ai_model`, `denoise`, `upscale_factor`…) sur son outil audio,
+    et la porte les acceptait."""
+    from wama.common.utils.param_schema import schema_for_app
+    provider = getattr(TOOL_REGISTRY.get(tool_name), 'wama_schema', None)
+    if provider is not None:
+        schema = provider()
+    else:
+        app_id = app_id_for_tool(tool_name)
+        if not app_id:
+            return []
+        schema = schema_for_app(app_id)
+        family = tool_family(tool_name)
+        if family and family != app_id:
+            from wama.common.utils.app_modes import domain_schema, surface_domains
+            domains = surface_domains(app_id, family)
+            if len(domains) == 1:
+                schema = domain_schema(app_id, domains[0])
+    return [p if isinstance(p, dict) else p.to_dict() for p in schema or []]
+
+
 def sub_agent_tools() -> frozenset:
     """Les outils qu'un sous-agent peut appeler — DÉRIVÉS des marques, jamais recopiés : les
     LECTURES, hors celles retirées avec leur raison."""
@@ -5390,8 +5436,10 @@ def get_my_calendar(user, start: str = '', end: str = '', with_instance: bool = 
         limit:        how many events (1-200, default 100), earliest first.
 
     Returns:
-        {"events": [{"title","start","end","nature","app","status","url","item_id"}],
+        {"events": [{"title","start","end","nature","app","status","url","item_id",
+                     "schedule_id"}],
          "window": {"start","end"}, "total", "returned"} or {"error"}
+        `schedule_id` names a SCHEDULED launch (`reschedule_action`, `cancel_scheduled_action`).
     """
     if refusal := _signed_in_refusal(user):
         return refusal
@@ -5418,10 +5466,97 @@ def get_my_calendar(user, start: str = '', end: str = '', with_instance: bool = 
         'status': e.status,
         'url': e.url,
         'item_id': e.item_id,
+        # La programmation que l'événement montre (`calendar.declared_events`) : ce qui la
+        # désigne pour la déplacer ou l'annuler.
+        'schedule_id': (e.extra or {}).get('scheduleId'),
     } for e in events[:limit]]
     return {'events': rows,
             'window': {'start': window_start.isoformat(), 'end': window_end.isoformat()},
             'total': len(events), 'returned': len(rows)}
+
+
+# ── PROGRAMMER un lancement (2026-11-18, `WAMA_HARNESS §9` « Plan du 2026-11-18 », D1) ────────────
+# Le geste « Programmer… » du menu de la card (`queue_dnd_attrs`) — le QUAND du calendrier
+# (`ROUTE §10.6` point 13). Chaque outil poste la VUE du bouton (`common:schedule_*`, par
+# `_page_view`) : même service (`scheduled_actions`), même refus d'une plage réservée, même réponse.
+# Les arguments `when` / `at` sont ceux du SCHÉMA de la fenêtre et du fichier batch
+# (`schedule_params`), déclaré sur chaque outil (`tool_schema`).
+
+def _schedule_params():
+    from wama.common.services.scheduled_actions import schedule_params
+    return schedule_params()
+
+
+def _schedule_answer(user, route: str, what: str, data: dict, args=()):
+    """La réponse d'une vue de programmation pour l'assistant : la charge (`actions`, ou le
+    `conflict` d'une plage réservée), ou l'échec."""
+    if refusal := _signed_in_refusal(user, 'Programmation'):
+        return refusal
+    failure, payload = _page_view(user, route, what, args=args, data=data, json_body=True)
+    return failure or payload
+
+
+@tool_schema(_schedule_params)
+@tool_effect(WRITE)
+def schedule_items(user, tool: str, item_ids=None, when: str = '', at: str = '') -> dict:
+    """
+    Schedule the launch of one or more of the user's cards, as the card menu's "Schedule…" does:
+    automatically, as soon as possible, in off-peak hours, or at a given date.
+
+    `tool` is the app's start tool (`start_<app>`, as for `start_*`); the card keeps waiting until
+    then and can still be changed. Launching it by hand cancels the schedule. A date inside a
+    window reserved to WAMA (night tests) creates nothing: the answer gives the window and the
+    first time after it (`conflict.suggested`) — tell the user and offer it. Scheduled launches
+    are on the user's calendar (`get_my_calendar`, with their `schedule_id`).
+
+    Args:
+        tool:     start tool of the app the cards belong to (e.g. 'start_transcriber').
+        item_ids: ids of the cards to launch.
+        when:     placement (see its choices; default automatic).
+        at:       date and time when `when` is a date ('2026-11-20 22:00').
+
+    Returns:
+        {"ok": true, "actions": [{"id","tool","app","objectId","title","runAt","values"}]}
+        or {"ok": false, "conflict": {"title","start","end","suggested"}} or {"error"}
+    """
+    if isinstance(item_ids, (int, str)):
+        item_ids = [item_ids]
+    return _schedule_answer(user, 'common:schedule_create', 'Programmation',
+                            {'tool': tool, 'ids': list(item_ids or ()), 'when': when, 'at': at})
+
+
+@tool_schema(_schedule_params)
+@tool_effect(WRITE)
+def reschedule_action(user, schedule_id: int, when: str = '', at: str = '') -> dict:
+    """
+    Move one of the user's scheduled launches to another placement or date, as the card's
+    schedule badge does; the same reserved windows apply.
+
+    Args:
+        schedule_id: id of the scheduled launch (`schedule_items`, or `get_my_calendar`).
+        when:        placement (see its choices).
+        at:          date and time when `when` is a date.
+
+    Returns:
+        {"ok": true, "actions": [{…}]} or {"ok": false, "conflict": {…}} or {"error"}
+    """
+    return _schedule_answer(user, 'common:schedule_update', 'Programmation',
+                            {'when': when, 'at': at}, args=[schedule_id])
+
+
+@tool_effect(WRITE)
+def cancel_scheduled_action(user, schedule_id: int) -> dict:
+    """
+    Cancel one of the user's scheduled launches; the card stays in its queue, waiting.
+
+    Args:
+        schedule_id: id of the scheduled launch (`schedule_items`, or `get_my_calendar`).
+
+    Returns:
+        {"ok": true} when it was cancelled, {"ok": false} when it no longer exists, or {"error"}
+    """
+    return _schedule_answer(user, 'common:schedule_cancel', 'Annulation de la programmation',
+                            {}, args=[schedule_id])
 
 
 @tool_effect(READ)
@@ -5687,6 +5822,12 @@ TOOL_REGISTRY = {
     'list_my_memories': list_my_memories,
     # …et les autres pages du compte, chacune par la brique de sa page (2026-10-14).
     'get_my_calendar':       get_my_calendar,
+    # …et le QUAND du calendrier (2026-11-18) : programmer, déplacer, annuler un lancement — le
+    # geste « Programmer… » de la card, par ses vues. Transverses : la garde est celle de l'outil
+    # de lancement programmé (`scheduled_actions.schedule_items` → `tool_accessible`).
+    'schedule_items':          schedule_items,
+    'reschedule_action':       reschedule_action,
+    'cancel_scheduled_action': cancel_scheduled_action,
     'list_my_notifications': list_my_notifications,
     'list_my_shares':        list_my_shares,
     'list_my_rag':           list_my_rag,
@@ -5854,6 +5995,13 @@ TOOL_APP_OVERRIDE = {
     # Ouvrir une page : transverse — le droit est celui de la PAGE, décidé dans le corps par la
     # brique de navigation (même décision que le menu).
     'open_page':           None,
+    # Un process lancé depuis une SÉLECTION de cards (2026-11-16) : un verbe transverse, gardé dans
+    # son corps (`_refus_app(user, app)`). Son nom a la forme d'un `start_<app>` : sans cette ligne
+    # il était GARDÉ par une app « process_on_items » qu'aucune politique ne déclare (relevé le
+    # 2026-11-18 par le registre `tools`). Son rôle de triade reste celui de son nom, comme
+    # `add_to_media_library` : le fil le lit comme « l'utilisateur se sert de WAMA »
+    # (`conversation_store`).
+    'start_process_on_items': None,
     # Les pages du COMPTE, lues (2026-10-14) : sur le compte de l'appelant, comme leurs pages —
     # qui ne relèvent d'aucune app (`login_required` seul). Refus des non-identifiés dans les corps.
     'get_my_calendar':       None,
@@ -6759,13 +6907,9 @@ def tool_descriptions():
     Exhaustive par construction (elle itère `TOOL_REGISTRY`), là où le dict manuel qu'elle
     remplace pouvait en oublier — et en oubliait trois.
     """
-    import inspect
-    from wama.common.utils.param_schema import schema_for_app
-
     out = {}
     for name, fn in TOOL_REGISTRY.items():
-        app_id = app_id_for_tool(name)
-        index = {p['name']: p for p in (schema_for_app(app_id) if app_id else [])}
+        index = {p['name']: p for p in tool_param_schema(name)}
         noms, params = _tool_arg_names(fn, index)
         arrivals = arrival_arguments(name)
         out[name] = {
@@ -6858,14 +7002,10 @@ def tool_input_schema(tool_name: str) -> dict:
     `user` n'y figure jamais : l'identité vient de la session (jeton), pas d'un argument. Un
     argument est requis quand la FONCTION n'a pas de défaut — c'est la signature qui le dit.
     """
-    import inspect
-    from wama.common.utils.param_schema import schema_for_app
-
     fn = TOOL_REGISTRY.get(tool_name)
     if fn is None:
         raise KeyError(f"outil inconnu : {tool_name!r}")
-    app_id = app_id_for_tool(tool_name)
-    schema = input_schema_for(fn, {p['name']: p for p in (schema_for_app(app_id) if app_id else [])})
+    schema = input_schema_for(fn, {p['name']: p for p in tool_param_schema(tool_name)})
     # Un argument d'ARRIVÉE prend un chemin ou une liste de chemins (`arrival_arguments`).
     for name in arrival_arguments(tool_name) & set(schema['properties']):
         prop = schema['properties'][name]
@@ -7019,13 +7159,11 @@ def sanitize_tool_args(tool_name: str, args: dict):
 
     Retourne (kwargs_propres, noms_ignorés).
     """
-    from wama.common.utils.param_schema import (schema_for_app, coerce_schema_values,
-                                                schema_arg_names)
+    from wama.common.utils.param_schema import coerce_schema_values
 
     fn = TOOL_REGISTRY.get(tool_name)
     args = decode_structured_args(fn, args)
-    app_id = app_id_for_tool(tool_name)
-    schema = schema_for_app(app_id) if app_id else []
+    schema = tool_param_schema(tool_name)
     merged = {**args, **coerce_schema_values(schema, args)}
 
     sig = _tool_signature(fn) if fn else None
@@ -7034,7 +7172,7 @@ def sanitize_tool_args(tool_name: str, args: dict):
     allowed = {n for n, p in sig.parameters.items()
                if p.kind not in (p.VAR_POSITIONAL, p.VAR_KEYWORD)}
     if any(p.kind == p.VAR_KEYWORD for p in sig.parameters.values()):
-        extra = schema_arg_names(app_id) if app_id else set()
+        extra = {p.get('name') for p in schema}
         if not extra:
             return merged, []          # alias sans schéma : on ne sait pas filtrer, on transmet
         allowed |= extra
@@ -7171,15 +7309,13 @@ def _changes_something(tool_name: str) -> bool:
 def _accepted_arguments(tool_name: str) -> list:
     """Les arguments qu'un appelant peut donner : la signature, et le schéma de l'app quand
     l'outil ouvre `**params` — la surface même de `sanitize_tool_args`."""
-    from wama.common.utils.param_schema import schema_arg_names
     sig = _tool_signature(TOOL_REGISTRY.get(tool_name))
     if sig is None:
         return []
     names = {n for n, p in sig.parameters.items()
              if p.kind not in (p.VAR_POSITIONAL, p.VAR_KEYWORD) and n != 'user'}
     if any(p.kind == p.VAR_KEYWORD for p in sig.parameters.values()):
-        app_id = app_id_for_tool(tool_name)
-        names |= schema_arg_names(app_id) if app_id else set()
+        names |= {p.get('name') for p in tool_param_schema(tool_name)}
     return sorted(names)
 
 
@@ -7285,11 +7421,10 @@ def execute_tool(tool_name: str, args: dict, user, *, model_call: bool = False) 
         # vide qui a l'air d'un succès), un nombre ILLISIBLE (la coercition le remplaçait par le
         # défaut). Lue sur les arguments REÇUS : la coercition a déjà effacé l'illisible de
         # `clean`. None/'' passent (défaut) ; l'erreur nomme chaque valeur et ce qui est valide.
-        app_id = app_id_for_tool(tool_name)
-        if app_id:
-            from wama.common.utils.param_schema import (describe_refusals, schema_for_app,
-                                                        schema_refusals)
-            refusals = schema_refusals(schema_for_app(app_id), args or {})
+        schema = tool_param_schema(tool_name)
+        if schema:
+            from wama.common.utils.param_schema import describe_refusals, schema_refusals
+            refusals = schema_refusals(schema, args or {})
             if refusals:
                 return {'error': f"Valeur hors schéma pour '{tool_name}' : "
                                  f"{describe_refusals(refusals)}"}

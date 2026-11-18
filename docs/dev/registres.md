@@ -65,7 +65,7 @@ la réponse n'est pas « tout en registre ».
 
 ## Les registres, un par un
 
-**21 registres**, par ordre alphabétique de libellé.
+**22 registres**, par ordre alphabétique de libellé.
 
 ### Applications
 
@@ -224,6 +224,16 @@ Les mots-clés cliquables sous un champ-prompt (palette `WamaPromptChips`), gard
 - **Citable dans une doc** : `WAMA:FAIT(pipeline_nodes/<clé>/<champ>)`
 
 Les cards d'ENTRÉE et de SORTIE d'un pipeline (ni l'une ni l'autre n'est un process), chacune déclarée UNE fois par son monde : rôle, libellé, ports, réglages `Param` et exécuteur. La palette du Studio, son inspecteur, la validation au lancement et l'exécuteur les lisent ici (ROUTE §10.6 3.3bis, R2).
+
+### Outils de l'assistant
+
+- **Clé** : `tools` — Dérivé à chaque affichage — toujours à jour
+- **Source** : `tool_api.TOOL_REGISTRY` (l'effet que chaque outil déclare) et `APP_CATALOG` (l'origine de l'app qui le garde)
+- **Provenance des éléments** : Système — déclaré par WAMA, sans auteur
+- **Doc** : [docs/construction/ia/WAMA_LLM.md](../construction/ia/WAMA_LLM.md)
+- **Citable dans une doc** : `WAMA:FAIT(tools/<clé>/<champ>)`
+
+L'API de l'assistant — la même pour l'API REST, le serveur MCP et le Studio. Chaque outil dit son effet (lecture, écriture, destruction) et son origine : transverse, app de WAMA, jumelle du bac à sable, app née d'un manifeste (en construction), ou surface hors catalogue (Studio, médiathèque, registres…). Les outils du bac à sable n'existent que là où il est installé. Hors de cette liste : les outils de développement (surface à part) et la délégation à des sous-agents (un verbe de la boucle).
 
 ### Prompts déclarés
 

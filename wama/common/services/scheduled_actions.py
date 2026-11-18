@@ -57,7 +57,10 @@ class ScheduleError(ValueError):
 # fois, comme n'importe quels réglages (`param_schema.Param`) ; et leurs NOMS sont le vocabulaire
 # des trois surfaces qui les lisent :
 #   • la fenêtre « Programmer… » — rendue par `WamaParams.render`, lue par `WamaParams.read` ;
-#   • l'API (`schedule_create`, `schedule_update`) et donc l'assistant ;
+#   • les vues (`schedule_create`, `schedule_update`), et l'assistant, qui les poste par ses
+#     outils `schedule_items` / `reschedule_action` / `cancel_scheduled_action` — le schéma déclaré
+#     sur eux (`tool_api.tool_schema`). ⚠ Cette ligne disait « l'API … et donc l'assistant » depuis
+#     le 2026-09-28 : aucun outil ne les appelait avant le 2026-11-18 ;
 #   • le fichier BATCH : `--when off_peak`, `--at "2026-10-01 22:00"`, ou les colonnes `when` /
 #     `at` d'un CSV à en-têtes — des OPTIONS de ligne, comme `--voice` (`BATCH_FORMAT.md`).
 

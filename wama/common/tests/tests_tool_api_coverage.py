@@ -21,7 +21,10 @@ What is held, DERIVED from what WAMA declares, never from a list of names :
      the guards above saw none of them ; the format routes of the model manager had no tool) ;
   6. each tool of the model manager posts THE view of its button, with the method it accepts, and
      asks the user's agreement where the page does (2026-11-09 : the whole page, 46 routes) ;
-  7. what the model reads of every tool is a whole sentence (2026-11-09 : 44 of 144 were cut).
+  7. what the model reads of every tool is a whole sentence (2026-11-09 : 44 of 144 were cut) ;
+  8. every gesture of the CARD MENU (`queue_dnd_attrs`) maps to its tool — a budget that can only
+     shrink (2026-11-18 : « Programmer… » had none, and no guard looked at the menu) ;
+  9. every tool has an ORIGIN (registry `tools`) : transverse, or kept by a gate WAMA declares.
 The recipe to complete the API is the skill `/api-outils`.
 """
 import ast
@@ -62,6 +65,40 @@ GESTURES_WITHOUT_TOOL_BUDGET = 0
 
 FACTORIES = {'item': ('wama/common/utils/item_views.py', 'make_item_views'),
              'batch': ('wama/common/utils/batch_views.py', 'make_batch_views')}
+
+#: Each gesture of the CARD MENU (`wama_actions.queue_dnd_attrs` — the attribute that carries its
+#: route) → the tool that does it, or None (2026-11-18, `WAMA_HARNESS §9` « Plan du 2026-11-18 »,
+#: D1). The guard of the action routes only sees paths with an `api/` segment : « Programmer… »
+#: (`schedule/`) and the queue gestures were outside every guard. Read against the menu itself,
+#: rendered for every app of the catalogue and each of its domains.
+CARD_MENU_TOOLS = {
+    'data-schedule-url': 'schedule_items',
+    'data-selection-processes': 'start_process_on_items',
+    'data-dnd-reorder-url': None, 'data-dnd-reorder-queue-url': None,
+    'data-dnd-move-url': None, 'data-dnd-remove-url': None, 'data-dnd-merge-url': None,
+    'data-result-reference-url': None, 'data-result-import-url': None,
+}
+#: Card-menu gestures without a tool. The value of the measure ; LOWER it in the commit that adds a
+#: tool. 7 on 2026-11-18, when the menu entered the guard : the queue gestures (reorder, move to /
+#: out of a batch, merge) and the two result ports (reference, existing result).
+CARD_MENU_WITHOUT_TOOL_BUDGET = 7
+
+
+def card_menu_gestures() -> set:
+    """The gestures the card menu emits, for every app of the catalogue and each of its domains :
+    its attributes that carry a route (`…-url`) or the processes of a selection."""
+    import re
+
+    from wama.common.app_registry import APP_CATALOG
+    from wama.common.templatetags.wama_actions import queue_dnd_attrs
+    from wama.common.utils.app_modes import get_domains
+    found = set()
+    for app in APP_CATALOG:
+        for domain in [None] + [d.get('id') for d in get_domains(app)]:
+            html = str(queue_dnd_attrs(app, domain) if domain else queue_dnd_attrs(app))
+            found |= {name for name in re.findall(r'(data-[a-z-]+)="', html)
+                      if name.endswith('-url') or name == 'data-selection-processes'}
+    return found
 
 #: The route → tool declaration and its reader live with the registry (`tool_api.ROUTE_TOOLS`,
 #: `action_routes`, 2026-11-16) : the catalogue page and the conformity grid read them too.
@@ -141,6 +178,82 @@ class EveryGestureHasItsToolTest(SimpleTestCase):
                 self.assertIsNone(T.app_id_for_tool(name), 'transverse : gardé dans son corps')
                 self.assertIsNone(T.tool_role(name), 'never taken for a triad tool')
                 self.assertEqual(effect, T.effect_of(name)['effect'])
+
+
+class EveryCardMenuGestureHasItsToolTest(SimpleTestCase):
+
+    def test_every_gesture_of_the_card_menu_is_mapped(self):
+        self.assertEqual(set(CARD_MENU_TOOLS), card_menu_gestures(),
+                         'un geste neuf du menu de la card : lui donner son outil (/api-outils)')
+
+    def test_every_mapped_card_menu_tool_exists(self):
+        for gesture, tool in CARD_MENU_TOOLS.items():
+            if tool is not None:
+                with self.subTest(gesture=gesture):
+                    self.assertIn(tool, T.TOOL_REGISTRY)
+
+    def test_the_budget_of_card_menu_gestures_without_tool_is_exact(self):
+        without = sorted(g for g, t in CARD_MENU_TOOLS.items() if t is None)
+        self.assertEqual(CARD_MENU_WITHOUT_TOOL_BUDGET, len(without), without)
+
+
+class EveryToolHasItsOriginTest(SimpleTestCase):
+    """The registry « Outils de l'assistant » (`tools`, 2026-11-18) names every tool by its effect
+    and its ORIGIN, read in what WAMA already holds — the catalogue (`sandbox.app_origin` : an app of
+    WAMA, a twin, an app born from a manifest) and the identity of the apps outside it
+    (`app_identity` : a surface or a pageless tool)."""
+
+    def test_every_tool_is_transverse_or_kept_by_a_known_app(self):
+        from wama.common.fact_tags import entries
+        unknown = sorted(name for name, e in entries('tools').items() if not e['origin'])
+        self.assertEqual([], unknown, "une famille que rien ne nomme : un verbe transverse à nom de "
+                                      "triade (TOOL_APP_OVERRIDE à None), ou une surface à "
+                                      "enregistrer (`register_surface`)")
+
+    def test_the_origin_is_read_in_the_catalogue_and_the_gates(self):
+        from wama.common import registries_builtin as R
+        catalogue = {'real_app': {}, 'real_app_01': {'sandbox': True, 'generated_from': 'real_app'},
+                     'born_01': {'sandbox': True, 'generated_from': '', 'from_manifest': 'm.json'}}
+        with mock.patch.dict('wama.common.app_registry.APP_CATALOG', catalogue, clear=True):
+            self.assertEqual(['wama', 'twin', 'born', 'surface', 'transverse', ''],
+                             [R.tool_origin(f) for f in ('real_app', 'real_app_01', 'born_01',
+                                                         'registries', 'transverse', 'nowhere')])
+
+    def test_the_versioned_fact_leaves_the_sandbox_out_and_says_so(self):
+        from wama.common.management.commands.doc_facts import _fait_outils
+        tools = {'a': {'origin': 'transverse'}, 'b': {'origin': 'wama'},
+                 'c': {'origin': 'twin'}, 'd': {'origin': 'born'}}
+        described = {n: {'description': 'x', 'args': {}} for n in tools}
+        with mock.patch('wama.common.fact_tags.entries', return_value=tools), \
+                mock.patch.object(T, 'tool_descriptions', return_value=described):
+            fact = _fait_outils()
+        self.assertIn('hors bac à sable : **2**', fact)
+        self.assertIn('jumelles du bac à sable', fact)
+        self.assertIn("apps nées d'un manifeste", fact)
+
+
+class EveryToolAnnouncesItsSurfaceSettingsTest(SimpleTestCase):
+    """A tool of a DOMAIN surface (`add_to_audio_enhancer` : the enhancer's audio domain) announces
+    its signature and the settings of ITS domain — never those of another domain of the app
+    (2026-11-18 : the audio tool announced and took five IMAGE settings of the enhancer). Read
+    against the domain declarations (`app_modes`), for every tool whose surface is not its app."""
+
+    def test_a_domain_tool_announces_only_its_domain_settings(self):
+        import inspect
+
+        from wama.common.utils.app_modes import domain_schema, surface_domains
+        described = T.tool_descriptions()
+        seen = 0
+        for name in T.TOOL_REGISTRY:
+            app, family = T.app_id_for_tool(name), T.tool_family(name)
+            if not app or not family or family == app or len(surface_domains(app, family)) != 1:
+                continue
+            seen += 1
+            own = {p['name'] for p in domain_schema(app, surface_domains(app, family)[0])}
+            signature = set(inspect.signature(T.TOOL_REGISTRY[name]).parameters)
+            with self.subTest(tool=name):
+                self.assertEqual(set(), set(described[name]['args']) - own - signature)
+        self.assertGreater(seen, 0, 'aucun outil de domaine : la garde tournerait à vide')
 
 
 class EveryActionRouteHasItsToolTest(SimpleTestCase):

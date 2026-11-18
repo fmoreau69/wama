@@ -233,6 +233,85 @@ class ScheduleRoutesTest(TestCase):
         self.assertEqual(declared[0]['extendedProps']['itemId'], self.item.pk)
 
 
+class ScheduleToolsTest(TestCase):
+    """L'ASSISTANT programme comme le menu de la card (2026-11-18, `WAMA_HARNESS §9`, D1) : ses
+    outils postent les vues du bouton, et leurs arguments `when` / `at` sont ceux du schéma
+    (`schedule_params`), lus par la porte d'`execute_tool`."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user('sched_tools', password='x')
+        cls.other = User.objects.create_user('sched_tools_other', password='x')
+
+    def setUp(self):
+        from wama.describer.models import Description
+        self.item = Description.objects.create(user=self.user, filename='z.jpg')
+        patcher = mock.patch('wama.accounts.permissions.tool_accessible', return_value=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def _tool(self, name, user=None, **args):
+        from wama.tool_api import execute_tool
+        return execute_tool(name, args, user or self.user, model_call=True)
+
+    def _schedule(self, at='2030-01-10 14:00'):
+        return self._tool('schedule_items', tool=TOOL, item_ids=[self.item.pk], when='manual', at=at)
+
+    def test_the_tool_schedules_a_card_as_the_menu_does(self):
+        res = self._schedule()
+        self.assertTrue(res.get('ok'), res)
+        action = SA.objects.get(pk=res['actions'][0]['id'])
+        self.assertEqual((action.tool, action.object_id, action.state),
+                         (TOOL, str(self.item.pk), SA.STATE_SCHEDULED))
+
+    def test_a_reserved_time_gives_the_conflict_and_its_suggestion(self):
+        res = self._schedule(at='2030-01-10 05:00')
+        self.assertFalse(res['ok'])
+        self.assertIn('suggested', res['conflict'])
+        self.assertFalse(SA.objects.filter(user=self.user).exists())
+
+    def test_a_placement_outside_the_schema_is_stopped_at_the_gate(self):
+        res = self._tool('schedule_items', tool=TOOL, item_ids=[self.item.pk], when='tonight')
+        self.assertIn('hors schéma', res.get('error', ''))
+        self.assertFalse(SA.objects.filter(user=self.user).exists())
+
+    def test_the_calendar_names_the_schedule_that_the_tools_move_and_cancel(self):
+        action_id = self._schedule()['actions'][0]['id']
+        seen = self._tool('get_my_calendar', start='2030-01-06', end='2030-01-13')['events']
+        self.assertIn(action_id, [e['schedule_id'] for e in seen])
+        moved = self._tool('reschedule_action', schedule_id=action_id, when='manual',
+                           at='2030-01-11 15:00')
+        self.assertTrue(moved.get('ok'), moved)
+        self.assertEqual(SA.objects.get(pk=action_id).run_at,
+                         datetime(2030, 1, 11, 15, 0, tzinfo=PARIS))
+        self.assertTrue(self._tool('cancel_scheduled_action', schedule_id=action_id)['ok'])
+        self.assertEqual(SA.objects.get(pk=action_id).state, SA.STATE_CANCELLED)
+
+    def test_another_users_schedule_is_left_alone(self):
+        action_id = self._schedule()['actions'][0]['id']
+        self.assertFalse(self._tool('cancel_scheduled_action', user=self.other,
+                                    schedule_id=action_id)['ok'])
+        self.assertEqual(SA.objects.get(pk=action_id).state, SA.STATE_SCHEDULED)
+
+    def test_a_visitor_is_stopped_before_the_view(self):
+        from django.contrib.auth.models import AnonymousUser
+        from wama.tool_api import schedule_items
+        self.assertIn('error', schedule_items(AnonymousUser(), TOOL, [self.item.pk]))
+        self.assertFalse(SA.objects.exists())
+
+    def test_the_moment_of_a_schedule_is_not_taken_for_an_unsourced_fact(self):
+        """« demain soir » devient « 2026-11-19 22:00 » sous la plume du modèle : ni une année ni
+        un téléphone de document. Le même texte dans un argument qui n'est pas un instant, lui,
+        reste vérifié (contre-épreuve)."""
+        from wama.common.services.assistant_engine import _unsourced_write_facts
+        moment = '2026-11-19 22:00'
+        self.assertEqual([], _unsourced_write_facts(
+            'schedule_items', {'tool': TOOL, 'item_ids': [12], 'when': 'manual', 'at': moment},
+            [], 'programme la 12 demain soir'))
+        self.assertTrue(_unsourced_write_facts(
+            'schedule_items', {'tool': TOOL, 'item_ids': [moment]}, [], 'programme la 12'))
+
+
 class QueueAttributesTest(SimpleTestCase):
 
     def test_each_queue_names_its_own_start_tool(self):

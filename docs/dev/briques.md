@@ -2047,7 +2047,7 @@ Jumelle <app>_NN coexistante pour comparaison Playwright + diff par témoins (ro
 
 - **Domicile** : `wama/common/sandbox.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Bac à sable d'apps — jumelles EXÉCUTABLES (route §10.3, marche S, actée Fabien 2026-08-18).
-- **API publique** (24) :
+- **API publique** (25) :
   - `load_registry() -> list` — Liste des jumelles [{label, generated_from, created, created_by?}] — [] si registre
   - `twin_source(label: str) -> str` — App SOURCE d'une jumelle ('' si ce label n'en est pas une).
   - `declaring_app(app: str) -> str` — L'app dont la DÉCLARATION fait foi pour `app` : elle-même, ou sa SOURCE si c'est une
@@ -2070,6 +2070,7 @@ Jumelle <app>_NN coexistante pour comparaison Playwright + diff par témoins (ro
   - `sandbox_urlpatterns()` — URLconfs des jumelles — préfixe = label (underscore assumé : `/converter_01/` — le
   - `inject_sandbox_access(default_app_access: dict, app_group: dict) -> None` — Gating DEV-ONLY des jumelles (contrat marche S §3) + groupe d'affichage dédié.
   - `inject_sandbox_catalog(app_catalog: dict) -> None` — Entrées APP_CATALOG des jumelles : CLONE de l'app source (mêmes conventions — la
+  - `app_origin(spec) -> str` — L'origine d'une entrée d'`APP_CATALOG` (`ORIGIN_*`), '' pour une entrée du bac à sable qui
   - `non_sandbox_apps(app_catalog: dict) -> list` — Apps RÉELLES du catalogue (les jumelles sont exclues de la grille de conformité :
   - `born_apps(app_catalog: dict) -> list` — Apps du bac à sable NÉES D'UN MANIFESTE (sans source) — à la différence d'une jumelle, elles
 
@@ -3052,7 +3053,7 @@ Source unique des réglages d'app : volet droit, modales (item ET lot, `context`
 
 - **Domicile** : `wama/common/utils/param_schema.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Schéma de paramètres WAMA — source unique pour rendre les réglages d'une app dans TOUTES les surfaces (modale item/batch, volet inspecteur card/batch/file) depuis une seule description, au lieu de markup dupliqué par template (cause des divergences).
-- **API publique** (45) :
+- **API publique** (44) :
   - `class Param` — Description d'UN paramètre, indépendante de la surface de rendu.
   - `format_display(value, display_format: str) -> Optional[str]` — La valeur dans le FORMAT déclaré (`Param.display_format`), None si le format est inconnu
   - `derive_from_model(model_class, include: List[str], overrides: dict=None) -> List[Param]` — Construit la liste de `Param` d'une app à partir des champs d'un modèle Django.
@@ -3086,7 +3087,6 @@ Source unique des réglages d'app : volet droit, modales (item ET lot, `context`
   - `declared_param_schemas(app_id: str)` — TOUS les schémas de params déclarés par le module de l'app — pas seulement l'attribut
   - `schema_model_kwargs(app_id: str, params: dict) -> dict` — Sous-ensemble de `params` qui est À LA FOIS déclaré au schéma de l'app ET un champ
   - `schema_extra_params(app_id: str, params: dict) -> dict` — Symétrique de `schema_model_kwargs` : les params DÉCLARÉS au schéma qui ne sont PAS des
-  - `schema_arg_names(app_id: str) -> set` — Noms de params qu'une app DÉCLARE — surface d'arguments acceptable d'un outil `**params`.
   - `choice_values(p) -> List[str]` — Valeurs VALIDES d'un select/radio : ses `choices` statiques. UNE fonction pour la porte
   - `catalog_options(p) -> List[Tuple[str, str]]` — [(valeur, libellé)] d'un select tiré du CATALOGUE (`options_source='catalog'`), lus sur le
   - `catalog_choice_keys(app_id: str, domain: str=None) -> List[Tuple[dict, List[str]]]` — [(champ, [clés de catalogue])] des selects de catalogue d'une app, dans l'ordre du schéma —
@@ -4232,6 +4232,8 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
 - **API publique** (142) :
   - `tool_effect(effect: str, *, sub_agent: bool=True, reason: str='')` — Marque l'EFFET d'un outil sur sa fonction. `sub_agent=False` retire une LECTURE de ce qu'un
   - `effect_of(tool_name: str) -> dict | None` — L'effet déclaré d'un outil du registre, None s'il n'en déclare pas (ou n'existe pas).
+  - `tool_schema(provider)` — Déclare le schéma des arguments d'un outil : `provider()` rend une liste de `Param` (ou de
+  - `tool_param_schema(tool_name: str) -> list` — Le schéma (liste de dicts) des arguments que lit l'outil : celui qu'il déclare
   - `sub_agent_tools() -> frozenset` — Les outils qu'un sous-agent peut appeler — DÉRIVÉS des marques, jamais recopiés : les
   - `tool_annotations(tool_name: str) -> dict` — Les annotations MCP d'un outil, tirées de sa marque — UNE déclaration, deux lecteurs : notre
   - `list_user_files(user, folder: str='temp') -> dict` — List ALL files in one of the user's folders (any extension).
@@ -4337,6 +4339,9 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `get_my_access(user) -> dict` — What the current user is allowed to do: account tier, business roles, and which apps they
   - `list_my_memories(user, kind: str='', limite: int=25) -> dict` — List what WAMA remembers for this user — facts, events and procedures it has kept.
   - `get_my_calendar(user, start: str='', end: str='', with_instance: bool=False, limit: int=100) -> dict` — Read the user's calendar ("Mon calendrier"): what they ran, what is planned or scheduled,
+  - `schedule_items(user, tool: str, item_ids=None, when: str='', at: str='') -> dict` — Schedule the launch of one or more of the user's cards, as the card menu's "Schedule…" does:
+  - `reschedule_action(user, schedule_id: int, when: str='', at: str='') -> dict` — Move one of the user's scheduled launches to another placement or date, as the card's
+  - `cancel_scheduled_action(user, schedule_id: int) -> dict` — Cancel one of the user's scheduled launches; the card stays in its queue, waiting.
   - `list_my_notifications(user, unread_only: bool=False, limit: int=20) -> dict` — List the user's notifications in WAMA (the bell): finished or failed tasks, access
   - `list_my_shares(user) -> dict` — What the user shared and what was shared with them ("Mes partages"): for each entry its
   - `list_my_rag(user, level: str='', query: str='', limit: int=50) -> dict` — List the documents the user has entrusted to the RAG ("Mon RAG"): each source, at which

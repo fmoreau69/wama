@@ -36,22 +36,35 @@ from django.core.management.base import BaseCommand
 # ── Faits : chaque fonction rend le CONTENU markdown du bloc (déterministe, trié) ──
 
 def _fait_outils():
-    """Surface outils : registre, descriptions dérivées, arguments documentés."""
-    from wama.common.sandbox import sandbox_labels
-    from wama.tool_api import TOOL_REGISTRY, app_id_for_tool, tool_descriptions
-    # Les outils des JUMELLES (triade injectée, `inject_sandbox_registry`) sont hors du compte : le
-    # bac à sable est gitignoré, et un fait écrit dans une doc versionnée doit valoir sur un clone
-    # comme sur ce disque (2026-10-12 — la triade portée des sept apps faisait passer 84 à 96
-    # sans un outil réel de plus ; même règle que le budget de langue).
-    twins = set(sandbox_labels())
-    real = {name for name in TOOL_REGISTRY if app_id_for_tool(name) not in twins}
+    """Surface outils : registre, par origine, descriptions dérivées, arguments documentés —
+    lus au registre `tools` (`registries_builtin`), jamais recalculés à côté."""
+    from wama.common.fact_tags import entries
+    from wama.common.registries_builtin import TOOL_ORIGIN_LABELS
+    from wama.common.sandbox import ORIGIN_BORN, ORIGIN_TWIN
+    from wama.tool_api import tool_descriptions
+    # Les outils du BAC À SABLE (jumelles et apps nées d'un manifeste, triade injectée —
+    # `inject_sandbox_registry`) sont hors du compte : le bac à sable est gitignoré, et un fait
+    # écrit dans une doc versionnée doit valoir sur un clone comme sur ce disque (2026-10-12 — la
+    # triade portée des sept apps faisait passer 84 à 96 sans un outil réel de plus ; même règle
+    # que le budget de langue). Le registre `tools`, lui, les compte à l'exécution.
+    sandbox = (ORIGIN_TWIN, ORIGIN_BORN)
+    tools = entries('tools')
+    real = {name for name, e in tools.items() if e['origin'] not in sandbox}
+    by_origin = {}
+    for name in real:
+        by_origin[tools[name]['origin']] = by_origin.get(tools[name]['origin'], 0) + 1
+    split = ' · '.join(f"{TOOL_ORIGIN_LABELS.get(origin, origin)} : {count}"
+                       for origin, count in sorted(by_origin.items(), key=lambda kv: -kv[1]))
     desc = {name: d for name, d in tool_descriptions().items() if name in real}
     decrits = sum(1 for d in desc.values() if (d.get('description') or '').strip())
     args = sum(len(d.get('args') or {}) for d in desc.values())
     return (
-        f"- Outils au registre (`TOOL_REGISTRY`) : **{len(real)}**\n"
+        f"- Outils au registre (`TOOL_REGISTRY`), hors bac à sable : **{len(real)}** — {split}\n"
         f"- Outils décrits (`tool_descriptions()`, dérivé) : **{decrits}/{len(desc)}**\n"
-        f"- Arguments documentés (types/choix/bornes/défauts) : **{args}**"
+        f"- Arguments documentés (types/choix/bornes/défauts) : **{args}**\n"
+        f"- Les {' et les '.join(TOOL_ORIGIN_LABELS[o] for o in sandbox)} ajoutent leurs outils "
+        f"là où le bac à sable est installé (gitignoré) : le registre « Outils de l'assistant » "
+        f"(`tools`) les compte à l'exécution, ce fait non"
     )
 
 
