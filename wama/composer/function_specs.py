@@ -197,7 +197,8 @@ register(FunctionSpec(
     key='composer.remix', name="Composer — refusion des pistes",
     description="Recompose le morceau à partir de ses pistes séparées, sans celles qu'on retire : "
                 "l'original MOINS ces pistes (`common/utils/stem_mix.py`) — ce qu'on garde n'est "
-                "pas abîmé par la séparation. Le résultat devient une card du lot. Optionnelle.",
+                "pas abîmé par la séparation. Le résultat est une sortie de la card, montrée par "
+                "l'onglet de l'étape dans l'aperçu. Optionnelle.",
     category=FC.TRANSFORM, binding=Binding.APP, app=_APP, impl=_IMPL,
     tags=['audio', 'music'],
     inputs=[PortSpec('work_audio', 'audio', group='travail',

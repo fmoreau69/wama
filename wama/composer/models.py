@@ -205,7 +205,8 @@ class ComposerGeneration(DerivedCardMixin, KeptOutputsMixin, ProcessingTimeMixin
     # `separate` — l'original MOINS les pistes retirées (`common/utils/stem_mix.py` : rien de ce
     # qu'on garde n'est re-synthétisé). `remix_without` : les pistes à retirer, texte lu par
     # `midi_score.instrument_keys` (le vocabulaire de `separation_stems`) ; `remix_audio` : le
-    # morceau recomposé, qui devient aussi une card du lot.
+    # morceau recomposé, sortie de l'étape (l'onglet « Refusion des pistes » de l'aperçu) — plus de
+    # card du lot depuis le 2026-11-17 (décision de Fabien).
     remix_stems = models.BooleanField(
         default=False, db_default=False, help_text="Refusion : le morceau recomposé sans certaines pistes")
     remix_without = models.CharField(

@@ -4791,8 +4791,8 @@ fichier ») : cette copie (`composer/tasks.py:602-606`, `shutil.copyfile`) contr
 l'utilisateur se POINTE), et son motif — « retirer l'une ne libère jamais le fichier de l'autre » — est
 déjà tenu par le commun (`queue_duplication.release_card_file` : un fichier qu'une autre ligne désigne
 n'est jamais libéré, `is_shared_elsewhere`). Les PISTES, elles, suivent la règle : un fichier chacune,
-désigné par l'index et par sa card (mesuré sur le lot 904, chemins identiques). ⏳ Corrigé avec la
-décision « card de refusion » ci-dessous.* ✅ **Le second accès, même jour** : sélectionner des cards de pistes, clic droit,
+désigné par l'index et par sa card (mesuré sur le lot 904, chemins identiques). ✅ Soldé le même
+soir avec la card elle-même (décision ci-dessous) : aucune refusion n'avait tourné sur la base.* ✅ **Le second accès, même jour** : sélectionner des cards de pistes, clic droit,
 « Refusion des pistes (N) » — les pistes choisies restent, les autres partent. Générique : un process
 DÉCLARE ce qu'il prend d'une sélection de cards dérivées de sa card (`ProcessSpec.from_selection`,
 ici `composer.tasks:remix_from_selection`), la route commune `common:api_process_on_selection`
@@ -4939,11 +4939,50 @@ d5) ; T2 la partition complète par défaut (`a0b4d67eb`) ; T3 la borne de nivea
 peut reprendre l'original OU la refusion — une option de la card originale, la refusion devenant
 alors un amont du rendu ; (3) le mixeur dans l'onglet « Pistes séparées » de l'aperçu, plus de page
 d'édition sans partition.
-⏳ **Question ouverte (reformulée)** : la refusion vit sur la card ORIGINALE (sortie, onglet, entrée du
-cover) — faut-il ENCORE créer une card « refusion » dans le lot (morceau à travailler à part), ou
-plus ? Si oui, elle POINTE la sortie (aucune copie). Piste de fond notée, non lancée : fondre la card
-originale dans la card mère du lot (Fabien : « ça pourrait avoir sa logique […] une révision de la
-card mère ») — elle changerait ce qu'est une card de lot pour toutes les apps.
+✅ **Tranché (Fabien, 2026-11-17, soir)** : « si la card originale porte la refusion en sortie de
+sous-process, pourquoi générer une nouvelle card ? » — plus de card « refusion » dans le lot, plus
+de copie : la refusion est la SORTIE de l'étape (`remix_audio`), l'onglet « Refusion des pistes » de
+l'aperçu (garde : `composer.tests_parts…test_a_remix_without_the_drums_is_the_original_minus_the_drums`,
+qui lit enfin l'onglet servi). Piste de fond notée, non lancée : fondre la card originale dans la card
+mère du lot (Fabien : « ça pourrait avoir sa logique […] une révision de la card mère ») — elle
+changerait ce qu'est une card de lot pour toutes les apps.
+✅ **Mode 3 du mixage (Fabien, même soir, après écoute des extraits de 2a)** : N lecteurs `<audio>` en
+parallèle, un par piste — « les dégradations sont raisonnables […] c'est du monitoring, pas le résultat
+final ». Mesuré par 2a (Chromium, axe réel) : à ×1 un décalage FIXE de 0 à 20 ms selon le départ
+(tolérance de l'axe, `SYNC.tolerance`), à ×2 médiane 10 ms à l'écoute ; resserrer la tolérance
+multiplie les rattrapages sans gain. ⚠ Contrainte : sans HTTP/2 (`httpd.conf:120`, module commenté),
+le navigateur n'ouvre que 6 connexions par serveur — six pistes en flux les prenaient toutes et
+FIGEAIENT la page (suivi, écriture des niveaux) ; chaque piste se télécharge donc une fois et se joue
+depuis la mémoire de la page (Blob). ⏳ Gardée pour plus tard (Fabien : « on verra à l'usage ») : la
+variante à UN lecteur — le mélange rendu dans la page (`OfflineAudioContext`, 386 ms pour 3:41) puis
+étiré par un seul `<audio>` — qui supprime le décalage. Codé par 2a le même soir (`wama-stem-mix.js`,
+`WamaStemMix.modeFor` ; chaque piste téléchargée une fois puis jouée en `blob:` — aucune connexion
+tenue, mesuré : une requête de plus aboutit en 3 ms pendant la lecture ; addition à ×2, 5 lecteurs,
+200 Mo, ≤ 27 ms entre lecteurs ; mélange exact 474 Mo ; garde `StemMixTest`, 7 contre-épreuves rouges).
+⚠ **CONFIRMÉ (2a, même soir) — le positionnement d'un MP3 par Chromium est APPROXIMATIF** : après un
+saut, le son entendu vient d'un endroit du fichier ANTÉRIEUR à `currentTime`, de 8 à 771 ms selon le
+fichier et la position (« Plus D'eau » −182/−229/−380 ms à 5/60/150 s ; « Keep Hope » −771/−199/−8 ms ;
+témoin WAV ≤ 1 ms ; référence : décodage ffmpeg). Ce n'est PAS propre au mixage : tout `<audio>` d'un
+MP3 de WAMA est concerné (l'« Entrée » du transport, le calage d'une partition, la bascule original ↔
+mélange exact). Mesuré ensuite par 2a (rien écrit) : la copie de lecture existante ne vise que les
+vidéos (`preview_utils.py:1026`, `video_compat.py:331`), mais sa FORME supprime l'écart — copie AAC
+en MP4 : ≤ 3 ms, 4,4 Mo contre 4,9 Mo. Par format (`<audio>` Chromium, 3 positions) : JUSTES (≤ 3 ms)
+les conteneurs à index — M4A/AAC, Opus (Ogg, WebM), FLAC, WAV ; APPROXIMATIFS les flux sans index —
+MP3 à débit constant (~25 ms, une trame), AAC brut `.aac` (~23 ms), Vorbis (jusqu'à 20 ms), MP3 à
+débit variable (jusqu'à 771 ms). `media/` : 331 WAV, 45 MP3, 5 M4A, 2 WebM, aucun autre. ✅ **Décision
+de Fabien (2026-11-18)** : « Ok pour AAC, tous les MP3, pas de pansement » — LA copie de lecture
+existante s'étend aux audios non positionnables (copie AAC en M4A, tous les MP3), servie à tout lecteur
+(aperçu, transport des surfaces, original du mixage) ; traitements et téléchargement gardent
+l'original ; aucun correctif local au mixage. La règle « positionnable » reste un fait de banc
+rejouable (sondes `probe_t4_mp3.py`, `probe_t4_copies.py` de 2a), pas une liste écrite à la main.
+⏳ Confié à 2a ; le rattrapage des 45 MP3 existants passe par un compte à blanc avant toute écriture.
+📏 **Volume** (Fabien : « la refusion un peu plus faible que l'audio d'origine ») — mesuré sur les
+extraits : original −16,1 dBFS, toutes les pistes −16,6, sans la voix −17,2 (l'énergie de la voix
+retirée : attendu). À fenêtre ÉGALE (2a, hors navigateur, mêmes échantillons) : la somme des pistes
+Demucs est −0,24 dB sous l'original sur 60–80 s, −0,12 dB sur le morceau (gain au moindre carré
+1,017) ; le reste de l'écart des extraits vient de leur fenêtre, décalée par le retard du MP3. Seul le
+mode ADDITION est concerné : la refusion garde l'original et retranche. Rien à corriger ; une option
+« même volume que l'original » reste possible si l'usage la demande.
 ⏳ **Partition d'une refusion** (Fabien : « composable par addition ou soustraction des pistes »,
 ordonnée par l'ordre des cards filles — geste commun `reorder`, `set_batch_order`) : (a) ASSEMBLER les
 partitions des pistes gardées — exact, chaque instrument transcrit seul ; (b) transcrire l'audio

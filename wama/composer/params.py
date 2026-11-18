@@ -195,7 +195,8 @@ PARAMS = [
           icon="fa-sliders",
           help="Recompose le morceau à partir de ses pistes séparées, sans celles qu'on retire (par "
                "exemple sans la batterie, sans la voix). Le morceau d'origine sert de base : ce "
-               "qu'on garde n'est pas abîmé par la séparation. Le résultat devient une card du lot.",
+               "qu'on garde n'est pas abîmé par la séparation. Le résultat s'écoute dans l'onglet "
+               "« Refusion des pistes » de l'aperçu de la card.",
           dom_id={"panel": "remixStems", "item": "settingsRemixStems",
                   "batch": "batchSettingsRemixStems"},
           contexts=PANEL_ITEM_BATCH, stales=("remix",)),

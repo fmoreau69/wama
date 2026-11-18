@@ -574,12 +574,12 @@ def remix_from_selection(gen, roles) -> dict:
 def _remix(gen, ctx):
     """GLU du process `remix` (2026-11-16, demande de Fabien) : l'audio de l'ENTRÉE moins les pistes
     retirées (`remix_without`), par la brique commune `stem_mix` — l'original sert de base, ce
-    qu'on garde n'est pas re-synthétisé. Le morceau recomposé est la sortie de la card
-    (`remix_audio`) et une card de plus dans le lot (`derived_cards`, rôle `remix`) : on peut en
-    écrire la partition, le recomposer encore."""
-    import shutil
+    qu'on garde n'est pas re-synthétisé. Le morceau recomposé est la SORTIE de l'étape sur la card
+    (`remix_audio`), montrée par l'onglet de son étape dans l'aperçu.
+    Plus de card « refusion » dans le lot (décision de Fabien, 2026-11-17 : « si la card originale
+    porte la refusion en sortie de sous-process, pourquoi générer une nouvelle card ? ») — elle
+    recevait une COPIE du fichier, contraire au pointage (`MEDIA_STORAGE_TIERING §8`)."""
     from django.conf import settings
-    from wama.common.utils.derived_cards import derive_cards
     from wama.common.utils.midi_score import instrument_label
     from wama.common.utils.stem_mix import mix, write_wav
 
@@ -599,20 +599,12 @@ def _remix(gen, ctx):
     nature = 'remix' + ''.join(f'-{k.replace(" ", "_")}' for k in removed) + ('-mix' if leveled else '')
     rel, abs_path = ctx.output_place('.wav', nature=nature, model='stem_mix')
     write_wav(abs_path, samples, rate)
-    # La card du lot a SA copie, rangée comme les pistes (dans l'entrée de l'app) : retirer l'une
-    # ne libère jamais le fichier de l'autre.
-    card_rel, card_abs = ctx.output_place('.wav', nature=nature, model='stem_mix',
-                                          source_name=gen.melody_reference.name, folder='input')
-    shutil.copyfile(abs_path, card_abs)
-    derive_cards(gen, [('remix', card_rel)], field='melody_reference',
-                 reset_fields={'separate_stems': False, 'remix_stems': False, 'remix_without': '',
-                               'remix_levels': None, 'source_url': ''})
     label = said or 'complète'
     return {
         'fields': {'remix_audio': rel},
         'output_ref': rel,
         'label': f'Refusion {label}',
-        'console_success': f"✓ Refusion {label} — une card dans le lot",
+        'console_success': f"✓ Refusion {label} — onglet « Refusion des pistes » de l'aperçu",
         'models': [],
         'eta': remix_eta_key_size(gen),
     }

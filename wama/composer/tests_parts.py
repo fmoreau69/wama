@@ -412,8 +412,9 @@ class StemSeparationTest(_InputProcessCase):
     def test_a_remix_without_the_drums_is_the_original_minus_the_drums(self):
         """2026-11-16, Fabien : « refusionner en retirant seulement une piste, la batterie » — and
         without degrading what is kept : the ORIGINAL minus the removed stem
-        (`common/utils/stem_mix.py`), here exactly the voice. The result is the card's output and
-        one more card of the lot."""
+        (`common/utils/stem_mix.py`), here exactly the voice. The result is the OUTPUT of the step
+        on its card (2026-11-17, Fabien : « si la card originale porte la refusion en sortie de
+        sous-process, pourquoi générer une nouvelle card ? ») — no card added to the lot, no copy."""
         import numpy as np
         import soundfile as sf
         from wama.common.utils.stem_mix import mix
@@ -429,12 +430,19 @@ class StemSeparationTest(_InputProcessCase):
         n = min(len(heard), len(voice))
         self.assertLess(float(np.abs(heard[200:n - 200] - voice[200:n - 200]).max()), 0.02,
                         'the voice alone (away from the edges the resampling rings on)')
-        remix = self._stems(gen)['remix']
-        self.assertIn('/composer/input/', remix.melody_reference.name, 'an INPUT of its own card')
-        self.assertNotEqual(remix.melody_reference.name, gen.remix_audio.name, 'its own copy')
-        self.assertEqual({'vocals', 'drums', 'remix'}, set(self._stems(gen)), 'the stems are kept')
+        self.assertEqual({'vocals', 'drums'}, set(self._stems(gen)),
+                         'the stems are kept, and no card is added for the remix')
+        self.assertIn('/composer/output/', gen.remix_audio.name, 'an OUTPUT of the card')
+        # It is READ in the viewer : the tab of its step (`preview_utils._process_faces`, derived
+        # from `ProcessSpec.outputs`), serving the remix — never measured on a real card before.
+        from django.urls import reverse
+        self.client.force_login(self.user)
+        preview = reverse('common:unified_preview', args=['composer', gen.pk])
+        self.assertIn('remix', [f['key'] for f in self.client.get(preview).json()['sides']['faces']])
+        face = self.client.get(preview, {'side': 'remix'}).json()
+        self.assertTrue(face['url'].split('?')[0].endswith(gen.remix_audio.name), face)
         # Every gain at 1 : the original itself, nothing re-synthesised.
-        stems = {'vocals': str(Path(self.tmp) / remix.melody_reference.name)}
+        stems = {'vocals': str(Path(self.tmp) / self._stems(gen)['vocals'].melody_reference.name)}
         same, _ = mix(str(Path(self.tmp) / gen.melody_reference.name), stems, {'vocals': 1.0}, rate)
         original, _ = sf.read(str(Path(self.tmp) / gen.melody_reference.name), always_2d=True)
         self.assertLess(float(np.abs(same.T - original).max()), 1e-6)
@@ -539,9 +547,7 @@ class StemSeparationTest(_InputProcessCase):
         steady = np.abs(np.diff(np.concatenate([[0], drums]))) == 0
         steady[:200] = steady[n - 200:] = False
         self.assertLess(float(np.abs(heard[:n] - wanted[:n])[steady[:n]].max()), 0.02)
-        remix = self._stems(gen)['remix']
-        self.assertEqual((None, '', False), (remix.remix_levels, remix.remix_without, remix.remix_stems),
-                         'the mixed card starts from its own song, at 100 %')
+        self.assertNotIn('remix', self._stems(gen), 'the remix is the output of the card, no card')
         # A card without stems : the context says so, the page needs its score.
         plain = self._run(melody_reference=self._cover())
         self.assertIsNone(page.context_of(plain)['stems'])
