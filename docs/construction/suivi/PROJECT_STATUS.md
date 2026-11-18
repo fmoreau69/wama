@@ -32030,3 +32030,22 @@ fonctionnement diffère »). Confronté au code :
   rendu), `tests_arrival_consolidation.ArrivalArgumentsAreDeclaredTest` (+2),
   `tests_born_app_tools` (consigne en liste). Contre-épreuves en processus : 7 neutralisations,
   7 rouges.
+
+## §PALIER 2026-11-18 (soir), « PLUSIEURS FICHIERS SUR TOUT PORT : vérifié au navigateur ; l'avatarizer déclare ses ports d'avatar » — commit local, non poussé — 🔴 relancer gunicorn (JS de l'avatarizer, `staticfiles`) — 🔚 jumelle `avatarizer_01` : sa vue de dépôt générée ne lit pas l'audio que sa card poste (« Rien à ajouter », rouge depuis le 08/11 au moins — trou du générateur, à la session des jumelles)
+
+Suite de `0b625acce`, sur la remarque de la session du composer (« vérifie toi-même au navigateur »).
+Serveur jetable (port 8037), gestes `<app>.attach_lot` rejoués : composer et `composer_01` verts sur
+leurs deux ports (« work_audio » → lot de 2 ; « work_score » → lot de 2). L'avatarizer, lui, montrait
+trois défauts, dont deux de l'instrument :
+- ✅ le type MIME des fichiers déposés par le geste ne valait que pour `.wav`/`.png` : un `.jpeg`
+  partait sans type et l'avatarizer, qui filtre son avatar par type, le refusait — lu désormais de
+  l'extension (`mimetypes`), comme le navigateur ;
+- ✅ l'avatarizer joignait son avatar À LA MAIN (`extraFields` → `appendInput`, le premier fichier
+  seulement) : ses ports d'avatar sont déclarés à la brique (`ports`, champ `avatar_upload`), un lot
+  d'avatars pour un audio se forme ;
+- ✅ le témoin `.glb` n'est pas riggé : l'app le refuse à bon droit (`app_attribute_verdict`) ; le
+  geste dit ce port NON MESURÉ avec la raison, au lieu d'attendre 90 s un rechargement.
+Résultat : `avatarizer.attach_lot` vert (audio → lot de 2 ; image → lot de 2 ; objet 3D non mesuré).
+`CARD_DESIGN §11.11 G` complété. Restes nommés : `avatarizer_01` (ci-dessus) ; aux autres sessions,
+les rouges de la suite complète du 18/11 qu'elles portent (`separation_stems` et `clean_mode` non
+canoniques, porte des voix des jumelles, budget des noms de test 1316 > 1315).

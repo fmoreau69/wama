@@ -639,6 +639,19 @@ def _fichier_temoin(extensions: str) -> Path:
     return Path(f.name)
 
 
+def _witness_unfit(app: str, path: Path) -> str:
+    """La raison pour laquelle l'app REFUSE ce témoin sur son port — le verdict d'attributs que sa
+    vue d'ajout pose (`input_match.app_attribute_verdict` : un objet 3D non riggé pour l'avatar
+    parlant) —, '' s'il lui convient. À lire hors du contexte Playwright (ORM)."""
+    from wama.common.utils.input_match import app_attribute_verdict, work_token_for
+    from wama.media_library.natures import INCOMPATIBLE
+    token = work_token_for(path.name)
+    if not token:
+        return ''
+    state, reason = app_attribute_verdict(app, token, str(path))
+    return reason if state == INCOMPATIBLE else ''
+
+
 #: Le CANEVAS de l'image témoin des surfaces et les objets qu'elle montre — PARTAGÉS par l'image
 #: et ses détections (`witness_sample`), qui doivent coïncider : une zone posée à côté de l'objet
 #: ferait une vignette fausse.
@@ -3015,7 +3028,9 @@ def check_app_attach_lot(app: str, url_path: str):
     Ne démarre AUCUN traitement ; le verdict se lit en BASE (deux éléments, un seul lot de 2).
     """
     import base64
+    import mimetypes
 
+    from playwright.sync_api import TimeoutError as PlaywrightTimeout
     from playwright.sync_api import sync_playwright
 
     from wama.common.services.nightly_tests import SkipScenario
@@ -3060,9 +3075,12 @@ def check_app_attach_lot(app: str, url_path: str):
                     raise SkipScenario("aucun port `multiple` sur cette card")
                 main = several[rank]
                 files = [witness(main['accept']) for _ in range(2)]
+                # Le type MIME que le navigateur donne au fichier, tiré de son extension
+                # (2026-11-18) : la table de deux extensions laissait un `.jpg` sans type, et
+                # l'avatarizer, qui filtre son avatar par type, le refusait — un faux rouge.
                 page.evaluate(_DROP_ON_PORT, [main['input'], [
                     {'name': f.name, 'b64': base64.b64encode(f.read_bytes()).decode(),
-                     'type': {'.wav': 'audio/wav', '.png': 'image/png'}.get(f.suffix, '')}
+                     'type': mimetypes.guess_type(f.name)[0] or ''}
                     for f in files]])
                 page.wait_for_timeout(1500)
                 held = page.evaluate("(id) => WamaApp.inputEntries(document.getElementById(id)).length",
@@ -3084,10 +3102,24 @@ def check_app_attach_lot(app: str, url_path: str):
                     page.wait_for_timeout(500)
                 if not button.is_enabled():
                     raise SkipScenario(f"bouton grisé : {button.get_attribute('title') or 'entrée requise'}")
-                with page.expect_navigation(timeout=90000):
-                    button.click()
+                try:
+                    with page.expect_navigation(timeout=90000):
+                        button.click()
+                except PlaywrightTimeout:
+                    stalled = True
+                else:
+                    stalled = False
             finally:
                 browser.close()
+        # Rien n'a rechargé : l'app a refusé chaque élément. Un témoin qui ne remplit pas ce que le
+        # port EXIGE (l'objet 3D de l'avatarizer doit être riggé — `app_attribute_verdict`, le
+        # jugement même de la vue d'ajout) laisse ce port NON MESURÉ, en le disant ; tout autre
+        # refus est un échec (2026-11-18).
+        if stalled:
+            unfit = _witness_unfit(app, files[0])
+            if unfit:
+                return None, f"« {main['id']} » non mesuré : le témoin ne remplit pas ce que le port exige ({unfit})", len(several)
+            return False, f"« {main['id']} » : 2 fichiers, aucun élément ajouté (la page n'a pas rechargé)", len(several)
         created = list(model.objects.exclude(id__in=known).order_by('id'))
         if len(created) != 2:
             return False, f"« {main['id']} » : 2 fichiers → {len(created)} élément(s) en base", len(several)
@@ -3103,12 +3135,15 @@ def check_app_attach_lot(app: str, url_path: str):
     try:
         with _garde_de_montage(app, 'attach_lot'):
             ok, detail, count = deposit(0)
-            details = [detail]
-            for rank in range(1, count if ok else 1):
+            verdicts, details = [ok], [detail]
+            for rank in range(1, count if ok is not False else 1):
                 ok, detail, _count = deposit(rank)
+                verdicts.append(ok)
                 details.append(detail)
-                if not ok:
+                if ok is False:
                     break
+            # Vert : aucun port en échec et au moins un port mesuré ; un port non mesuré est DIT.
+            ok = False not in verdicts and True in verdicts
             return ok, ('2 fichiers par port multiple : ' if ok else '') + ' ; '.join(details)
     finally:
         for path in witnesses:

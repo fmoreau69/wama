@@ -1585,7 +1585,10 @@ trois n'en étaient pas. La règle qui les dissout, et qu'il faut garder :
 > plusieurs fichiers sont REFUSÉS avant tout envoi (rien ne dit comment les apparier). L'outil
 > d'ajout de l'assistant lit la même déclaration (`generic_runner.work_arguments`) et refuse de même
 > (`tool_api._arrival`). Un port à un fichier en tient UN, et NOMME ce qu'il écarte (`WamaApp.keptByPort`). Un nouveau dépôt REMPLACE le contenu du port : il
-> n'accumule pas. Scénario `<app>.attach_lot` (chaque port multiple, 2026-11-18) ; garde `tests_card_lot_from_files`.
+> n'accumule pas. Scénario `<app>.attach_lot` (chaque port multiple, 2026-11-18 ; un port dont le témoin ne remplit
+> pas les attributs exigés — l'objet 3D riggé de l'avatarizer, `app_attribute_verdict` — est DIT non
+> mesuré) ; garde `tests_card_lot_from_files`. Une app qui joint un port à la main (`extraFields`)
+> le cache à la brique : l'avatarizer déclare donc ses ports d'avatar dans `ports` (2026-11-18).
 
 1. ~~Aucun port pour le lot~~ → **normal**, cf. la règle ci-dessus. La colonne « lot » de la
    matrice mesure un littéral de gabarit (`show_batch_bar`), pas une déclaration manquante.

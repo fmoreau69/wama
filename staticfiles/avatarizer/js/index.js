@@ -220,17 +220,21 @@
             csrfToken: csrf,
             button:    btnGenerate,
             prompt:    { inputId: 'text_content', field: 'text_content' },
+            // L'audio ET les ports d'avatar sont des ports de la brique (2026-11-18) : plusieurs
+            // fichiers sur l'un d'eux = un lot (`CARD_DESIGN §11.11 G`) — plusieurs audios pour
+            // un avatar, ou plusieurs avatars pour un audio. Photo OU objet 3D (`keepOnlyAvatar`
+            // n'en laisse qu'un rempli), tous deux postés sous `avatar_upload` : le serveur dérive
+            // le moteur de la nature du fichier. L'avatar était joint ici à la main
+            // (`appendInput` dans `extraFields`), qui n'en prenait que le premier.
             ports:     [{ inputId: 'audio_input', field: 'audio_input',
-                          urlField: 'source_url', urlInputId: 'avatarizerUrlInput' }],
-            // Plusieurs audios déposés d'un coup = un lot (`CARD_DESIGN §11.11 G`), même avatar.
+                          urlField: 'source_url', urlInputId: 'avatarizerUrlInput' }]
+                       .concat(avatarInputs.map((input) => ({ inputId: input.id, field: 'avatar_upload' }))),
             consolidateUrl: cfg.urls.consolidate,
             extraFields: function (fd) {
                 // L'avatar est TOUJOURS un fichier (joint, ou désigné : le sien, un partagé, un
                 // avatar système de la médiathèque — pointé). `avatar_source='gallery'` (un NOM)
                 // ne reste que pour les lots, le Studio et l'API de l'assistant.
                 fd.append('avatar_source', 'upload');
-                // Photo OU objet 3D : le serveur dérive le moteur de la nature du fichier.
-                WamaApp.appendInput(fd, chosenAvatar(), 'avatar_upload');
                 // Les réglages du VOLET, lus par le schéma (2026-10-22, aligné sur le
                 // synthesizer) : modèle d'animation, amélioration, décalage — et la VOIX (moteur,
                 // langue, voix, température), qui a rejoint le volet. Trois champs étaient relus
