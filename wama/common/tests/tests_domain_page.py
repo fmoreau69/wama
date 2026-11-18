@@ -249,6 +249,15 @@ class TheNightlyGesturesSweepEveryDomainTest(SimpleTestCase):
                     found.append(f'{path.name}:{n}')
         self.assertEqual([], found)
         self.assertIn(".tab-pane[data-domain].active", ui_smoke.PAGE_ROOT_JS)
+        # The shown pane is written INLINE in module-level snippets (strings that cannot all be
+        # concatenated) : each copy is exactly `PAGE_ROOT_JS`, so none can drift on its own.
+        drifted = []
+        for path in sorted(root.glob('ui_smoke*.py')):
+            for n, line in enumerate(path.read_text(encoding='utf-8').splitlines(), 1):
+                if ("document.querySelector('.tab-pane[data-domain]" in line
+                        and ui_smoke.PAGE_ROOT_JS not in line):
+                    drifted.append(f'{path.name}:{n}')
+        self.assertEqual([], drifted)
 
     def test_the_page_of_a_domain_is_the_page_asked_for(self):
         """The arrival check compares the PATH: the page of a domain is asked with its query."""
