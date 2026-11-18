@@ -873,14 +873,12 @@ class InspectorSavesThroughTheCommonPathTest(SimpleTestCase):
 #: generic test lists its gaps). The composer and the avatarizer, which posted the whole schema,
 #: were brought back the day the common save was written.
 OWN_PANEL_SAVE = {
-    'anonymizer': 'inspector.read() posted by itself — the same as the common save',
+    # 2026-11-18 : anonymizer, describer, enhancer (whose save posted an EMPTY body), imager,
+    # reader, synthesizer and transcriber brought back. The converter posts `options_json` : an
+    # EMPTY value there resets an option to « not set », and the options outside the media type are
+    # filtered (`readParamsFrom`) — the flat read touches nothing with an empty value. It needs that
+    # rule in the common first.
     'converter': 'an item payload of its own (`readParamsFrom` : output_format + options_json)',
-    'describer': 'WamaParams.read(ph), then `syncCard` of its own',
-    'enhancer': 'two domains, a FormData built by its own `postPanel`',
-    'imager': '`_panelFormData` of its own, then `imagerRefreshCard`',
-    'reader': 'WamaParams.read(ph) posted as JSON',
-    'synthesizer': 'inspector.read() posted by itself, then a page reload',
-    'transcriber': 'inspector.read() posted as JSON (`autoSave`)',
 }
 
 
@@ -891,14 +889,16 @@ class EveryPanelSavesThroughTheCommonPathTest(SimpleTestCase):
 
     def _apps_with_own_save(self):
         import re
+        from wama.common.sandbox import sandbox_labels
+        # A sandbox twin (`<app>_NN`) is a FROZEN copy, outside the repository, regenerated on its
+        # own (`app_sandbox substitute`) — like the guard of the real pipelines, it is not judged here.
+        twins = set(sandbox_labels())
         found = set()
         for world in ('wama', 'wama_lab', 'wama_data'):
             root = Path(settings.BASE_DIR) / world
             for path in list(root.glob('*/templates/**/*.html')) + list(root.glob('*/static/**/*.js')):
-                # A sandbox twin (`<app>_NN`) carries a copy of its source's files : it is the
-                # source's gap, and is regenerated once the source is brought back.
-                app = re.sub(r'_\d+$', '', path.relative_to(root).parts[0])
-                if app == 'common':
+                app = path.relative_to(root).parts[0]
+                if app == 'common' or app in twins or re.search(r'_\d+$', app):
                     continue
                 text = path.read_text(encoding='utf-8', errors='replace')
                 if 'initFromSchema' in text and re.search(r'\bsave(Item|Batch)\s*:', text):

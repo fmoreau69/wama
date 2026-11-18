@@ -524,33 +524,10 @@ document.addEventListener('DOMContentLoaded', function () {
       '<i class="fas fa-crosshairs text-info"></i> Actions — élément #' + card.dataset.id);
   }
 
-  // Sauvegarde des réglages de l'élément inspecté (callback WamaInspector).
-  function saveInspectorItem(id) {
-    if (!id || !config.settingsUrlTemplate) return;
-    const card = queueContainer ? queueContainer.querySelector(`.synthesis-card[data-id="${id}"]`) : null;
-    // Le volet inclut désormais Température + Max tokens → on lit tout depuis le panneau.
-    const payload = _panelReadValues();
-    fetch(getUrl(config.settingsUrlTemplate, id), {
-      method: 'POST',
-      headers: csrfHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(payload),
-    })
-      .then(r => r.json())
-      // La card est re-rendue par le serveur : ses data-* (le ⚙) viennent de `gear_data`,
-      // dérivé du schéma — plus de recopie champ par champ ici.
-      .then(() => { if (card) refreshCard(id); })
-      .catch(() => showToast('Erreur lors de l\'enregistrement', 'danger'));
-  }
-
-  // Sauvegarde des réglages du batch inspecté → tous les items (callback WamaInspector).
-  function saveInspectorBatch(bid) {
-    if (!bid || !config.batchUpdateUrlTemplate) return;
-    fetch(getUrl(config.batchUpdateUrlTemplate, bid), {
-      method: 'POST',
-      headers: csrfHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(_panelReadValues()),
-    }).then(r => r.json()).catch(() => showToast('Erreur lors de l\'enregistrement du batch', 'danger'));
-  }
+  // Enregistrer l'élément ou le lot inspecté : l'envoi COMMUN de `initFromSchema` (2026-11-18) — la
+  // même lecture du volet, vers les routes que la file déclare ; la card (ou les filles du lot) est
+  // redemandée au serveur. Le transcriber l'écrivait à l'identique, au refus près (dit ici par
+  // un toast générique, là par la réponse du serveur).
 
   // Routage de la sauvegarde via l'inspecteur commun (item / batch / défauts de l'utilisateur,
   // ces derniers par `saveGlobalUrl` — brique commune, 2026-09-27).
@@ -572,8 +549,6 @@ document.addEventListener('DOMContentLoaded', function () {
       renderItemActions: _renderItemActions,
       // Actions d'un LOT : brique commune (résout la card mère depuis son IDENTIFIANT).
       renderBatchActions: function (host, batchId) { WamaInspector.cloneBatchActions(host, batchId); },
-      saveItem: saveInspectorItem,
-      saveBatch: saveInspectorBatch,
       saveGlobalUrl: config.saveUserSettingsUrl,
       autoSave: true,
       itemLabel: (id) => "l'élément #" + id,

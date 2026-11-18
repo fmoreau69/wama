@@ -89,33 +89,10 @@
                         '<i class="fas fa-crosshairs text-info"></i> Actions — génération #' + card.dataset.id);
                 },
                 renderBatchActions: function (host, batchId) { WamaInspector.cloneBatchActions(host, batchId); },
-                // Les deux endpoints lisent `request.POST` (coerce_schema_values) — donc
-                // FormData, PAS du JSON comme reader.
-                saveItem: function (id) {
-                    return WamaApp.csrfFetch(
-                        WamaApp.getUrl(config.urls.updateSettings, id), config.csrfToken,
-                        { method: 'POST', body: _panelFormData(ph) }
-                    ).then(function (r) { if (r && r.ok && window.imagerRefreshCard) imagerRefreshCard(id); });
-                },
-                saveBatch: function (bid) {
-                    const url = (window.IMAGER_CARD || {}).urls.batchUpdate;
-                    if (!url) return Promise.resolve();
-                    return WamaApp.csrfFetch(
-                        WamaApp.getUrl(url, bid), config.csrfToken,
-                        { method: 'POST', body: _panelFormData(ph) }
-                    ).then(function () { window.location.reload(); });
-                },
+                // Enregistrer l'élément ou le lot : l'envoi COMMUN de `initFromSchema` (2026-11-18)
+                // — la lecture du volet, vers les routes que la file déclare ; la card redemandée.
             });
         });
-    }
-
-    function _panelFormData(host) {
-        const fd = new FormData();
-        const vals = (window.WamaParams ? WamaParams.read(host) : {}) || {};
-        Object.keys(vals).forEach(function (k) {
-            if (vals[k] !== null && vals[k] !== undefined) fd.append(k, vals[k]);
-        });
-        return fd;
     }
 
     document.addEventListener('DOMContentLoaded', function() {

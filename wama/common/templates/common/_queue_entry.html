@@ -78,10 +78,13 @@ rangée) se rend en card SEULE : la branche « lot » lui dessinait un en-tête 
 {% load wama_actions %}
 {% domain_route_prefix app domain as card_route_prefix %}
 {% url app|add:':'|add:card_route_prefix|add:'card_html' 0 as card_url %}
-{% comment %}`data-settings-url` (2026-11-17) — la route des réglages d'UN élément (`update_settings`, CONVENTIONS
-§3.1, servie par les dix apps), id factice `/0/`, dérivée comme `data-card-url` : le volet ENREGISTRE un
-élément par elle (`WamaInspector.initFromSchema`), aucune app ne l'écrit plus.{% endcomment %}
-{% url app|add:':'|add:card_route_prefix|add:'update_settings' 0 as settings_url %}
+{% comment %}`data-settings-url` (2026-11-17) — la route des réglages d'UN élément, id factice `/0/` : le volet
+ENREGISTRE un élément par elle (`WamaInspector.initFromSchema`), aucune app ne l'écrit plus. Lue du contexte
+de la file (`queue_context`, que `_queue.html` a déjà calculé — sinon calculé ici) : `served_route('update')`
+connaît toutes les orthographes admises derrière le préfixe du domaine (2026-11-18 — `audio_update` de
+l'enhancer, que la dérivation `update_settings` manquait).{% endcomment %}
+{% if not q %}{% queue_context app domain as q %}{% endif %}
+{% firstof q.settings_url as settings_url %}
 {% if not batch_info.obj or batch_info.obj.is_unitary %}
   {% for item in batch_info.items %}{% if item.elem %}
     {% with elem=item.elem card_label=item.output_filename in_batch=False %}

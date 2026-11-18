@@ -510,11 +510,20 @@ l'avatarizer) — toujours pas un domaine ni un mode.
   `_queue_entry.html`, et de son jumeau `queue-actions.js::unwrapBatch` ; `data-batch-update-url`
   de la card mère, `_batch_card.html`) ; l'élément est redessiné (`WamaApp.fetchCard`), le lot
   recharge la page. Composer et avatarizer n'écrivent plus rien ; les jumelles générées, qui ne
-  passaient AUCUN envoi (volet sans enregistrement), en héritent. ⏳ Les huit autres apps passent
-  encore le leur (anonymizer, synthesizer, transcriber : `inspector.read` ; describer, reader :
-  `WamaParams.read` ; imager, converter, enhancer : un envoi propre) — à ramener au défaut, app par
-  app ; la liste, qui ne peut que baisser, est `tests_cap_from_js.OWN_PANEL_SAVE` (une jumelle de bac
-  à sable compte pour sa source). Gardes : `tests_cap_from_js.InspectorSavesThroughTheCommonPathTest` (V8),
+  passaient AUCUN envoi (volet sans enregistrement), en héritent. ✅ **2026-11-18, sept apps de plus
+  ramenées** (anonymizer, describer, enhancer, imager, reader, synthesizer, transcriber) — mesuré en
+  les lisant : l'enhancer attendait un FormData que l'inspecteur ne passe jamais (requête VIDE, rien
+  enregistré) et aucun de ses deux domaines n'enregistrait un lot ; le synthesizer non plus. Le
+  lot n'est plus rechargé : ses filles sont redemandées au serveur (le transcriber enregistre au
+  geste — `autoSave` — et l'aurait rechargé à chaque réglage). L'adresse d'un élément est lue de
+  `queue_context` (`served_route('update')`, toutes les orthographes derrière le préfixe du domaine :
+  `audio_update` de l'enhancer, que la dérivation `update_settings` manquait) ; garde générique
+  `tests_queue_delete_contract…test_every_queue_says_where_an_element_is_saved`. ⏳ Reste le
+  converter : il poste `options_json`, où une valeur VIDE remet une option à « non réglé » et où
+  les options hors de la nature du média sont filtrées ; la lecture à plat ne touche rien à vide —
+  il faut d'abord cette règle au commun. La liste, qui ne peut que baisser, est
+  `tests_cap_from_js.OWN_PANEL_SAVE` ; une jumelle de bac à sable n'y est pas jugée (copie figée,
+  hors dépôt, régénérée à part — `app_sandbox substitute`). Gardes : `tests_cap_from_js.InspectorSavesThroughTheCommonPathTest` (V8),
   `…EveryPanelSavesThroughTheCommonPathTest`,
   `tests_queue_delete_contract.EnrobageUnitaireJumeauTest`, `tests_batch_views.BatchCardReferenceRenderTest`.
   ✅ Même jour : le jeton du formulaire n'entre plus dans la référence du lot (2 lignes sur 3 le

@@ -196,22 +196,9 @@ document.addEventListener('DOMContentLoaded', function () {
     var q  = document.getElementById('descriptionQueue');
     var ph = document.getElementById('describerPanelParams');
     if (!q || !ph || !window.WamaInspector || !WamaInspector.initFromSchema || !window.WamaParams) return;
-    var U    = (window.DESCRIBER_CONFIG && window.DESCRIBER_CONFIG.urls) || {};
-    var csrf = (window.DESCRIBER_CONFIG && window.DESCRIBER_CONFIG.csrfToken) || '';
-    var readPanel = function () { return WamaParams.read(ph); };
-    var post = function (url, body) {
-        return fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
-            body: JSON.stringify(body),
-        });
-    };
-    // Reflète les valeurs sauvegardées dans les data-* de la card → cohérence au prochain clic.
-    var syncCard = function (id, vals) {
-        var card = q.querySelector('.synthesis-card[data-id="' + id + '"]');
-        if (!card) return;
-        Object.keys(vals).forEach(function (k) { card.setAttribute('data-' + k.replace(/_/g, '-'), vals[k]); });
-    };
+    {% comment %}Enregistrer l'élément ou le lot : l'envoi COMMUN de `initFromSchema` (2026-11-18) — la
+    lecture du volet, vers les routes que la file déclare ; la card enregistrée est redemandée au
+    serveur (ses data-* suivent : l'ancien `syncCard` les recopiait à la main).{% endcomment %}
     // Actions inspecteur = CLONE + PROXY vers les vrais boutons (brique WamaInspector.cloneActions).
     // Approche UNIQUE inter-apps (CARD_DESIGN §10).
     function _renderItemActions(host, card) {
@@ -228,16 +215,6 @@ document.addEventListener('DOMContentLoaded', function () {
         panelContainer: ph,
         schema:         window.WAMA_DESCRIBER_SCHEMA || [],
         itemLabel:  function (id) { return "l'élément #" + id; },
-        saveItem: function (id) {
-            var vals = readPanel();
-            return post((U.updateSettings || '').replace('/0/', '/' + id + '/'), vals)
-                .then(function (r) { if (r && r.ok) syncCard(id, vals); });
-        },
-        saveBatch: function (bid) {
-            var vals = readPanel();
-            return post((U.batchUpdate || '').replace('/0/', '/' + bid + '/'), vals)
-                .then(function (r) { if (r && r.ok) window.location.reload(); });
-        },
     });
 });
 </script>

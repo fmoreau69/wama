@@ -230,19 +230,9 @@ document.addEventListener('DOMContentLoaded', function () {
     var ph = document.getElementById('synthPanelParams');
     if (!q || !ph || !window.WamaInspector || !WamaInspector.initFromSchema) return;
     var schema = window.SYNTH_PARAMS_SCHEMA;
-    var cfg = window.WAMA_CONFIG || {};
-    var U = cfg.urls || {}, csrf = cfg.csrfToken || '';
-    // Les réglages de l'élément inspecté : le lecteur que l'inspecteur DÉRIVE du schéma
-    // (`read`, contexte `panel` — il connaît les deux identités d'un champ, `id`/`name=` et
-    // `data-param=`). La liste des huit clés écrite ici est retirée le 2026-10-18 : un réglage
-    // ajouté au schéma s'affichait sur la card inspectée sans jamais être enregistré.
-    function saveItemReq(id) {
-        var fd = new FormData();
-        var values = window._synthInspector ? window._synthInspector.read() : {};
-        Object.keys(values).forEach(function (k) { fd.append(k, values[k]); });
-        return fetch(U.updateSettings.replace('/0/', '/' + id + '/'),
-            { method: 'POST', headers: { 'X-CSRFToken': csrf }, body: fd });
-    }
+    {% comment %}Enregistrer l'élément ou le lot : l'envoi COMMUN de `initFromSchema` (2026-11-18) — la
+    lecture que l'inspecteur DÉRIVE du schéma, vers les routes que la file déclare. L'envoi écrit ici
+    ne servait que l'élément : le volet d'une card mère n'enregistrait rien.{% endcomment %}
     window._synthInspector = WamaInspector.initFromSchema({
         queueContainer: q,
         cardSelector: '.synthesis-card',
@@ -255,7 +245,6 @@ document.addEventListener('DOMContentLoaded', function () {
         // cardSettings DÉFAUT (dérivé du schéma) : lit les data-* du gear .settings-btn —
         // émis par la brique card_gear (le custom listait 5 params à la main et avait
         // oublié tts_model/language ; supprimé le 18/08).
-        saveItem: function (id) { return saveItemReq(id).then(function () { window.location.reload(); }); },
         renderItemActions: function (host, card) {
             WamaInspector.cloneActions(host, card.querySelector('.btn-group-actions'),
                 '<i class="fas fa-crosshairs text-info"></i> Actions — élément #' + card.dataset.id);

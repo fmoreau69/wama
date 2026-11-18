@@ -246,33 +246,15 @@
   // (2026-11-02, comme l'enhancer) : une card document reflète le volet du document. ──
   function initInspector(queueEl, panelEl, schema) {
     if (!queueEl || !window.WamaInspector || !WamaInspector.initFromSchema) return null;
-    let inspector = null;
-    const panelValues = () => (inspector ? inspector.read() : {});
-    inspector = WamaInspector.initFromSchema({
+    // Enregistrer l'élément ou le lot : l'envoi COMMUN de `initFromSchema` (2026-11-18) — la même
+    // lecture du volet et les routes que la file déclare ; l'anonymizer l'écrivait à l'identique.
+    const inspector = WamaInspector.initFromSchema({
       queueContainer: queueEl,
       cardSelector: '.anon-card',
       batchSelector: '.batch-group',
       panelContainer: panelEl || document.getElementById('global-settings-container'),
       schema: schema || [],
       itemLabel: id => "le média #" + id,
-      saveItem: async (id) => {
-        const vals = panelValues();
-        const fd = new FormData();
-        Object.keys(vals).forEach(k => fd.append(k, vals[k]));
-        fd.append('csrfmiddlewaretoken', cfg.csrfToken);
-        const d = await (await fetch(getUrl(cfg.settingsSaveUrlTemplate, id),
-                                     { method: 'POST', body: fd })).json();
-        if (d && d.success) refreshCard(id);
-      },
-      saveBatch: async (bid) => {
-        const vals = panelValues();
-        await fetch(getUrl(cfg.batchUpdateUrlTemplate, bid), {
-          method: 'POST',
-          headers: Object.assign({ 'Content-Type': 'application/json' }, csrfHeaders()),
-          body: JSON.stringify(vals),
-        });
-        location.reload();
-      },
       // Préférences de l'utilisateur : brique commune (inspecteur + `user_settings`), et
       // enregistrement au GESTE. Chemin écrit ici plutôt que par `{% url %}` : le gabarit est
       // relu à chaud en production, les routes seulement au rechargement.

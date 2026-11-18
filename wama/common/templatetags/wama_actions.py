@@ -283,10 +283,15 @@ def queue_context(app, domain=None):
     icon = (get_domain(app, domain).get('icon') if domain else '') or ''
     if icon and ' ' not in icon:        # le domaine la déclare courte (`fa-image`)
         icon = f'fas {icon}'
+    # La route des RÉGLAGES d'un élément, id factice `/0/` (2026-11-18) : `update` sous ses
+    # orthographes admises, derrière le préfixe du domaine (`audio_update` de l'enhancer) — le volet
+    # enregistre un élément par elle (`WamaInspector.initFromSchema`, l'entrée `data-settings-url`).
+    item_settings = served_route(app, 'update', [0], prefix=pfx)
     return {'start_url': _url('start_all'), 'clear_url': _url('clear_all'),
             'download_url': download,
             'progress_url': _url('global_progress'),
             'progress_key': domain if narrowed else '',
+            'settings_url': reverse(f'{app}:{item_settings}', args=[0]) if item_settings else '',
             'empty_icon': icon or app_identity(app).get('icon') or 'fas fa-inbox'}
 
 

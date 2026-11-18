@@ -429,7 +429,8 @@
         const q  = document.getElementById('queueContainer');
         const ph = document.getElementById('readerPanelParams');
         if (!q || !ph || !window.WamaInspector || !WamaInspector.initFromSchema) return;
-        const readPanel = () => (window.WamaParams ? WamaParams.read(ph) : {});
+        // Enregistrer l'élément ou le lot : l'envoi COMMUN de `initFromSchema` (2026-11-18) — la
+        // lecture du volet vers les routes que la file déclare ; la card enregistrée est redemandée.
         window._readerInspector = WamaInspector.initFromSchema({
             queueContainer: q,
             cardSelector:   '.reader-card',
@@ -437,20 +438,6 @@
             panelContainer: ph,
             schema:         window.WAMA_READER_SCHEMA || [],
             itemLabel:  (id) => "l'élément #" + id,
-            saveItem: async (id) => {
-                const r = await csrfFetch(urlFor('updateSettings', id), {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(readPanel()),
-                });
-                if (r && r.ok) upsertCard(await r.json());
-            },
-            saveBatch: async (bid) => {
-                const r = await csrfFetch(urlForBatch('batchUpdate', bid), {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(readPanel()),
-                });
-                if (r && r.ok) window.location.reload();
-            },
             renderItemActions: _renderItemActions,
             // Actions d'un LOT : brique commune (résout la card mère depuis son IDENTIFIANT).
             renderBatchActions: function (host, batchId) { WamaInspector.cloneBatchActions(host, batchId); },

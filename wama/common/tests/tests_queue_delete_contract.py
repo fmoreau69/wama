@@ -1148,6 +1148,25 @@ class EnrobageUnitaireJumeauTest(TestCase):
         self.assertIn(f'data-settings-url="{reverse("converter:update_settings", args=[0])}"',
                       entree.group(0))
 
+    def test_every_queue_says_where_an_element_is_saved(self):
+        """2026-11-18 : the panel saves an element by the route its queue declares (`queue_context`
+        → `data-settings-url`), for every app of the catalogue and every domain with its own routes
+        — the enhancer's audio (`audio_update`), that the `update_settings` derivation missed, left
+        its panel without saving."""
+        from wama.common.app_registry import APP_CATALOG
+        from wama.common.manifests.codegen.urls_gen import served_route
+        from wama.common.templatetags.wama_actions import queue_context
+        from wama.common.utils.app_modes import get_domains, route_prefix
+        missing = []
+        for app in APP_CATALOG:
+            for domain in [None] + [d['id'] for d in get_domains(app)]:
+                p = route_prefix(app, domain) if domain else ''
+                if not served_route(app, 'card_html', [0], prefix=f'{p}_' if p else ''):
+                    continue                        # no queue of cards there
+                if not queue_context(app, domain)['settings_url']:
+                    missing.append((app, domain))
+        self.assertEqual([], missing)
+
     def test_le_js_recree_les_memes_attributs(self):
         src = (Path(__file__).parent.parent / 'static/common/js/queue-actions.js').read_text(encoding='utf-8')
         corps = src[src.index('function unwrapBatch'):src.index('function updateBatchHeader')]

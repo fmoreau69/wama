@@ -314,13 +314,17 @@ class PanelVoiceFieldIsGeneratedTest(TestCase):
     def test_the_panel_saver_reads_generated_fields_too(self):
         """Le champ GÉNÉRÉ (`data-param=`, la voix) doit être lu par l'enregistrement d'une card
         inspectée. Depuis le 2026-10-18 cet enregistrement passe par le lecteur que l'inspecteur
-        DÉRIVE du schéma : c'est lui qui doit connaître les deux identités d'un champ."""
+        DÉRIVE du schéma : c'est lui qui doit connaître les deux identités d'un champ. Depuis le
+        2026-11-18 l'envoi lui-même est COMMUN (`initFromSchema`, `saveItem` par défaut) : le gabarit
+        n'en écrit plus, et l'envoi commun lit le volet par ce lecteur (`panel.read()`)."""
         from pathlib import Path
         from django.conf import settings
-        self.assertIn('_synthInspector.read()', self._template_source())
+        self.assertNotIn('saveItem', self._template_source())
         inspector = (Path(settings.BASE_DIR) / 'wama' / 'common' / 'static' / 'common' / 'js'
                      / 'wama-inspector.js').read_text(encoding='utf-8')
         self.assertIn('[data-param="\' + key + \'"]', inspector)
+        self.assertIn("postSettings(entry.dataset.settingsUrl.replace('/0/', '/' + id + '/'), panel.read())",
+                      inspector)
 
 
     def test_the_voice_group_is_found_by_its_key_in_the_common_brick(self):

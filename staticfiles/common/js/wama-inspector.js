@@ -1104,9 +1104,23 @@
       const group = qc.querySelector((cfg.batchSelector || '.batch-group') + '[data-batch-id="' + bid + '"]');
       const header = group && group.querySelector('[data-batch-update-url]');
       if (!header) return Promise.resolve(false);
-      // Le lot entier change (ses filles, sa référence) : la page se redessine, comme après la ⚙.
+      // Ses filles sont REDEMANDÉES au serveur (`WamaApp.fetchCard`), sans recharger la page : un
+      // volet qui enregistre au geste (`autoSave`, le transcriber) la rechargerait à chaque réglage.
+      // La mère retient désormais une référence (`batch_settings.remember`) : « réaligner » la lit.
       return postSettings(header.getAttribute('data-batch-update-url'), panel.read())
-        .then(function (ok) { if (ok) global.location.reload(); return ok; });
+        .then(function (ok) {
+          if (!ok) return ok;
+          if (header.hasAttribute('data-batch-realign-url')) header.setAttribute('data-batch-reference', '1');
+          const app = global.WamaApp;
+          const url = group.getAttribute('data-card-url');
+          if (!(app && app.fetchCard && url)) return ok;
+          const sel = (cfg.cardSelector || '.wama-card[data-id]');
+          return Promise.all(Array.prototype.map.call(group.querySelectorAll(sel), function (card) {
+            return app.fetchCard(url, card.dataset.id).then(function (fresh) {
+              if (fresh && card.isConnected) card.replaceWith(fresh);
+            });
+          })).then(function () { return ok; });
+        });
     };
 
     const api = init(Object.assign({}, cfg, { panel: panel, cardSettings: cardSettings,

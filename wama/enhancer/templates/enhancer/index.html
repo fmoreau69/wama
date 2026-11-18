@@ -306,12 +306,10 @@ document.addEventListener('DOMContentLoaded', function () {
 // ses paramètres ; ⚙/Enregistrer sauvegarde. Schémas déclaratifs (params.py) → aucun HTML par app.
 document.addEventListener('DOMContentLoaded', function () {
     if (!window.WamaInspector) return;
-    var csrf = (window.ENHANCER_APP && window.ENHANCER_APP.csrfToken) ||
-               (document.querySelector('[name=csrfmiddlewaretoken]') || {}).value ||
-               ((document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || '');
-    function postPanel(url, fd) {
-        return fetch(url, { method: 'POST', headers: { 'X-CSRFToken': csrf }, body: fd });
-    }
+    {% comment %}Enregistrer l'élément ou le lot : l'envoi COMMUN de `initFromSchema` (2026-11-18), vers les
+    routes que CHAQUE file déclare (préfixe du domaine compris : `audio_update` pour l'audio). L'envoi
+    écrit ici attendait un FormData que l'inspecteur ne passe pas : il postait une requête VIDE, et
+    aucun des deux domaines n'enregistrait un lot.{% endcomment %}
     // Les deux inspecteurs sont gardés (`_enhancerPanels`) : « Réinitialiser » (index.js) pose
     // les défauts du schéma par leur applicateur, qui émet `change` (show_if, appariement).
     window._enhancerPanels = {};
@@ -325,7 +323,6 @@ document.addEventListener('DOMContentLoaded', function () {
         // cardSettings DÉFAUT (dérivé du schéma) : le gear porte data-action="settings"
         // (sélecteur commun) + data-* émis par la brique card_gear ; custom supprimé le 18/08
         // (il ne lisait que 3 params sur 5 — output_format/quality manquaient).
-        saveItem: function (id, fd) { return postPanel(window.ENHANCER_APP.updateSettingsUrlTemplate.replace('/0/', '/' + id + '/'), fd); },
         renderItemActions: function (host, card) {
             WamaInspector.cloneActions(host, card.querySelector('.btn-group-actions'),
                 '<i class="fas fa-crosshairs text-info"></i> Actions — élément #' + card.dataset.id);
@@ -347,11 +344,6 @@ document.addEventListener('DOMContentLoaded', function () {
         itemLabel: function (id) { return "l'audio #" + id + ' (⚙ pour éditer)'; },
         // cardSettings DÉFAUT (dérivé du schéma) : gear data-action="settings" + data-*
         // de la brique card_gear ; custom supprimé le 18/08.
-        // L'adresse de la route DÉCLARÉE (balise url du gabarit, servie par AUDIO_ENHANCER_APP) —
-        // écrite à la main, elle visait l'enhancer source depuis une copie de jumelle.
-        saveItem: function (id, fd) {
-            return postPanel(AUDIO_ENHANCER_APP.audioUpdateUrlTemplate.replace('/0/', '/' + id + '/'), fd);
-        },
         renderItemActions: function (host, card) {
             WamaInspector.cloneActions(host, card.querySelector('.btn-group-actions'),
                 '<i class="fas fa-crosshairs text-info"></i> Actions — élément #' + card.dataset.id);
