@@ -6688,13 +6688,14 @@ def _born_creator(label: str):
                       if isinstance(v, str) and v.strip()]
             if not values:
                 continue
-            # UN fichier par port et par élément : la vue de dépôt ne garde que le premier
-            # (`received[0]`). Des fichiers de TRAVAIL arrivés ensemble ont déjà été répartis, un
-            # élément chacun, par `execute_tool` (`arrival_arguments`) ; jusqu'au 2026-11-17 les
-            # suivants étaient perdus sans un mot.
+            # UNE valeur par port et par élément : la vue de dépôt ne garde que la première
+            # (`received[0]`). Les ports FICHIER sont tranchés en amont, pour toute app, réelle ou
+            # née d'un manifeste (`execute_tool` → `_arrival`, 2026-11-18) : plusieurs fichiers de
+            # travail font un élément chacun, un port à un fichier refuse la liste. Reste ici la
+            # CONSIGNE reçue en liste ; jusqu'au 2026-11-17 les suivantes étaient perdues sans un mot.
             if len(values) > 1:
-                return {'error': f"{port.get('label') or port['id']} : un seul fichier par élément "
-                                 f"({len(values)} reçus)."}
+                return {'error': f"{port.get('label') or port['id']} : une seule valeur par élément "
+                                 f"({len(values)} reçues)."}
             if port.get('group') == 'prompt':
                 post[port['id']] = values[0]
                 continue
@@ -7483,9 +7484,15 @@ def _arrival(tool_name: str, args: dict):
     fichiers, sinon None. Une liste d'un seul fichier redevient l'appel ordinaire, une liste vide
     un argument absent (`args` est corrigé sur place) ; une liste écrite en TEXTE JSON se lit comme
     la liste (la règle de `decode_structured_args`). Lève ValueError quand deux arguments portent
-    chacun plusieurs fichiers : rien ne dit comment les apparier."""
+    chacun plusieurs fichiers (rien ne dit comment les apparier), ou quand un port qui prend UN
+    fichier (`single_file_arguments` : une référence, un résultat existant) en reçoit plusieurs —
+    la règle de l'`input` de la card, pour toute app, réelle ou née d'un manifeste (2026-11-18)."""
     lists = {}
-    for name in arrival_arguments(tool_name) & set(args):
+    if tool_role(tool_name) != 'add':
+        return None
+    from wama.studio.services.generic_runner import single_file_arguments
+    arrivals = arrival_arguments(tool_name)
+    for name in (arrivals | single_file_arguments(tool_name[len('add_to_'):])) & set(args):
         value = args[name]
         if isinstance(value, str) and value.lstrip().startswith('['):
             try:
@@ -7495,6 +7502,10 @@ def _arrival(tool_name: str, args: dict):
         if not isinstance(value, (list, tuple)):
             continue
         files = [v for v in value if v not in (None, '')]
+        if len(files) > 1 and name not in arrivals:
+            raise ValueError(f"'{name}' prend un seul fichier par élément ({len(files)} reçus)"
+                             + (f" ; plusieurs fichiers vont sur {', '.join(sorted(arrivals))}, un "
+                                f"élément chacun." if arrivals else '.'))
         if len(files) > 1:
             lists[name] = files
         elif files:

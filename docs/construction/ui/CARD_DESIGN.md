@@ -1576,9 +1576,16 @@ trois n'en étaient pas. La règle qui les dissout, et qu'il faut garder :
 > élément par fichier, consigne, réglages et autres ports communs, puis les regroupe
 > (`addToQueue({consolidateUrl})`). Un réglage que l'entrée propose (`default_from`, la durée) n'est
 > pas posté tant que le port tient un lot : chaque élément prend la valeur de SON fichier, sauf si
-> l'utilisateur touche le réglage. Un port de travail secondaire ou de référence tient un fichier,
-> et NOMME ce qu'il écarte (`WamaApp.keptByPort`). Un nouveau dépôt REMPLACE le contenu du port : il
-> n'accumule pas. Scénario `<app>.attach_lot` ; garde `tests_card_lot_from_files`.
+> l'utilisateur touche le réglage. ~~Un port de travail secondaire ou de référence tient un
+> fichier~~ → ✅ **2026-11-18 (Fabien : « je dois pouvoir glisser plusieurs partitions, plusieurs
+> fichiers MIDI »)** : un port prend plusieurs fichiers quand son JETON le déclare (`multi`,
+> `app_modes.INPUT_TYPES` — tout fichier de travail, la partition comprise ; pas un résultat
+> existant ni une référence), le secondaire comme le principal : `input multiple`, et le lot vient du
+> port qui en tient plusieurs, l'autre port commun à chaque élément. Deux ports chargés chacun de
+> plusieurs fichiers sont REFUSÉS avant tout envoi (rien ne dit comment les apparier). L'outil
+> d'ajout de l'assistant lit la même déclaration (`generic_runner.work_arguments`) et refuse de même
+> (`tool_api._arrival`). Un port à un fichier en tient UN, et NOMME ce qu'il écarte (`WamaApp.keptByPort`). Un nouveau dépôt REMPLACE le contenu du port : il
+> n'accumule pas. Scénario `<app>.attach_lot` (chaque port multiple, 2026-11-18) ; garde `tests_card_lot_from_files`.
 
 1. ~~Aucun port pour le lot~~ → **normal**, cf. la règle ci-dessus. La colonne « lot » de la
    matrice mesure un littéral de gabarit (`show_batch_bar`), pas une déclaration manquante.

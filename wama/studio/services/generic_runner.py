@@ -242,11 +242,27 @@ def port_argument_name(app_id, port_id, accepted=None):
 
 
 def work_arguments(app_id) -> set:
-    """Les arguments de `add_to_<app>` où arrive un FICHIER DE TRAVAIL (port du groupe `travail`) —
-    ceux qui prennent PLUSIEURS fichiers arrivés ensemble (`tool_api.arrival_arguments`, 2026-11-17).
-    La règle de `create` et de `port_arguments`, lue ici une fois : l'entrée principale dans
-    `input_kwarg` déclaré (ou le premier argument de l'outil), un autre port dans l'argument du même
-    nom ; un port que l'outil ne lit pas encore (`unwired_ports`) n'en donne aucun."""
+    """Les arguments de `add_to_<app>` où arrivent PLUSIEURS fichiers ensemble
+    (`tool_api.arrival_arguments`, 2026-11-17) : ceux d'un port de travail dont le jeton déclare
+    `multi` (`app_modes.INPUT_TYPES`) — la déclaration que la card lit pour son `input multiple`
+    (2026-11-18 ; un résultat existant, `work_result`, n'en est pas). La règle de `create` et de
+    `port_arguments`, lue ici une fois : l'entrée principale dans `input_kwarg` déclaré (ou le
+    premier argument de l'outil), un autre port dans l'argument du même nom ; un port que l'outil
+    ne lit pas encore (`unwired_ports`) n'en donne aucun."""
+    return _file_arguments(app_id, several=True)
+
+
+def single_file_arguments(app_id) -> set:
+    """Les arguments de `add_to_<app>` d'un port FICHIER qui en prend UN (référence, résultat
+    existant : jeton sans `multi`) — l'`input` sans `multiple` de la card. `tool_api._arrival` y
+    refuse une liste de plusieurs fichiers, pour toute app, réelle ou née d'un manifeste
+    (2026-11-18)."""
+    return _file_arguments(app_id, several=False)
+
+
+def _file_arguments(app_id, *, several: bool) -> set:
+    """Les arguments des ports FICHIER du nœud qui prennent plusieurs fichiers (`several`, port de
+    travail `multi`) ou un seul — la lecture commune de `work_arguments` et `single_file_arguments`."""
     if app_id not in GENERIC_APPS:
         return set()
     from wama.tool_api import tool_arg_names
@@ -255,7 +271,10 @@ def work_arguments(app_id) -> set:
     primary = primary_ports(app_id, ports)
     found = set()
     for port in ports:
-        if port.get('group') != 'travail':
+        if port.get('group') == 'prompt':
+            continue
+        takes_several = port.get('group') == 'travail' and bool(port.get('multi'))
+        if takes_several != several:
             continue
         name = (primary_argument(app_id) if port['id'] in primary
                 else port_argument_name(app_id, port['id'], accepted))

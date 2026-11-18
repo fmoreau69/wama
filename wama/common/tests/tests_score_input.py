@@ -44,7 +44,8 @@ class ScoreNatureTest(SimpleTestCase):
         from wama.common.app_registry import normalize_types
         from wama.common.utils.app_modes import INPUT_TYPES
         token = INPUT_TYPES['work_score']
-        self.assertEqual(('score', 'travail', False), (token['accept'], token['port'], token['multi']))
+        # `multi` (2026-11-18, Fabien : « plusieurs partitions, plusieurs fichiers MIDI ») : a lot.
+        self.assertEqual(('score', 'travail', True), (token['accept'], token['port'], token['multi']))
         self.assertNotIn('reference_score', INPUT_TYPES, 'replaced by work_score: a cover renders its source')
         self.assertNotIn('reference_melody', INPUT_TYPES, 'replaced by work_audio: MusicGen Melody covers it')
         self.assertTrue(token['description'])
@@ -90,6 +91,8 @@ class SelectModelsOpenPortsTest(TestCase):
         # only the SECOND work port is wired by the ports brick.
         self.assertIn('id="melodySlot" data-mod="import">', html)
         self.assertIn('id="c-work_score-drop" data-mod="import" data-port-import-self', html)
+        # The second work port takes several scores, as its token declares (`multi`, 2026-11-18).
+        self.assertIn('id="c-work_score-input" multiple accept=', html)
         self.assertIn('accept=".abc,.mid,.midi,.musicxml,.mxl"', html)
 
 

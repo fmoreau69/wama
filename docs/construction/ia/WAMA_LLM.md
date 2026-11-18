@@ -3049,10 +3049,20 @@ Fabien. Mesuré d'abord :
    le modèle de la triade ; un fichier refusé est nommé, les autres sont créés (comme l'import).
    Annoncé au modèle dans le schéma JSON et la liste texte (`ARRIVAL_NOTE`) ; `items_of_step`,
    `relay_quality_intent` et `relay_next_step` lisent `item_ids` (le rappel nomme `launch_batch`).
-   Le créateur d'une app née refuse plusieurs fichiers sur un port. Reste, déclaré :
+   Le créateur d'une app née refuse plusieurs fichiers sur un port. **Recadré le 2026-11-18
+   (Fabien : « je dois pouvoir glisser plusieurs partitions, plusieurs fichiers MIDI » ; « pour les
+   apps nées d'un manifeste, il n'y a pas de raison que leur fonctionnement diffère »)** : la
+   déclaration est celle du JETON de port (`multi`, `app_modes.INPUT_TYPES`), que la card lit pour
+   son `input multiple` et l'outil pour ses arguments — `work_arguments` (port de travail `multi`,
+   la partition comprise désormais) et `single_file_arguments` (référence, résultat existant) ;
+   `_arrival` refuse une liste sur un port à un fichier pour TOUTE app (la voix de référence du
+   synthesizer comme les références du Writer), avant l'outil ; deux ports chargés chacun de
+   plusieurs fichiers sont refusés sur la card comme par l'outil (`CARD_DESIGN §11.11 G`). Le
+   contrôle propre au créateur d'une app née ne vaut plus que pour une consigne en liste. Reste, déclaré :
    `add_to_audio_enhancer` hors du Studio (port `work_audio` de l'enhancer encore non lu,
    `UNWIRED_PORTS_BUDGET`). Gardes : `tests_arrival_consolidation.ArrivalThroughTheAssistantTest`,
-   `ArrivalArgumentsAreDeclaredTest`, `tests_born_app_tools` (plusieurs fichiers sur un port).
+   `ArrivalArgumentsAreDeclaredTest`, `tests_card_lot_from_files`, `tests_score_input`,
+   `tests_born_app_tools` (une consigne en liste).
 
    ~~⏳ Les routes d'app ne sont pas toutes des gestes […] un outil « les choix d'un réglage » les
    ferait toutes~~ — **sans objet, mesuré le 2026-11-17** : `list_media_assets` rend les voix et

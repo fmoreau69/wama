@@ -245,3 +245,41 @@ class ArrivalArgumentsAreDeclaredTest(TestCase):
             if arrivals:
                 covered.append(name)
         self.assertGreaterEqual(len(covered), 9, covered)
+
+    def test_a_port_that_takes_one_file_turns_down_a_list_in_every_app_before_anything_is_created(self):
+        """Une référence, un résultat existant : UN fichier, la règle de l'`input` de la card — pour
+        toute app, réelle ou née d'un manifeste (2026-11-18, Fabien : « il n'y a pas de raison que
+        leur fonctionnement diffère »). La porte est `execute_tool`, avant l'outil : rien en base."""
+        from django.contrib.auth import get_user_model
+        from django.utils.module_loading import import_string
+
+        from wama import tool_api as T
+        from wama.studio.services.generic_runner import single_file_arguments
+        user = get_user_model().objects.create_superuser('one_file', password='x')
+        checked = []
+        for name in sorted(T.TOOL_REGISTRY):
+            if T.tool_role(name) != 'add':
+                continue
+            app = name[len('add_to_'):]
+            for arg in sorted(single_file_arguments(app)):
+                model = import_string(T.TRIAD_SPECS[app]['model'])
+                before = model.objects.count()
+                with self.subTest(tool=name, arg=arg):
+                    out = T.execute_tool(name, {'prompt': 'x', arg: ['a.wav', 'b.wav']}, user,
+                                         model_call=True)
+                    self.assertIn(f"'{arg}' prend un seul fichier", out.get('error', ''), out)
+                    self.assertEqual(before, model.objects.count(), 'nothing created')
+                checked.append(name)
+        self.assertGreaterEqual(len(set(checked)), 2, checked)
+
+    def test_a_work_port_whose_token_takes_one_file_is_not_an_arrival(self):
+        """La déclaration est celle que lit la card (`multi` du jeton, `input multiple`) : un port de
+        travail qui ne la porte pas (un résultat existant) prend UN fichier, ici comme sur la card."""
+        from unittest import mock
+
+        from wama.studio.services import generic_runner
+        port = {'id': 'work_file', 'group': 'travail', 'types': ['document'], 'label': 'Fichier'}
+        for multi, expected in ((True, {'work_file'}), (False, set())):
+            with self.subTest(multi=multi), mock.patch.object(
+                    generic_runner, '_node_ports', return_value=[dict(port, multi=multi)]):
+                self.assertEqual(expected, generic_runner.work_arguments('synthesizer'))

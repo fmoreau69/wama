@@ -137,7 +137,8 @@ Studio rend dans un nœud (`compose_only`).{% endcomment %}
             principal, l'image d'avatar le second). Les ids historiques restent au port PRINCIPAL
             (`WamaImport`, gestes nocturnes) ; celui-ci reçoit des ids DÉRIVÉS de son port, et sa
             tuile Importer est câblée par `wama-input-slots.js` (`data-port-import-self`) : pas
-            d'URL, de dossier ni de lot ici — ce sont des gestes du port principal.
+            d'URL, de dossier ni de fichier de lot ici — ce sont des gestes du port principal ;
+            plusieurs fichiers déposés, oui, quand son jeton le déclare (`multi`, 2026-11-18).
             Même forme pour une RÉFÉRENCE SECONDAIRE (2026-10-01 — la partition de YuE2 à côté de la
             mélodie du composer) : les ids `reference_*` de l'app restent à la PREMIÈRE référence,
             celle-ci reçoit `<card>-<port>-*` ; son champ URL serait le `source_url` de la première.{% endcomment %}
@@ -151,7 +152,12 @@ Studio rend dans un nœud (`compose_only`).{% endcomment %}
                             <i class="fas {% if p.group == 'reference' %}fa-paperclip text-info{% else %}fa-cloud-upload-alt text-primary{% endif %} wama-mod-g"></i>
                             <span>Importer</span>
                             <small>{% firstof p.description 'depuis le poste' %}</small>
-                            <input type="file" id="{{ pid }}-input" accept="{{ p.accept }}" style="display:none">
+                            {% comment %}Plusieurs fichiers quand le JETON du port le déclare (`multi`,
+                            `app_modes.INPUT_TYPES` — la lecture de `wama-modes.js`), le port secondaire comme
+                            le principal (Fabien, 2026-11-18 : « je dois pouvoir glisser plusieurs
+                            partitions, plusieurs fichiers MIDI ») : un élément par fichier, rangés en lot
+                            (`WamaApp.addToQueue`). Une référence, un résultat existant : un fichier.{% endcomment %}
+                            <input type="file" id="{{ pid }}-input"{% if p.multi %} multiple{% endif %} accept="{{ p.accept }}" style="display:none">
                         </div>
                         <div class="wama-mod wama-mod-library" data-mod="library" data-mod-library-btn title="Choisir dans la médiathèque">
                             <i class="fas fa-photo-film wama-mod-g text-info"></i>

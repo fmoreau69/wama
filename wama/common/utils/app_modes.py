@@ -142,7 +142,11 @@ INPUT_TYPES = {
     # morceau que le modèle REND, dans le style de la consigne (YuE2 : mélodie, accords, structure).
     # Même correction que pour la mélodie de MusicGen Melody, passée de `reference_melody` à
     # `work_audio` : la règle des rôles le dit — le résultat PART de ce fichier.
-    'work_score':      {'label': 'Partition de travail', 'kind': 'file', 'accept': 'score', 'multi': False, 'port': 'travail',
+    # `multi` (2026-11-18, Fabien : « je dois pouvoir glisser plusieurs partitions, plusieurs fichiers
+    # MIDI ») : comme tout fichier de travail, plusieurs d'un coup font un lot, un élément chacun —
+    # sur la card (`input multiple`, `WamaApp.addToQueue`) comme par l'outil d'ajout
+    # (`generic_runner.work_arguments`).
+    'work_score':      {'label': 'Partition de travail', 'kind': 'file', 'accept': 'score', 'multi': True, 'port': 'travail',
                         'description': "La partition (ABC, MIDI ou MusicXML) du morceau à REPRENDRE : le modèle en "
                                        "rend la mélodie, les accords et la structure dans le style de la consigne (cover)."},
     'reference_image': {'label': 'Image de référence (style)', 'kind': 'file', 'accept': 'image', 'multi': False, 'port': 'reference',

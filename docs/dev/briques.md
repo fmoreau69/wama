@@ -2548,7 +2548,7 @@ Audit MESURÉ de `media/` en 4 états : RÉFÉRENCÉ (une ligne de base pointe d
 
 ### Manipulation directe de la file
 
-Endpoints génériques : sortir une card d'un batch, réordonner DANS un lot, ordonner la FILE (`reorder_queue`, 2026-09-04), déplacer, FUSIONNER (`merge`) et consolider. ⚠ `merge` ≠ `consolidate` : le premier fusionne en UN lot et REFUSE si les natures ne cohabitent pas (geste du drag&drop, on a visé une card) ; le second RANGE par nature en N lots. La nature est déclarée UNE fois (`group_key`) et la fabrique INSCRIT le regroupement à l'arrivée de son modèle : `consolidate_arrival`, appelé par tout chemin d'arrivée (dépôt de N fichiers, import du gestionnaire de fichiers, fichier de lot, lot du Studio, et depuis le 2026-11-17 l'outil d'ajout de l'assistant qui reçoit N fichiers de travail — `tool_api.arrival_arguments`, lus au contrat port → argument du Studio) — aucune app ne le redéfinit depuis le 2026-10-16 (tests_arrival_consolidation)
+Endpoints génériques : sortir une card d'un batch, réordonner DANS un lot, ordonner la FILE (`reorder_queue`, 2026-09-04), déplacer, FUSIONNER (`merge`) et consolider. ⚠ `merge` ≠ `consolidate` : le premier fusionne en UN lot et REFUSE si les natures ne cohabitent pas (geste du drag&drop, on a visé une card) ; le second RANGE par nature en N lots. La nature est déclarée UNE fois (`group_key`) et la fabrique INSCRIT le regroupement à l'arrivée de son modèle : `consolidate_arrival`, appelé par tout chemin d'arrivée (dépôt de N fichiers, import du gestionnaire de fichiers, fichier de lot, lot du Studio, et depuis le 2026-11-17 l'outil d'ajout de l'assistant qui reçoit N fichiers de travail — `tool_api.arrival_arguments`, lus au contrat port → argument du Studio ; un port y prend plusieurs fichiers quand son jeton déclare `multi`, comme l'`input` de la card, 2026-11-18) — aucune app ne le redéfinit depuis le 2026-10-16 (tests_arrival_consolidation)
 
 - **Domicile** : `wama/common/utils/queue_manipulation.py` · **doc** : [docs/construction/ui/CARD_DESIGN.md §3bis](../construction/ui/CARD_DESIGN.md)
 - **Module** : WAMA Common — Manipulation DIRECTE de la file (CARD_DESIGN §3bis) : vues génériques.
@@ -4216,10 +4216,11 @@ Exécute une app par son CONTRAT (triade tool_api normalisée) — zéro logique
 
 - **Domicile** : `wama/studio/services/generic_runner.py` · **doc** : [docs/construction/mondes/STUDIO_VISION.md](../construction/mondes/STUDIO_VISION.md)
 - **Module** : Studio — runner GÉNÉRIQUE piloté par le CONTRAT d'app (STUDIO_VISION « principe directeur », 2026-07-12). Zéro logique par app : tout vient des sources uniques.
-- **API publique** (8) :
+- **API publique** (9) :
   - `primary_ports(app_id, ports=None) -> set` — Les ports par lesquels arrive l'ENTRÉE PRINCIPALE du nœud (transmise par `create`).
   - `port_argument_name(app_id, port_id, accepted=None)` — L'argument de l'outil où ARRIVE le port `port_id` : celui du MÊME NOM ; à défaut, pour le
-  - `work_arguments(app_id) -> set` — Les arguments de `add_to_<app>` où arrive un FICHIER DE TRAVAIL (port du groupe `travail`) —
+  - `work_arguments(app_id) -> set` — Les arguments de `add_to_<app>` où arrivent PLUSIEURS fichiers ensemble
+  - `single_file_arguments(app_id) -> set` — Les arguments de `add_to_<app>` d'un port FICHIER qui en prend UN (référence, résultat
   - `primary_argument(app_id)` — L'argument de `add_to_<app>` où arrive l'ENTRÉE PRINCIPALE du nœud : celui que l'app déclare
   - `unwired_ports(app_id) -> list` — Les ports du nœud que l'outil de l'app ne LIT pas encore — le portage qui reste.
   - `unwired_ports_report(measure=None)` — (ok, détail) — la liste MESURÉE des ports non lus confrontée au budget, dans les deux

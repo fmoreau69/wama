@@ -1220,12 +1220,14 @@
       return (el.value || '').trim();
     };
 
-    // Le port qui tient PLUSIEURS fichiers, et ces fichiers : `{inputId, entries}`, ou null. Seul un
-    // input `multiple` peut en tenir plusieurs — le port principal de la card v4.
-    const lotOf = function () {
+    // Les ports qui tiennent PLUSIEURS fichiers, et ces fichiers : `[{inputId, field, entries}]`.
+    // Seul un input `multiple` peut en tenir plusieurs — le port principal de la card v4, et tout
+    // port dont le jeton déclare `multi` (2026-11-18 : plusieurs partitions sur le composer).
+    const lotsOf = function () {
       return portsOf().map(function (port) {
-        return { inputId: port.inputId, entries: inputEntries(document.getElementById(port.inputId)) };
-      }).filter(function (held) { return held.entries.length > 1; })[0] || null;
+        return { inputId: port.inputId, field: port.field || 'file',
+                 entries: inputEntries(document.getElementById(port.inputId)) };
+      }).filter(function (held) { return held.entries.length > 1; });
     };
 
     /** `only` : `{inputId, entry}` — le fichier de CE port pour cet élément du lot, au lieu du
@@ -1336,6 +1338,15 @@
     function submit() {
       const built = build();
       if (built.refusal) { toast(built.refusal, 'error'); return Promise.resolve(null); }
+      // Deux ports portant chacun plusieurs fichiers : rien ne dit comment les apparier — refusé
+      // AVANT tout envoi, la règle de l'outil d'ajout de l'assistant (`tool_api._arrival`).
+      const lots = lotsOf();
+      if (lots.length > 1) {
+        toast('Une seule entrée peut porter plusieurs fichiers à la fois ('
+              + lots.map(function (l) { return l.field; }).join(', ') + ') : rien ne dit comment '
+              + 'les apparier. Gardez un fichier sur l’une d’elles.', 'error');
+        return Promise.resolve(null);
+      }
       const idle = button ? button.innerHTML : '';
       if (button) button.disabled = true;
       sending('Envoi…');
@@ -1344,8 +1355,7 @@
         if (typeof opts.onSettled === 'function') opts.onSettled(data);
         return data;
       };
-      const lot = lotOf();
-      if (lot) return submitLot(lot).then(settle);
+      if (lots.length) return submitLot(lots[0]).then(settle);
       return send(built.fd)
         .then(function (data) {
           if (!data || data.error) {

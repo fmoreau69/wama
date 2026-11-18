@@ -32003,3 +32003,30 @@ imprévisible). Remède aligné : ouvrir la page sur le domaine mesuré par l'ad
 - `enhancer.delete_from_batch` (« la page s'est RECHARGÉE ») et des `Page.goto` à 45 s sous charge ;
 - `url_import` des seconds domaines (`ElementHandle.click` à 30 s) ; `panel_reflect` de la page document (le ⚙ ne porte pas le champ généré du volet) ;
 - jumelles : `processing`/`batch_processing`/`tree_drop` rouges pour `anonymizer_01` et `enhancer_01` au balayage d'AVANT relance (vues et tâches régénérées non servies) — à rejouer après la relance ; `transcriber_01` views : trou déjà consigné (31197).
+
+## §PALIER 2026-11-18 (après-midi), « PLUSIEURS FICHIERS SUR TOUT PORT DE TRAVAIL : la card et l'outil d'ajout lisent la même déclaration (`multi`) » — commit local, non poussé — 🔴 relancer gunicorn (gabarit de la card v4, `staticfiles`, outils de l'assistant), passerelle et serveurs MCP — 🔚 aucune décision en attente sur ce point
+
+Revérification de `8d1525eb6` demandée par Fabien (« Tu as lu le fonctionnement de la card v4 ? » ;
+« Si je prends l'exemple du composer, je dois pouvoir glisser plusieurs partitions, plusieurs
+fichiers MIDI » ; « pour les apps nées d'un manifeste, il n'y a pas de raison que leur
+fonctionnement diffère »). Confronté au code :
+- la card v4 rendait `multiple` sur son SEUL port principal (`_new_item_card_v4.html:205`), un port
+  secondaire tenait un fichier (`WamaApp.keptByPort`) ; l'outil d'ajout, lui, prenait une liste sur
+  tout port de travail — deux règles. La déclaration existait déjà : le jeton du port
+  (`app_modes.INPUT_TYPES[…]['multi']`, que `wama-modes.js` lisait déjà), où `work_score` valait
+  `False`.
+- ✅ `work_score` déclare `multi` ; le gabarit pose `multiple` sur un port secondaire quand son jeton
+  le déclare ; `generic_runner.work_arguments` ne garde que les ports de travail `multi` (un
+  résultat existant n'en est pas) ; `addToQueue` forme le lot du port qui tient plusieurs fichiers
+  et REFUSE deux ports chargés chacun de plusieurs, la règle de `tool_api._arrival`.
+- ✅ un port à UN fichier (référence, résultat existant : `generic_runner.single_file_arguments`)
+  refuse une liste dans `execute_tool`, pour TOUTE app — la voix de référence du synthesizer comme
+  les références du Writer ; le contrôle propre au créateur d'une app née ne vaut plus que pour une
+  consigne en liste.
+- ✅ geste nocturne `<app>.attach_lot` : chaque port `multiple` de la card, une page chacun.
+- Doc : `CARD_DESIGN §11.11 G`, `WAMA_LLM` point 7, `mecanismes.py` (`queue_manipulation`),
+  `docs/dev/briques.md` régénérée (mes hunks seuls).
+- Gardes : `tests_card_lot_from_files.AddToQueueTest` (+2), `tests_score_input` (jeton, `multiple`
+  rendu), `tests_arrival_consolidation.ArrivalArgumentsAreDeclaredTest` (+2),
+  `tests_born_app_tools` (consigne en liste). Contre-épreuves en processus : 7 neutralisations,
+  7 rouges.

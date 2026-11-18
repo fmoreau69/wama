@@ -2987,7 +2987,7 @@ def register_folder_import_scenarios():
         )
 
 
-#: Le port principal d'une card qui JOINT, lu par la brique de la card : celui qui tient plusieurs
+#: Les ports d'une card qui JOINT, lus par la brique de la card : ceux qui tiennent plusieurs
 #: fichiers (`multiple`), et les autres, à remplir si le bouton l'exige.
 _ATTACH_PORTS = """(() => {
     const card = (document.querySelector('.tab-pane[data-domain].active') || document).querySelector('[data-wama-depot="attache"][data-wama-ports]');
@@ -3005,7 +3005,8 @@ _DROP_ON_PORT = """([input, files]) => { const dt = new DataTransfer();
 
 
 def check_app_attach_lot(app: str, url_path: str):
-    """Plusieurs fichiers déposés sur le port principal d'une card qui JOINT font-ils UN lot ?
+    """Plusieurs fichiers déposés sur un port d'une card qui JOINT font-ils UN lot ? — sur CHAQUE
+    port qui en prend plusieurs (`input multiple`, jeton `multi` ; 2026-11-18), une page chacun.
     (ok, detail) — `CARD_DESIGN §11.11 G`.
 
     Né du 2026-11-03 : de plusieurs fichiers glissés, le composer n'en gardait que le dernier ; et
@@ -3026,7 +3027,6 @@ def check_app_attach_lot(app: str, url_path: str):
     model = _element_model(app)
     if model is None:
         raise SkipScenario(f"{app} ne déclare pas de modèle d'élément au registre")
-    known = set(model.objects.values_list('id', flat=True))
     sessions_before = _session_keys()
     witnesses = []
 
@@ -3035,65 +3035,81 @@ def check_app_attach_lot(app: str, url_path: str):
         witnesses.append(path)
         return path
 
+    # CHAQUE port qui prend plusieurs fichiers (2026-11-18, Fabien : « plusieurs partitions » — le
+    # port secondaire du composer comme son principal), une page fraîche chacun.
+    def deposit(rank):
+        """(ok, détail, nombre de ports multiples) — le lot déposé sur le `rank`-ième d'entre eux."""
+        known = set(model.objects.values_list('id', flat=True))
+        errors = []
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            try:
+                context = browser.new_context(viewport={'width': 1500, 'height': 1000})
+                context.add_cookies([{'name': settings.SESSION_COOKIE_NAME, 'value': token,
+                                      'domain': '127.0.0.1', 'path': '/'}])
+                page = context.new_page()
+                page.on('pageerror', lambda e: errors.append(str(e)))
+                page.goto(f"{BASE_URL.rstrip('/')}{url_path}", wait_until='domcontentloaded', timeout=60000)
+                page.wait_for_timeout(2500)
+                card = page.evaluate(_ATTACH_PORTS)
+                if not card:
+                    raise SkipScenario("la card ne déclare pas `data-wama-depot=attache` : un dépôt y "
+                                       "crée lui-même ses éléments (`.import`, `.batch_actions`)")
+                several = [port for port in card['ports'] if port['multiple']]
+                if not several:
+                    raise SkipScenario("aucun port `multiple` sur cette card")
+                main = several[rank]
+                files = [witness(main['accept']) for _ in range(2)]
+                page.evaluate(_DROP_ON_PORT, [main['input'], [
+                    {'name': f.name, 'b64': base64.b64encode(f.read_bytes()).decode(),
+                     'type': {'.wav': 'audio/wav', '.png': 'image/png'}.get(f.suffix, '')}
+                    for f in files]])
+                page.wait_for_timeout(1500)
+                held = page.evaluate("(id) => WamaApp.inputEntries(document.getElementById(id)).length",
+                                     main['input'])
+                if held != 2:
+                    return False, f"2 fichiers déposés sur « {main['id']} », le port en garde {held}", len(several)
+                meta = page.evaluate("(id) => document.querySelector('[data-port-input=\"' + id + '\"] "
+                                     "[data-files-meta]').textContent", main['input'])
+                if 'un lot de 2' not in meta:
+                    return False, f"« {main['id']} » : la card n'annonce pas le lot : « {meta} »", len(several)
+                prompt = page.locator(f"#{card['card']} textarea")
+                if prompt.count():
+                    prompt.first.fill('witness')    # sans consigne, l'imager décrirait chaque image
+                button = page.locator(f"#{card['card']} .d-grid button").first
+                for port in card['ports']:          # les autres ports requis (l'avatar)
+                    if button.is_enabled() or port is main:
+                        continue
+                    page.set_input_files(f"#{port['input']}", str(witness(port['accept'])))
+                    page.wait_for_timeout(500)
+                if not button.is_enabled():
+                    raise SkipScenario(f"bouton grisé : {button.get_attribute('title') or 'entrée requise'}")
+                with page.expect_navigation(timeout=90000):
+                    button.click()
+            finally:
+                browser.close()
+        created = list(model.objects.exclude(id__in=known).order_by('id'))
+        if len(created) != 2:
+            return False, f"« {main['id']} » : 2 fichiers → {len(created)} élément(s) en base", len(several)
+        lots = {item.batch_id: item.batch.total for item in
+                (getattr(work, 'batch_item', None) for work in created) if item}
+        if list(lots.values()) != [2]:
+            return False, (f"« {main['id']} » : 2 éléments, mais les lots sont {lots} "
+                           f"(attendu : un lot de 2)"), len(several)
+        if errors:
+            return False, f"erreur de page : {errors[0][:200]}", len(several)
+        return True, f"« {main['id']} » → 2 éléments, 1 lot de 2", len(several)
+
     try:
         with _garde_de_montage(app, 'attach_lot'):
-            errors = []
-            with sync_playwright() as p:
-                browser = p.chromium.launch()
-                try:
-                    context = browser.new_context(viewport={'width': 1500, 'height': 1000})
-                    context.add_cookies([{'name': settings.SESSION_COOKIE_NAME, 'value': token,
-                                          'domain': '127.0.0.1', 'path': '/'}])
-                    page = context.new_page()
-                    page.on('pageerror', lambda e: errors.append(str(e)))
-                    page.goto(f"{BASE_URL.rstrip('/')}{url_path}", wait_until='domcontentloaded', timeout=60000)
-                    page.wait_for_timeout(2500)
-                    card = page.evaluate(_ATTACH_PORTS)
-                    if not card:
-                        raise SkipScenario("la card ne déclare pas `data-wama-depot=attache` : un dépôt y "
-                                           "crée lui-même ses éléments (`.import`, `.batch_actions`)")
-                    main = next((port for port in card['ports'] if port['multiple']), None)
-                    if not main:
-                        raise SkipScenario("aucun port `multiple` sur cette card")
-                    files = [witness(main['accept']) for _ in range(2)]
-                    page.evaluate(_DROP_ON_PORT, [main['input'], [
-                        {'name': f.name, 'b64': base64.b64encode(f.read_bytes()).decode(),
-                         'type': {'.wav': 'audio/wav', '.png': 'image/png'}.get(f.suffix, '')}
-                        for f in files]])
-                    page.wait_for_timeout(1500)
-                    held = page.evaluate("(id) => WamaApp.inputEntries(document.getElementById(id)).length",
-                                         main['input'])
-                    if held != 2:
-                        return False, f"2 fichiers déposés sur « {main['id']} », le port en garde {held}"
-                    meta = page.evaluate("(id) => document.querySelector('[data-port-input=\"' + id + '\"] "
-                                         "[data-files-meta]').textContent", main['input'])
-                    if 'un lot de 2' not in meta:
-                        return False, f"la card n'annonce pas le lot : « {meta} »"
-                    prompt = page.locator(f"#{card['card']} textarea")
-                    if prompt.count():
-                        prompt.first.fill('witness')    # sans consigne, l'imager décrirait chaque image
-                    button = page.locator(f"#{card['card']} .d-grid button").first
-                    for port in card['ports']:          # les autres ports requis (l'avatar)
-                        if button.is_enabled() or port is main:
-                            continue
-                        page.set_input_files(f"#{port['input']}", str(witness(port['accept'])))
-                        page.wait_for_timeout(500)
-                    if not button.is_enabled():
-                        raise SkipScenario(f"bouton grisé : {button.get_attribute('title') or 'entrée requise'}")
-                    with page.expect_navigation(timeout=90000):
-                        button.click()
-                finally:
-                    browser.close()
-            created = list(model.objects.exclude(id__in=known).order_by('id'))
-            if len(created) != 2:
-                return False, f"2 fichiers → {len(created)} élément(s) en base"
-            lots = {item.batch_id: item.batch.total for item in
-                    (getattr(work, 'batch_item', None) for work in created) if item}
-            if list(lots.values()) != [2]:
-                return False, f"2 éléments, mais les lots sont {lots} (attendu : un lot de 2)"
-            if errors:
-                return False, f"erreur de page : {errors[0][:200]}"
-            return True, f"2 fichiers sur « {main['id']} » → 2 éléments, 1 lot de 2"
+            ok, detail, count = deposit(0)
+            details = [detail]
+            for rank in range(1, count if ok else 1):
+                ok, detail, _count = deposit(rank)
+                details.append(detail)
+                if not ok:
+                    break
+            return ok, ('2 fichiers par port multiple : ' if ok else '') + ' ; '.join(details)
     finally:
         for path in witnesses:
             path.unlink(missing_ok=True)

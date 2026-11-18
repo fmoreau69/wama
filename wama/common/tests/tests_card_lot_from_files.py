@@ -109,7 +109,8 @@ class DepositOnAPortTest(SimpleTestCase):
         self.assertEqual(['a.mp3', 'b.mp3'], self._held(ctx))
 
     def test_a_single_file_port_keeps_the_first_and_names_the_others(self):
-        """Contre-épreuve : un port sans `multiple` tient UN fichier, et ne perd rien en silence."""
+        """Contre-épreuve : un port sans `multiple` (une référence, un résultat existant — son jeton
+        ne déclare pas `multi`) tient UN fichier, et ne perd rien en silence."""
         ctx = self._route()
         ctx.eval("api.handleFiles([{name: 'x.abc'}, {name: 'y.abc'}]);")
         self.assertEqual(['x.abc'], self._held(ctx, 'score'))
@@ -264,6 +265,27 @@ class AddToQueueTest(SimpleTestCase):
         self.assertEqual(1, len(warnings))
         self.assertIn('lot', warnings[0])
         self.assertEqual(1, ctx.eval('window.location.reloaded'), 'les éléments existent : la page les montre')
+
+    SCORES = "elements.score.multiple = true; elements.score.files = [{name: 'x.abc'}, {name: 'y.abc'}];"
+
+    def test_several_files_on_a_second_work_port_make_the_lot_too(self):
+        """Fabien, 2026-11-18 : « glisser plusieurs partitions » — le lot vient du port qui tient
+        plusieurs fichiers, quel qu'il soit ; le fichier de l'autre port est commun à chaque élément."""
+        calls = self._calls(self._submit(self.SCORES + "elements.work.files = [{name: 'a.mp3'}];", self.LOT))
+        self.assertEqual(['/add/', '/add/', '/lot/'], [c[0] for c in calls])
+        posted = [{k: v for k, v in c[1] if k in ('work_audio', 'work_score')} for c in calls[:2]]
+        self.assertEqual([{'work_audio': 'FILE:a.mp3', 'work_score': 'FILE:x.abc'},
+                          {'work_audio': 'FILE:a.mp3', 'work_score': 'FILE:y.abc'}], posted)
+
+    def test_two_ports_each_holding_several_files_post_nothing_and_say_why(self):
+        """Rien ne dit comment apparier deux listes : refusé avant tout envoi — la règle de l'outil
+        d'ajout de l'assistant (`tool_api._arrival`)."""
+        ctx = self._submit(self.SCORES + self.TWO_FILES, self.LOT)
+        self.assertEqual([], self._calls(ctx))
+        errors = [m for level, m in json.loads(ctx.eval('JSON.stringify(toasts)')) if level == 'error']
+        self.assertEqual(1, len(errors))
+        self.assertIn('work_audio', errors[0])
+        self.assertIn('work_score', errors[0])
 
     def test_a_single_file_is_still_one_element_without_a_lot(self):
         """Contre-épreuve : le geste ordinaire ne change pas — sa card s'insère, sans rechargement."""
