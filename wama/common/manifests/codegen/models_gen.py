@@ -149,7 +149,8 @@ def _is_django_model(path: str) -> bool:
 
 
 def _render_from_data(app_id: str, data: dict, ingest: dict = None,
-                      item_name: str = '', params_symbol: str = '', input_field: str = '') -> str:
+                      item_name: str = '', params_symbol: str = '', input_field: str = '',
+                      ingests: dict = None) -> str:
     """Rendu FIDÈLE depuis la facette `data` (marche S2) : chaque modèle avec ses champs tels
     que les migrations les sérialisent (`MigrationWriter.serialize` à l'extraction) — la
     fidélité de schéma est PAR CONSTRUCTION, verdict mesurable = makemigrations « No
@@ -190,9 +191,12 @@ def _render_from_data(app_id: str, data: dict, ingest: dict = None,
             corps.append('')
         # Déclaration d'ingest sur le modèle d'ITEM (source_ingest.ensure_local_input la lit
         # en tête de tâche). Invisible au sérialiseur de champs : elle vient du manifeste.
-        if ingest and item_name and m.get('name') == item_name:
+        # Et celle du modèle d'un ÉLÉMENT de domaine (`ingests`, par nom de modèle).
+        own_ingest = (ingest if ingest and item_name and m.get('name') == item_name
+                      else (ingests or {}).get(m.get('name')))
+        if own_ingest:
             corps.append('    # Ingest déclaratif commun (source_ingest.ensure_local_input).')
-            corps.append(f'    WAMA_INGEST = {dict(ingest)!r}')
+            corps.append(f'    WAMA_INGEST = {dict(own_ingest)!r}')
             corps.append('')
         for f in m.get('fields') or []:
             if f.get('_error'):
@@ -388,9 +392,19 @@ def render_models(manifest: dict) -> tuple:
         # Le chemin INTROSPECTÉ reçoit désormais l'ingest et le nom du modèle d'item : sans
         # eux il rendait une app au schéma parfait mais SANS sa déclaration d'ingest, quand
         # le chemin frère (squelette) la posait — deux rendus, deux comportements.
+        # L'ingest de CHAQUE élément : celui de l'app sur son modèle d'item, celui d'un domaine à
+        # routes propres sur le sien (`processing.elements[].ingest`, 2026-11-19 — l'audio de
+        # l'enhancer perdait le sien, que ce docstring disait déjà « déclaré deux fois »).
+        ingests = {}
+        for _entry in (proc.get('elements') or {}).values():
+            if isinstance(_entry, dict) and _entry.get('item_model') and _entry.get('ingest'):
+                _own = dict(_entry['ingest'])
+                if _own.get('derive'):
+                    _own['derive'] = generated_task_path(manifest, _own['derive'])
+                ingests[_entry['item_model']] = _own
         return _render_from_data(
             app_id, data,
-            ingest=ingest,
+            ingest=ingest, ingests=ingests,
             item_name=((proc.get('model_spec') or {}).get('item') or {}).get('name') or '',
             input_field=((proc.get('model_spec') or {}).get('item') or {}).get('input_field') or '',
             params_symbol=(((body.get('params') or {}).get('schemas') or {}) and

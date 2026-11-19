@@ -194,27 +194,29 @@ class ARouteNeverCallsAStubOfAGeneratedGestureTest(_Rendered):
         self.assertEqual({}, wrong)
 
 
-class TheGeneratedPageOffersTheUrlImportOfItsSourceTest(_Rendered):
-    """The URL IMPORT button is offered when the source declares `has_url_import` — never because
-    it `accepts_url`, which says the URL is part of the CREATION (the imager's reference image) :
-    the twins of four apps offered an import their source declares not to have (2026-11-18)."""
+class EveryModelKeepsItsIngestDeclarationTest(_Rendered):
+    """Each model of a source that declares `WAMA_INGEST` keeps it in the generated `models.py` —
+    the element of a domain with its own routes included (2026-11-19 : `enhancer_01` lost the audio
+    ingest, and a URL pasted on its audio card was dropped as « URL non prise en charge »)."""
 
-    def test_the_import_button_follows_has_url_import(self):
-        from wama.common.manifests.codegen.templates_gen import render_index
-        wrong, offered = {}, 0
+    def test_the_generated_models_declare_every_ingest_of_the_source(self):
+        from django.apps import apps
+        from wama.common.manifests.codegen.models_gen import render_models
+        wrong, seen = {}, 0
         for app, manifest in self.manifests.items():
-            page, _ = render_index(manifest)
-            if page is None:
+            src, _ = render_models(manifest)
+            if not src:
                 continue
-            if isinstance(page, dict):     # the page and its partials, by file
-                page = '\n'.join(str(v) for v in page.values())
-            declared = bool((manifest['body'].get('capabilities') or {}).get('has_url_import'))
-            rendered = 'url_submit_id=' in page
-            offered += rendered
-            if declared != rendered:
-                wrong[app] = {'has_url_import': declared, 'rendered': rendered}
+            for model in apps.get_app_config(app).get_models():
+                if not getattr(model, 'WAMA_INGEST', None):
+                    continue
+                seen += 1
+                block = src.split(f'\nclass {model.__name__}(', 1)
+                body = block[1].split('\nclass ', 1)[0] if len(block) == 2 else ''
+                if f"'mode': {model.WAMA_INGEST.get('mode')!r}" not in body:
+                    wrong.setdefault(app, []).append(model.__name__)
         self.assertEqual({}, wrong)
-        self.assertGreater(offered, 0, 'no app offers a URL import : the rule would be blank')
+        self.assertGreater(seen, 10, 'the fleet declares an ingest on more models than apps')
 
 
 class TheGeneratedCardReadsWhatTheViewsSetTest(_Rendered):

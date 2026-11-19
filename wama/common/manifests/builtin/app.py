@@ -729,6 +729,12 @@ def _elements(app_id: str) -> dict:
             entry['item_model'] = spec['item']['name']
             if spec.get('batch', {}).get('link_name'):
                 entry['batch_link_model'] = spec['batch']['link_name']
+        # L'INGEST de l'élément (`WAMA_INGEST` de SON modèle), comme `processing.ingest` pour celui
+        # de l'app : sans lui, la jumelle de l'enhancer naissait sans l'ingest audio, et une URL
+        # collée sur sa card audio était écartée (« URL non prise en charge », 2026-11-19).
+        ingest = getattr(model, 'WAMA_INGEST', None)
+        if ingest:
+            entry['ingest'] = dict(ingest)
         out[surface] = entry
     return out
 

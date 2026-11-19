@@ -149,9 +149,12 @@ def element_bodies(body: dict, app: str = '') -> list:
     for surface, entry in elements:
         prefix = str(entry['route_prefix'])
         own = _routes({k: v for k, v in processing.items()
-                       if k not in ('elements', 'item_model', 'batch_link_model', 'model_spec')},
+                       if k not in ('elements', 'item_model', 'batch_link_model', 'model_spec',
+                                    'ingest')},
                       prefix + '_')
-        own.update({k: entry[k] for k in ('item_model', 'batch_link_model', 'model_spec')
+        # L'ingest est celui de SON modèle (`builtin.app._elements`), jamais celui de l'élément de
+        # l'app : l'audio de l'enhancer ingère en `audio`, l'image/vidéo en `media`.
+        own.update({k: entry[k] for k in ('item_model', 'batch_link_model', 'model_spec', 'ingest')
                     if entry.get(k)})
         own['tasks'] = [t for t in processing.get('tasks') or []
                         if t.get('model') == entry.get('item_model')]

@@ -2514,6 +2514,11 @@
           "domains": [
             "audio"
           ],
+          "ingest": {
+            "mode": "audio",
+            "source": "source_url",
+            "target": "input_file"
+          },
           "inspector": {
             "detail_registered": true,
             "detail_spec": {
