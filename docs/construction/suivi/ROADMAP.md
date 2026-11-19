@@ -8456,3 +8456,32 @@ La règle posée par Fabien pour ce chantier : *« On ne suppose rien, on ne dev
 on ne perd rien. On aligne, on complète l'existant si nécessaire, on fait les meilleures UI/UX
 possibles »* — au commun, réutilisable partout, via les capacités du converter pour ce qui est des
 formats et qualités.
+
+## 32. PÉDAGOGIE, INSTRUMENTS, PÉRIPHÉRIQUES, ÉDITION DANS L'APERÇU — idées de Fabien (ouvert le 2026-11-19) 💡
+
+> Renvois SUCCINCTS vers la vision, où vit le détail (Fabien : « compléter la roadmap pour ne rien
+> oublier de ce qui est consigné dans la vision, de façon succincte, avec renvoi »). Rien n'est
+> construit de ce qui suit, sauf mention ✅ ; aucun ordre n'est décidé.
+
+- **32.1 Application d'enseignement (« Teacher », nom de travail)** ⏳ → vision §6.4 : enseigner,
+  s'entraîner, être évalué (langues, matières, les deux ensemble ; musique : notes qui tombent,
+  volume main droite / main gauche, volume par piste MIDI, vitesse) ; rapport d'erreurs de l'élève ;
+  interfaces par assemblage de briques sur l'axe et le transport communs.
+- **32.2 Vidéos de cours, de démonstration, de tutoriel** ⏳ → vision §6.4 : briques vidéo, piano et
+  partition composées par l'utilisateur ; domicile (Composer ou autre app) à décider. Demande à la
+  brique partition un **défilement continu sur une ligne**, et au mixeur la **gestion du MIDI**
+  (volume par piste) — consignés aussi au chantier des pistes (`PROSPECTION_PIPELINE`, bloc du
+  2026-11-19).
+- **32.3 Instruments 3D jouables, méta-instrument virtuel** ⏳ → vision §6.5 : instruments virtuels
+  qui montrent le jeu (contrôleur MIDI ou corporel), contrôle par le corps, les mains, les yeux, la
+  tête ; casque de réalité virtuelle ou projection. Domicile à décider.
+- **32.4 Gestionnaire de périphériques et de contrôleurs externes** ⏳ → vision §11.4 : équipements
+  du PC de l'utilisateur (clavier, souris, contrôleur MIDI, carte son, caméras, micros, contrôleurs
+  3D et corporels) ; une voie directe pour la plupart, LSL et RTMaps comme options de flux. ↔ La
+  page de gestion des CONTRÔLEURS évoquée au §31.7.
+- **32.5 Édition légère dans l'aperçu** → vision §3.6. ✅ 2026-11-19, premier cas : un onglet de
+  l'aperçu écrit là où un emplacement de la page le déclare (`BrickSlot.face`, `ROUTE §F3b`) — le
+  mixeur des pistes séparées du composer. ⏳ Mixage rapide depuis l'aperçu d'une partition, en
+  potentiomètres ; d'autres apps dont l'édition tiendrait dans l'aperçu.
+- **32.6 Organiser la file au-delà d'un lot** ⏳ question ouverte → `MODES_QUEUE_UX §5quater`
+  (card source et ses cards dérivées, dossiers dans les files) ; soumise au concile le 2026-11-19.
