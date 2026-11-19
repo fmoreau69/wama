@@ -1830,6 +1830,23 @@ manifeste** (ce que le kind `app` capte + cible de projection).
     gardé tel quel par la Sortie ; la transcription, qui EST la Sortie du transcriber). Le contenu
     PRÉSENT décide, pas l'état de la ligne d'exécution. Contre-épreuves rouges (dédoublonnage,
     côté réservé, surcouche, déclaration retirée).
+  - ✅ **2026-11-19 — un onglet peut ÉCRIRE, là où un emplacement le déclare** (décision de Fabien :
+    « pas d'objection pour ouvrir la preview en écriture là où c'est justifié » ; intention en
+    vision §3.6, édition légère dans l'aperçu). `BrickSlot.face = '<étape>'` : la page d'édition
+    pose AUSSI cette brique dans l'onglet de l'étape, avec le transport (`preview_utils._brick_face`
+    → `data['bricks']`) ; l'onglet lit l'élément par la route de données de la page
+    (`surface_data?only=face` : médias, contexte, réglages, et `surface_views.gesture_config`, les
+    routes des gestes que `surface_page` sert aussi) et monte les briques par le noyau
+    (`WamaSurface.view` avec `edit`). Les gestes d'écriture — réglages par la route commune, ▶ d'une
+    étape avec sa case cochée, suivi — sont UNE fabrique (`wama-surface.js` `gestures`), sortie de
+    `mount` ; sans `edit`, une brique hors de la page reste en lecture seule. Premier cas : le mixeur
+    des pistes séparées du composer dans l'onglet « Pistes séparées ». Porté par le générateur
+    (`surfaces_gen`, une étape inconnue refusée). Gardes : `tests_surfaces.
+    BricksOutsideThePageWriteOnlyWhenDeclaredTest` (V8 : les deux routes, le contrat « une étape
+    du pipeline »), `SurfacesGeneratorTest.test_a_slot_shown_in_a_tab_is_rendered_with_its_step`,
+    `composer.tests_parts…test_the_page_mixes_what_the_remix_renders` ; quatre contre-épreuves
+    rouges. ⏳ `Surface.opens_with` (la page qui s'ouvre sur des pistes seules, parce que le mixeur
+    y vivait) reste, son retrait touche le manifeste du composer.
   - ✅ **2026-10-13 — ② amorcé, et la modale propre du DESCRIBER retirée** (demande de Fabien : son
     bouton 👁 ouvrait une modale à onglets alors que l'aperçu de la card et du volet ouvrent la
     visionneuse ; `REMOVAL_LEDGER R125`). Vérifié avant de retirer : la visionneuse montre Entrée,

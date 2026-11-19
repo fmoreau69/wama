@@ -206,6 +206,116 @@
         };
     }
 
+    /** Les GESTES D'ÉCRITURE d'un élément à côté de sa valeur éditée (2026-11-19, décision de
+     *  Fabien : « l'aperçu en écriture là où c'est justifié ») : ses réglages, par la route commune
+     *  (celle de la ⚙) ; le lancement d'une étape, par la route du ▶ de la bande ; le suivi de
+     *  l'étape lancée. UNE écriture, pour la page (`mount`) et pour les briques montées hors d'elle
+     *  quand l'hôte le déclare (`view`, `edit`). `hooks` : `emit`, `status(texte, sorte)`. */
+    function gestures(config, state, ctx, hooks) {
+        var App = global.WamaApp || {};
+        var emit = hooks.emit, status = hooks.status;
+
+        /** Lance l'étape `process` de l'élément (2026-11-17 : « Rendre le mixage », une autre étape
+         *  que celle qu'« Appliquer » rejoue) par la route du ▶ de la bande, après avoir COCHÉ sa case
+         *  quand elle est optionnelle (`config.toggles`) — sinon la route la refuse, « désactivée ».
+         *  Suivie comme « Appliquer ». Rend une promesse de `true` si elle est partie. */
+        function run(process) {
+            if (!process || !config.process_url) return Promise.resolve(false);
+            var toggle = (config.toggles || {})[process];
+            var enabled = {};
+            if (toggle) enabled[toggle] = true;
+            return (toggle ? saveSettings(enabled) : Promise.resolve(true)).then(function (ok) {
+                // L'étape remplace le marqueur que le serveur a nommé (`config.process_slot`).
+                return ok ? launch(config.process_url.replace(config.process_slot, encodeURIComponent(process)),
+                                   process) : false;
+            });
+        }
+
+        function launch(url, process) {
+            status('Lancement…', 'busy');
+            return App.csrfFetch(url, App.csrfToken(), { method: 'POST' })
+                .then(App.jsonOrExplain).then(function (res) {
+                    if (res && res.error) throw new Error(res.error);
+                    status('Relancé : ' + (process || ''), 'ok');
+                    if (App.toast) App.toast('Traitement relancé', 'success');
+                    emit('applied', res);
+                    track(process);
+                    return true;
+                }).catch(function (e) {
+                    status('Échec du lancement : ' + e.message, 'error');
+                    return false;
+                });
+        }
+
+        // ── Réglages de l'élément (`Surface.settings`) ──────────────────────────────────────
+        // La route commune des réglages d'UN élément (`update_settings`), en JSON : la même qui
+        // sert la modale ⚙ — un réglage écrit ici se relit partout. Ce n'est pas la valeur éditée :
+        // ni cran d'annulation, ni empreinte de conflit (la règle de la modale).
+        function saveSettings(values) {
+            if (!ctx.canEdit || !config.settings_url) return Promise.resolve(false);
+            Object.keys(values || {}).forEach(function (k) { state.settings.values[k] = values[k]; });
+            emit('settings', state.settings.values);
+            return App.csrfFetch(config.settings_url, App.csrfToken(), {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(values || {}),
+            }).then(App.jsonOrExplain).then(function (res) {
+                if (res && res.error) throw new Error(res.error);
+                return true;
+            }).catch(function (e) {
+                if (App.toast) App.toast('Réglage non enregistré : ' + e.message, 'danger');
+                return false;
+            });
+        }
+
+        // ── Suivi du process rejoué ───────────────────────────────────────────────────────
+        // Après « Appliquer », la page relit l'état des process (lecture légère `only=state`)
+        // jusqu'à ce que le process rejoué ait FINI — réussi ou échoué ; `STALE` ou en attente,
+        // il n'a pas encore été pris — ET que son aval ne tourne plus (2026-10-15 : le rendu du
+        // composer est suivi du process de sortie, qui écrit l'audio que la page relit). Chaque
+        // relecture émet `processes` ; les rôles lus (`reads`) sont rafraîchis au passage : un
+        // rendu refait peut changer d'adresse.
+        var TRACK_EVERY_MS = 4000, TRACK_MAX_MS = 20 * 60 * 1000;
+        var BUSY = ['PENDING', 'RUNNING', 'AWAITING_RESOURCES'];
+        var tracking = null;
+
+        function track(key) {
+            if (!key) return;
+            clearTimeout(tracking);
+            var until = Date.now() + TRACK_MAX_MS;
+            function tick() {
+                fetch(config.data_url + '?only=state', { credentials: 'same-origin' })
+                    .then(App.jsonOrExplain)
+                    .then(function (res) {
+                        state.reads = res.reads || state.reads;
+                        state.media = res.media || state.media;
+                        if (res.sources) {
+                            state.sources = mergedSources(res.sources, state.sources);
+                            Object.keys(state.sources).forEach(function (role) {
+                                emit('sources', { role: role });
+                            });
+                        }
+                        state.processes = res.processes || {};
+                        emit('processes', state.processes);
+                        var s = state.processes[key];
+                        var busy = Object.keys(state.processes).some(function (k) {
+                            return BUSY.indexOf(state.processes[k]) >= 0;
+                        });
+                        if (((s === 'SUCCESS' || s === 'FAILURE') && !busy) || Date.now() > until) {
+                            // `redone` : les médias lus ont été refaits — une brique qui les montre
+                            // (ou en tire une grille) les recharge ; une règle, pas une par brique.
+                            if (s === 'SUCCESS' && !busy) emit('redone', state.reads);
+                            return;
+                        }
+                        tracking = setTimeout(tick, TRACK_EVERY_MS);
+                    })
+                    .catch(function () { tracking = setTimeout(tick, TRACK_EVERY_MS * 2); });
+            }
+            tracking = setTimeout(tick, TRACK_EVERY_MS);
+        }
+
+        return { saveSettings: saveSettings, launch: launch, run: run, track: track };
+    }
+
     /** Monte la brique `key` dans `body` ; rend ce qu'elle rend (`{}` au pire). Une brique non
      *  chargée, ou qui LÈVE à son montage, le dit dans son cadre et dans la console, et n'emporte
      *  pas les autres (2026-11-16) : elle arrêtait la mise en page, et l'erreur ne s'écrivait que
@@ -235,16 +345,34 @@
      *  dans l'ordre — les outils d'une brique vont dans `head`. `config.scope` vaut `view` : ce que
      *  la brique nomme dans la page (un lecteur) ne se confond pas avec la page ouverte derrière.
      *  `hostKeys` : l'hôte DONNE déjà les touches du temps à l'axe (la visionneuse) — le transport
-     *  n'inscrit pas les siennes à la page (`config.host_keys`, option `keys: false` du transport). */
+     *  n'inscrit pas les siennes à la page (`config.host_keys`, option `keys: false` du transport).
+     *  `context`, `processes` : les valeurs de l'élément passées aux briques (`Surface.context`) et
+     *  l'état de ses étapes. `edit` (2026-11-19, décision de Fabien : l'aperçu en écriture là où il
+     *  le déclare — `BrickSlot.face`) : les briques ÉCRIVENT les réglages de l'élément et lancent
+     *  ses étapes, par les gestes de la page (`gestures`) — `canEdit`, `settings` (`{schema,
+     *  values}`) et, dans `config`, les routes de la page (`settings_url`, `process_url`…). Jamais
+     *  la valeur éditée : ni enregistrement, ni historique, ni disposition. */
     function view(spec) {
         var bus = makeBus();
         var config = Object.assign({ scope: 'view', host_keys: !!spec.hostKeys }, spec.config || {});
         var state = { reads: spec.reads || {}, media: spec.media || {}, sources: spec.sources || {},
-                      chosen: spec.chosen || {}, context: {}, processes: {}, value: {} };
+                      chosen: spec.chosen || {}, context: spec.context || {},
+                      processes: spec.processes || {}, value: {},
+                      settings: spec.settings || { schema: [], values: {} } };
+        var status = spec.status || function () {};
         var ctx = readContext(config, state, bus, {
             axis: function () { return spec.axis || null; },
-            status: spec.status || function () {},
+            status: status,
         });
+        if (spec.edit) {
+            ctx.canEdit = !!spec.canEdit;
+            var acts = gestures(config, state, ctx, { emit: bus.emit, status: status });
+            Object.assign(ctx, {
+                settings: function () { return state.settings; },
+                saveSettings: acts.saveSettings,
+                run: acts.run,
+            });
+        }
         (spec.slots || []).forEach(function (slot) {
             var brick = mountOne(slot.brick, slot.body, ctx, slot.options);
             if (brick.tools && slot.head) slot.head.appendChild(brick.tools);
@@ -334,6 +462,10 @@
             },
         });
         ctx.canEdit = !!config.can_edit;
+        // Les gestes d'écriture à côté de la valeur éditée : la fabrique commune (`gestures`), que
+        // les briques montées hors de la page partagent (`view`).
+        var acts = gestures(config, state, ctx, { emit: emit, status: status });
+        var saveSettings = acts.saveSettings, launch = acts.launch, run = acts.run, track = acts.track;
         Object.assign(ctx, {
             /** UN geste d'édition = un cran d'historique : `fn(copie)` rend la nouvelle valeur.
              *  `{burst: true}` : une frappe — la rafale entière ne fait qu'un cran. */
@@ -501,104 +633,6 @@
             return (dirty() ? save() : Promise.resolve(true)).then(function (ok) {
                 return ok ? launch(config.run_url, surface.reruns) : false;
             });
-        }
-
-        /** Lance l'étape `process` de l'élément (2026-11-17 : « Rendre le mixage », une autre étape
-         *  que celle qu'« Appliquer » rejoue) par la route du ▶ de la bande, après avoir COCHÉ sa case
-         *  quand elle est optionnelle (`config.toggles`) — sinon la route la refuse, « désactivée ».
-         *  Suivie comme « Appliquer ». Rend une promesse de `true` si elle est partie. */
-        function run(process) {
-            if (!process || !config.process_url) return Promise.resolve(false);
-            var toggle = (config.toggles || {})[process];
-            var enabled = {};
-            if (toggle) enabled[toggle] = true;
-            return (toggle ? saveSettings(enabled) : Promise.resolve(true)).then(function (ok) {
-                // L'étape remplace le marqueur que le serveur a nommé (`config.process_slot`).
-                return ok ? launch(config.process_url.replace(config.process_slot, encodeURIComponent(process)),
-                                   process) : false;
-            });
-        }
-
-        function launch(url, process) {
-            status('Lancement…', 'busy');
-            return App.csrfFetch(url, App.csrfToken(), { method: 'POST' })
-                .then(App.jsonOrExplain).then(function (res) {
-                    if (res && res.error) throw new Error(res.error);
-                    status('Relancé : ' + (process || ''), 'ok');
-                    if (App.toast) App.toast('Traitement relancé', 'success');
-                    emit('applied', res);
-                    track(process);
-                    return true;
-                }).catch(function (e) {
-                    status('Échec du lancement : ' + e.message, 'error');
-                    return false;
-                });
-        }
-
-        // ── Réglages de l'élément (`Surface.settings`) ──────────────────────────────────────
-        // La route commune des réglages d'UN élément (`update_settings`), en JSON : la même qui
-        // sert la modale ⚙ — un réglage écrit ici se relit partout. Ce n'est pas la valeur éditée :
-        // ni cran d'annulation, ni empreinte de conflit (la règle de la modale).
-        function saveSettings(values) {
-            if (!ctx.canEdit || !config.settings_url) return Promise.resolve(false);
-            Object.keys(values || {}).forEach(function (k) { state.settings.values[k] = values[k]; });
-            emit('settings', state.settings.values);
-            return App.csrfFetch(config.settings_url, App.csrfToken(), {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(values || {}),
-            }).then(App.jsonOrExplain).then(function (res) {
-                if (res && res.error) throw new Error(res.error);
-                return true;
-            }).catch(function (e) {
-                if (App.toast) App.toast('Réglage non enregistré : ' + e.message, 'danger');
-                return false;
-            });
-        }
-
-        // ── Suivi du process rejoué ───────────────────────────────────────────────────────
-        // Après « Appliquer », la page relit l'état des process (lecture légère `only=state`)
-        // jusqu'à ce que le process rejoué ait FINI — réussi ou échoué ; `STALE` ou en attente,
-        // il n'a pas encore été pris — ET que son aval ne tourne plus (2026-10-15 : le rendu du
-        // composer est suivi du process de sortie, qui écrit l'audio que la page relit). Chaque
-        // relecture émet `processes` ; les rôles lus (`reads`) sont rafraîchis au passage : un
-        // rendu refait peut changer d'adresse.
-        var TRACK_EVERY_MS = 4000, TRACK_MAX_MS = 20 * 60 * 1000;
-        var BUSY = ['PENDING', 'RUNNING', 'AWAITING_RESOURCES'];
-        var tracking = null;
-
-        function track(key) {
-            if (!key) return;
-            clearTimeout(tracking);
-            var until = Date.now() + TRACK_MAX_MS;
-            function tick() {
-                fetch(config.data_url + '?only=state', { credentials: 'same-origin' })
-                    .then(App.jsonOrExplain)
-                    .then(function (res) {
-                        state.reads = res.reads || state.reads;
-                        state.media = res.media || state.media;
-                        if (res.sources) {
-                            state.sources = mergedSources(res.sources, state.sources);
-                            Object.keys(state.sources).forEach(function (role) {
-                                emit('sources', { role: role });
-                            });
-                        }
-                        state.processes = res.processes || {};
-                        emit('processes', state.processes);
-                        var s = state.processes[key];
-                        var busy = Object.keys(state.processes).some(function (k) {
-                            return BUSY.indexOf(state.processes[k]) >= 0;
-                        });
-                        if (((s === 'SUCCESS' || s === 'FAILURE') && !busy) || Date.now() > until) {
-                            // `redone` : les médias lus ont été refaits — une brique qui les montre
-                            // (ou en tire une grille) les recharge ; une règle, pas une par brique.
-                            if (s === 'SUCCESS' && !busy) emit('redone', state.reads);
-                            return;
-                        }
-                        tracking = setTimeout(tick, TRACK_EVERY_MS);
-                    })
-                    .catch(function () { tracking = setTimeout(tick, TRACK_EVERY_MS * 2); });
-            }
-            tracking = setTimeout(tick, TRACK_EVERY_MS);
         }
 
         // ── Disposition : la brique commune `wama-brick-layout.js` (2026-10-28) ────────────────

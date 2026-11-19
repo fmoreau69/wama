@@ -2244,6 +2244,68 @@
         return face;
     }
 
+    // ── Les BRIQUES qu'un onglet monte (2026-11-19, décision de Fabien : « pas d'objection pour
+    // ouvrir la preview en écriture là où c'est justifié ») ────────────────────────────────────────
+    // Ce que le serveur dit de l'onglet d'une étape dont la page d'édition pose aussi des briques
+    // (`preview_utils._brick_face`, `BrickSlot.face`) : lesquelles, la route de données de la page,
+    // leurs scripts. Le noyau des surfaces les monte (`WamaSurface.view` avec `edit`) : elles lisent
+    // l'élément comme dans la page (`?only=face`), écrivent ses réglages et lancent ses étapes par
+    // les gestes de la page ; le transport joue sur l'axe de l'onglet ce qu'elles font entendre. Le
+    // mixeur des pistes séparées du composer, dans l'onglet « Pistes séparées ».
+    function _bricksFace(data) {
+        const b = data.bricks;
+        const face = document.createElement('div');
+        face.className = 'wama-score-face wama-bricks-face';
+        const tools = document.createElement('div');
+        tools.className = 'wama-score-face-tools';
+        const listenTools = document.createElement('span');
+        const status = document.createElement('span');
+        status.className = 'small text-body-secondary';
+        tools.append(listenTools, status);
+        const transportHost = document.createElement('div');
+        const stage = document.createElement('div');
+        stage.className = 'wama-bricks-face-stage';
+        stage.textContent = 'Chargement…';
+        face.append(tools, transportHost, stage);
+        const axis = playOnAxis(face, []);
+
+        (b.styles || []).forEach(function (href) { window.WamaApp.loadStyle(href); });
+        _scoreScripts(b.scripts).then(function () {
+            return fetch(b.data_url + '?only=face', { credentials: 'same-origin' })
+                .then(window.WamaApp.jsonOrExplain);
+        }).then(function (res) {
+            if (!face.isConnected && !document.body.contains(face)) return;     // face déjà remplacée
+            if (!res || res.error) throw new Error((res && res.error) || 'réponse vide');
+            stage.textContent = '';
+            const slots = [];
+            if (b.role) {
+                slots.push({ brick: 'media_transport', body: transportHost, head: listenTools,
+                             options: { role: b.role } });
+            }
+            (b.slots || []).forEach(function (slot) {
+                const body = document.createElement('div');
+                body.className = 'wama-bricks-face-slot';
+                stage.appendChild(body);
+                slots.push({ brick: slot.brick, body: body, options: slot.options || {} });
+            });
+            const config = Object.assign({ pk: b.pk, data_url: b.data_url }, res.config || {});
+            window.WamaSurface.view({
+                config: config,
+                reads: res.reads, media: res.media, sources: res.sources,
+                context: res.context, processes: res.processes,
+                settings: res.settings || undefined,
+                edit: true, canEdit: !!config.can_edit,
+                axis: axis,
+                hostKeys: true,                 // la visionneuse donne les touches du temps à l'axe
+                status: function (text) { status.textContent = text || ''; },
+                slots: slots,
+            });
+        }).catch(function (e) {
+            stage.textContent = 'Onglet indisponible : ' + (e && e.message || e);
+        });
+        return face;
+    }
+
     /**
      * Build the preview content element based on MIME type.
      */
@@ -2252,6 +2314,8 @@
 
         // Une PARTITION se grave et se joue (2026-11-15), quel que soit son type de fichier.
         if (data.score && typeof data.score.abc === 'string') return _scoreFace(data);
+        // Les briques que la page pose aussi dans l'onglet de cette étape (2026-11-19).
+        if (data.bricks) return _bricksFace(data);
         if (mimeType.startsWith('video/')) {
             // Taille : la place que laisse l'écran (`--wv-stage`, media-preview.css), proportions
             // gardées — plus de hauteur figée en ligne (70vh débordait sur un écran bas).

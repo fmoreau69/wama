@@ -3456,6 +3456,18 @@ class SurfacesGeneratorTest(SimpleTestCase):
         m['body']['surfaces'][0]['slots'][0]['w'] = 2
         self.assertIn('hors de sa zone (panel', render_surfaces(m)[1])
 
+    def test_a_slot_shown_in_a_tab_is_rendered_with_its_step(self):
+        """2026-11-19 (`BrickSlot.face`) : the tab of the viewer that also shows a brick is a DATUM
+        of the slot — rendered, and refused when it names no step of the app."""
+        from wama.common.manifests.codegen.surfaces_gen import render_surfaces
+        m = self._manifest()
+        m['body']['surfaces'][0]['slots'][0]['face'] = 'layout'
+        src, reason = render_surfaces(m)
+        self.assertIsNone(reason)
+        self.assertIn("face='layout')", src)
+        m['body']['surfaces'][0]['slots'][0]['face'] = 'publish'
+        self.assertIn("étape inconnue 'publish'", render_surfaces(m)[1])
+
 
 class SegmentRulesTest(SimpleTestCase):
     """`wama-segments.js` (2026-10-21) — the rules of a suite of SEGMENTS, MOVED from the correction
@@ -3941,6 +3953,69 @@ class StemMixTest(SimpleTestCase):
         self.assertLess(src.index('data-mixer="solo"'), src.index('data-mixer="mute"'), 'S left of the speaker')
         css = (Path(settings.BASE_DIR) / 'wama/common/static/common/css/wama-surface.css').read_text(encoding='utf-8')
         self.assertRegex(css, r'\.wama-brick-mixer \{ padding:', 'the brick has its margins')
+
+
+class BricksOutsideThePageWriteOnlyWhenDeclaredTest(SimpleTestCase):
+    """2026-11-19 (Fabien : « pas d'objection de ma part pour ouvrir la preview en écriture là où
+    c'est justifié ») : a brick mounted OUTSIDE its page (`WamaSurface.view`, the tab of a step in
+    the viewer — `BrickSlot.face`) writes the settings of the element and launches its steps only
+    when its host says so (`edit`) — through THE gestures of the page (`gestures`, one writing for
+    both), on the served kernel, in V8 : the settings route of the page, the ▶ route of a step with
+    its optional box ticked first. Without `edit` : a read-only context, as before."""
+
+    SERVED = Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'js' / 'surfaces' / 'wama-surface.js'
+
+    def _ctx(self, edit):
+        from py_mini_racer import MiniRacer
+        engine = MiniRacer()
+        engine.eval("""var window = this, posted = [];
+            var setTimeout = function () { return 0; }, clearTimeout = function () {};
+            var fetch = function () { return new Promise(function () {}); };
+            window.WamaApp = {csrfToken: function () { return 't'; },
+                csrfFetch: function (url, token, opts) { posted.push([url, (opts || {}).body || null]);
+                    return Promise.resolve({}); },
+                jsonOrExplain: function () { return {}; }, toast: function () {}};
+        """ + self.SERVED.read_text(encoding='utf-8'))
+        engine.eval("""var seen = null;
+            window.WamaSurface.registerBrick('probe', {mount: function (body, ctx) { seen = ctx; return {}; }});
+            window.WamaSurface.view({edit: %s, canEdit: true,
+                config: {settings_url: '/set/7/', process_url: '/run/7/__process__/', process_slot: '__process__',
+                         toggles: {remix: 'remix_stems'}, data_url: '/data/7/'},
+                settings: {schema: [{name: 'remix_levels'}], values: {}},
+                slots: [{brick: 'probe', body: {}}]});
+            if (seen.saveSettings) { seen.saveSettings({remix_levels: {drums: '0.5'}}); }
+            if (seen.run) { seen.run('remix'); }""" % ('true' if edit else 'false'))
+        return json.loads(engine.eval("""JSON.stringify({canEdit: !!seen.canEdit,
+            save: typeof seen.saveSettings, run: typeof seen.run, posted: posted,
+            settings: seen.settings ? seen.settings().values : null})"""))
+
+    def test_the_tab_writes_through_the_gestures_of_the_page(self):
+        out = self._ctx(edit=True)
+        self.assertEqual((True, 'function', 'function'), (out['canEdit'], out['save'], out['run']))
+        self.assertEqual({'remix_levels': {'drums': '0.5'}, 'remix_stems': True}, out['settings'],
+                         'the levels written, then the box of the step ticked before its launch')
+        self.assertEqual(['/set/7/', '/set/7/', '/run/7/remix/'], [url for url, _body in out['posted']],
+                         'the settings route of the page, then the ▶ route of the step')
+        self.assertEqual({'remix_levels': {'drums': '0.5'}}, json.loads(out['posted'][0][1]))
+
+    def test_without_its_host_saying_so_a_brick_outside_the_page_only_reads(self):
+        out = self._ctx(edit=False)
+        self.assertEqual((False, 'undefined', 'undefined', []),
+                         (out['canEdit'], out['save'], out['run'], out['posted']))
+
+    def test_every_tab_a_slot_names_is_a_step_of_its_app(self):
+        """The contract of the declaration, on every surface : a slot shown in a tab (`face`) names
+        a step of the pipeline of its app — a tab that does not exist would never show it."""
+        from wama.common.services.process_pipeline import app_pipeline
+        from wama.common.surfaces import SURFACES, load_all
+        load_all()
+        declared = [(found, slot) for found in SURFACES.values() for slot in found.slots if slot.face]
+        self.assertTrue(declared, 'the mixer of the composer declares its tab')
+        for found, slot in declared:
+            with self.subTest(surface=found.id, slot=slot.id):
+                pipeline = app_pipeline(found.app)
+                self.assertIsNotNone(pipeline, f'{found.app} has no pipeline')
+                self.assertIn(slot.face, [spec.key for spec in pipeline.specs])
 
 
 class AnUnreadableAvailabilityClosesThePageTest(SimpleTestCase):

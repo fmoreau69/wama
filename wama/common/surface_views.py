@@ -188,30 +188,18 @@ def surface_page(request, app: str, key: str, pk: int):
                       or found.opening_field(item)),
             'save_url': base + 'save/',
             'run_url': _url(f'{app}:start_process', pk, found.reruns) if found.reruns else '',
-            # Lancer une AUTRE étape que celle qu'« Appliquer » rejoue (2026-11-17, « Rendre le
-            # mixage ») : la route du ▶ d'une étape, l'étape en gabarit (`ctx.run`), et la case qui
-            # ACTIVE chaque étape optionnelle (`ProcessSpec.toggle`), lue du pipeline de l'élément.
-            'process_url': _url(f'{app}:start_process', pk, PROCESS_SLOT),
-            'process_slot': PROCESS_SLOT,
-            'toggles': _toggles_of(item),
-            # Les étapes que l'ÉLÉMENT exclut, avec leur raison (2026-11-17 : une piste séparée n'a
-            # ni séparation ni refusion) — une brique qui lance l'une d'elles le dit au lieu de
-            # proposer de la lancer ; et la card d'ORIGINE d'une card dérivée, où ce geste a lieu.
-            'excluded': _excluded_steps(item),
-            'origin': _origin_of(app, key, item),
+            **gesture_config(found, item, request.user),
             'revisions_url': base + 'revisions/',
             # La page de l'app telle que son IDENTITÉ la déclare (2026-10-29) : `<app>:index` ne
             # se résout pas pour une app du Lab, montée sous `wama_lab:`.
             'back_url': _url(_home_of(app)),
-            'can_edit': not found.read_only and _can_edit(request.user, item),
             # La disposition se garde PAR COMPTE (`surface_layout`) ; la clé du navigateur ne sert
             # plus qu'à reprendre une disposition gardée avant le 2026-10-21, et en secours.
             'layout_key': f'wama.surface.{found.id}',
             'layout': _layout_of(found, request.user),
             'layout_url': reverse('common:surface_layout', args=[app, key]),
-            # Les routes de geste de l'app (`Surface.routes`) et celle de ses réglages.
+            # Les routes de geste de l'app (`Surface.routes`).
             'routes': {gesture: _url(f'{app}:{name}', pk) for gesture, name in found.routes.items()},
-            'settings_url': _settings_url(app, pk) if found.page_settings() else '',
             # Les banques de sons de la LECTURE MIDI d'une partition (2026-11-08) — pour une surface
             # qui grave une partition seulement (`wama-midi-player.js`, requis par `score_view`).
             **({'sound_banks': {**_sound_banks(), 'audio_url': base + 'audio/'}}
@@ -224,6 +212,30 @@ def surface_page(request, app: str, key: str, pk: int):
 
 #: L'étape dans la route du ▶ servie à la page (`process_url`) : la page la remplace par la sienne.
 PROCESS_SLOT = '__process__'
+
+
+def gesture_config(found, item, user) -> dict:
+    """Ce dont les GESTES D'ÉCRITURE d'une brique ont besoin à côté de la valeur éditée (2026-11-19,
+    extrait de `surface_page` pour l'onglet de l'aperçu qui monte une brique, `BrickSlot.face`) — la
+    route des réglages de l'élément (`ctx.saveSettings`), la route du ▶ d'une étape avec l'étape en
+    gabarit (`ctx.run`), la case qui ACTIVE chaque étape optionnelle, les étapes que l'élément exclut
+    et la card d'origine d'une card dérivée, et le droit d'écrire. Le JS : `WamaSurface` `gestures`."""
+    app, pk = found.app, item.pk
+    return {
+        'settings_url': _settings_url(app, pk) if found.page_settings() else '',
+        # Lancer une AUTRE étape que celle qu'« Appliquer » rejoue (2026-11-17, « Rendre le
+        # mixage ») : la route du ▶ d'une étape, l'étape en gabarit (`ctx.run`), et la case qui
+        # ACTIVE chaque étape optionnelle (`ProcessSpec.toggle`), lue du pipeline de l'élément.
+        'process_url': _url(f'{app}:start_process', pk, PROCESS_SLOT),
+        'process_slot': PROCESS_SLOT,
+        'toggles': _toggles_of(item),
+        # Les étapes que l'ÉLÉMENT exclut, avec leur raison (2026-11-17 : une piste séparée n'a
+        # ni séparation ni refusion) — une brique qui lance l'une d'elles le dit au lieu de
+        # proposer de la lancer ; et la card d'ORIGINE d'une card dérivée, où ce geste a lieu.
+        'excluded': _excluded_steps(item),
+        'origin': _origin_of(app, found.key, item),
+        'can_edit': not found.read_only and _can_edit(user, item),
+    }
 
 
 def _toggles_of(item) -> dict:
@@ -318,7 +330,10 @@ def surface_data(request, app: str, key: str, pk: int):
     found = _surface_or_404(app, key)
     item = _readable_or_404(found, request.user, pk)
     ok, reason = found.can_open(item)
-    if not ok:
+    # Un onglet de l'aperçu qui monte une brique de la page (`only=face`, 2026-11-19 —
+    # `BrickSlot.face`) et le suivi d'une étape qu'il lance (`only=state`) ne lisent que l'élément,
+    # jamais la valeur éditée : ils n'attendent pas que la PAGE puisse s'ouvrir.
+    if not ok and request.GET.get('only') not in ('face', 'state'):
         return JsonResponse({'error': reason}, status=409)
     if request.GET.get('only') == 'rhythm':
         return JsonResponse({'rhythm': _rhythm_of(_version_name(
@@ -363,6 +378,15 @@ def surface_data(request, app: str, key: str, pk: int):
         # valeur éditée — que la page tient déjà, et qui peut peser un document entier.
         return JsonResponse({'reads': reads, 'media': media, 'sources': sources,
                              'processes': _process_states(item)})
+    if request.GET.get('only') == 'face':
+        # L'onglet de l'aperçu (`preview_utils._brick_face`) : ce que ses briques LISENT de
+        # l'élément — médias, versions, contexte, réglages —, sans la valeur éditée ; et ce dont
+        # leurs gestes d'écriture ont besoin (`gesture_config`, les mêmes que la page).
+        return JsonResponse({'reads': reads, 'media': media, 'sources': sources,
+                             'processes': _process_states(item),
+                             'context': found.context_of(item),
+                             'settings': _settings_of(found, item) if found.page_settings() else None,
+                             'config': gesture_config(found, item, request.user)})
     try:
         field = found.target(item, request.GET.get('field') or '')
         # Une partition fournie illisible se dit ici (`_edited_text`), à l'ouverture de la page.

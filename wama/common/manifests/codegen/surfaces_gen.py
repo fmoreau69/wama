@@ -136,6 +136,10 @@ def _check(surface: dict, outputs: dict, processes: set, app_key: str = '') -> s
         x, w = int(slot.get('x', 0)), int(slot.get('w', 0))
         if not slot.get('id') or w <= 0 or int(slot.get('h', 0)) <= 0 or x < 0 or x + w > columns:
             return f"surface {key} : emplacement {slot.get('id')!r} hors de sa zone ({zone}, {columns} colonne(s))"
+        # L'onglet de l'aperçu qui monte aussi la brique (2026-11-19, `BrickSlot.face`) : une étape.
+        if slot.get('face') and slot['face'] not in processes:
+            return (f"surface {key} : l'emplacement {slot.get('id')!r} s'affiche dans l'onglet d'une étape "
+                    f"inconnue {slot['face']!r} (déclarées : {', '.join(sorted(processes))})")
     # Un champ écrit est un FICHIER sorti d'un process (validation commune), ou une DONNÉE dont
     # la surface déclare la validation (`validate`, un crochet) — jamais une donnée sans elle.
     if not surface.get('validate'):
@@ -164,6 +168,9 @@ def _slot(slot: dict) -> str:
         args.append(repr(dict(slot['options'])))
     if (slot.get('zone') or 'grid') != 'grid':
         args.append(f"zone={slot['zone']!r}")
+    if slot.get('face'):
+        # L'onglet de l'aperçu qui monte aussi la brique (2026-11-19, `BrickSlot.face`).
+        args.append(f"face={slot['face']!r}")
     return f"BrickSlot({', '.join(args)})"
 
 

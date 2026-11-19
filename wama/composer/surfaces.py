@@ -36,7 +36,8 @@ Le MIXAGE en temps réel (2026-11-17, décision de Fabien : « le mixage temps r
 d'édition, la card porte les process ») : une card à pistes séparées règle le niveau de chacune
 à l'oreille (brique commune `stem_mixer`, au volet), sur l'audio lu ; les niveaux sont les réglages
 de la refusion, que « Rendre le mixage » lance. Une card qui n'a que ses pistes ouvre la page
-(`opens_with`) : on y mixe avant d'avoir une partition.
+(`opens_with`) : on y mixe avant d'avoir une partition. Depuis le 2026-11-19, le même mixeur vit
+aussi dans l'onglet « Pistes séparées » de l'aperçu (`BrickSlot.face`).
 """
 from wama.common.surfaces import INPUT_SOURCE, BrickSlot, Surface, register_surface
 from wama.composer.models import ComposerGeneration
@@ -135,7 +136,11 @@ register_surface(Surface(
                'role': 'audio', 'tracks': 'stems', 'levels': 'remix_levels',
                'without': 'remix_without', 'process': 'remix',
                'empty': "Pas de pistes séparées : cocher « Pistes séparées » dans les réglages "
-                        "de la card, puis la lancer."}, zone='panel')),
+                        "de la card, puis la lancer."}, zone='panel',
+                     # Aussi dans l'onglet « Pistes séparées » de l'aperçu (2026-11-19, décision de
+                     # Fabien : l'aperçu en écriture là où c'est justifié) : on y mixe et l'on y
+                     # lance la refusion sans ouvrir la page.
+                     face='separate')),
     reads={'audio': 'audio_output', 'rendered': 'rendered_parts_score',
            'rendered_score': 'rendered_score',
            # Les partitions de l'audio source LUES (2026-11-19) : ce qu'une vue montre quand la page

@@ -547,6 +547,23 @@ class StemSeparationTest(_InputProcessCase):
         self.assertTrue(played['playback'].endswith(copy.name), played['playback'])
         self.assertNotEqual(played['playback'], played['original'])
         self.assertEqual({'remix_levels', 'remix_without'}, set(page.page_settings()))
+        # The SAME mixer in the tab of the separation, in the viewer (2026-11-19, Fabien : « pas
+        # d'objection pour ouvrir la preview en écriture là où c'est justifié » — `BrickSlot.face`) :
+        # the tab names the brick of the page and its data route ; that route, read for a tab
+        # (`only=face`), serves the stems, the settings and the routes of the gestures of the page.
+        from django.urls import reverse
+        self.client.force_login(self.user)
+        preview = reverse('common:unified_preview', args=['composer', gen.pk])
+        bricks = self.client.get(preview, {'side': 'separate'}).json().get('bricks') or {}
+        self.assertEqual(['stem_mixer'], [slot['brick'] for slot in bricks.get('slots', [])], bricks)
+        self.assertEqual('audio', bricks['role'], 'the transport plays what the mixer makes heard')
+        served = self.client.get(bricks['data_url'], {'only': 'face'}).json()
+        self.assertEqual({'vocals', 'drums'}, {t['key'] for t in served['context']['stems']['tracks']})
+        self.assertEqual({'remix_levels', 'remix_without'}, {p['name'] for p in served['settings']['schema']})
+        gestures = served['config']
+        self.assertEqual((True, True), (bool(gestures['settings_url']), gestures['can_edit']), gestures)
+        self.assertIn(gestures['process_slot'], gestures['process_url'])
+        self.assertNotIn('value', served, 'a tab never reads the edited value')
         gen = self._run(gen, process='remix')
         self.assertEqual(JOB_SUCCESS, self._states(gen)['remix'], gen.error_message)
         out, _rate = sf.read(str(Path(self.tmp) / gen.remix_audio.name), always_2d=True)

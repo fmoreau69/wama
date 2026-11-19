@@ -85,7 +85,7 @@
             '          title="Toutes les pistes à 100 % : le morceau d\'origine">' +
             '    <i class="fas fa-arrow-rotate-left"></i> Tout à 100 %</button>' +
             (canRender ? '  <button type="button" class="btn btn-sm btn-success flex-grow-1" data-mixer="render" ' +
-                         '          title="Écrire ce mixage dans un fichier : une card de plus dans le lot">' +
+                         '          title="Écrire ce mixage dans un fichier : une sortie de l’étape, sur cette card">' +
                          '    <i class="fas fa-file-audio"></i> Rendre le mixage</button>' : '') +
             '</div>' +
             '<div class="small text-body-secondary mt-1" data-mixer="status" aria-live="polite"></div>';
@@ -220,7 +220,7 @@
             save().then(function (ok) {
                 return ok === false ? false : ctx.run(options.process);
             }).then(function (ok) {
-                say(ok ? 'Mixage en cours d’écriture : il arrivera dans le lot.' : '', ok ? 'ok' : '');
+                say(ok ? 'Mixage en cours d’écriture : il arrivera dans l’onglet de son étape.' : '', ok ? 'ok' : '');
             }).then(function () { render.disabled = false; });
         });
         global.addEventListener('pagehide', function () { if (timer) save(); });

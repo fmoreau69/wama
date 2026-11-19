@@ -5015,6 +5015,9 @@ donné : tout consigner, avancer ce qui est certain, puis revenir à l'organisat
   générale en vision §3.6 (édition légère dans l'aperçu, apps sans page d'édition à part entière).
   L'étape 4 est débloquée : le mixeur complet dans l'onglet « Pistes séparées », les gestes
   « enregistrer les réglages » et « lancer une étape » ouverts à l'onglet qui les déclare.
+  ✅ **Livrée le même jour** — `BrickSlot.face='separate'` sur l'emplacement du mixeur (mécanisme
+  commun : `ROUTE §F3b`, bloc du 2026-11-19). Les deux textes périmés de la brique (« une card de
+  plus dans le lot ») corrigés : la refusion est une sortie de l'étape, sur la card.
 - ⏳ **Mixage rapide depuis l'aperçu d'une partition**, avec des **potentiomètres** plutôt que des
   curseurs pour gagner de la place.
 - 🐞 **Aperçu ouvert en modale : les sélections de l'aperçu de la card ne sont pas conservées**

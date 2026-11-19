@@ -782,8 +782,8 @@ def _score_face(app_name, instance, side, data, input_data, output_data):
                               'edit_url': edit_url,
                               'page': _score_page_reads(found, app_name, instance,
                                                         {'input': input_data, 'output': output_data}),
-                              'scripts': _score_face_scripts(),
-                              'styles': _score_face_styles(),
+                              'scripts': _face_scripts(),
+                              'styles': _face_styles(),
                               'sound_banks': _score_sound_banks()}}
 
 
@@ -831,26 +831,57 @@ def _score_page_reads(found, app_name, instance, faces) -> dict:
             'sources': _sources(found, instance, role), 'keys': keys}
 
 
-def _score_face_scripts() -> list:
-    """Le noyau des surfaces d'abord (les briques s'y inscrivent en se chargeant), puis chaque
-    brique, ses dépendances avant elle."""
+def _face_scripts(bricks=SCORE_FACE_BRICKS) -> list:
+    """Ce qu'une face qui monte des briques charge : le noyau des surfaces d'abord (les briques s'y
+    inscrivent en se chargeant), puis chaque brique, ses dépendances avant elle — la partition
+    (`SCORE_FACE_BRICKS`) comme les briques qu'un onglet monte (`_brick_face`)."""
     from wama.common.surface_views import page_scripts
     from wama.common.surfaces import BRICKS, SURFACE_SCRIPT
     from wama.common.templatetags.wama_static import static_v
     loaded, out = page_scripts(), []
-    for path in [SURFACE_SCRIPT] + [p for key in SCORE_FACE_BRICKS for p in BRICKS[key].scripts()]:
+    for path in [SURFACE_SCRIPT] + [p for key in bricks for p in BRICKS[key].scripts()]:
         if path not in loaded and static_v(path) not in out:
             out.append(static_v(path))
     return out
 
 
-def _score_face_styles() -> list:
+def _face_styles(bricks=SCORE_FACE_BRICKS) -> list:
     """Les feuilles de la page des surfaces (`SURFACE_STYLESHEET` : le transport n'en déclare pas)
     et celles que déclarent les briques."""
     from wama.common.surfaces import BRICKS, SURFACE_STYLESHEET
     from wama.common.templatetags.wama_static import static_v
-    paths = [SURFACE_STYLESHEET] + [p for key in SCORE_FACE_BRICKS for p in BRICKS[key].styles()]
+    paths = [SURFACE_STYLESHEET] + [p for key in bricks for p in BRICKS[key].styles()]
     return [static_v(p) for p in dict.fromkeys(paths)]
+
+
+#: Ce qui accompagne, dans un onglet, les briques qu'un emplacement y déclare (`BrickSlot.face`) :
+#: le transport, qui joue sur l'axe de l'onglet ce qu'elles font entendre — quand l'une d'elles
+#: nomme le média lu qu'elle suit (`role`).
+FACE_HOST_BRICKS = ('media_transport',)
+
+
+def _brick_face(app_name, instance, step) -> dict:
+    """Les briques que la PAGE d'édition de l'app pose AUSSI dans l'onglet de l'étape `step`
+    (`BrickSlot.face`, 2026-11-19, décision de Fabien : l'aperçu en écriture là où c'est justifié) —
+    `{pk, data_url, role, slots: [{brick, options}], scripts, styles}`. La face les monte par le
+    noyau des surfaces (`WamaSurface.view` avec `edit`), lit l'élément par la route de données de la
+    page (`?only=face` : médias, contexte, réglages, routes des gestes) ; rien n'est redit ici. None :
+    aucune surface de l'app ne le déclare pour un élément de cette nature (`Surface.concerns`)."""
+    from django.urls import reverse
+    from wama.common.surfaces import surfaces_of
+    for found in surfaces_of(app_name):
+        slots = [slot for slot in found.slots if slot.face == step]
+        if not slots or not found.concerns(instance):
+            continue
+        role = next(((slot.options or {}).get('role') for slot in slots
+                     if (slot.options or {}).get('role')), '')
+        bricks = (FACE_HOST_BRICKS if role else ()) + tuple(slot.brick for slot in slots)
+        return {'pk': instance.pk,
+                'data_url': reverse('common:surface_data', args=[app_name, found.key, instance.pk]),
+                'role': role,
+                'slots': [{'brick': slot.brick, 'options': dict(slot.options or {})} for slot in slots],
+                'scripts': _face_scripts(bricks), 'styles': _face_styles(bricks)}
+    return None
 
 
 def _score_sound_banks() -> dict:
@@ -882,6 +913,11 @@ def _process_faces(app_name, instance, request, input_data, output_data) -> dict
             continue
         try:
             data = _process_face(app_name, pipeline, spec, instance, request, input_data)
+            # Les briques que la page pose aussi dans cet onglet (`BrickSlot.face`) : le mixeur des
+            # pistes séparées du composer sur la face de sa séparation.
+            bricks = _brick_face(app_name, instance, spec.key) if data else None
+            if bricks:
+                data = {**data, 'bricks': bricks}
         except Exception as exc:
             logger.warning(f"Preview {app_name}/{getattr(instance, 'pk', '?')} : face du process "
                            f"« {spec.key} » indisponible : {exc}")

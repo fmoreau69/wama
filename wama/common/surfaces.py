@@ -436,7 +436,13 @@ class BrickSlot:
     """Une brique placée sur une surface : position et taille PAR DÉFAUT (l'utilisateur les
     change sur la page), options propres à cet emplacement. `zone` : la grille du centre
     (`grid`) ou la colonne du volet (`panel`, où `x` vaut 0 et `w` 1 — `y` est l'ordre et `h` la
-    hauteur, en rangs de la même grille)."""
+    hauteur, en rangs de la même grille).
+
+    `face` (2026-11-19, décision de Fabien : « pas d'objection pour ouvrir la preview en écriture là
+    où c'est justifié ») : l'ÉTAPE du pipeline dont l'onglet de l'aperçu monte AUSSI cette brique,
+    avec le transport — et la laisse écrire les réglages de l'élément et lancer ses étapes, comme
+    dans la page (`preview_utils._brick_face`, `WamaSurface.view` avec `edit`). Le mixeur des pistes
+    séparées du composer, dans l'onglet « Pistes séparées ». Vide : la page seule."""
     id: str
     brick: str
     x: int
@@ -445,10 +451,12 @@ class BrickSlot:
     h: int
     options: dict = field(default_factory=dict)
     zone: str = 'grid'
+    face: str = ''
 
     def to_dict(self) -> dict:
         return {'id': self.id, 'brick': self.brick, 'x': self.x, 'y': self.y, 'w': self.w,
-                'h': self.h, 'options': dict(self.options), 'zone': self.zone}
+                'h': self.h, 'options': dict(self.options), 'zone': self.zone,
+                **({'face': self.face} if self.face else {})}
 
 
 @dataclass(frozen=True)
