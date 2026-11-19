@@ -3266,6 +3266,7 @@ def check_app_duplicate_delete(app: str, url_path: str):
     except Exception:
         modele = None
     ids_avant_orm = set()
+    monte, montes_nettoyes = set(), 0      # l'élément que le scénario dépose lui-même (file vide)
     if modele is not None:
         try:
             ids_avant_orm = set(modele.objects.values_list('id', flat=True))
@@ -3330,6 +3331,7 @@ def check_app_duplicate_delete(app: str, url_path: str):
                         champ.set_input_files(str(temoin_fixture))
                         page.wait_for_timeout(4500)
                         ids0 = page.evaluate(IDS)
+                        monte.update(int(i) for i in ids0 if str(i).isdigit())
                     finally:
                         try:
                             temoin_fixture.unlink()
@@ -3438,14 +3440,20 @@ def check_app_duplicate_delete(app: str, url_path: str):
                 restes = set(modele.objects.values_list('id', flat=True)) - ids_avant_orm
                 if restes:
                     modele.objects.filter(id__in=restes).delete()
-                    _nettoyes.append(len(restes))
+                    _nettoyes.append(len(restes - monte))
+                    montes_nettoyes = len(restes & monte)
             except Exception:
                 pass
 
     # Un résidu n'invalide pas le geste, mais il se DIT : il signifie que la suppression a
     # retiré la card de l'écran sans supprimer l'objet — exactement le genre d'écart qu'un
-    # « vert » muet laisserait s'installer.
-    if _nettoyes:
+    # « vert » muet laisserait s'installer. ⚠ L'élément que le scénario a MONTÉ (file vide) n'en est
+    # pas un : il reste par construction jusqu'au nettoyage, et le compter faisait dire « objet non
+    # supprimé » à chaque passage sur une file vide (dix apps, relevé du 17 au 19/11) — il se dit
+    # « de montage », comme dans les autres gestes.
+    if montes_nettoyes:
+        detail += f" ; {montes_nettoyes} élément(s) de montage nettoyé(s)"
+    if sum(_nettoyes):
         return True, (f"{detail} ⚠ mais {sum(_nettoyes)} objet(s) subsistai(en)t en base après "
                       "le geste — la card disparaît de l'écran sans que l'objet soit supprimé")
     return True, detail
