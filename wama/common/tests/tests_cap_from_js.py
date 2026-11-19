@@ -874,11 +874,10 @@ class InspectorSavesThroughTheCommonPathTest(SimpleTestCase):
 #: were brought back the day the common save was written.
 OWN_PANEL_SAVE = {
     # 2026-11-18 : anonymizer, describer, enhancer (whose save posted an EMPTY body), imager,
-    # reader, synthesizer and transcriber brought back. The converter posts `options_json` : an
-    # EMPTY value there resets an option to « not set », and the options outside the media type are
-    # filtered (`readParamsFrom`) — the flat read touches nothing with an empty value. It needs that
-    # rule in the common first.
-    'converter': 'an item payload of its own (`readParamsFrom` : output_format + options_json)',
+    # reader, synthesizer and transcriber brought back. 2026-11-19 : the converter, once its two
+    # rules were in the common — what is outside the element's nature is not written
+    # (`param_schema.settings_outside_nature`), and an empty value is a choice where the app says
+    # so (`empty_is_value`). Its `options_json` dropped every empty value : none could be removed.
 }
 
 

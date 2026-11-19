@@ -518,10 +518,21 @@ l'avatarizer) — toujours pas un domaine ni un mode.
   geste — `autoSave` — et l'aurait rechargé à chaque réglage). L'adresse d'un élément est lue de
   `queue_context` (`served_route('update')`, toutes les orthographes derrière le préfixe du domaine :
   `audio_update` de l'enhancer, que la dérivation `update_settings` manquait) ; garde générique
-  `tests_queue_delete_contract…test_every_queue_says_where_an_element_is_saved`. ⏳ Reste le
-  converter : il poste `options_json`, où une valeur VIDE remet une option à « non réglé » et où
-  les options hors de la nature du média sont filtrées ; la lecture à plat ne touche rien à vide —
-  il faut d'abord cette règle au commun. La liste, qui ne peut que baisser, est
+  `tests_queue_delete_contract…test_every_queue_says_where_an_element_is_saved`. ✅ **2026-11-19,
+  le converter, dernier** (Fabien : « le converter doit passer par le commun ») : son volet ET sa ⚙
+  postent la lecture commune à plat. Mesuré avant le portage, sur la voie à plat : un choix vide,
+  un nombre vidé ne s'enregistraient pas, et la ⚙ de LOT écrivait le `gif_fps` d'une vidéo sur des
+  images ; le blob `options_json` de l'ancien envoi, lui, écartait TOUTE valeur vide (rotation
+  « Aucune », miroir décoché : jamais enregistrés). Deux règles portées : ce qui sort de la NATURE
+  de l'élément n'est pas écrit (`param_schema.settings_outside_nature`, lu par
+  `read_settings_payload` — une condition qui ne lit que des porteurs cachés ; un réglage caché par
+  un CHOIX visible reste à l'élément), et « vide » est un choix là où l'app le déclare (le
+  mécanisme existant, `empty_is_value` : toutes les colonnes de réglage du converter). Le curseur
+  de qualité n'est plus défait par les champs repostés inchangés (un réglage CHANGÉ prime). Gardes :
+  `converter.tests.PanelSavesTheFlatSettingsTest`, `tests_batch_views.SettingsPayloadTest`.
+  ⏳ Le générateur ne porte `empty_is_value` pour AUCUNE des quatre apps qui le déclarent (reader,
+  enhancer, anonymizer, converter ; `grep` vide dans `common/manifests/`) : une jumelle naît sans —
+  trou antérieur, relevé ici ; la règle de nature, au commun, vaut déjà pour elles. La liste, qui ne peut que baisser (vide depuis), est
   `tests_cap_from_js.OWN_PANEL_SAVE` ; une jumelle de bac à sable n'y est pas jugée (copie figée,
   hors dépôt, régénérée à part — `app_sandbox substitute`). Gardes : `tests_cap_from_js.InspectorSavesThroughTheCommonPathTest` (V8),
   `…EveryPanelSavesThroughTheCommonPathTest`,

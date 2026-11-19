@@ -109,6 +109,8 @@ class ConversionJob(ProcessingTimeMixin, ScopedVisibility):
     flip_h         = models.BooleanField(default=False)
     flip_v         = models.BooleanField(default=False)
     video_quality  = models.IntegerField(null=True, blank=True)   # CRF 0-51
+    # Plafond de définition, côté court ('' = inchangée ; 1080/720/540/480) — 2026-11-19.
+    resolution_cap = models.CharField(max_length=8, blank=True, default='', db_default='')
     fps            = models.IntegerField(null=True, blank=True)
     gif_fps        = models.IntegerField(null=True, blank=True)
     gif_width      = models.IntegerField(null=True, blank=True)
@@ -130,7 +132,7 @@ class ConversionJob(ProcessingTimeMixin, ScopedVisibility):
 
     #: Noms des colonnes de réglage, par destination — l'ordre suit `params.py`.
     CHAMPS_OPTIONS = ('quality', 'resize_w', 'resize_h', 'rotation', 'flip_h', 'flip_v',
-                      'video_quality', 'fps', 'gif_fps', 'gif_width', 'audio_bitrate',
+                      'video_quality', 'resolution_cap', 'fps', 'gif_fps', 'gif_width', 'audio_bitrate',
                       'sample_rate', 'channels', 'normalize')
     CHAMPS_CROSS_APP = ('upscale', 'denoise', 'audio_enhance')
 
@@ -180,20 +182,24 @@ class ConversionJob(ProcessingTimeMixin, ScopedVisibility):
         for nom, v in (valeurs or {}).items():
             if nom not in connus:
                 continue              # clé hors schéma : ignorée (jamais d'attribut inventé)
-            champ = self._meta.get_field(nom)
-            interne = champ.get_internal_type()
-            if interne == 'BooleanField':
-                v = v in (True, 'true', 'True', 1, '1')
-            elif interne == 'IntegerField':
-                try:
-                    v = int(float(v)) if v not in (None, '') else None
-                except (TypeError, ValueError):
-                    continue          # illisible : on ne pose rien plutôt qu'une valeur fausse
-            else:
-                v = '' if v is None else str(v)
+            try:
+                v = self.setting_value(nom, v)
+            except (TypeError, ValueError):
+                continue              # illisible : on ne pose rien plutôt qu'une valeur fausse
             setattr(self, nom, v)
             touches.append(nom)
         return touches
+
+    def setting_value(self, name: str, raw):
+        """La valeur que la colonne de réglage `name` recevrait pour `raw` — la coercition de
+        `poser_reglages`, lue aussi pour savoir si un réglage posté CHANGE la colonne (le curseur de
+        qualité n'est défait que par un réglage changé, 2026-11-19). Lève `ValueError` si illisible."""
+        internal = self._meta.get_field(name).get_internal_type()
+        if internal == 'BooleanField':
+            return raw in (True, 'true', 'True', 1, '1')
+        if internal == 'IntegerField':
+            return int(float(raw)) if raw not in (None, '') else None
+        return '' if raw is None else str(raw)
 
     profile       = models.ForeignKey(ConversionProfile, null=True, blank=True,
                                       on_delete=models.SET_NULL, related_name='jobs')

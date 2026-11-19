@@ -75,6 +75,8 @@ def read_settings_payload(request, schema=None, schema_names=(), empty_is_value=
     veut dire « ne pas toucher », jamais « effacer » — il est retiré… SAUF les champs nommés
     dans `empty_is_value`, pour qui `''` EST une valeur (reader : `language` vide =
     auto-détection voulue — « test de présence, jamais `or` », leçon du 17/08).
+    Un réglage posté hors de la NATURE de l'élément est retiré (`settings_outside_nature`,
+    2026-11-19) : la ⚙ et le volet le cachent, leur lecture le poste.
     """
     if (request.content_type or '').startswith('application/json'):
         try:
@@ -97,6 +99,11 @@ def read_settings_payload(request, schema=None, schema_names=(), empty_is_value=
             data = {**data, **coerce_schema_values(schema, data)}
         except Exception:
             pass    # schéma inexploitable : les données brutes restent (comportement d'avant)
+        # Ce qui sort de la NATURE de l'élément n'est pas un de ses réglages (2026-11-19) : la ⚙ et
+        # le volet le cachent, leur lecture le poste quand même.
+        from wama.common.utils.param_schema import settings_outside_nature
+        outside = settings_outside_nature(schema, data)
+        data = {k: v for k, v in data.items() if k not in outside}
     names = set(schema_names or ()) - set(empty_is_value or ())
     return {k: v for k, v in data.items() if not (v == '' and k in names)}
 

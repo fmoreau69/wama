@@ -2446,7 +2446,10 @@ MECHANISMS = (
               "sans groupe se range dans le groupe « Avancé » replié sur TOUTE surface, la "
               "température comprise (même date), avec ses deux voisins `seed_param` / "
               "`top_p_param` (types `seed`, `top_p`) ; vide = un CHOIX pour les trois "
-              "(`EMPTY_IS_NONE_TYPES`), la graine de l'imager comprise",
+              "(`EMPTY_IS_NONE_TYPES`), la graine de l'imager comprise. Un réglage posté HORS de la "
+              "nature de l'élément — sa condition ne lit que des porteurs cachés — n'est pas écrit "
+              "(`settings_outside_nature`, lu par `read_settings_payload`, 2026-11-19 : jumeau à "
+              "l'écriture d'`applicable_defaults`)",
               'wama/common/utils/param_schema.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/static/common/js/wama-params.js',
                        'wama/common/templates/common/_settings_modal_footer.html')),

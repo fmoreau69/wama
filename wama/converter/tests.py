@@ -214,6 +214,71 @@ class QualityIntentWritesTheColumnsTest(TestCase):
         self.assertTrue(names['quality'].get('advanced'))
 
 
+class PanelSavesTheFlatSettingsTest(TestCase):
+    """2026-11-19, Fabien : « le converter doit passer par le commun ». The panel, the item ⚙ and the
+    batch ⚙ post the SAME flat settings (`WamaInspector` / `WamaParams.read` : every field shown, as
+    shown) — the converter posted its own blob (`options_json`), built by a reader that DROPPED every
+    empty value : « Aucune » rotation, an emptied number or an unticked mirror were never saved."""
+
+    def _job(self, **kw):
+        from django.contrib.auth.models import User
+        from wama.converter.models import ConversionJob
+        user, _ = User.objects.get_or_create(username='t_flat_panel')
+        base = dict(user=user, input_filename='x.mp4', media_type='video',
+                    output_format='mp4', status='PENDING')
+        base.update(kw)
+        return ConversionJob.objects.create(**base)
+
+    def _post(self, job, **posted):
+        from django.test import Client
+        client = Client()
+        client.force_login(job.user)
+        r = client.post(f'/converter/settings/{job.id}/',
+                        {'media_type': job.media_type, 'output_format': job.output_format, **posted})
+        self.assertEqual(r.status_code, 200, r.content)
+        job.refresh_from_db()
+        return job
+
+    def test_an_empty_choice_an_emptied_number_and_an_unticked_mirror_are_saved(self):
+        job = self._post(self._job(rotation='90', fps=30, flip_h=True, resolution_cap='720'),
+                         rotation='', fps='', flip_h='false', resolution_cap='')
+        self.assertEqual(('', None, False, ''), (job.rotation, job.fps, job.flip_h, job.resolution_cap))
+
+    def test_the_maximum_definition_is_a_column_the_task_reads(self):
+        job = self._post(self._job(), resolution_cap='540')
+        self.assertEqual('540', job.resolution_cap)
+        self.assertEqual('540', job.options.get('resolution_cap'))
+
+    def test_a_setting_of_another_nature_is_not_written(self):
+        # The image panel also carries the video and audio fields, hidden : what is shown is posted.
+        job = self._post(self._job(media_type='image', input_filename='x.png', output_format='jpg'),
+                         quality='77', gif_fps='12', gif_width='480', audio_bitrate='192k')
+        self.assertEqual((77, None, None, ''), (job.quality, job.gif_fps, job.gif_width, job.audio_bitrate))
+
+    def test_the_slider_is_not_undone_by_the_fields_posted_unchanged(self):
+        job = self._post(self._job(video_quality=20, quality_intent=50),
+                         quality_intent='15', video_quality='20', resolution_cap='')
+        self.assertEqual((28, '720', 15), (job.video_quality, job.resolution_cap, job.quality_intent))
+        # A field CHANGED in the same sending still wins over the slider (the fine gesture).
+        job = self._post(job, quality_intent='15', video_quality='24', resolution_cap='720')
+        self.assertEqual(24, job.video_quality)
+
+    def test_the_batch_settings_follow_the_same_rules(self):
+        from django.test import Client
+        from wama.converter.models import ConversionBatch
+        batch = ConversionBatch.objects.create(user=self._job().user, media_type='image')
+        jobs = [self._job(batch=batch, media_type='image', input_filename='x.png', output_format='jpg',
+                          rotation='90') for _ in range(2)]
+        client = Client()
+        client.force_login(batch.user)
+        r = client.post(f'/converter/batch/{batch.id}/update/',
+                        {'media_type': 'image', 'rotation': '', 'gif_fps': '12'})
+        self.assertEqual(r.status_code, 200, r.content)
+        for job in jobs:
+            job.refresh_from_db()
+            self.assertEqual(('', None), (job.rotation, job.gif_fps))
+
+
 class QuickConvertTakesTheCommonSliderTest(TestCase):
     """La CONVERSION RAPIDE du gestionnaire de fichiers (2026-11-19, Fabien : « l'aligner sur le
     fonctionnement commun de WAMA ») : sa qualité est le curseur commun, rendu du schéma et

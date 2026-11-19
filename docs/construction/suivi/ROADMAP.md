@@ -8405,7 +8405,10 @@ l'export pdf […] centralisé et parfaitement aligné sur le fonctionnement du 
 - le converter RÉDUIT une vidéo : `resize_w` / `resize_h` valent pour la vidéo (son moteur les lisait
   déjà), et le plafond `resolution_cap` ramène le côté court à une définition sans jamais agrandir ;
   le cran « Rapide (web) » vidéo passe à 720p en CRF 28 (décision de Fabien) — garde
-  `converter.tests.VideoResolutionCapTest`, par ffmpeg réel ;
+  `converter.tests.VideoResolutionCapTest`, par ffmpeg réel ; ⚠ trouvé le soir même : déclaré au
+  schéma sans COLONNE, le plafond était affiché par la ⚙ et jamais enregistré sur un job de la file
+  (le curseur au cran « Rapide » le perdait aussi) — colonne `resolution_cap` ajoutée
+  (`converter/0015`, `db_default`), lue par la tâche (`job.options`) ;
 - l'export lit la qualité de la SORTIE commune (`output_formats.output_quality_param`, fabrique
   extraite de `output_format_params`) : `page_pdf.export_params` / `read_export_options`, une
   présentation seulement ; la modale est la modale commune (`WamaParams.renderSettingsModal`), ouverte

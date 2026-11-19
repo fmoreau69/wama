@@ -294,13 +294,20 @@ start_process = login_required(make_process_start_view(
 # saute — la règle de `batch_start`. La file est celle de la barre (sans les jobs éphémères).
 from wama.common.utils.item_views import make_item_views  # noqa: E402
 
+#: Les réglages pour qui une valeur postée VIDE est un choix (2026-11-19, le volet rejoint
+#: l'enregistrement commun) : chaque colonne de réglage — rotation « Aucune », définition
+#: « Inchangée », débit « Auto », un nombre vidé — revient à « non réglé » (`poser_reglages`).
+#: Le blob `options_json` les écartait tous : aucun ne pouvait être retiré.
+SETTINGS_EMPTY_IS_VALUE = ConversionJob.CHAMPS_OPTIONS + ConversionJob.CHAMPS_CROSS_APP
+
 _iv = make_item_views(
     work_model=ConversionJob, app_id='converter', task_for=lambda job: _task_for(job),
     get_user=lambda request: request.user, reset_on_start=_reset_for_relaunch,
     startable=lambda job: bool(job.output_format),
     unstartable_message="Format de sortie non défini — le choisir dans ⚙ Paramètres avant de lancer.",
     queryset=lambda user: ConversionJob.objects.filter(user=user, ephemeral=False),
-    batch_model=ConversionBatch, item_empty_is_value=('output_format',))
+    batch_model=ConversionBatch,
+    item_empty_is_value=('output_format',) + SETTINGS_EMPTY_IS_VALUE)
 start = login_required(_iv['start'])
 start_all = login_required(_iv['start_all'])
 clear_all = login_required(_iv['clear_all'])
@@ -397,12 +404,26 @@ def _apply_job_settings(job, data) -> list:
     touched += _apply_quality_gesture(job, new_opts)
     spread = _quality_spread(job, new_opts)
     if spread:
+        # Le volet et la ⚙ postent TOUS leurs champs, tels qu'affichés (2026-11-19) : un réglage
+        # reposté sans changement ne défait pas le geste ; un réglage CHANGÉ dans le même envoi
+        # prime (le geste fin).
         new_opts = {**spread, **{k: v for k, v in new_opts.items()
-                                 if k not in ('quality_preset', 'quality_intent')}}
+                                 if k not in ('quality_preset', 'quality_intent')
+                                 and (k not in spread or _changes(job, k, v))}}
     # Un réglage = une COLONNE depuis le 2026-09-01 : plus de split à faire ici (le modèle sait
     # à quelle famille appartient chaque nom), et plus de JSON à écrire. `poser_reglages`
     # coerce selon le type du champ et rend les champs touchés.
     return touched + [f for f in job.poser_reglages(new_opts) if f not in touched]
+
+
+def _changes(job, name: str, raw) -> bool:
+    """Le réglage posté `raw` change-t-il la colonne `name` de `job` ? (illisible : oui — c'est
+    `poser_reglages` qui l'écartera, comme un nom qui n'est pas une colonne)."""
+    from django.core.exceptions import FieldDoesNotExist
+    try:
+        return job.setting_value(name, raw) != getattr(job, name)
+    except (FieldDoesNotExist, AttributeError, TypeError, ValueError):
+        return True
 
 
 def _apply_quality_gesture(job, values: dict) -> list:
@@ -636,6 +657,7 @@ _bv = make_batch_views(
     batch_extra=lambda lot: {'media_type': lot.media_type},
     zip_name=lambda lot: f'converter_batch_{lot.id}.zip',
     schema=_BATCH_SCHEMA, apply_settings=_apply_job_settings,
+    empty_is_value=SETTINGS_EMPTY_IS_VALUE,
 )
 batch_start = login_required(_bv['batch_start'])
 batch_delete = login_required(_bv['batch_delete'])

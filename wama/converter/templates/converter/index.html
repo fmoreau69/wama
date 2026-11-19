@@ -322,28 +322,12 @@ document.addEventListener('DOMContentLoaded', function () {
             WamaInspector.cloneBatchActions(host, batchId);
         },
         onDeselect: function () { showPanelParams(false); },
-        saveItem: function (id) {
-            if (!ph || !CONVERTER_APP.readParamsFrom) return Promise.resolve();
-            var p = CONVERTER_APP.readParamsFrom(ph);   // filtre show_if par media_type + coercitions
-            var fd = new FormData();
-            fd.append('output_format', p.output_format || '');
-            fd.append('options_json', JSON.stringify(p.options || {}));
-            return fetch(CONVERTER_APP.urls.updateSettings.replace('/0/', '/' + id + '/'), {
-                method: 'POST', headers: { 'X-CSRFToken': CONVERTER_APP.csrfToken }, body: fd,
-            }).then(function (r) {
-                if (!r.ok) return;
-                // Cohérence au prochain clic : reflète les valeurs dans les data-* du gear.
-                var btn = q.querySelector('.job-card[data-id="' + id + '"] .settings-btn');
-                if (btn) {
-                    btn.setAttribute('data-output-format', p.output_format || '');
-                    Object.keys(p.options || {}).forEach(function (k) {
-                        var v = p.options[k];
-                        btn.setAttribute('data-' + k.replace(/_/g, '-'),
-                                         v === true ? 'true' : v === false ? 'false' : v);
-                    });
-                }
-            });
-        },
+        {% comment %}Enregistrement : l'envoi COMMUN de l'inspecteur (2026-11-19, Fabien : « le converter
+        doit passer par le commun ») — le volet lu à plat vers la route que déclare l'entrée de file,
+        la card redessinée par le serveur. Le blob `options_json` d'ici écartait toute valeur vide
+        (une rotation « Aucune », un nombre vidé, un miroir décoché ne s'enregistraient jamais) ; le
+        serveur déclare ce qui est vide-et-valeur (`views.SETTINGS_EMPTY_IS_VALUE`) et écarte ce
+        qui sort de la nature du job (`param_schema.settings_outside_nature`).{% endcomment %}
     });
 });
 </script>

@@ -615,6 +615,30 @@ def scoped_names(schema, names) -> List[str]:
             if _pget(p, 'type') == 'hidden' or _pget(p, 'name') in wanted]
 
 
+def settings_outside_nature(schema, values) -> set:
+    """Les réglages postés qui n'appartiennent pas à la NATURE de l'élément (2026-11-19, le converter
+    rejoint l'enregistrement commun du volet) : ceux dont la condition ne lit QUE des porteurs cachés
+    (`type='hidden'` — `media_type` du converter), connus dans `values`, et n'est pas satisfaite.
+
+    Une ⚙ et un volet rendent toutes les familles et cachent celles qui ne s'appliquent pas
+    (`wama-params.js::_bindConditional`), mais leur lecture poste tout ce qui est rendu : le
+    `gif_fps` d'une vidéo s'écrivait sur une image. Un réglage caché par un CHOIX visible (le modèle,
+    un interrupteur) n'est PAS retiré — il reste celui de l'élément et revient avec ce choix ; seul
+    ce qui sort de la nature, qui ne s'appliquera jamais à cet élément, l'est. Un porteur absent ou
+    vide ne juge rien (une absence d'information ne retire rien, la règle du navigateur).
+    Jumeau, pour un élément NAISSANT : `applicable_defaults`."""
+    carriers = {_pget(p, 'name') for p in schema or () if _pget(p, 'type') == 'hidden'}
+    outside = set()
+    for p in schema or ():
+        cond = _pget(p, 'show_if')
+        fields = condition_fields(cond) if cond else []
+        if not fields or not all(f in carriers and values.get(f) not in (None, '') for f in fields):
+            continue
+        if not _show_if_met(cond, values):
+            outside.add(_pget(p, 'name'))
+    return outside
+
+
 def applicable_defaults(schema, values=None) -> dict:
     """Défauts APPLICABLES d'un schéma pour un élément NAISSANT : params de contexte 'item'
     dont `default` est renseigné et dont le `show_if` est satisfait par `values` (typiquement

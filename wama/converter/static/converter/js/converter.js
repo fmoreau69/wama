@@ -450,11 +450,11 @@
     // readModalForm RETIRÉE le 31/08 (REMOVAL_LEDGER) : lisait des attributs maison que
     // WamaParams n'émet pas (bug « Sauver comme profil », audit B2) — voie schéma seule.
 
-    // Lecture SCHÉMA-DRIVEN d'un conteneur WamaParams (modale ⚙ OU volet inspecteur) →
-    // {output_format, options} : coercition nombres/toggles + filtre show_if pour ne garder
-    // que les options du media_type (WamaParams.read voit aussi les sections cachées).
-    // PARTAGÉE modale/inspecteur (18/08) — exposée via APP.readParamsFrom pour le script
-    // initFromSchema (index.html).
+    // Lecture SCHÉMA-DRIVEN d'un conteneur WamaParams → {output_format, options} : coercition
+    // nombres/toggles + filtre show_if pour ne garder que les options du media_type. Ne sert plus
+    // qu'à « Sauver comme profil » (un profil range les options POSÉES de sa nature) : la ⚙ et le
+    // volet enregistrent par la lecture COMMUNE à plat depuis le 2026-11-19 (le serveur écarte ce
+    // qui sort de la nature et déclare ce qui est vide-et-valeur).
     function readParamsFrom(container, mediaType) {
         const body = container;
         const raw = WamaParams.read(body);
@@ -487,15 +487,14 @@
         });
         return { output_format: raw.output_format || '', options: options };
     }
-    APP.readParamsFrom = readParamsFrom;
 
     // ⚙ item modal: the shared cycle `WamaParams.settingsModal` (ported 2026-09-24 — the static
     // `#jobSettingsModal`, `applyCurrentModal` and the two footer handlers lived here). What stays
     // the converter's own is DECLARED as hooks:
     //   - values come from the `status` view (options live in columns the card does not all carry),
     //     read before opening; the engine help is the one of the job's media TYPE;
-    //   - `collect` posts what the `update` view reads: `output_format` + `options_json`, built by
-    //     the SAME schema reader as the inspector (`readParamsFrom`, filtered by media type);
+    //   - no `collect` since 2026-11-19 : the modal posts the common flat read, like the panel (its
+    //     `options_json` dropped every empty value — « Aucune » rotation was never saved);
     //   - `decorate` keeps the RUNNING guard, the relaunch label, « Par défaut » and
     //     « Sauver comme profil » (footer left zone, classes — the modal is rebuilt on each open).
     // ⚙ item — opener DECLARED to the shared brick (queue-actions.js), ported 2026-08-23.
@@ -574,11 +573,6 @@
                 modal.querySelector('.jobSettingsSaveProfileBtn')?.addEventListener('click', function () {
                     openSaveProfile(mediaType, readParamsFrom(host, mediaType));
                 });
-            },
-            collect: function (fd, host) {
-                const read = readParamsFrom(host, mediaType);
-                fd.set('output_format', read.output_format);
-                fd.set('options_json', JSON.stringify(read.options));
             },
             onSaved: function (id, restart) {
                 // Reflect the new settings in the queue card (server re-render), then relaunch.

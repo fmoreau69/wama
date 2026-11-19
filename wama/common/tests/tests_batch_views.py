@@ -908,6 +908,24 @@ class SettingsPayloadTest(TestCase):
         req = RequestFactory().post('/x/', data=json.dumps({'steps': 5}), content_type='application/json')
         self.assertEqual(read_settings_payload(req, self.SCHEMA, ('steps',)), {'steps': 5})
 
+    def test_a_setting_outside_the_nature_is_left_out_one_hidden_by_a_choice_stays(self):
+        """2026-11-19 : a ⚙ and a panel render every family and hide the others, but post them all —
+        the `gif_fps` of a video was written on an image. What the hidden carrier (the nature) rules
+        out is left out ; what a visible choice hides stays the element's setting."""
+        schema = [{'name': 'kind', 'type': 'hidden'},
+                  {'name': 'model', 'type': 'select'},
+                  {'name': 'frame_rate', 'type': 'number', 'show_if': {'field': 'kind', 'equals': 'video'}},
+                  {'name': 'grain', 'type': 'number', 'show_if': {'field': 'kind', 'in': ['image', 'video']}},
+                  {'name': 'strength', 'type': 'number', 'show_if': {'field': 'model', 'equals': 'auto'}}]
+        names = ('kind', 'model', 'frame_rate', 'grain', 'strength')
+        posted = {'kind': 'image', 'model': 'manual', 'frame_rate': '12', 'grain': '3', 'strength': '7'}
+        data = read_settings_payload(RequestFactory().post('/x/', posted), schema, names)
+        self.assertNotIn('frame_rate', data)
+        self.assertEqual((3, 7), (data.get('grain'), data.get('strength')))
+        # Counter-proof : without the carrier, nothing is judged — an absence takes nothing away.
+        data = read_settings_payload(RequestFactory().post('/x/', {**posted, 'kind': ''}), schema, names)
+        self.assertEqual(12, data.get('frame_rate'))
+
     def test_apply_writes_columns_and_routes_extras_into_the_options_container(self):
         item = SimpleNamespace(steps=1, options={'keep': 1})
         touched = apply_item_settings(item, {'steps': 7, 'gif_fps': 12, 'ignored': 3},
