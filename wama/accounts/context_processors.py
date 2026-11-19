@@ -68,10 +68,15 @@ def user_role(request):
         app_catalog_json = '{}'
 
     try:
-        from wama.converter.utils.format_router import CONVERTER_OUTPUT_FORMATS
+        from wama.converter.utils.format_router import CONVERTER_OUTPUT_FORMATS, SUPPORTED_CONVERSIONS
         converter_output_formats_json = _json.dumps(CONVERTER_OUTPUT_FORMATS)
+        # Les extensions que le converter ACCEPTE, par nature (`detect_media_type` les lit) : la
+        # conversion rapide du gestionnaire de fichiers en recopiait la table (2026-11-19).
+        converter_input_extensions_json = _json.dumps(
+            {nature: [ext.lstrip('.') for ext in spec['input']]
+             for nature, spec in SUPPORTED_CONVERSIONS.items()})
     except Exception:
-        converter_output_formats_json = '{}'
+        converter_output_formats_json = converter_input_extensions_json = '{}'
 
     # États + APPARENCE + table d'alias, poussés au client (2026-09-18). Même source que les
     # gabarits (`common/utils/state_presentation.py`) : il n'y a donc rien à resynchroniser entre
@@ -272,6 +277,7 @@ def user_role(request):
         'current_app_color': current_app_color,
         'current_app_spec': current_app_spec,
         'converter_output_formats_json': converter_output_formats_json,
+        'converter_input_extensions_json': converter_input_extensions_json,
         'wama_states_json': wama_states_json,
         'account_tier': account_tier,
         'user_roles_set': roles_set,

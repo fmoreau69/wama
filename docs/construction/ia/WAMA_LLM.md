@@ -3079,7 +3079,10 @@ Fabien. Mesuré d'abord :
    applique le geste par les fonctions de la ⚙ (`_apply_quality_gesture`, `_quality_spread`), sans
    plus forcer « Équilibré ». Deux défauts anciens de la même modale corrigés au passage : elle
    suivait `data.job_id` (la vue rend `id` depuis le 2026-08-22) et attendait `DONE`/`ERROR`
-   (retirés le 2026-09-18) — une conversion réussie ne se terminait plus à l'écran. Garde :
+   (retirés le 2026-09-18) — une conversion réussie ne se terminait plus à l'écran. La
+   revérification du même jour a retiré une troisième recopie : la table extension → nature du
+   menu (« mirrors format_router.py »), servie désormais par la page
+   (`converter_input_extensions_json`, `SUPPORTED_CONVERSIONS`, lu aussi par `detect_media_type`). Garde :
    `converter.tests.QuickConvertTakesTheCommonSliderTest`, `tests_status_ui` (aucun script ne
    compare un état à un mot retiré). ⏳ **Décision de Fabien** : à la NAISSANCE d'un élément (dépôt,
    import, lot, outil), le curseur est une trace sans effet sur l'encodage (`apply_birth_settings`,

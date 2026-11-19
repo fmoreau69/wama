@@ -163,6 +163,7 @@
         {# Le moteur des réglages, chargé À LA DEMANDE (il n'est pas global) : le curseur de la modale. #}
         paramsScript: '{% static_v "common/js/wama-params.js" %}',
         converterOutputFormats: {{ converter_output_formats_json|script_json }},
+        converterInputExtensions: {{ converter_input_extensions_json|script_json }},
     };
 </script>
 

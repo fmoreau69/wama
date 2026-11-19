@@ -283,7 +283,18 @@ class QuickConvertTakesTheCommonSliderTest(TestCase):
         self.assertIn("fd.append('quality_intent'", script)
         self.assertNotIn('data.job_id', script, 'the quick view answers the common `id`')
         self.assertNotIn("video_quality: 'CRF'", script, 'the effect labels come from the schema')
+        self.assertNotIn("'heic','heif'", script, 'the accepted extensions are served, not copied')
         self.assertEqual(script, (root / 'staticfiles/filemanager/js/filemanager.js').read_text(encoding='utf-8'))
+
+    def test_the_page_serves_the_extensions_the_converter_detects(self):
+        """The menu entry and the window's nature read what `detect_media_type` reads."""
+        import json
+        from wama.converter.utils.format_router import SUPPORTED_CONVERSIONS, detect_media_type
+        served = json.loads(self.client.get('/').context['converter_input_extensions_json'])
+        self.assertEqual(set(SUPPORTED_CONVERSIONS), set(served))
+        for nature, exts in served.items():
+            for ext in exts:
+                self.assertEqual(nature, detect_media_type(f'x.{ext}'), ext)
 
 
 class SauverCommeProfilTest(TestCase):

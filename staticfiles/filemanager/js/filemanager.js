@@ -299,17 +299,12 @@
 
     // ── Converter quick-convert from FileManager ─────────────────────────────
 
-    // Extension → media type lookup (mirrors format_router.py)
+    // Extension → nature : les extensions que le converter ACCEPTE, SERVIES par la page
+    // (`format_router.SUPPORTED_CONVERSIONS`, lues aussi par `detect_media_type`) — la table était
+    // recopiée ici (« mirrors format_router.py », 2026-11-19).
     const _converterFormats = (config.converterOutputFormats) || {};
     const _extToMediaType = {};
-    const _EXT_TO_TYPE_MAP = {
-        image: ['jpg','jpeg','png','webp','bmp','tiff','tif','gif','heic','heif','avif'],
-        video: ['mp4','avi','mov','mkv','webm','flv','mpg','mpeg','3gp','wmv','ts','m4v'],
-        audio: ['mp3','wav','flac','ogg','m4a','aac','opus','wma','aiff','aif'],
-        document: ['pdf','docx','md','markdown','html','htm','txt','rtf','odt','epub','fb2','tex','latex','mobi','azw3','azw'],
-        archive: ['zip','tar','gz','tgz','bz2','tbz2','xz','txz','7z','rar'],
-    };
-    Object.entries(_EXT_TO_TYPE_MAP).forEach(([type, exts]) => {
+    Object.entries(config.converterInputExtensions || {}).forEach(([type, exts]) => {
         exts.forEach(e => { _extToMediaType[e] = type; });
     });
 
