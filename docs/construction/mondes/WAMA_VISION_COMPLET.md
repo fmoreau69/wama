@@ -45,14 +45,16 @@
 - **Partie 5 — IA transverse** : rôle et skills · pipeline de prompts · traduction ·
   mémoire et RAG · adaptateurs de format · l'assistant comme interface
 - **Partie 6 — Création multimédia** : apps génératives · médiathèque créative ·
-  chaîne narrative (gatée)
+  chaîne narrative (gatée) · pédagogie, enseignement et entraînement (volet ouvert le 2026-11-19) ·
+  instruments virtuels et méta-instrument
 - **Partie 7 — Le monde Lab** : Cam Analyzer, Face Analyzer, décomposition en capacités
 - **Partie 8 — Le monde Data et l'apprentissage** : socle temporel · plan d'expérience ·
   Data Comprehender · garde-fous méthodologiques · modèles appris et boucle de simulation
 - **Partie 9 — Médiathèque institutionnelle et système d'information** : conformité et confiance
 - **Partie 10 — Opérations** : batch · auto-maintenance et vérification · veille et
   évaluation continue
-- **Partie 11 — Infrastructure et modèle de réalisation**
+- **Partie 11 — Infrastructure et modèle de réalisation** : périphériques et contrôleurs
+  externes (visé, 2026-11-19)
 - **Partie 12 — Interconnexion conversationnelle et routage des modèles**
 - **Partie 13 — Non-objectifs, séquencement et parcours d'adoption**
 - **Conclusion**
@@ -422,6 +424,17 @@ un **back-end invisible** qui gère le travail **par projet** — au monde Data,
 déjà par les axes du plan d'expérience (§13 de `WAMA_DATA_WORLD`). ⚠ Ce n'est pas le « mode
 simplifié » retiré le 2026-10-27 (`WAMA_VOLETS §7`, R182), qui masquait seulement les volets.
 
+⏳ **L'édition LÉGÈRE dans l'aperçu — précisé par Fabien le 2026-11-19.** L'aperçu d'une card (la
+visionneuse) est en lecture seule par principe, mais il porte déjà un onglet par process qui a une
+sortie : *« on peut voir arriver des cas d'usage d'édition légère dans la preview et pas uniquement
+dans la page d'édition. Peut-être que certaines applications pourraient avoir leur édition
+directement dans la preview, sans forcément nécessiter de page d'édition à part entière »* — le
+pendant des onglets d'édition par process de la page d'édition ci-dessus, *« un alignement
+intéressant d'un point de vue UI/UX »*. Décision du même jour : **ouvrir l'aperçu en écriture là où
+c'est justifié**, c'est-à-dire là où un onglet le DÉCLARE ; premier cas, le mixeur des pistes
+séparées du Composer (régler les niveaux, lancer la refusion), puis un mixage rapide depuis l'aperçu
+d'une partition (des potentiomètres plutôt que des curseurs, pour la place).
+
 ---
 
 # Partie 4 — Le Studio et l'orchestration
@@ -655,6 +668,64 @@ L'horizon reste une chaîne complète `idée → scénario → storyboard → pl
 montage` où le storyboard est un objet structuré (durée, cadrage, personnages, références) envoyé
 aux moteurs. **Gatée** par un Studio complet (runners pour toutes les apps, sorties gérées,
 batch orchestré) et par un cas d'usage laboratoire nommé — voir non-objectifs.
+
+## 6.4 Pédagogie, enseignement et entraînement ⏳ — volet ouvert le 2026-11-19 `[INGÉNIERIE]`
+
+> 📜 **Intention de Fabien (2026-11-19)**, première consignation de ce volet : *« ces éléments
+> touchent à la pédagogie et à l'enseignement, un volet que j'aimerais ouvrir et qui n'est pas
+> encore commencé »* ; *« un bon complément pédagogique pour les professeurs »*. Rien n'est
+> construit pour ce volet en tant que tel ; il s'appuie sur des briques qui, elles, existent.
+
+**Une application d'enseignement (« Teacher », nom de travail)** — *« un peu dans l'esprit de
+l'application Replika, mais beaucoup plus diversifiée, flexible et modulaire »* : enseigner à un
+élève, le faire s'entraîner, l'évaluer.
+- **Langues** : un avatar avec qui l'on converse dans différentes langues.
+- **Matières** (histoire, géographie, mathématiques, musique…) enseignées dans différentes langues —
+  et la COMBINAISON des deux : apprendre une langue et une matière en même temps, avec les termes et
+  les spécificités du domaine.
+- **Musique** : une lecture à « notes qui tombent » (*falling notes*) ; baisser le volume de la main
+  droite ou gauche d'un piano ; régler le volume de CHAQUE piste d'une partition jouée en MIDI —
+  le mixeur, qui sert aujourd'hui les pistes audio séparées (Composer), gérera aussi le MIDI ; le
+  contrôle fin de la vitesse de lecture.
+- **Évaluation « dans le bon sens du terme »** : un rapport de l'élève en sortie — le relevé de ses
+  réussites et de ses erreurs (prononciation, notes jouées, réponses justes ou fausses), un
+  compte rendu et une synthèse des points à travailler et à approfondir.
+- **Interfaces construites par ASSEMBLAGE DE BRIQUES**, comme les pages d'édition aujourd'hui (§1.2) :
+  on ajoute les briques nécessaires au fur et à mesure ; la synchronisation de l'ensemble est celle
+  qui existe — l'axe de temps et le transport communs.
+
+**Vidéos de démonstration, de cours, d'entraînement, de tutoriel** (Fabien, même jour, à placer
+dans le Composer ou dans une autre application — question ouverte) : une caméra qui filme un batteur,
+par exemple, la partition qui défile en bas de la page avec le transport ; ou sans caméra. Sous forme
+de briques que l'utilisateur compose : une brique vidéo, une brique piano, une brique partition.
+⏳ Ce que cela demande à la brique partition : un mode de **défilement continu sur une ligne**.
+Références visuelles fournies par Fabien (captures de vidéos en ligne, `claude/Teacher_Screenshots/`,
+douze images) : le musicien filmé au-dessus d'une partition qui défile sur une ligne avec sa tête de
+lecture ; un instrument dessiné qui montre le geste (positions de coulisse numérotées d'un trombone,
+touches enfoncées d'un clavier de piano, accords sur le cycle des quintes).
+
+**Ce qui existe et sur quoi ce volet s'appuierait** (✅, à vérifier au moment de construire) : l'axe de
+temps et le transport communs, la brique partition et la lecture MIDI d'une partition, le mixeur des
+pistes séparées du Composer, la composition de pages par briques déclarées (surfaces), l'avatar et
+la voix de l'assistant, l'assistant multilingue, la mesure d'une sortie contre une référence
+(`WAMA_QUALITE`). **Ce qui manque** (⏳) : l'application elle-même, une brique « clavier » et une
+lecture à notes qui tombent, le défilement sur une ligne, le volume par piste MIDI, l'évaluation d'un
+ÉLÈVE (et non d'un modèle), l'entrée d'instruments réels (§11.4).
+
+## 6.5 Instruments virtuels et méta-instrument ⏳ `[RECHERCHE→INGÉNIERIE]`
+
+> 📜 **Intention de Fabien (2026-11-19)** — un chantier qui accompagne §6.4 et §11.4 ; *« je ne sais
+> pas encore où il faudrait mettre ça. Une nouvelle application dédiée à la musique ? »*
+
+- **Récupérer et générer des modèles d'instruments 3D visuels et jouables** : voir les touches
+  s'enfoncer sur l'instrument virtuel quand on joue sur son contrôleur MIDI ou son contrôleur
+  corporel.
+- **Finalité : un méta-instrument VIRTUEL** — contrôler plusieurs instruments et visuels par les
+  mouvements du corps, des mains, des yeux (oculométrie), de la tête… utilisable avec un casque de
+  réalité virtuelle ou en projection, diffusé sur un écran.
+- Question ouverte : son domicile (une app musicale dédiée, le Composer, le Studio). À relier à
+  l'objet 3D et à l'avatar 3D existants (§6.1) et au mode « main » des scènes 3D (les mains qui
+  manipulent la scène, `common/scenes.py`, `navigation.scene_pages`).
 
 ---
 
@@ -949,6 +1020,27 @@ auditabilité), gouvernance des accès (profils, quotas, journalisation).
 `Modèles IA → capacités → applications → Studio → données → connaissances → découverte scientifique`
 
 ![Trajectoire WAMA en quatre phases cumulatives](../../traj.png)
+
+## 11.4 Périphériques et contrôleurs externes ⏳ `[INGÉNIERIE]` — visé le 2026-11-19
+
+> 📜 **Intention de Fabien (2026-11-19)** — un chantier parallèle à §6.4 et §6.5 : *« un gestionnaire
+> de contrôleurs et périphériques externes, un peu dans l'esprit des sources externes, mais pour le
+> hardware »*.
+
+- **Ajouter progressivement des équipements connectables à WAMA depuis le PC de l'utilisateur** :
+  clavier, souris, contrôleur MIDI d'instrument de musique, carte son, caméras, microphones,
+  contrôleurs 3D, « contrôleurs corporels » (la détection des membres du corps, comme les mains qui
+  manipulent une scène 3D).
+- **Le pilote s'installe sur le PC de l'utilisateur** ; WAMA reçoit en flux les données du capteur ou
+  du contrôleur distant — un système de communication est à concevoir.
+- **Deux voies, complémentaires — orientation de Fabien** : une voie **simple et directe** pour la
+  plupart des équipements, comme WAMA le fait déjà pour la webcam, le microphone, le clavier et la
+  souris (par le navigateur) ; et **LSL** (Lab Streaming Layer) comme une possibilité de flux parmi
+  d'autres, au même titre que RTMaps, pour les capteurs. *« Sinon, ça imposerait à tout utilisateur
+  d'installer LSL sur sa machine. »*
+- Domicile probable : un registre des périphériques à côté des sources externes
+  (`common/external_sources.py`) — à vérifier contre les registres (`registries.overview()`) au
+  moment de concevoir, comme toute famille neuve.
 
 ---
 

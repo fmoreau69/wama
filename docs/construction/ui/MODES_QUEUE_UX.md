@@ -554,6 +554,37 @@ l'avatarizer) — toujours pas un domaine ni un mode.
   requises (entrées typées de la fonction ⊆ ∩ des catalogues des filles) — et le refus **dit
   quelle fille manque de quoi**, jamais un grisage muet.
 
+## 5quater. Organiser la file au-delà d'un lot — question OUVERTE (Fabien, 2026-11-19) ⏳
+
+> Née des cards de pistes séparées du composer (`PROSPECTION_PIPELINE §Cohérence des cards de
+> pistes`) : la séparation enveloppe l'originale dans un lot (ligne 0) et y ajoute une card par
+> piste (lignes 1 à N, `derived_from`). Rien n'est décidé ; à rediscuter avec Fabien, puis au
+> concile de WAMA. Les points 2 (nom d'une card piste) et 4 (cards de pistes disparues) des
+> décisions du même jour en dépendent.
+
+**Le parallèle avec le Transcriber** (Fabien) : on y pose un audio et son verbatim, puis on lance
+tous les modèles dessus — pour l'accord entre modèles et pour l'évaluation. Le composer retrouve une
+situation voisine : séparer un audio d'entrée, c'est vouloir que quelque chose porte cet audio
+COMPLET, avec son aperçu et son pipeline, au-dessus de ses pistes.
+
+**Ce que Fabien en dit** :
+- la card mère portant l'audio d'entrée et tout son pipeline deviendrait-elle incohérente avec les
+  « Étapes du lot » (le ▶ d'une étape sur toutes les filles, livré le 2026-11-18, `fdfaac171`) ?
+- il préfère que la **card mère garde son apparence actuelle, SANS aperçu** : plus facilement
+  identifiable, elle doit se distinguer pour ne pas rendre les choses confuses ;
+- la **card de référence** à la BIND (un trip de référence dans une sélection) : en l'écrivant, il
+  constate que WAMA la gère déjà de façon universelle — un fichier source unique vers lequel des
+  cards pointent sans recopie. ↔ Déjà tranché en ce sens : §5ter transpose le « trip de référence »
+  de BIND_GUI *sans créer de card marquée* ;
+- **deux pistes à explorer ou à rejeter**, qui compliquent l'imbrication mais offrent de la
+  flexibilité :
+  1. des **dossiers dans les files** (comme un chutier en audiovisuel), regroupant cards et lots,
+     éventuellement imbriqués — *« est-ce réellement utile, nécessaire ? »* ;
+  2. une **card fille porteuse de sous-cards filles** — la card #1632 (l'audio source) porterait les
+     cards de ses pistes séparées.
+
+---
+
 ## 6. Unification avec la MÉTA-APP (chaînage graphique) — anticiper dès maintenant
 
 > ⚠ **PRÉCISÉ LE 2026-09-15 — lire d'abord `WAMA_APP_GENERATION_ROUTE.md §10.6`.** Cette section

@@ -6275,6 +6275,14 @@ panneau parle `JOB_*`).
 >   d'une card (`card_rows` → `lost`) et dans les résultats d'un run du studio. Avant, son absence
 >   périmait l'aval à SENS UNIQUE : 79 process restés périmés une fois les fichiers restaurés à
 >   l'identique.
+>   ⏳ **Deux décisions de Fabien (2026-11-19, « oui aux deux »)**, nées des cards de pistes du
+>   composer (`PROSPECTION_PIPELINE §Cohérence des cards de pistes`) : (a) **un réglage repassé
+>   sur « auto » qui TIRE LE MÊME MODÈLE ne périme pas l'étape** — vécu : la ⚙ du lot 904 a écrit
+>   `separation_model = auto` sur sept cards et périmé une séparation faite avec le modèle que
+>   « auto » aurait tiré ; la comparaison porte sur le modèle résolu, pas sur la valeur écrite ;
+>   (b) **un amont COÛTEUX n'est jamais rejoué en silence** — `steps_to_run(only=…)` rejoue les
+>   amonts périmés (« Rendre le mixage » relancerait Demucs) : le geste le DEMANDE avant, jamais
+>   après. Rien d'écrit à cette date.
 > - **Le squelette joue N process dans UNE tâche** : `run_item_task(pipeline=…,
 >   processes={clé: glu})`. Chaque glu garde le contrat d'un process ; ses `fields` sont écrits
 >   dès qu'elle a rendu (la suivante les lit sur `item`, et ils survivent à l'échec d'un aval) ;

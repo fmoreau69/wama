@@ -4878,7 +4878,9 @@ cohérence »*.
   liste `extra` de sa spec de détail (`detail_registry`) — card témoin #1754 : « 1:35 » en Réglages
   contre « Durée 95s » en Entrée, « MusicGen Small » contre la clé `composer:musicgen-small`, Sortie
   vide contre « Format original » ; sur 12 apps, aucun réglage commun chez l'anonymizer,
-  l'avatarizer, le converter, le synthesizer et le composer.
+  l'avatarizer, le converter, le synthesizer et le composer. *(Précisé le 2026-11-19 : il s'agit du
+  seul résumé en lecture seule ; les réglages modifiables de la modale et du volet ont une seule
+  source, le schéma — bloc du 2026-11-19.)*
 - *Le modèle de chaque étape* : connu par sa ligne d'exécution (`ProcessRun.model_key`), montré au
   seul survol de la bande, en clé brute.
 - *La page d'édition sur une card sans partition* : proposée puis RETIRÉE (Fabien : « je ne vois pas
@@ -4999,7 +5001,57 @@ les parties assemblées tombent sur les mêmes mesures. Non vérifié pour la pa
 ⏳ **Décisions de Fabien** : nom de l'originale et place de « Piste : … » ; péremption sur « auto » qui
 tirerait le même modèle, et rejeu d'un amont coûteux (dire / demander) ; cards de pistes disparues ;
 partition réduite sur une piste de percussions.
-⏳ **Card = volet, une source** : chantier commun, toutes les apps (mesure ci-dessus).
+~~⏳ **Card = volet, une source** : chantier commun, toutes les apps (mesure ci-dessus).~~ Formulation
+trop large, contestée par Fabien le 2026-11-19 (« la modale des paramètres et le volet tirent déjà
+leurs informations d'une seule source ») — voir le bloc du 2026-11-19 ci-dessous.
+
+📌 **Décisions et idées de Fabien du 2026-11-19, consignées avant toute écriture de code.** Ordre
+donné : tout consigner, avancer ce qui est certain, puis revenir à l'organisation de la file.
+- ✅ **Rattrapage des copies de lecture** — compte à blanc après la relance de WAMA
+  (`playback_copies --audio-only --dry-run`) : 315 audios portés par des cards, 309 présents sur le
+  disque, 41 non positionnables, **41 copies déjà à jour**, rien mis en file. Aucun original
+  touché : la copie vit dans `.preview/` et suit l'original.
+- ✅ **(1) Aperçu en écriture là où c'est justifié** (« pas d'objection de ma part ») — intention
+  générale en vision §3.6 (édition légère dans l'aperçu, apps sans page d'édition à part entière).
+  L'étape 4 est débloquée : le mixeur complet dans l'onglet « Pistes séparées », les gestes
+  « enregistrer les réglages » et « lancer une étape » ouverts à l'onglet qui les déclare.
+- ⏳ **Mixage rapide depuis l'aperçu d'une partition**, avec des **potentiomètres** plutôt que des
+  curseurs pour gagner de la place.
+- 🐞 **Aperçu ouvert en modale : les sélections de l'aperçu de la card ne sont pas conservées**
+  (relevé par Fabien) — à mesurer : lesquelles (onglet, pistes, position) et par quel chemin
+  l'aperçu de la card et la modale s'ouvrent.
+- 🐞 **Éditeur du composer : seul un accord ENTIER se sélectionne** ; impossible de déplacer une
+  note d'un accord pour le modifier (Fabien : « peut-être déjà indiqué » — vérifier si c'est corrigé).
+- ⏳ **Brique partition : un mode de défilement continu sur une ligne** (vidéos de cours, vision §6.4).
+- ⏳ **Le mixeur gère aussi le MIDI** : le volume de chaque piste d'une partition jouée en MIDI
+  (main droite / main gauche d'un piano), à côté des pistes audio séparées (vision §6.4).
+- ⏳ **Vidéos de démonstration, de cours, de tutoriel** — caméra (un batteur) ou non, partition qui
+  défile en bas avec le transport, briques vidéo / piano / partition composées par l'utilisateur ;
+  dans le Composer ou une autre application, question ouverte (vision §6.4). Volet pédagogique
+  (application « Teacher »), instruments 3D et méta-instrument, périphériques : vision §6.4, §6.5,
+  §11.4.
+- ❓ **(2) Nom d'une card piste** — Fabien « pas sûr », à rediscuter : touche au fonctionnement du
+  lot → `MODES_QUEUE_UX §5quater` (organisation de la file, question ouverte).
+- ✅ **(3) Oui aux deux** — « auto » qui tire le même modèle ne périme pas ; un amont coûteux est
+  demandé, jamais rejoué en silence → `ROUTE §10.6`, causes de péremption.
+- ✅ **(4) Garder les cards de pistes disparues, marquées orphelines** — à confronter à
+  l'organisation de la file (§5quater).
+- ✅ **(5) Les partitions applicables se déclarent par instrument** (pas de partition réduite d'une
+  piste de percussions), « parfaitement aligné et schéma-driven ». ❓ Question de Fabien : fusionner
+  les onglets « Partition réduite » et « Partition complète » de l'aperçu, puisque la brique
+  partition de l'éditeur passe de l'une à l'autre — au risque de perdre « un onglet par process ».
+- ✅ **(6) Le converter passe par l'envoi commun du volet** (Fabien, étonné de l'écart) — mission
+  confiée à la session qui travaille sur le converter (« Réflexion sur l'amélioration de l'agent
+  WAMA ») ; reste mesuré : `MODES_QUEUE_UX §5ter` (valeur vide = « non réglé », options filtrées
+  par nature du média), liste `tests_cap_from_js.OWN_PANEL_SAVE`.
+- ❓ **(7) Fondre l'originale dans la mère** : c'est la réflexion en cours (§5quater). **« Card =
+  volet » précisé** : la modale ⚙ et le volet tirent bien leurs réglages MODIFIABLES d'une seule
+  source, le schéma (`WamaParams`, `WamaInspector.initFromSchema`). L'écart mesuré le 17/11 ne porte
+  que sur le RÉSUMÉ EN LECTURE SEULE : les puces de la card lisent les champs `chip=True` du schéma
+  (`card_chips.chips_for`), la section détail du volet lit la liste `extra` de la spec de détail
+  (`register_app_detail_spec`, `detail_registry.py:109` ; une entrée sans libellé prend déjà celui du
+  schéma) — deux listes de champs à montrer, deux mises en forme d'une même valeur. Ampleur à
+  mesurer avant d'en faire un chantier, et à part.
 
 **Suite** : validation des trois propositions par Fabien (dacvae et perception_models d'abord, leurs
 manifestes résolvent le `requires` de sam_audio), puis `install_library` (requises d'abord) ;
