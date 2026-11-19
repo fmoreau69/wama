@@ -756,12 +756,15 @@ def _deposit_settings(user, nature, post, inputs=None):
                       f"        panel_defaults = json.dumps(read_panel_settings(user, '{app}', _SCHEMA))")
                      if _noms_schema else "panel_defaults = '{}'")
     bc_reglages = '' if not _noms_schema else f'''
-                kwargs.update(_element_settings(user, {arg_nature}))'''
+                kwargs.update(_element_settings(user, {arg_nature}, request.POST))'''
 
     # ── Corps conventionnels (idiomes MESURÉS, paramétrés) ─────────────────────
     vues = {}
     # ENVELOPPEMENT DES ORPHELINS — convention commune, et non un détail (2026-08-22).
     # `batch_common.auto_wrap_orphans` la formule : « chaque orphelin → SON batch-of-1, la
+    # Le volet de la card qui a posté le lot (`formDataBuilder` du gabarit généré) : ses réglages et
+    # le DOMAINE où naît l'élément (`_birth_domain` le lit du POST), comme pour un dépôt. Sans le POST,
+    # un lot posé sur la card vidéo d'`imager_01` naissait image (2026-11-19).
     # règle depuis 2026-08-14 (10 apps) », et `build_batches_list` s'y adosse (« une card
     # isolée est déjà auto-enveloppée dans son propre batch »). L'app générée l'ignorait et
     # laissait des items HORS LOT : `apply_queue_sort_filter` lit alors `b['obj'].created_at`

@@ -673,6 +673,18 @@ def render_index(manifest: dict, element: tuple = None) -> tuple:
         batchPreviewUrl: "{{% url '{app}:{rp}{route_batch_preview}' %}}",
         batchCreateUrl:  "{{% url '{app}:{rp}{route_batch_create}' %}}",
         csrfToken:       CSRF,
+        // Le volet de SA card voyage avec le lot, comme avec un dépôt (`extraFields`) et comme dans
+        // les apps réelles (`formDataBuilder` de l'imager) : la vue y lit les réglages ET le domaine
+        // où l'élément naît. Sans lui, une URL ou un lot posés sur la card vidéo d'`imager_01`
+        // naissaient dans le domaine image (2026-11-19).
+        formDataBuilder: function (fd) {{
+            var host = document.getElementById('{PID}PanelParams');
+            if (!host || !window.WamaParams) return;
+            var v = WamaParams.read(host);
+            Object.keys(v).forEach(function (k) {{
+                if (v[k] !== '' && v[k] != null && !fd.has(k)) fd.append(k, v[k]);
+            }});
+        }},
         afterCreate:     function () {{ location.reload(); }},
     }});
 

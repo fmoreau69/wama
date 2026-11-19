@@ -219,6 +219,35 @@ class EveryModelKeepsItsIngestDeclarationTest(_Rendered):
         self.assertGreater(seen, 10, 'the fleet declares an ingest on more models than apps')
 
 
+class ABatchCarriesThePanelOfItsCardTest(_Rendered):
+    """A batch file (or a pasted URL, the same path) posted from a card carries that card's PANEL,
+    as a deposit does (`extraFields`) and as the real pages do (`formDataBuilder`) ; the generated
+    batch view reads it — settings AND the domain the element is born in (2026-11-19 : a URL on the
+    video card of `imager_01` was born image)."""
+
+    def test_every_batch_instance_posts_its_panel_and_every_batch_view_reads_it(self):
+        from wama.common.manifests.codegen.templates_gen import render_index
+        from wama.common.manifests.codegen.views_gen import render_views
+        wrong = {}
+        for app, manifest in self.manifests.items():
+            page, _ = render_index(manifest)
+            views, _ = render_views(manifest)
+            if page is None or views is None:
+                continue
+            if isinstance(page, dict):
+                page = '\n'.join(str(v) for v in page.values())
+            instances = page.split('= WamaBatchImport({')[1:]
+            if any('formDataBuilder' not in i.split('});', 1)[0] for i in instances):
+                wrong.setdefault(app, []).append('a batch instance without its panel')
+            # Each CALL (a whole line, never cut at the first parenthesis of an argument), not the
+            # definition.
+            calls = [line for line in views.splitlines()
+                     if '_element_settings(user, ' in line and not line.lstrip().startswith('def ')]
+            if any('request.POST' not in c and '_posted' not in c and 'post' not in c for c in calls):
+                wrong.setdefault(app, []).append('a batch view that ignores the posted panel')
+        self.assertEqual({}, wrong)
+
+
 class TheGeneratedCardReadsWhatTheViewsSetTest(_Rendered):
     """The generated card titles itself with `elem.input_filename` and names its output with
     `elem.output_filename`; on a real model both are @property glue the generated model loses
