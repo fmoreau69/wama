@@ -233,7 +233,7 @@ class TheNightlyGesturesSweepEveryDomainTest(SimpleTestCase):
         from wama.common.app_registry import APP_CATALOG, category_of_path
         from wama.common.services import nightly_tests
         from wama.common.services.ui_smoke import _page_domain_extensions, discoverable_pages
-        from wama.common.utils.app_modes import accepts
+        from wama.common.utils.app_modes import accepts, arrival_domain
         seen = 0
         for app, _path, key in discoverable_pages():
             exts = list((APP_CATALOG.get(app) or {}).get('input_extensions') or ())
@@ -241,6 +241,7 @@ class TheNightlyGesturesSweepEveryDomainTest(SimpleTestCase):
             nightly_tests.current_page_domain = domain
             try:
                 kept = _page_domain_extensions(app, exts)
+                outside = _page_domain_extensions(app, exts, outside_card=True)
             finally:
                 nightly_tests.current_page_domain = ''
             with self.subTest(page=key):
@@ -250,6 +251,9 @@ class TheNightlyGesturesSweepEveryDomainTest(SimpleTestCase):
                 self.assertTrue(set(kept) <= set(exts))
                 self.assertTrue(all(category_of_path(f"x.{e.lstrip('.')}") in accepts(app, domain)
                                     for e in kept), kept)
+                # Outside the card, the SERVER's rule : the first domain that takes the nature.
+                self.assertTrue(all(arrival_domain(app, f"x.{e.lstrip('.')}") == domain
+                                    for e in outside), outside)
                 seen += len(kept) < len(exts)
         self.assertGreater(seen, 0, 'a domain page keeps only part of its app extensions')
 

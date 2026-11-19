@@ -443,17 +443,23 @@ def _batch_create_button(page) -> str:
     return f'{scope}[id$="CreateOnlyBtn"]' if scope else '#batchCreateOnlyBtn'
 
 
-def _page_domain_extensions(app: str, exts) -> list:
-    """Les extensions d'entrée de l'app que le DOMAINE de la page prend (`accepts`, lu par
-    `app_modes.domain_nature`) ; toutes hors d'une page de domaine. Un geste qui fait ARRIVER un
-    fichier (« Envoyer vers… », URL collée) le choisit ici : une image envoyée depuis la page audio
-    de l'enhancer, ou collée sur la page document de l'anonymizer, crée un élément d'un AUTRE
-    domaine, et la page mesurée n'en voit aucun (2026-11-18)."""
+def _page_domain_extensions(app: str, exts, outside_card: bool = False) -> list:
+    """Les extensions d'entrée de l'app qui ARRIVENT dans le domaine de la page ; toutes hors d'une
+    page de domaine. Un geste qui fait arriver un fichier (« Envoyer vers… », URL collée) choisit
+    son témoin ici : une image envoyée depuis la page audio de l'enhancer, ou collée sur la page
+    document de l'anonymizer, créait un élément d'un AUTRE domaine (2026-11-18).
+
+    La règle est CELLE DU SERVEUR pour la voie mesurée, jamais une troisième : par la card du
+    domaine, ce que ce domaine prend (`app_modes.domain_nature`) ; HORS de la card
+    (`outside_card` : « Envoyer vers… »), le domaine qui reçoit (`app_modes.arrival_domain`, le
+    premier qui prend la nature) — une image envoyée à l'imager va au domaine image, jamais vidéo."""
     from wama.common.services import nightly_tests
     domain = nightly_tests.current_page_domain
     if not domain:
         return list(exts)
-    from wama.common.utils.app_modes import domain_nature
+    from wama.common.utils.app_modes import arrival_domain, domain_nature
+    if outside_card:
+        return [e for e in exts if arrival_domain(app, f"x.{e.lstrip('.')}") == domain]
     return [e for e in exts if domain_nature(app, domain, f"x.{e.lstrip('.')}")]
 
 
@@ -1606,10 +1612,11 @@ def check_app_send_to(app: str, url_path: str):
         raise SkipScenario("l'app ne déclare aucune extension d'entrée : elle ne peut pas "
                            "apparaître au menu « Envoyer vers… » — geste non applicable")
     # La page d'un DOMAINE mesure l'arrivée dans CE domaine (`_page_domain_extensions`).
-    exts = _page_domain_extensions(app, exts)
+    exts = _page_domain_extensions(app, exts, outside_card=True)
     if not exts:
-        raise SkipScenario("le domaine de la page ne prend aucune des extensions d'entrée de "
-                           "l'app : rien ne lui arrive par « Envoyer vers… »")
+        raise SkipScenario("aucun fichier envoyé à l'app n'arrive dans le domaine de cette page "
+                           "(`arrival_domain` : le premier domaine qui prend sa nature) — "
+                           "« Envoyer vers… » remplit un autre domaine")
 
     # Deux conditions, pas une : accepter des extensions ne suffit pas, encore faut-il que le
     # gestionnaire de fichiers sache REMPLIR l'app (`filemanager.views.IMPORTERS`). Depuis le
