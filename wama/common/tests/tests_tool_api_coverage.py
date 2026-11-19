@@ -333,12 +333,11 @@ class EveryAnnouncedToolCanRunTest(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.plain = _account('announce_plain')
-        cls.member = _account('announce_member', role='communication')
         cls.admin = get_user_model().objects.create_superuser('announce_admin', password='x')
 
     def test_the_list_is_the_gate_decision_tool_by_tool(self):
         from wama.accounts.permissions import accessible_tools, tool_accessible
-        for user in (self.plain, self.member, self.admin):
+        for user in (self.plain, self.admin):
             with self.subTest(user=user.username):
                 self.assertEqual([n for n in T.TOOL_REGISTRY if tool_accessible(user, n)],
                                  accessible_tools(user, T.TOOL_REGISTRY))
@@ -357,14 +356,17 @@ class EveryAnnouncedToolCanRunTest(TestCase):
         return seen['system']
 
     def test_the_turn_announces_what_the_account_can_run(self):
-        """The imager asks for the `communication` role : its tools are announced to a member and
-        to an administrator, never to an account that the gate would refuse."""
-        self.assertNotIn('- add_to_imager(', self._system_prompt(self.plain))
-        self.assertIn('- add_to_imager(', self._system_prompt(self.member))
-        admin = self._system_prompt(self.admin)
-        for name in T.TOOL_REGISTRY:
-            with self.subTest(tool=name):
-                self.assertIn(f'- {name}(', admin)
+        """Read against the gate, never against an app's name : what it refuses a plain account is
+        never announced to it, everything else is ; an administrator is announced every tool."""
+        from wama.accounts.permissions import tool_accessible
+        refused = [n for n in T.TOOL_REGISTRY if not tool_accessible(self.plain, n)]
+        self.assertTrue(refused, 'aucun outil refusé au compte simple : la garde tournerait à vide')
+        for user in (self.plain, self.admin):
+            prompt = self._system_prompt(user)
+            for name in T.TOOL_REGISTRY:
+                with self.subTest(user=user.username, tool=name):
+                    expected = user is self.admin or name not in refused
+                    self.assertEqual(expected, f'- {name}(' in prompt)
 
 
 class StopAndSettingsToolsTest(TestCase):
