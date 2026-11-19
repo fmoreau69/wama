@@ -8316,3 +8316,18 @@ scripts). À auditer : ce qu'il apporterait pour les DOCUMENTS paginés (en-têt
 numérotation, signets, métadonnées, pièces jointes, PDF/A) — exports du transcriber, du writer, des
 rapports — là où Chromium imprime une page d'écran. Lié : la vidéo lisible dans le PDF de la
 présentation (proposition du 12/11, `PROJECT_STATUS`), qui demande une retouche du PDF après rendu.
+✅ **La vidéo jouable dans le PDF, livrée le 2026-11-19** (demande de Fabien : « exporter le pdf de la
+présentation et que la vidéo soit lisible […] universel et réutilisable sans avoir de nouveau de code à
+écrire »). Pas par WeasyPrint — mesuré : sa version 69.0 ne produit aucune annotation multimédia
+(seulement des pièces jointes), et il n'exécute pas la présentation. Le rendu reste Chromium ; chaque
+étape relève les `<video>` que sa frame CONTIENT (la règle du moteur, `wama-presentation.js`), et
+`pdf_pages.embed_videos` (PyMuPDF) les embarque à leur place — annotation Screen + action Rendition,
+jouée à l'affichage de la page et au clic, l'image de la page (l'affiche) dessous. Toute vidéo posée
+dans une présentation au moteur canvas l'est d'elle-même. Mesuré : export réel de la présentation,
+37 pages, 36,4 Mo, la vidéo (30,6 Mo, octets intacts) page 34, à la place de la vidéo de la
+diapositive. ⚠ NON mesuré : la LECTURE dans un lecteur — le multimédia normalisé est annoncé lu par
+Acrobat, Foxit, PDF-XChange et Okular, pas par les lecteurs des navigateurs, Aperçu ni les téléphones
+(qui montrent l'image) ; aucun lecteur n'est pilotable depuis une session, à confirmer par Fabien dans
+Acrobat (installé sur le poste). ⏳ Un document A4 (rapports, fiches)
+n'embarque pas encore ses vidéos — aucun n'en contient ; la qualité réduite proposée le 12/11 n'est pas
+appliquée (le fichier est embarqué tel qu'il est servi).

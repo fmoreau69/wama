@@ -195,6 +195,22 @@ _HIDE_FIXED_JS = """() => document.querySelectorAll('body *').forEach(el => {
   if (getComputedStyle(el).position === 'fixed') el.style.setProperty('display', 'none', 'important');
 })"""
 
+#: La version du RENDU d'une page en PDF : elle entre dans la clé du cache des exports
+#: (`page_pdf`), indexé par le HTML — un rendu qui change (les vidéos jouables, 2026-11-19) ne
+#: doit pas resservir un PDF fait par l'ancien. À monter à chaque changement de ce que produit
+#: `render_page_to_pdf` — y compris la retouche des vidéos (`pdf_pages.embed_videos`) : le 19/11,
+#: l'apparence ajoutée à l'annotation n'apparaissait pas, le PDF du premier essai étant resservi.
+PAGE_RENDER_VERSION = 3
+
+#: Les VIDÉOS d'une étape : celles que sa frame CONTIENT — la règle du moteur, qui lit une vidéo à
+#: l'arrivée de la caméra sur sa frame (`wama-presentation.js`, `frame.contains(v)`) ; leur cadre à
+#: l'écran en fractions de la vue, et leur source (`<video src>` ou sa première `<source>`).
+_STEP_VIDEOS_JS = """i => [...window.WamaPrez.steps[i].querySelectorAll('video')].map(v => {
+  const r = v.getBoundingClientRect();
+  const src = v.src || (v.querySelector('source[src]') || {}).src || '';
+  return {src, box: [r.left / innerWidth, r.top / innerHeight, r.width / innerWidth, r.height / innerHeight]};
+}).filter(v => v.src && v.box[2] > 0 && v.box[3] > 0)"""
+
 #: Une étape de présentation, posée SANS vol, et attendue jusqu'à `settled` (`wama-presentation.js`).
 _GO_STEP_JS = """i => new Promise(r => {
   const h = e => { if (e.detail.settled) { document.removeEventListener('wama:step', h); r(); } };
@@ -214,6 +230,8 @@ def render_page_to_pdf(html: str, output_path: str, *, fetch, path: str = '/', s
     `slides=False` : document en A4, comme `render_html_to_pdf`. `slides=True` : présentation au moteur
     « canvas » (`window.WamaPrez`) — une page 16:9 par étape, image de l'étape posée sans vol, commandes
     masquées. WebGL sur le PROCESSEUR (SwiftShader) : jamais de carte graphique pour un export.
+    Les VIDÉOS d'une étape y restent JOUABLES (2026-11-19) : chacune est embarquée à sa place dans la
+    page (`pdf_pages.embed_videos`), son image restant dessous pour un lecteur qui ne joue pas.
     Retourne False si Chromium est indisponible.
     """
     try:
@@ -230,6 +248,7 @@ def render_page_to_pdf(html: str, output_path: str, *, fetch, path: str = '/', s
         status, ctype, body = fetch(url[len(origin):])
         return route.fulfill(status=status, content_type=ctype, body=body)
 
+    videos = []
     try:
         with sync_playwright() as p:
             browser = launch_chromium(p, gpu=False, extra_args=('--enable-unsafe-swiftshader',))
@@ -253,6 +272,7 @@ def render_page_to_pdf(html: str, output_path: str, *, fetch, path: str = '/', s
                         page.evaluate(_GO_STEP_JS, i)
                         page.wait_for_timeout(700)      # une scène 3D s'accroche à `settled`, puis rend
                         shots.append(base64.b64encode(page.screenshot(type='jpeg', quality=88)).decode())
+                        videos += [dict(v, page=i) for v in page.evaluate(_STEP_VIDEOS_JS, i)]
                     book = ctx.new_page()
                     book.set_content(
                         '<style>@page{size:1600px 900px;margin:0}body{margin:0}'
@@ -265,7 +285,33 @@ def render_page_to_pdf(html: str, output_path: str, *, fetch, path: str = '/', s
     except Exception as e:  # navigateur absent, libs OS manquantes, timeout…
         logger.warning(f"Page → PDF indisponible ({e})")
         return False
+    if videos and os.path.exists(output_path):
+        _embed_step_videos(output_path, videos, fetch, origin)
     return os.path.exists(output_path) and os.path.getsize(output_path) > 0
+
+
+def _embed_step_videos(output_path: str, videos: list, fetch, origin: str) -> None:
+    """Les vidéos relevées étape par étape, lues par le même `fetch` que la page (le serveur ne
+    s'appelle pas lui-même), puis embarquées dans le PDF. Une vidéo illisible est DITE et laissée :
+    sa page garde son image, le PDF reste valide."""
+    import posixpath
+    from urllib.parse import urlsplit
+
+    from wama.common.utils.pdf_pages import embed_videos
+    placed = []
+    for video in videos:
+        url = video['src']
+        status, ctype, body = fetch(url[len(origin):] if url.startswith(origin) else url)
+        if status != 200 or not body:
+            logger.warning(f"Vidéo non embarquée dans le PDF ({url}) : statut {status}")
+            continue
+        placed.append({'page': video['page'], 'box': video['box'], 'data': body,
+                       'name': posixpath.basename(urlsplit(url).path) or 'video.mp4',
+                       'mime': (ctype or 'video/mp4').split(';')[0].strip()})
+    try:
+        embed_videos(output_path, placed)
+    except Exception as e:
+        logger.warning(f"Vidéos non embarquées dans le PDF ({e}) : les pages gardent leur image")
 
 
 def render_html_to_pdf(input_path: str, output_path: str) -> bool:

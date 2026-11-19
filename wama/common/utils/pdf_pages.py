@@ -1,5 +1,6 @@
 """Les PAGES d'un PDF en images — une par page, écrites dans un dossier FOURNI par l'appelant ;
-et l'inverse, des pages (images, PDF) en UN PDF (`pages_to_pdf`, 2026-11-10).
+et l'inverse, des pages (images, PDF) en UN PDF (`pages_to_pdf`, 2026-11-10) ; et une VIDÉO
+jouable posée dans une page (`embed_videos`, 2026-11-19 : l'export de la présentation).
 
 Brique commune (2026-11-06) : la même conversion vivait en deux copies privées, dans les moteurs
 d'OCR GLM-OCR (`glm_ocr_backend._pdf_to_images`, fichiers sur disque) et olmOCR
@@ -111,3 +112,77 @@ def pages_to_pdf(paths, output_path: str, dpi: int = PAGE_DPI) -> str:
     out.save(str(output_path), garbage=3, deflate=True)
     out.close()
     return str(output_path)
+
+
+# ── Une VIDÉO jouable dans une page de PDF (2026-11-19, demande de Fabien : « exporter le pdf de la
+# présentation et que la vidéo soit lisible dans cet export ») ──────────────────────────────────
+# Le multimédia NORMALISÉ du PDF (ISO 32000-1 §12.5.6.18 annotation Screen, §12.6.4.13 action
+# Rendition, §13.2 rendus) : le fichier est EMBARQUÉ dans le PDF (un seul fichier à transmettre),
+# l'annotation couvre la place de la vidéo dans la page et la joue à l'affichage de la page et au
+# clic, contrôles du lecteur affichés. Elle n'a pas d'apparence : ce qui est DESSOUS — l'image de la
+# page, donc l'affiche de la vidéo — reste ce que montre un lecteur qui ne joue pas les vidéos.
+# Annoncé lu par les lecteurs de bureau (Acrobat, Foxit, PDF-XChange, Okular) ; les lecteurs des
+# navigateurs, Aperçu et les téléphones montrent l'image (constat consigné le 2026-11-12,
+# PROJECT_STATUS). ⚠ La lecture n'est pas mesurée par un test : aucun de ces lecteurs n'y est pilotable.
+
+def embed_videos(pdf_path: str, videos) -> int:
+    """Embarque chaque vidéo de `videos` dans `pdf_path` (réécrit en place) et rend leur nombre.
+
+    `videos` : `[{'page': n° de page (0…), 'box': (x, y, largeur, hauteur) en FRACTIONS de la page,
+    origine en haut à gauche — ce que mesure un navigateur —, 'data': octets, 'name': nom de
+    fichier, 'mime': type}]`."""
+    try:
+        import pymupdf as fitz
+    except ImportError:
+        import fitz
+
+    videos = [v for v in videos or [] if v.get('data')]
+    if not videos:
+        return 0
+    doc = fitz.open(pdf_path)
+    try:
+        for video in videos:
+            page = doc[video['page']]
+            box = page.mediabox
+            x, y, w, h = video['box']
+            rect = (box.x0 + x * box.width, box.y1 - (y + h) * box.height,
+                    box.x0 + (x + w) * box.width, box.y1 - y * box.height)
+            name = fitz.get_pdf_str(video['name'])
+            mime = video.get('mime') or 'video/mp4'
+
+            data_xref = doc.get_new_xref()
+            doc.update_object(data_xref, f"<< /Type /EmbeddedFile /Subtype /{mime.replace('/', '#2F')}"
+                                         f" /Params << /Size {len(video['data'])} >> >>")
+            doc.update_stream(data_xref, video['data'], new=True, compress=False)
+            file_xref = doc.get_new_xref()
+            doc.update_object(file_xref, f"<< /Type /Filespec /F {name} /UF {name} "
+                                         f"/EF << /F {data_xref} 0 R >> >>")
+            clip_xref = doc.get_new_xref()
+            doc.update_object(clip_xref, f"<< /Type /MediaClip /S /MCD /N {name} "
+                                         f"/CT {fitz.get_pdf_str(mime)} /D {file_xref} 0 R "
+                                         f"/P << /TF (TEMPACCESS) >> >>")
+            rendition_xref = doc.get_new_xref()
+            doc.update_object(rendition_xref, f"<< /Type /Rendition /S /MR /N {name} "
+                                              f"/C {clip_xref} 0 R /P << /BE << /C true >> >> >>")
+            # Une apparence VIDE (transparente) : l'image de la page reste visible dessous, et un
+            # lecteur qui exige une apparence en trouve une (MuPDF ne sait pas en créer pour Screen).
+            look_xref = doc.get_new_xref()
+            doc.update_object(look_xref, f"<< /Type /XObject /Subtype /Form "
+                                         f"/BBox [0 0 {rect[2] - rect[0]:.2f} {rect[3] - rect[1]:.2f}] "
+                                         f"/Resources << >> >>")
+            doc.update_stream(look_xref, b'', new=True)
+            annot_xref = doc.get_new_xref()
+            play = f"<< /Type /Action /S /Rendition /OP 0 /R {rendition_xref} 0 R /AN {annot_xref} 0 R >>"
+            doc.update_object(annot_xref, (
+                f"<< /Type /Annot /Subtype /Screen /Rect [{' '.join(f'{c:.2f}' for c in rect)}] "
+                f"/P {page.xref} 0 R /T {name} /F 4 /Border [0 0 0] /AP << /N {look_xref} 0 R >> "
+                f"/A {play} /AA << /PV {play} >> >>"))
+            kind, value = doc.xref_get_key(page.xref, 'Annots')
+            refs = value.strip('[]').strip() if kind == 'array' else ''
+            doc.xref_set_key(page.xref, 'Annots', f"[{refs} {annot_xref} 0 R]".replace('[ ', '['))
+        partial = f'{pdf_path}.video.pdf'
+        doc.save(partial, garbage=0)
+    finally:
+        doc.close()
+    os.replace(partial, pdf_path)
+    return len(videos)

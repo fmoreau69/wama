@@ -2018,7 +2018,12 @@ MECHANISMS = (
               "fichier unique d'un lot de pages (`export_formats.combine_lot`), le dépôt « un seul "
               "document » du Reader, et `ocr_base.upright_document` (les pages d'un PDF "
               "redressées et mises d'aplomb comme une photo, avant tout moteur — le contrat OCR "
-              "l'applique à chaque `run`, jumelles générées comprises)",
+              "l'applique à chaque `run`, jumelles générées comprises). Le 2026-11-19 (demande de "
+              "Fabien), une VIDÉO JOUABLE dans une page (`embed_videos`) : le fichier embarqué à sa "
+              "place, en annotation Screen + action Rendition (le multimédia normalisé du PDF), "
+              "jouée à l'affichage de la page et au clic, l'image de la page restant dessous — lue "
+              "par l'export PDF des présentations (`html_render.render_page_to_pdf`), qui y pose "
+              "toute `<video>` qu'une étape contient, sans une ligne par vidéo",
               'wama/common/utils/pdf_pages.py',
               'wama/model_manager/PROSPECTION_PIPELINE.md',
               # Le moteur de partition et ses gardes sont l'annexe de `musicxml_score` (un fichier,
@@ -3972,9 +3977,11 @@ ASSUMED_LOCAL = {
     # snapshot et la purge d'un dossier de travail — annexe du mécanisme `model_installer`.
     'wama/common/utils/format_policy.py': "politique de formats de POIDS de modèle — chaîne modèles",
     'wama/common/utils/html_render.py': ("rendu HTML→PDF par Chromium — converter, avatar 3D (lanceur), export "
-                                         "PDF des pages de l'accueil (2026-10-07)"),
+                                         "PDF des pages de l'accueil (2026-10-07), vidéos d'une présentation "
+                                         "jouables dans son PDF (2026-11-19, `pdf_pages.embed_videos`)"),
     'wama/common/services/page_pdf.py': ("export PDF des présentations et rapports de l'accueil, servis en "
-                                         "processus (2026-10-07) — substrat seul, aucune app"),
+                                         "processus (2026-10-07) — substrat seul, aucune app ; cache indexé "
+                                         "par le HTML et la version du rendu"),
     # `http_proxy.py` et `ollama_host.py` ont QUITTÉ cette liste le 2026-09-01 : ils sont
     # devenus les annexes du mécanisme `external_sources`. Ils n'étaient pas mal classés — le
     # mécanisme qui les rassemble n'existait pas encore, et une plomberie sans mécanisme

@@ -5,7 +5,8 @@ La page est rendue comme sa vue la rend (`render_to_string` avec la requête), p
 les statiques depuis le disque (le dossier servi d'abord), le reste par la vue Django qui répond à ce
 chemin, avec l'utilisateur de la requête — une page ne voit donc rien de plus dans son PDF qu'à l'écran.
 
-Le PDF est gardé en cache, indexé par le HTML rendu : un même contenu ne se refait pas.
+Le PDF est gardé en cache, indexé par le HTML rendu et la version du rendu : un même contenu ne se
+refait pas. Une présentation y garde ses VIDÉOS jouables (`html_render`, 2026-11-19).
 """
 import hashlib
 import mimetypes
@@ -77,10 +78,12 @@ def page_pdf(request, template, *, page_path, slides=False, context=None):
     une autre page que celle qu'on lit (la frise de la présentation, par exemple).
     """
     from django.template.loader import render_to_string
-    from wama.common.utils.html_render import render_page_to_pdf
+    from wama.common.utils.html_render import PAGE_RENDER_VERSION, render_page_to_pdf
 
     html = render_to_string(template, context, request=request)
-    key = hashlib.sha256(f'{slides}\n{page_path}\n{html}'.encode('utf-8')).hexdigest()[:24]
+    # La version du rendu entre dans la clé : un rendu qui change ne resert pas l'ancien PDF.
+    key = hashlib.sha256(f'{PAGE_RENDER_VERSION}\n{slides}\n{page_path}\n{html}'
+                         .encode('utf-8')).hexdigest()[:24]
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     out = CACHE_DIR / f'{key}.pdf'
     if out.is_file() and out.stat().st_size > 0:
