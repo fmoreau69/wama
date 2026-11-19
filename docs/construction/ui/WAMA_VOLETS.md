@@ -1262,6 +1262,11 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
   depuis le Studio, si celle-ci reste pertinente — une discussion a eu lieu, son issue n'a pas
   été retrouvée le 12/11 (à chercher avant d'ouvrir le sujet). Proche des points confiés au monde
   Data (`WAMA_DATA_WORLD §8.4`, point 4 : le montage à chaud d'une vue). Rien n'est décidé.
+  **Redemandé le 2026-11-18 (Fabien, à propos des briques Partition du composer)** : *« Ce qu'il
+  manque encore, c'est de pouvoir ajouter une brique UI à la volée et de pouvoir fabriquer une page
+  d'édition par assemblage de briques UI. Mais ce sera à faire dans une session dédiée aux briques
+  UI. »* — deux gestes : AJOUTER une brique du catalogue à une page existante (aujourd'hui une page
+  n'arrange que les briques que sa surface déclare), puis PARTIR d'une page vierge.
 
 **À venir, dans cet ordre (le plus sûr d'abord)** : ~~② les sections du volet des PAGES D'APPS~~
 (✅ ci-dessus) ; ③ le cam_analyzer, élément par élément, chacun en brique UNIVERSELLE (§5 : il

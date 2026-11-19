@@ -735,14 +735,17 @@
     batchAction('batch-proc-run', 'data-batch-process-url', {
         followUp: function (data, id, btn) {
             const skipped = data.skipped || [];
-            if (skipped.length && window.WamaApp && WamaApp.toast) {
-                WamaApp.toast((data.started || []).length + ' card(s) lancée(s), ' + skipped.length
-                              + ' passée(s) : ' + skipped.map(function (s) { return s.reason; })
-                                  .filter(function (r, i, all) { return all.indexOf(r) === i; })
-                                  .join(' ; '), 'warning');
-            }
+            const said = skipped.length ? (data.started || []).length + ' card(s) lancée(s), '
+                + skipped.length + ' passée(s) : ' + skipped.map(function (s) { return s.reason; })
+                    .filter(function (r, i, all) { return all.indexOf(r) === i; }).join(' ; ') : '';
             const followUp = pick(batchFollowUps, btn);
-            if (followUp) { followUp(data, id, btn); return true; }
+            if (followUp) {
+                if (said && window.WamaApp && WamaApp.toast) WamaApp.toast(said, 'warning');
+                followUp(data, id, btn);
+                return true;
+            }
+            // Sans suite déclarée, la page se recharge : un toast n'y survivrait pas.
+            if (said) alert(said);
             return false;
         },
     });
