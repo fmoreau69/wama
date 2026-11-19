@@ -265,7 +265,10 @@ s'affiche en lecture seule. **Silence total si le prompt part tel quel.**
   (`refine`) ; sans aligneur pour la langue, l'estimation reste et le fichier le dit. La partition
   les montre sous les notes de la voix chantée (`WamaScore.withLyrics`, la piste dont le nom dit
   voix/chant — jamais une piste seule par défaut) : « Partition de référence » ← paroles de l'entrée,
-  « Partition jouée » ← paroles chantées. `extract_lyrics` écoute l'entrée, avant ce qui chante ;
+  « Partition jouée » ← paroles chantées. *(Depuis le 2026-11-19, ces deux vues sont deux vues
+  « Partition » à choix d'origine : les paroles suivent la VERSION montrée — l'entrée pour la
+  partition de travail et l'audio source, les paroles chantées pour l'audio généré,
+  `composer/surfaces.SCORE_VERSIONS`.)* `extract_lyrics` écoute l'entrée, avant ce qui chante ;
   `rendered_lyrics` écoute ce que le modèle a chanté, sans périmer ce qu'il a produit
   (`process_runs.settle_setting`). **Ils ne réécrivent jamais des paroles posées** — le CHAMP ne se
   remplit que vide, hors « Instrumental » et sans paroles dans le prompt (`tasks._lyrics_field_open`),

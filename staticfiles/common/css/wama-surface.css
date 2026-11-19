@@ -199,7 +199,10 @@ body.wama-panel-arranged > .container {
   padding-left: calc(var(--bs-gutter-x, 1.5rem) * .5 + var(--wama-dock-left, 0px));
   padding-right: calc(var(--bs-gutter-x, 1.5rem) * .5 + var(--wama-dock-right, 0px)); }
 
-.wama-brick-tools { display: flex; align-items: center; gap: .25rem; cursor: default; }
+/* Des outils qui ne tiennent pas sur la largeur de la brique PASSENT À LA LIGNE (2026-11-19 : les
+   choix « Origine » et « Forme » de la partition poussaient « Exporter… » hors de la brique). */
+.wama-brick-tools { display: flex; align-items: center; gap: .25rem; cursor: default;
+  flex-wrap: wrap; justify-content: flex-end; min-width: 0; }
 .wama-brick-tools .btn-xs, .wama-surface-grid .btn-xs, .wama-surface-panel .btn-xs,
 .wama-dock-frame .btn-xs {
   padding: .1rem .35rem; font-size: .75rem; line-height: 1.2; color: var(--wama-edit-brick-text);

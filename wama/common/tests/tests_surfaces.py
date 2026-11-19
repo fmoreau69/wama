@@ -1346,6 +1346,43 @@ class ScoreRulesTest(SimpleTestCase):
         self.assertIn('wrap: global.WamaScorePlayer.WRAP', brick, 'the export is laid out the same')
         self.assertIn('new global.ResizeObserver', brick, 'a resized zone is laid out again')
 
+    def test_two_views_choose_a_score_by_its_origin_then_its_form(self):
+        """2026-11-19 (Fabien, 18/11 : « une brique partition générique […] choisir l'origine de la
+        partition », two bricks kept to compare) : the versions of a view are offered by ORIGIN,
+        then FORM ; the main score is named by what it is, never shown twice, absent when the card
+        has none ; switching origin keeps the form ; a slot opens on the origin it asks for."""
+        from wama.composer.surfaces import SCORE_VERSIONS, WORK_KINDS
+        engine = self.engine
+        engine.eval('var registered = {}; window.WamaSurface = {registerBrick: function (k, d) '
+                    '{ registered[k] = d; }};' + _js('common/js/surfaces/brick-score-view.js'))
+
+        def run(expr):
+            return json.loads(engine.eval(
+                'var V = registered.score_view.versions; var L = V.normalize(%s); '
+                'JSON.stringify(%s)' % (json.dumps(SCORE_VERSIONS), expr)))
+
+        def labels(main):
+            return run('V.offered(L, %s).map(function (v) { return V.label(v, %s, %s); })'
+                       % (json.dumps(main), json.dumps(WORK_KINDS), json.dumps(main)))
+
+        self.assertEqual(["Partition de travail (réduite de l'audio source)", 'Audio source · Complète',
+                          'Audio généré · Réduite', 'Audio généré · Complète'], labels('extracted_score'),
+                         "a cover : its reduced score IS the work score, not listed twice")
+        self.assertEqual(['Partition de travail (importée)', 'Audio source · Réduite',
+                          'Audio source · Complète', 'Audio généré · Réduite', 'Audio généré · Complète'],
+                         labels('reference_score'))
+        self.assertEqual(['Audio source · Réduite', 'Audio source · Complète', 'Audio généré · Réduite',
+                          'Audio généré · Complète'], labels(''), 'no main score : no work score')
+        self.assertEqual(['Partition de travail', 'Audio source', 'Audio généré'], run('V.origins(L)'))
+        full = run('V.switchTo(L, "Audio généré", "Complète")')
+        self.assertEqual(('Audio généré', 'Complète'), (SCORE_VERSIONS[full]['origin'], SCORE_VERSIONS[full]['form']))
+        self.assertEqual(0, run('V.switchTo(L, "Partition de travail", "Complète")'), 'one form : its only version')
+        self.assertEqual(3, run('V.first(L, "Audio généré", "")'), 'the second view opens on the generated audio')
+        self.assertEqual(2, run('V.first(L, "", "parts_score")'), 'the first one on the score the page edits')
+        self.assertEqual(['', 'parts_score', None], run(
+            'V.normalize([{label: "R"}, {field: "parts_score", label: "C"}, {role: "x"}])'
+            '.map(function (v) { return v.edits; })'), 'the older form is still read')
+
     def test_a_clicked_note_gives_its_time_and_its_voice(self):
         timings = json.dumps([{'type': 'bar', 'milliseconds': 0},
                               {'type': 'event', 'milliseconds': 750, 'startCharArray': [12, 40]}])
@@ -2836,18 +2873,25 @@ class ComposerScoreSurfaceTest(TestCase):
                          [s.brick for s in score.slots])
         view = score.slots[0]
         self.assertEqual((0, 12), (view.x, view.w), 'the input score, the whole width')
-        self.assertEqual([None, 'parts_score'], [v.get('field') for v in view.options['versions']],
-                         'the reduced score and the full score in the same view, both edited')
         self.assertEqual(('parts_score',), score.also_edits)
-        # 2026-10-26 (Fabien) : the INPUT edited — the imported score first —, the score of the
-        # RENDER in a second view, read only, to set beside it.
         self.assertEqual('reference_score', score.fields[0])
+        # 2026-11-19 (Fabien, 18/11) : two « Partition » views, ONE list of origins and forms — the
+        # first opens on what the page edits, the second on the score of the song produced.
         rendered = score.slots[2]
-        # Reduced and full, as the reference (2026-11-08, Fabien : the symmetry) — both read only.
-        self.assertEqual([('rendered_score', 'rendered_score'), ('rendered', 'rendered_parts_score')],
-                         [(v['role'], score.reads[v['role']]) for v in rendered.options['versions']])
-        self.assertIn('rendered', score.texts)
-        self.assertIn('rendered_score', score.texts)
+        self.assertIs(view.options['versions'], rendered.options['versions'])
+        self.assertEqual(('', 'Audio généré'), (view.options.get('origin', ''), rendered.options['origin']))
+        for version in view.options['versions']:
+            with self.subTest(version=(version['origin'], version.get('form'))):
+                edits = version.get('edits')
+                self.assertTrue(edits is None or edits == '' or edits in score.also_edits,
+                                'a version edits the main field or one of the `also_edits`')
+                if version.get('role'):
+                    self.assertIn(version['role'], score.reads)
+                    self.assertIn(version['role'], score.texts, 'a score read as text')
+                self.assertTrue(edits is not None or version.get('role'), 'shown somehow')
+                self.assertIn(version.get('lyrics'), score.reads, 'its own sung words')
+                if version.get('same_as'):
+                    self.assertIn(version['same_as'], score.fields)
         scripts = score.scripts()
         self.assertLess(scripts.index('vendors/abcjs-6.4.4/abcjs-basic-min.js'),
                         scripts.index('common/js/surfaces/brick-score-view.js'))
@@ -3114,6 +3158,9 @@ class ComposerScoreSurfaceTest(TestCase):
         self.assertEqual('parts_score', score.target(stem))
         data = self.client.get(f'/common/surface/composer/score/{stem.pk}/data/').json()
         self.assertEqual(('parts_score', ABC), (data['field'], data['value']))
+        # 2026-11-19 (two « Partition » views) : the page is told which MAIN score the card fills —
+        # none here, so no « work score » is offered.
+        self.assertEqual('', data['main'])
         # Counter-check : nothing filled at all — still nothing to edit.
         empty = ComposerGeneration.objects.create(user=self.user, prompt='', extract_parts=True,
                                                   melody_reference='users/1/temp/stem.wav')
@@ -3127,8 +3174,11 @@ class ComposerScoreSurfaceTest(TestCase):
             planned_score=app_media_dir('composer', self.user.id, 'output') + '/plan.abc')
         page = f'/common/surface/composer/score/{both.pk}/'
         self.assertEqual('parts_score', self.client.get(page).context['config']['field'])
-        self.assertEqual('planned_score', self.client.get(page + 'data/').json()['field'],
-                         'no field asked : the main score, never the full one')
+        served = self.client.get(page + 'data/').json()
+        self.assertEqual('planned_score', served['field'], 'no field asked : the main score, never the full one')
+        self.assertEqual('planned_score', served['main'])
+        self.assertEqual('planned_score', self.client.get(page + 'data/?field=parts_score').json()['main'],
+                         'the main score does not depend on the field the page edits')
         self.assertEqual('planned_score', score.target(both))
         import dataclasses
         self.assertEqual('', dataclasses.replace(score, edits_first=()).opening_field(both),

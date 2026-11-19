@@ -1319,7 +1319,11 @@ register_brick(UIBrick(
                 "même calage (`WamaMidiPlayer.render`). Plusieurs "
                 "partitions d'un même élément (`options.versions` : l'éditée et des rôles lus en "
                 "texte) se montrent dans la MÊME vue, un choix « Partition » passant de l'une à "
-                "l'autre ; une partition lue ne s'édite pas.",
+                "l'autre ; une partition lue ne s'édite pas. Des versions qui DÉCLARENT leur "
+                "`origin` et leur `form` (2026-11-19, décision de Fabien : une brique Partition "
+                "générique) donnent deux choix, « Origine » puis « Forme » ; `options.origin` : "
+                "l'origine montrée d'abord ; une version `edits` se corrige quand la page l'édite et "
+                "se LIT sinon, ce qui permet deux vues de la même page sur deux partitions.",
     script='common/js/surfaces/brick-score-view.js',
     requires=('vendors/abcjs-6.4.4/abcjs-basic-min.js', 'common/js/wama-axis.js',
               'common/js/wama-score.js',

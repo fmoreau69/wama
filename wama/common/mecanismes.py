@@ -509,7 +509,14 @@ MECHANISMS = (
               "monte la partition et le transport de la page d'édition, plus une copie. "
               "2026-11-18 : dans la colonne du VOLET, une brique suit son contenu jusqu'à la moitié "
               "de la fenêtre, puis défile ; une hauteur réglée à la main y tient (`sized`, gardée "
-              "par compte) — Fabien : « seules les briques succinctes s'auto-ajustent »",
+              "par compte) — Fabien : « seules les briques succinctes s'auto-ajustent ». "
+              "2026-11-19 (décision de Fabien du 18/11 : une brique Partition générique, deux "
+              "gardées pour comparer) : des versions qui déclarent `origin` et `form` donnent à "
+              "`score_view` les choix « Origine » puis « Forme » ; deux vues d'une page partagent "
+              "sa valeur éditée — une version qui édite un champ se corrige quand la page l'édite "
+              "et se lit sinon (`data/?field=`), la choisir le reprend ; la page sait quel champ "
+              "PRINCIPAL l'élément remplit (`data.main`, `ctx.main()`) et ne le montre pas deux "
+              "fois ; des outils trop larges passent à la ligne",
               'wama/common/surfaces.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
               annexes=('wama/common/surface_views.py',

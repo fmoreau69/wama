@@ -24,6 +24,11 @@ puis l'extraite ou la planifiée ; sa partition complète décrit le MÊME audio
 du morceau PRODUIT (`rendered_parts`) se lit dans une SECONDE vue, pour juxtaposer l'entrée et la
 sortie (« deux briques partition côte à côte ») ; la disposition se règle sur la page.
 
+DEUX VUES « PARTITION », UNE LISTE (2026-11-19, décision de Fabien du 18/11 : « une brique partition
+générique […] choisir l'origine », deux gardées pour comparer) : chaque vue choisit son ORIGINE
+(Partition de travail, Audio source, Audio généré) puis sa FORME (réduite, complète) dans la même
+liste (`SCORE_VERSIONS`) ; la première ouvre sur ce que la page édite, la seconde sur l'audio généré.
+
 Une partition importée en MIDI ou MusicXML (2026-11-10) s'y ouvre par sa vue ABC, le fichier
 importé jamais réécrit (`common/utils/score_source.py`, règle de toutes les surfaces).
 
@@ -72,39 +77,54 @@ def _score_available(generation) -> tuple:
     return True, ''
 
 
+#: TOUTES les partitions qu'une card peut porter, rangées par ORIGINE et par FORME (2026-11-19,
+#: décision de Fabien du 18/11 : « une brique partition générique […] un sélecteur d'origine »,
+#: deux briques gardées pour comparer). La MÊME liste pour les deux vues de la page : chacune choisit
+#: ce qu'elle montre (`score_view` : choix « Origine », puis « Forme » quand l'origine en a deux).
+#: Une version `edits` se corrige quand la page l'édite (`''` : la partition PRINCIPALE, celle que
+#: le rendu suit) ; `role` : lue en texte ; `same_as` : cachée quand elle EST la principale (la
+#: réduite d'un cover est alors sa « Partition de travail »). Chaque version dit l'audio dont elle
+#: est tirée (`follows` : ses REPÈRES, `score_timing`) et ses paroles horodatées (`lyrics`).
+#: ⏳ « Audio source par pistes » (les partitions des pistes séparées réunies) : une étape à écrire,
+#: après la mesure pistes contre mélange (`WAMA_QUALITE`).
+SCORE_VERSIONS = [
+    {'origin': 'Partition de travail', 'edits': '', 'follows': INPUT_SOURCE, 'lyrics': 'lyrics_in',
+     'help': "Celle que le rendu suit : importée (dépôt, MIDI, Reader), composée par le modèle, ou "
+             "réduite de l'audio source"},
+    {'origin': 'Audio source', 'form': 'Réduite', 'role': 'extracted', 'same_as': 'extracted_score',
+     'follows': INPUT_SOURCE, 'lyrics': 'lyrics_in',
+     'empty': "Pas encore de partition réduite de l'audio source : cocher « Partition réduite » "
+              "dans les réglages d'une card de reprise (cover), puis relancer."},
+    {'origin': 'Audio source', 'form': 'Complète', 'edits': 'parts_score', 'role': 'parts',
+     'follows': INPUT_SOURCE, 'lyrics': 'lyrics_in',
+     'empty': "Pas encore de partition complète : cocher « Partition complète » dans les réglages "
+              "d'une card de reprise (cover), puis relancer."},
+    {'origin': 'Audio généré', 'form': 'Réduite', 'role': 'rendered_score', 'lyrics': 'lyrics_out',
+     'empty': "Pas encore de partition réduite jouée : cocher « Partition réduite jouée » (et "
+              "« Paroles chantées » pour ses paroles) dans les réglages de la card, puis relancer."},
+    {'origin': 'Audio généré', 'form': 'Complète', 'role': 'rendered', 'lyrics': 'lyrics_out',
+     'empty': "Pas encore de partition complète jouée : cocher « Partition complète jouée » dans "
+              "les réglages de la card, puis relancer."},
+]
+#: Ce qu'est la « Partition de travail », selon le champ principal que la card remplit.
+WORK_KINDS = {'reference_score': 'importée', 'planned_score': 'composée',
+              'extracted_score': "réduite de l'audio source"}
+
+
 register_surface(Surface(
     app='composer', key='score', label='Éditer la partition',
     model='composer.ComposerGeneration',
-    # « RÉFÉRENCE » / « JOUÉE » (2026-11-08, décision de Fabien) : la vue de gauche montre ce qui
-    # était DEMANDÉ — la partition importée, tirée du morceau repris, ou composée par le modèle —,
-    # celle de droite ce qui a été JOUÉ ; « d'entrée » / « de sortie » appelait « d'entrée » une
-    # partition composée. Chacune pose sous ses notes les paroles horodatées de SON côté
-    # (`lyrics` : un rôle lu, le JSON rangé par l'écoute), la règle commune `WamaScore.withLyrics`.
+    # DEUX vues « Partition », une seule liste (2026-11-19) : la première ouvre sur la partition
+    # que la page édite, la seconde sur celle du morceau produit — chacune passe à toute autre
+    # origine pour comparer. Remplace « Partition de référence » / « Partition jouée » (2026-11-08),
+    # dont chacune ne montrait que son côté.
     slots=(BrickSlot('score', 'score_view', 0, 0, 12, 14, {
-               'media': 'audio', 'title': 'Partition de référence', 'lyrics': 'lyrics_in',
-               # Tirée de l'ENTRÉE (réduite et complète) : ses REPÈRES valent sur l'audio d'entrée
-               # (`score_timing`, 2026-11-15) ; le Rendu, lui, suit son temps écrit.
-               'follows': INPUT_SOURCE,
-               # La réduite (mélodie et accords), puis la COMPLÈTE (une partie par instrument) —
-               # toutes deux de l'ENTRÉE.
-               'versions': [
-                   {'label': 'Réduite'},
-                   {'field': 'parts_score', 'label': 'Complète',
-                    'empty': "Pas encore de partition complète : cocher « Partition complète » "
-                             "dans les réglages d'une card de reprise (cover), puis relancer."}]}),
+               'media': 'audio', 'title': 'Partition', 'versions': SCORE_VERSIONS,
+               'kinds': WORK_KINDS}),
            BrickSlot('transport', 'media_transport', 0, 14, 12, 3, {'role': 'audio'}),
-           # Ce qui a été JOUÉ, lu seulement (2026-10-26) : à placer à côté de la référence. Réduite
-           # et complète comme la référence (2026-11-08, décision de Fabien : la symétrie).
            BrickSlot('rendered', 'score_view', 0, 17, 12, 12, {
-               'media': 'audio', 'title': 'Partition jouée', 'lyrics': 'lyrics_out',
-               'versions': [
-                   {'label': 'Réduite', 'role': 'rendered_score',
-                    'empty': "Pas encore de partition réduite jouée : cocher « Partition réduite "
-                             "jouée » (et « Paroles chantées » pour ses paroles) dans les réglages "
-                             "de la card, puis relancer."},
-                   {'label': 'Complète', 'role': 'rendered',
-                    'empty': "Pas encore de partition complète jouée : cocher « Partition complète "
-                             "jouée » dans les réglages de la card, puis relancer."}]}),
+               'media': 'audio', 'title': 'Partition comparée', 'versions': SCORE_VERSIONS,
+               'kinds': WORK_KINDS, 'origin': 'Audio généré'}),
            BrickSlot('source', 'text_sections', 0, 29, 12, 6, {'title': 'Source ABC'}),
            BrickSlot('actions', 'surface_actions', 0, 0, 1, 5, zone='panel'),
            BrickSlot('versions', 'revision_history', 0, 5, 1, 6, zone='panel'),
@@ -118,8 +138,11 @@ register_surface(Surface(
                         "de la card, puis la lancer."}, zone='panel')),
     reads={'audio': 'audio_output', 'rendered': 'rendered_parts_score',
            'rendered_score': 'rendered_score',
+           # Les partitions de l'audio source LUES (2026-11-19) : ce qu'une vue montre quand la page
+           # en édite une autre.
+           'extracted': 'extracted_score', 'parts': 'parts_score',
            'lyrics_in': 'input_lyrics_timed', 'lyrics_out': 'rendered_lyrics_timed'},
-    texts=('rendered', 'rendered_score', 'lyrics_in', 'lyrics_out'),
+    texts=('rendered', 'rendered_score', 'extracted', 'parts', 'lyrics_in', 'lyrics_out'),
     edits=INPUT_SCORE_FIELDS,
     also_edits=ALSO_EDITED,
     # La COMPLÈTE d'abord quand elle existe (2026-11-17, demande de Fabien : « si on l'a demandée,

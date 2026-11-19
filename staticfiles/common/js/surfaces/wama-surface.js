@@ -391,6 +391,9 @@
             /** Le champ édité : '' = le principal, sinon l'un des `also_edits` de la surface. */
             target: function () { return target; },
             retarget: retarget,
+            /** Le champ PRINCIPAL que l'élément remplit (2026-11-19), '' sans partition principale,
+             *  null avant le chargement : deux vues d'une page ne montrent pas deux fois la même. */
+            main: function () { return state.main == null ? null : state.main; },
             /** La disposition est-elle figée ? `setFrozen(bool)` la fige ou la rend modifiable
              *  (événement `layout`). Une préférence du LECTEUR : vaut aussi en lecture seule. */
             frozen: function () { return layout.frozen(); },
@@ -687,6 +690,7 @@
                 state.value = data.value == null ? {} : data.value;
                 state.saved = JSON.stringify(state.value);
                 state.token = data.token || '';
+                state.main = data.main || '';
                 // Le serveur peut servir un `also_edits` d'emblée — le principal vide, celui-ci
                 // rempli (`Surface.target`, 2026-11-13) : la page édite alors ce champ-là.
                 target = (surface.also_edits || []).indexOf(data.field) >= 0 ? data.field : '';

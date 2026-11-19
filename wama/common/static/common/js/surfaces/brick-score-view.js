@@ -36,6 +36,13 @@
  * une partition. Une version qui nomme un `field` (un `also_edits` de la surface) se CORRIGE comme
  * la principale : choisie, elle devient la valeur éditée (`ctx.retarget`).
  *
+ * ORIGINE ET FORME (2026-11-19, décision de Fabien du 18/11 : « une brique partition générique […]
+ * choisir l'origine de la partition », deux briques gardées pour comparer) : des versions qui
+ * déclarent `origin` et `form` donnent deux choix, « Origine » puis « Forme » (règles pures
+ * `VERSIONS`, exposées sur la déclaration de la brique). Les deux vues d'une page partagent sa valeur
+ * éditée : une version qui ÉDITE un champ se corrige quand la page l'édite et se LIT sinon
+ * (`data/?field=`) ; la choisir le reprend (`ctx.retarget`), l'autre vue passe alors en lecture.
+ *
  * LE CLAVIER (2026-10-22, demande de Fabien : « hauteur et rythme, l'essentiel de l'édition ») : un
  * clic CHOISIT une note (et y amène la lecture) ; puis ↑ ↓ la montent ou la descendent d'un degré,
  * ← → la décalent d'un pas dans le temps, + − l'allongent ou la raccourcissent d'un pas — la
@@ -103,6 +110,56 @@
         setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
     }
 
+    /** Les VERSIONS d'une vue, règles pures (2026-11-19, décision de Fabien du 18/11 : « une brique
+     *  partition générique […] choisir l'origine de la partition », deux briques gardées pour
+     *  comparer). Une version `{origin, form?, edits?, role?, same_as?, follows?, lyrics?, empty?}` :
+     *  `edits` ('' = le champ principal, ou un `also_edits`) se CORRIGE quand la page l'édite et se
+     *  LIT sinon ; `role` : lue en texte ; `same_as` : cachée quand elle EST la principale. L'ancienne
+     *  forme `{label, role?, field?}` reste lue : sans `role`, elle édite `field` ('' = principal). */
+    var VERSIONS = {
+        normalize: function (list) {
+            return (list || []).map(function (v) {
+                var copy = {};
+                Object.keys(v).forEach(function (k) { copy[k] = v[k]; });
+                copy.edits = Object.prototype.hasOwnProperty.call(v, 'edits') ? v.edits
+                    : (v.role ? null : (v.field || ''));
+                return copy;
+            });
+        },
+        /** Celles qu'on OFFRE, le champ principal connu (`main` : '' = aucun, null = inconnu) : pas
+         *  de « principale » sans partition principale, pas deux fois la même. */
+        offered: function (list, main) {
+            if (main == null) return list.slice();
+            return list.filter(function (v) {
+                if (v.origin && v.edits === '' && !main) return false;
+                return !(v.same_as && v.same_as === main);
+            });
+        },
+        /** Le libellé d'une version : son origine (et ce qu'est la principale), sa forme. */
+        label: function (v, kinds, main) {
+            if (!v.origin) return v.label || '';
+            var kind = (v.edits === '' && kinds && main) ? (kinds[main] || '') : '';
+            return v.origin + (kind ? ' (' + kind + ')' : '') + (v.form ? ' · ' + v.form : '');
+        },
+        origins: function (list) {
+            var seen = [];
+            list.forEach(function (v) { if (v.origin && seen.indexOf(v.origin) < 0) seen.push(v.origin); });
+            return seen;
+        },
+        /** L'index à montrer en passant à `origin` : la même forme si elle y est, sinon sa première. */
+        switchTo: function (list, origin, form) {
+            var same = list.findIndex(function (v) { return v.origin === origin && (v.form || '') === (form || ''); });
+            return same >= 0 ? same : list.findIndex(function (v) { return v.origin === origin; });
+        },
+        /** La version montrée D'ABORD : l'origine que l'emplacement demande, sinon celle que la page
+         *  édite (`target`, 2026-11-13 : le serveur ouvre sur un `also_edits` rempli). */
+        first: function (list, origin, target) {
+            var i = origin ? list.findIndex(function (v) { return v.origin === origin; }) : -1;
+            if (i < 0) i = list.findIndex(function (v) { return v.edits === (target || ''); });
+            return Math.max(0, i);
+        },
+    };
+
     function mount(body, ctx, options) {
         options = options || {};
         var ABCJS = global.ABCJS, Score = global.WamaScore, Axis = global.WamaAxis;
@@ -149,26 +206,50 @@
         /** Les lectures MIDI proposées (`WamaMidiPlayer.choices`), null tant qu'elles ne sont pas
          *  posées — `render` passe avant leur mise en place, en fin de brique. */
         var midiChoices = null;
-        var versions = (options.versions && options.versions.length) ? options.versions
-            : [{ role: options.role || '', empty: options.empty }];
-        // La version montrée d'abord : celle du champ que la page ÉDITE (2026-11-13) — le serveur
-        // ouvre sur un `also_edits` rempli quand le principal est vide (`Surface.target`).
-        var editedField = ctx.target ? ctx.target() : '';
-        var chosen = Math.max(0, versions.findIndex(function (version) {
-            return !version.role && (version.field || '') === editedField;
-        }));
+        var main = ctx.main ? ctx.main() : null;
+        var versions = VERSIONS.offered(VERSIONS.normalize(
+            (options.versions && options.versions.length) ? options.versions
+                : [{ role: options.role || '', empty: options.empty }]), main);
+        if (!versions.length) versions = [{ edits: null, role: '', empty: options.empty }];
+        var chosen = VERSIONS.first(versions, options.origin, ctx.target ? ctx.target() : '');
         /** La note CHOISIE (`[start, end)` dans le texte) : ce que le clavier modifie. */
         var selection = null;
 
         function current() { return versions[chosen]; }
-        function readOnly() { return !!current().role; }
+        function labelOf(v) { return VERSIONS.label(v, options.kinds, main); }
+        /** Lue seulement : une version qui n'édite rien, ou qui édite un AUTRE champ que celui de la
+         *  page — l'autre vue a pu le prendre (`ctx.retarget`) ; la choisir le reprend. */
+        function readOnly() {
+            var v = current();
+            return v.edits == null || v.edits !== (ctx.target ? ctx.target() : '');
+        }
         function editable() { return !readOnly() && !!ctx.canEdit && !!text().trim(); }
+
+        /** Un champ édité par la page, LU sans le prendre : sa valeur servie par `data/?field=`, la
+         *  lecture de `ctx.retarget` (le fichier fourni ouvert par sa vue ABC compris). */
+        var peeks = {};
+        function peeked(field) {
+            if (Object.prototype.hasOwnProperty.call(peeks, field)) return peeks[field] || '';
+            peeks[field] = null;
+            var url = (ctx.config || {}).data_url;
+            if (!url) return '';
+            fetch(url + (field ? '?field=' + encodeURIComponent(field) : ''), { credentials: 'same-origin' })
+                .then(App.jsonOrExplain)
+                .then(function (d) { peeks[field] = (d && typeof d.value === 'string') ? d.value : ''; })
+                .catch(function () { peeks[field] = ''; })
+                .then(function () { rendered = null; schedule(); });
+            return '';
+        }
 
         /** La partition ENTIÈRE de la version montrée. */
         function wholeText() {
-            if (readOnly()) return String((ctx.reads() || {})[current().role] || '');
-            var v = ctx.value();
-            return typeof v === 'string' ? v : '';
+            if (!readOnly()) {
+                var value = ctx.value();
+                return typeof value === 'string' ? value : '';
+            }
+            var v = current();
+            if (v.role) return String((ctx.reads() || {})[v.role] || '');
+            return v.edits != null ? peeked(v.edits) : '';
         }
         /** La PISTE montrée (`null` = toutes, 2026-11-07) : ce que la vue grave, exporte, imprime. */
         var track = null;
@@ -181,8 +262,9 @@
          *  (`WamaScore.withLyrics`) — le texte édité, lui, n'en porte pas : `inserts` ramène une
          *  position gravée à sa place dans le texte édité, et l'inverse. */
         var inserts = [], shown = '';
+        function lyricsRole() { return current().lyrics || options.lyrics || ''; }
         function lyricsData() {
-            var raw = options.lyrics ? (ctx.reads() || {})[options.lyrics] : '';
+            var raw = lyricsRole() ? (ctx.reads() || {})[lyricsRole()] : '';
             if (!raw) return null;
             try { return typeof raw === 'string' ? JSON.parse(raw) : raw; } catch (e) { return null; }
         }
@@ -197,36 +279,84 @@
             });
         }
 
-        if (versions.length > 1) {
-            var pick = document.createElement('select');
-            pick.className = 'form-select form-select-sm py-0 w-auto';
-            pick.title = 'Partition : celle que la vue montre';
-            pick.setAttribute('aria-label', 'Partition');
-            versions.forEach(function (version, i) {
+        // ── Ce que la vue montre : « Origine » puis « Forme » quand les versions les déclarent
+        // (2026-11-19), sinon un seul choix « Partition » (2026-10-22). ─────────────────────────
+        var picks = [];
+        function newPick(label, title) {
+            var select = document.createElement('select');
+            select.className = 'form-select form-select-sm py-0 w-auto';
+            select.title = title;
+            select.setAttribute('aria-label', label);
+            select.dataset.score = label === 'Origine' ? 'origin' : (label === 'Forme' ? 'form' : 'version');
+            tools.insertBefore(select, warn);
+            picks.push(select);
+            return select;
+        }
+        function fill(select, entries) {
+            select.innerHTML = '';
+            entries.forEach(function (e) {
                 var option = document.createElement('option');
-                option.value = String(i);
-                option.textContent = version.label || ('Partition ' + (i + 1));
-                pick.appendChild(option);
+                option.value = e[0];
+                option.textContent = e[1];
+                if (e[2]) option.title = e[2];
+                select.appendChild(option);
             });
-            pick.value = String(chosen);
-            pick.addEventListener('change', function () {
-                var next = Number(pick.value) || 0, version = versions[next];
-                // Une version ÉDITÉE (sans `role`) devient la valeur de la page : ce qui est en
-                // cours s'enregistre d'abord (`ctx.retarget`).
-                var ready = version.role || !ctx.retarget ? Promise.resolve(true)
-                    : ctx.retarget(version.field || '');
-                pick.disabled = true;
-                ready.then(function (ok) {
-                    pick.disabled = false;
-                    if (!ok) { pick.value = String(chosen); return; }
+        }
+        /** Montre la version `next` : une version qui ÉDITE devient la valeur de la page — ce qui
+         *  est en cours s'enregistre d'abord (`ctx.retarget`) ; une version lue n'y touche pas. */
+        function choose(next) {
+            var version = versions[next];
+            if (!version) { syncPicks(); return; }
+            var ready = (version.edits == null || !ctx.retarget
+                         || version.edits === (ctx.target ? ctx.target() : ''))
+                ? Promise.resolve(true) : ctx.retarget(version.edits);
+            picks.forEach(function (p) { p.disabled = true; });
+            ready.then(function (ok) {
+                picks.forEach(function (p) { p.disabled = false; });
+                if (ok) {
                     chosen = next;
                     selection = null;
                     rendered = null;
                     render();
-                });
+                }
+                syncPicks();
             });
-            tools.insertBefore(pick, warn);
         }
+        var originPick = null, formPick = null, versionPick = null;
+        var origins = VERSIONS.origins(versions);
+        if (origins.length) {
+            originPick = newPick('Origine', 'Origine : d’où vient la partition montrée');
+            formPick = newPick('Forme', 'Forme : réduite (mélodie et accords) ou complète (toutes les parties)');
+            fill(originPick, origins.map(function (o) {
+                var of = versions.filter(function (w) { return w.origin === o; });
+                // Une seule forme pour cette origine : elle se dit dans l'origine, le choix « Forme »
+                // est caché.
+                var shown = of.length === 1 ? of[0] : { origin: o, edits: of[0].edits };
+                return [o, labelOf(shown), of[0].help || ''];
+            }));
+            originPick.addEventListener('change', function () {
+                choose(VERSIONS.switchTo(versions, originPick.value, current().form));
+            });
+            formPick.addEventListener('change', function () {
+                choose(VERSIONS.switchTo(versions, current().origin, formPick.value));
+            });
+        } else if (versions.length > 1) {
+            versionPick = newPick('Partition', 'Partition : celle que la vue montre');
+            fill(versionPick, versions.map(function (v, i) { return [String(i), v.label || ('Partition ' + (i + 1))]; }));
+            versionPick.addEventListener('change', function () { choose(Number(versionPick.value) || 0); });
+        }
+        /** Les choix suivent la version montrée — et la FORME, les formes de son origine. */
+        function syncPicks() {
+            var v = current();
+            if (versionPick) versionPick.value = String(chosen);
+            if (!originPick) return;
+            originPick.value = v.origin || '';
+            var forms = versions.filter(function (w) { return w.origin === v.origin && w.form; });
+            fill(formPick, forms.map(function (w) { return [w.form, w.form]; }));
+            formPick.value = v.form || '';
+            formPick.classList.toggle('d-none', forms.length < 2);
+        }
+        syncPicks();
 
         // ── La PISTE montrée (2026-11-07, demande de Fabien : « sélectionner les pistes
         // individuelles pour afficher la partition d'un seul instrument à la fois et pouvoir
@@ -319,7 +449,7 @@
                 return String(s || '').toLowerCase()
                     .normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-');
             };
-            return 'partition-' + (ctx.config.pk || '') + '-' + slug(current().label || 'partition') +
+            return 'partition-' + (ctx.config.pk || '') + '-' + slug(labelOf(current()) || 'partition') +
                 (track ? '-' + slug(track.label) : '');
         }
 
@@ -631,9 +761,13 @@
         if (axis) axis.subscribe(function (snap) { paint(snap.time, snap.playing || snap.reason === 'seek'); });
         // Un rendu refait (« Appliquer ») est un autre audio : sa grille se redemande — et une
         // partition LUE (lecture seule) a pu être réécrite par son process.
-        ctx.on('redone', function () { grids = {}; grid = null; realign(); loadGrid(); if (readOnly()) schedule(); });
-        // Une écoute qui finit apporte ses paroles (`options.lyrics`) : la vue se regrave avec elles.
-        ctx.on('processes', function () { if (readOnly() || options.lyrics) schedule(); });
+        ctx.on('redone', function () { grids = {}; grid = null; peeks = {}; realign(); loadGrid(); if (readOnly()) schedule(); });
+        // Une écoute qui finit apporte ses paroles (`lyrics` de la version) : la vue se regrave avec elles.
+        ctx.on('processes', function () { if (readOnly() || lyricsRole()) schedule(); });
+        // L'AUTRE vue a pris un autre champ à éditer (2026-11-19, deux vues « Partition ») : celle-ci
+        // se relit — en lecture seule si sa version n'est plus le champ édité, lue fraîche (le
+        // champ quitté vient d'être enregistré).
+        ctx.on('target', function () { peeks = {}; selection = null; rendered = null; schedule(); });
         // Annuler / rétablir peut rendre un texte où la note choisie n'est plus à sa place.
         ctx.on('change', function () { if (selection && selection.end > text().length) selection = null; });
 
@@ -663,7 +797,7 @@
         function syncMidi() {
             if (!midiChoices) return;                 // pas encore posées : la mise en place l'appelle
             var playable = !!String(shown || '').trim();
-            var which = versions.length > 1 ? (current().label || '') : '';
+            var which = versions.length > 1 ? labelOf(current()) : '';
             var pairs = midiPairs;
             midiChoices.forEach(function (choice) {
                 var key = 'midi:' + heading + ':' + choice.key;
@@ -681,7 +815,7 @@
                 });
             });
         }
-        var anyEdited = versions.some(function (version) { return !version.role; });
+        var anyEdited = versions.some(function (version) { return version.edits != null; });
         return {
             refresh: function () { if (text() !== rendered) schedule(); },
             tools: tools,
@@ -690,9 +824,10 @@
             keys: anyEdited,
             help: !anyEdited ? null
                 : 'Partition : clic sur une note = la choisir et y aller · la glisser = la monter / descendre · le pas : choix « Pas » · « Piste » : un seul instrument · « Exporter » : MIDI, PDF, ABC (de la piste montrée)'
-                  + (versions.some(function (v) { return v.role; }) ? ' · une partition LUE ne se modifie pas ici' : ''),
+                  + (originPick ? ' · « Origine » et « Forme » : la partition montrée — une seule se corrige à la fois, la choisir dans une vue la reprend à l’autre' : '')
+                  + (versions.some(function (v) { return v.edits == null; }) ? ' · une partition LUE ne se modifie pas ici' : ''),
         };
     }
 
-    global.WamaSurface.registerBrick('score_view', { title: 'Partition', mount: mount });
+    global.WamaSurface.registerBrick('score_view', { title: 'Partition', mount: mount, versions: VERSIONS });
 })(window);

@@ -380,7 +380,20 @@ def surface_data(request, app: str, key: str, pk: int):
         'can_edit': not found.read_only and _can_edit(request.user, item),
         'token': state_token(value),
         'field': field,
+        'main': _main_field(found, item),
     })
+
+
+def _main_field(found, item) -> str:
+    """Le champ PRINCIPAL que l'élément remplit, '' quand il n'en remplit aucun (2026-11-19, deux
+    vues « Partition » d'une même page) : une vue sait ainsi ce qu'est la partition principale
+    (importée, composée, réduite de l'audio source) et ne la montre pas deux fois."""
+    name = found.edited(item)
+    if not name:
+        return ''
+    value = getattr(item, name, None)
+    filled = getattr(value, 'name', '') if found.text_value else value not in (None, '', [], {})
+    return name if filled else ''
 
 
 @login_required
