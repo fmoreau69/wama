@@ -194,7 +194,7 @@ class ARouteNeverCallsAStubOfAGeneratedGestureTest(_Rendered):
         self.assertEqual({}, wrong)
 
 
-class TheGeneratedPageOffersTheUrlImportItsSourceDeclaresTest(_Rendered):
+class TheGeneratedPageOffersTheUrlImportOfItsSourceTest(_Rendered):
     """The URL IMPORT button is offered when the source declares `has_url_import` — never because
     it `accepts_url`, which says the URL is part of the CREATION (the imager's reference image) :
     the twins of four apps offered an import their source declares not to have (2026-11-18)."""

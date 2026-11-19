@@ -1101,7 +1101,7 @@ class FilterBarForMeTest(TestCase):
         rule.assert_not_called()
         self.assertEqual([(True, True)], [(r['open_to_me'], r['drawn_for_me']) for r in rows])
 
-    def test_the_list_reads_the_domain_the_options_of_a_select_declare(self):
+    def test_the_list_reads_the_domain_named_by_the_options_of_a_select(self):
         # A select's capabilities are read here WITH the query of its options (`wama-params.js`,
         # `_catalogCaps`) : `model_type` is a domain key of the options API, and the list ignored
         # it — the whole catalogue for `?model_type=llm`, ~60 s a call (2026-11-18).
