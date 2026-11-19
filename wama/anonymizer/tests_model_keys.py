@@ -186,6 +186,53 @@ class DesignatedModelAgainstCoverageTest(TestCase):
         coverage.assert_not_called()
 
 
+class PromptModelTest(TestCase):
+    """2026-11-19 — LocateAnything was installed and unreachable : the description mode ran SAM3
+    whatever the card designated. A designated model that READS a description (the rule the menu
+    applies, `app_modes.mode_model_filter`) runs through the common ensemble, the processed
+    description for its demand ; one left over from the classes mode does not, and SAM3 runs."""
+
+    LOCATE = 'huggingface:nvidia/LocateAnything-3B'
+
+    def setUp(self):
+        from wama.model_manager.models import AIModel
+        _catalogue_rows()
+        self.user = User.objects.create_user('anon_description', password='x')
+        AIModel.objects.update_or_create(model_key=self.LOCATE, defaults=dict(
+            name='LocateAnything-3B', model_type='vision', source='huggingface',
+            is_downloaded=True, capabilities={'task': 'zero-shot-object-detection',
+                                              'inputs_required': ['work_file', 'prompt']}))
+        AIModel.objects.update_or_create(model_key=YOLO_KEY, defaults=dict(
+            name=YOLO_KEY, model_type='vision', source='anonymizer', is_downloaded=True,
+            capabilities={'task': 'detect', 'inputs_required': ['work_file'],
+                          'classes': ['face']}))
+
+    def _kwargs(self, key):
+        from wama.anonymizer import tasks
+        media = Media.objects.create(user=self.user, file='anonymizer/x/input/sample.png',
+                                     model_to_use=key, target_mode='description',
+                                     sam3_prompt='logo, street sign')
+        with mock.patch('wama.common.backends.manager.backend_for_key', return_value=object), \
+                mock.patch('wama.common.utils.app_metadata.process_prompt_for',
+                           side_effect=lambda app, field, text, **kw: text), \
+                mock.patch.object(tasks, 'needs_parallel_detection',
+                                  return_value={'parallel': False, 'models': []}), \
+                mock.patch.object(tasks, '_console'):
+            return tasks._detection_kwargs(media, self.user)
+
+    def test_a_chosen_prompt_model_is_the_one_that_runs(self):
+        kwargs, used = self._kwargs(self.LOCATE)
+        self.assertEqual([self.LOCATE], [m['model_key'] for m in kwargs['models']])
+        self.assertFalse(kwargs['use_sam3'], 'SAM3 does not run in its place')
+        self.assertEqual('logo, street sign', kwargs['sam3_prompt'])
+        self.assertEqual([self.LOCATE], used)
+
+    def test_a_classes_model_left_over_lets_sam3_run(self):
+        kwargs, used = self._kwargs(YOLO_KEY)
+        self.assertTrue(kwargs['use_sam3'])
+        self.assertNotIn(self.LOCATE, [m.get('model_key') for m in kwargs.get('models') or []])
+
+
 class ModelKeysMigrationTest(SimpleTestCase):
     """`0036_model_to_use_catalog_keys`: PURE prefixing, `default` (which never designated a
     model) becomes « auto », a path of before is left for the reader."""

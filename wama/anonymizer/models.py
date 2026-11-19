@@ -74,6 +74,12 @@ class Media(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
     # (`detections.apply_corrections`) : une détection relancée ne les efface pas, et ils sont
     # la vérité terrain du banc. Surveillé par le Floutage : corriger le périme.
     detection_corrections = models.JSONField(blank=True, default=dict, db_default={})
+    # Ce qu'on NE floute PAS parmi ce que la détection a trouvé (2026-11-19, Fabien : « ne relancer
+    # que l'étape de floutage en sélectionnant ce que l'on veut flouter ») — les libellés DÉCOCHÉS
+    # de « Ce qu'on floute » (`Param.stores_unchecked`) : vide = tout ce qui est détecté est flouté,
+    # et un objet qu'une détection relancée trouve en plus l'est aussi. Le changer ne périme que le
+    # floutage (`stales`). `db_default` : le code d'avant le rechargement crée des médias sans lui.
+    blur_skip_labels = models.JSONField(blank=True, default=list, db_default=[])
     # Domaine DOCUMENT (2026-11-02) — l'étape commune « OCR des scans et des images »
     # (`ocr_process`) : son interrupteur, que le fichier PROPOSE (`Param.default_from`, propriété
     # `needs_ocr` : un PDF scanné le coche), et les lignes qu'elle a lues, relues par la détection
@@ -104,6 +110,11 @@ class Media(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
     roi_enlargement = models.FloatField(default=1.05)
     progressive_blur = models.IntegerField(default=25)
     detection_threshold = models.FloatField(default=0.25)
+    # La DÉCIMATION de l'analyse d'une vidéo (2026-11-19, Fabien) : une image analysée sur N — la
+    # décimation du monde Data. 0 = « auto » : chaque détecteur sa cadence déclarée
+    # (`DetectionBackend.ANALYSIS_RATE` — LocateAnything une image par seconde, YOLO et SAM3
+    # toutes). Les images sautées sont déduites par le floutage (`detections.by_frame`).
+    detection_decimation = models.PositiveIntegerField(default=0, db_default=0)
     interpolate_detections = models.BooleanField(default=True, verbose_name='Interpolate missing detections')
     max_interpolation_frames = models.IntegerField(default=15, verbose_name='Max frames to interpolate')
     # 2026-10-05 (décision de Fabien) : prolonger un objet avant sa première détection et après

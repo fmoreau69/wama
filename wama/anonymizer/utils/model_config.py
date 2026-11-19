@@ -32,7 +32,11 @@ logger = logging.getLogger(__name__)
 #: l'assiette d'ImageNet) et le retenir ne produirait aucune boîte à flouter. UNE déclaration
 #: (2026-10-07, déplacée de `model_selector`, qui importe `ultralytics` : `params.py` ne peut pas
 #: en dépendre au démarrage) — la couverture « auto », la vue et le select la lisent.
-DETECTION_TASKS = ('detect', 'segment')
+#: `zero-shot-object-detection` (2026-11-19) : la détection à VOCABULAIRE OUVERT — un modèle qui
+#: localise ce qu'une description nomme (LocateAnything-3B, le seul au catalogue ce jour-là). Le
+#: mode borne le menu : un modèle qui exige un prompt n'apparaît qu'en mode Description
+#: (`app_modes.mode_model_filter`) ; la couverture des classes ne le retient pas (aucune classe).
+DETECTION_TASKS = ('detect', 'segment', 'zero-shot-object-detection')
 
 #: Taille de l'ENSEMBLE par classe selon le curseur de précision (2026-10-10) — arbitrage de
 #: l'app, déclaré : anonymiser, c'est ne rien rater ; chaque modèle de plus sur une classe

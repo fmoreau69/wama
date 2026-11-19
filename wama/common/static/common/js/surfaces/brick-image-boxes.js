@@ -70,9 +70,21 @@
         /** La taille de ce qui est montré, dans l'espace des ZONES : celui du document de
          *  détections pour une vidéo (sa copie de lecture peut être d'une autre taille). */
         function mediaSize() {
-            if (!isVideo) return [img.naturalWidth, img.naturalHeight];
             var doc = ctx.reads().detections || {};
+            // Une image absente (fichier d'origine perdu) : les zones se cadrent sur la taille
+            // que le document de détections a mesurée — elles restent visibles et corrigeables.
+            if (!isVideo) return [img.naturalWidth || doc.width, img.naturalHeight || doc.height];
             return [doc.width || video.videoWidth, doc.height || video.videoHeight];
+        }
+        /** Le fichier d'origine que la page devrait montrer n'est plus là (card sans fichier, ou
+         *  fichier disparu du disque) : la page le DIT au lieu d'un fond vide sans un mot (relevé
+         *  par Fabien le 2026-11-19, card #1047 : ni l'image ni les zones). */
+        function sayGone() {
+            ctx.status('Le fichier d’origine n’est plus disponible (retiré ou perdu) — les ' +
+                       'zones restent affichées et corrigeables ; redéposer l’original pour ' +
+                       'les revoir sur l’image', 'error');
+            view.fitted = true;
+            fit();
         }
         var view = { scale: 1, x: 0, y: 0, fitted: false };
         var tool = 'select';
@@ -89,11 +101,14 @@
         tools.innerHTML =
             '<button type="button" class="btn btn-xs" data-tool="select" title="Sélection"><i class="fas fa-arrow-pointer"></i></button>' +
             '<button type="button" class="btn btn-xs" data-tool="add" title="Ajouter une zone"><i class="fas fa-vector-square"></i></button>' +
-            '<select class="form-select form-select-sm wama-brick-class" title="Classe des zones ajoutées"></select>' +
+            '<span data-slot="class"></span>' +
             (isVideo ? '<button type="button" class="btn btn-xs" data-scope="sequence" title="Toute la séquence : retirer ou rétablir un objet vaut pour toutes les images où il est (sinon : cette image seule)"><i class="fas fa-film"></i></button>' : '') +
             '<button type="button" class="btn btn-xs" data-act="fit" title="Image entière"><i class="fas fa-expand"></i></button>' +
             '<span class="wama-brick-zoom"></span>';
-        var classSelect = tools.querySelector('select');
+        // La classe d'une zone ajoutée : proposée (classes demandées, libellés du document) ou
+        // écrite (`WamaDetections.classPicker`, le même champ que le suivi d'un objet désigné).
+        var classPicker = D.classPicker(ctx, 'Classe des zones ajoutées');
+        tools.querySelector('[data-slot="class"]').replaceWith(classPicker.element);
         var zoomLabel = tools.querySelector('.wama-brick-zoom');
         tools.addEventListener('mousedown', function (e) { e.stopPropagation(); });
         tools.addEventListener('click', function (e) {
@@ -127,15 +142,8 @@
         }
 
         function fillClasses() {
-            var classes = (ctx.context().classes || []).filter(Boolean);
-            if (!classes.length) classes = ['face'];
-            classSelect.innerHTML = '';
-            classes.forEach(function (c) {
-                var o = document.createElement('option');
-                o.value = c; o.textContent = c;
-                classSelect.appendChild(o);
-            });
-            classSelect.disabled = !ctx.canEdit;
+            classPicker.refresh();
+            classPicker.input.disabled = !ctx.canEdit;
             tools.querySelector('[data-tool="add"]').disabled = !ctx.canEdit;
         }
 
@@ -365,8 +373,9 @@
             var big = done.box && (done.box[2] - done.box[0]) * view.scale >= 4
                 && (done.box[3] - done.box[1]) * view.scale >= 4;
             if (done.kind === 'draw' && big) {
-                var label = classSelect.value || 'face';
+                var label = classPicker.value();
                 ctx.edit(function (v) { return D.add(v, done.box, label, frameIndex); });
+                classPicker.refresh();       // une classe écrite à la main est désormais proposée
                 // La zone ajoutée est le DERNIER ajout : la sélectionner pour l'ajuster aussitôt.
                 var added = (ctx.value().added || []).length - 1;
                 ctx.select('a' + added);
@@ -503,10 +512,14 @@
                     axis.pause();
                     axis.attach(video, { fps: Number((ctx.reads().detections || {}).fps) || 0 });
                 }
+            } else {
+                sayGone();
             }
         } else {
             img.onload = function () { fit(); };
-            img.src = ctx.reads()[role] || '';
+            img.onerror = sayGone;
+            var src = ctx.reads()[role] || '';
+            if (src) img.src = src; else sayGone();
         }
         fillClasses();
         setTool('select');

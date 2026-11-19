@@ -1060,6 +1060,30 @@ un mécanisme qui gère les ko, Mo, Go, on pourrait y ajouter la gestion min/sec
   élément qui porte son fichier (`batch_settings.computed_values`) : la poser une fois au
   récepteur commun, après le `derive`, et retirer celle de l'anonymizer.
 
+### 7ter. Des CHOIX lus sur une SORTIE — `options_from` ; la liste de choix — `multiselect` (2026-11-19)
+
+**Demande de Fabien** : *« si l'utilisateur a choisi toutes les classes possibles mais ne veut flouter
+que certaines classes […] ne relancer que l'étape de floutage en sélectionnant ce que l'on veut
+flouter parmi toutes les classes/objets dont on a le résultat intermédiaire »*, uniforme pour les
+classes et les descriptions (SAM3, LocateAnything).
+
+- **`Param.options_from = {"port", "property"}`** : le pendant de `default_from`, sur une SORTIE.
+  Le port est un port de sortie du `FunctionSpec` d'un process de la card, la propriété une lecture
+  DÉCLARÉE de son type (`process_runs.OUTPUT_PROPERTIES` — `detections` : `labels`, les libellés du
+  document). Le schéma servi pour UN élément reçoit ses `choices`
+  (`process_pipeline.item_schema_choices`, par `AppPipeline.output_property`) ; le schéma déclaré
+  reste intact. Sans sortie encore : aucun choix, le champ dit son `empty_label`.
+- **Type `multiselect`** : une case par option (`WamaParams`, champ caché qui porte le JSON de la
+  liste) ; le serveur assainit (`param_schema._coerce_list`) et la lecture d'un formulaire le garde
+  entier (`batch_views.read_settings_payload`). **`stores_unchecked`** : la valeur liste les options
+  DÉCOCHÉES — une exclusion, pour qu'une option apparue plus tard parte cochée.
+- Pilote : « Ce qu'on floute » de l'anonymizer (`blur_skip_labels`, `stales=('blur',)`) — décocher
+  une classe refait le floutage seul (`detections.without_labels`), jamais la détection ; un objet
+  qu'une détection relancée trouve en plus est flouté. ⏳ `classes2blur`, la liste des classes à
+  DÉTECTER, reste hors schéma (sa modale à cases) : le type existe désormais pour l'y faire entrer.
+  Tenu par `tests_process_pipeline.WhatTheCardShowsTest` et le contrat générique des réglages d'un
+  élément (`tests_item_settings_contract`, une liste écrite par la modale et par l'inspecteur).
+
 ---
 
 ## 8. Les PROPORTIONS d'une image d'entrée face à la sortie — ⏳ chantier ouvert (2026-09-30)

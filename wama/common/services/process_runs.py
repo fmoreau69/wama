@@ -281,6 +281,62 @@ def output_lost(row) -> bool:
     return not os.path.exists(os.path.join(settings.MEDIA_ROOT, row.output_ref))
 
 
+#: Ce qu'une sortie de DÉTECTIONS a trouvé, par libellé (`{libellé: objets}`, 2026-11-19).
+FOUND_KEY = 'found'
+
+
+def found_by_label(output_type: str, output_ref: str):
+    """`{libellé: nombre d'objets}` d'une sortie dont le TYPE déclaré est `detections` — le
+    document relu une fois, quand la ligne passe en succès (`task_skeleton._line_summary`) ; None
+    pour un autre type, un fichier absent ou illisible. Commun à toute app qui rend des
+    détections (images, vidéos, passages d'un texte) : `detections.objects_by_label`."""
+    doc = _read_detections(output_type, output_ref)
+    if doc is None:
+        return None
+    from wama.common.utils import detections
+    return detections.objects_by_label(doc)
+
+
+def _read_detections(output_type: str, output_ref: str):
+    """Le document de détections d'une sortie de ce TYPE, ou None (autre type, fichier absent ou
+    illisible)."""
+    from wama.common.catalog.data_types import DataType
+    if output_type != DataType.DETECTIONS or not output_ref:
+        return None
+    from django.conf import settings
+    from wama.common.utils import detections
+    try:
+        return detections.read(os.path.join(settings.MEDIA_ROOT, output_ref))
+    except (OSError, ValueError):
+        return None
+
+
+#: Les PROPRIÉTÉS qu'une sortie typée donne à lire (`Param.options_from`) : `{type: (propriété,
+#: …)}`, chacune une fonction de `common/utils/detections` qui prend le document. Une propriété
+#: neuve se déclare ici, jamais dans une app.
+OUTPUT_PROPERTIES = {'detections': ('labels',)}
+
+
+def output_property(output_type: str, output_ref: str, prop: str) -> list:
+    """La propriété `prop` de la sortie `output_ref` (relative à `MEDIA_ROOT`) d'un type déclaré —
+    `[]` si ce type ne la déclare pas ou si le fichier manque."""
+    if prop not in OUTPUT_PROPERTIES.get(output_type, ()):
+        return []
+    doc = _read_detections(output_type, output_ref)
+    if doc is None:
+        return []
+    from wama.common.utils import detections
+    return list(getattr(detections, prop)(doc))
+
+
+def found_rows(summary) -> list:
+    """Ce que la bande d'une card écrit de `summary[FOUND_KEY]` : `[{label, count}]`, les plus
+    nombreux d'abord — vide sans rien de trouvé."""
+    found = (summary or {}).get(FOUND_KEY) or {}
+    return [{'label': label, 'count': int(n)}
+            for label, n in sorted(found.items(), key=lambda kv: (-int(kv[1]), kv[0]))]
+
+
 def annotate(item, node_id: str = MAIN_NODE, *, instance_key: str = '', **values):
     """Ajoute `values` à ce que la ligne retient de sa sortie (`output_summary`), sans toucher à
     son état — ce qui se MESURE sur une sortie après coup (les mesures sans référence,

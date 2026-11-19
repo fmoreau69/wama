@@ -26,6 +26,16 @@ n'est lancée depuis cette session (crashs hôte, cf. INFRA_WSL_VS_WINDOWS). Ce 
 la résolution du modèle vers ce backend, la disponibilité déclarative, la présence des poids, et
 la résolution de la config par transformers. Ce qui ne l'est pas : `load()` et `process()` en
 conditions réelles. *Un backend qui n'a jamais tourné se dit tel quel.*
+
+DÉTECTEUR DE L'ANONYMIZER (2026-11-19, décision de Fabien : « l'anonymizer image/vidéo ne permet
+pas de l'utiliser ») : un `FrameDetectionBackend` comme SAM3, EgoBlur ou RT-DETR — la base
+commune fait la boucle (image ou vidéo, progression, aperçu) et le document `detections` ; ce
+backend n'écrit que `detect_frames`. La DEMANDE vient de la description de la card (traitée en
+concepts anglais par la pipeline de prompts, `sam3_prompt`), une catégorie par concept : la
+classe officielle rend des boîtes SANS dire leur catégorie, chaque concept est donc demandé à part
+et ses boîtes portent son nom — le libellé qu'un réglage « ce qu'on floute » relira. Sur une
+vidéo, il analyse UNE image par seconde par défaut (`ANALYSIS_RATE`, décision de Fabien ; la
+décimation de la card la remplace) : les images sautées sont déduites (`detections.by_frame`).
 """
 from __future__ import annotations
 
@@ -33,7 +43,7 @@ import logging
 from pathlib import Path
 from typing import List, Optional
 
-from wama.common.backends.base import BaseModelBackend
+from wama.common.backends.detection_base import FrameDetectionBackend
 
 logger = logging.getLogger(__name__)
 
@@ -53,8 +63,14 @@ def _dossier_poids() -> Path:
         Path(settings.AI_MODELS_DIR) / 'models' / 'vision' / 'locate-anything')
 
 
-class LocateAnythingBackend(BaseModelBackend):
+class LocateAnythingBackend(FrameDetectionBackend):
     """Détection open-vocabulary : l'utilisateur décrit ce qu'il cherche, le modèle le localise."""
+
+    #: Une image analysée par seconde d'une vidéo, sous la décimation « auto » de la card (le VLM
+    #: met 1,5 à 7 s par image et par concept) — décision de Fabien, 2026-11-19.
+    ANALYSIS_RATE = 1.0
+    #: Le modèle ne rend pas de score : une boîte rendue est une boîte trouvée.
+    DEFAULT_THRESHOLD = 0.0
 
     #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
     ENGINE = 'transformers'
@@ -90,10 +106,12 @@ class LocateAnythingBackend(BaseModelBackend):
     recommended_vram_gb = 9.4
     min_vram_gb = 8
 
-    def __init__(self):
+    def __init__(self, source_dir=None, destination_dir=None):
         super().__init__()
         self._worker = None
         self._current_model = None
+        self._concepts = []            # la demande d'une détection (`prepare`)
+        self._prompt = ''
 
     # ── Cycle de vie ────────────────────────────────────────────────────────────────
     def load(self, model: Optional[str] = None) -> bool:
@@ -149,8 +167,68 @@ class LocateAnythingBackend(BaseModelBackend):
             pass
 
     # ── Verbe métier ────────────────────────────────────────────────────────────────
-    def process(self, image_path: str = None, prompt: str = '', task: str = 'detect',
-                generation_mode: str = 'hybrid', **kwargs) -> dict:
+    def process(self, **kwargs):
+        """Deux verbes, lus à ce qu'on lui donne : une IMAGE seule et une tâche du modèle
+        (`image_path`, `prompt`, `task` — `locate`), ou un MÉDIA à anonymiser (`media_path` : le
+        document `detections` de la base commune, `FrameDetectionBackend.detect`)."""
+        if 'media_path' in kwargs:
+            return self.detect(**kwargs)
+        return self.locate(**kwargs)
+
+    # ── Détecteur de l'anonymizer (`FrameDetectionBackend`) ──────────────────────────
+    @staticmethod
+    def concepts_of(prompt: str) -> list:
+        """Les CONCEPTS d'une description traitée (« face, license plate ») — une catégorie par
+        concept, dans l'ordre, sans doublon."""
+        out = []
+        for concept in (prompt or '').split(','):
+            concept = concept.strip()
+            if concept and concept not in out:
+                out.append(concept)
+        return out
+
+    def prepare(self, **kwargs) -> None:
+        """La DEMANDE vient de la description de la card (`sam3_prompt`, traitée en concepts
+        anglais par la pipeline de prompts) ; une description vide se dit avant tout chargement."""
+        self._prompt = kwargs.get('sam3_prompt') or kwargs.get('prompt') or ''
+        self._concepts = self.concepts_of(self._prompt)
+        if not self._concepts:
+            raise ValueError('LocateAnything : description vide — décrire ce qu’on cherche')
+        if not self.load():
+            raise RuntimeError('LocateAnything : modèle non chargé')
+
+    def requested_classes(self, **kwargs) -> list:
+        """Rien à filtrer : ses libellés SONT les concepts demandés."""
+        return []
+
+    def document_meta(self, **kwargs) -> dict:
+        return {'engine': self.name, 'models': [f'huggingface:{HF_REPO}'],
+                'prompt': self._prompt}
+
+    def detect_frames(self, images, threshold: float) -> list:
+        """Chaque image (BGR OpenCV), un appel par concept : ses boîtes, au nom du concept."""
+        import cv2
+        from PIL import Image
+
+        from wama.common.utils import detections as dets
+        out = []
+        for frame in images:
+            height, width = frame.shape[:2]
+            image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+            found = []
+            for concept in self._concepts:
+                answer = self._worker.detect(image, [concept], generation_mode='hybrid',
+                                             verbose=False).get('answer') or ''
+                for box in self._worker.parse_boxes(answer, width, height):
+                    valid = dets.valid_box([box['x1'], box['y1'], box['x2'], box['y2']],
+                                           frame.shape)
+                    if valid:
+                        found.append(dets.detection(box=valid, label=concept, conf=1.0))
+            out.append(found)
+        return out
+
+    def locate(self, image_path: str = None, prompt: str = '', task: str = 'detect',
+               generation_mode: str = 'hybrid', **kwargs) -> dict:
         """Localise ce que `prompt` décrit dans `image_path`.
 
         Rend la forme NORMALISÉE que la brique commune de détection attendra (ROADMAP §17

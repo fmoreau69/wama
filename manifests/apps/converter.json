@@ -1017,6 +1017,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "",
             "help": "",
             "help_fallback": null,
@@ -1034,6 +1035,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1049,6 +1051,7 @@
               "convert"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "hidden",
             "unit": "",
             "write_from": null
@@ -1068,6 +1071,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "sortie",
             "help": "",
             "help_fallback": {
@@ -1122,6 +1126,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1137,6 +1142,7 @@
               "convert"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "select",
             "unit": "",
             "write_from": null
@@ -1160,6 +1166,7 @@
               "item": "settingsQualityIntent",
               "panel": "panelQualityIntent"
             },
+            "empty_label": "",
             "group": "sortie",
             "help": "Guide les réglages d'encodage : à gauche léger et rapide (web), à droite la meilleure qualité. Les réglages fins restent modifiables.",
             "help_fallback": null,
@@ -1177,6 +1184,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1200,6 +1208,7 @@
               "enhance"
             ],
             "step": 1,
+            "stores_unchecked": false,
             "type": "intent",
             "unit": "",
             "write_from": null
@@ -1218,6 +1227,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "image",
             "help": "Qualité d'encodage de l'image (1–100) — posée par le curseur, retouchable ici.",
             "help_fallback": null,
@@ -1235,6 +1245,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1253,6 +1264,7 @@
               "convert"
             ],
             "step": 1,
+            "stores_unchecked": false,
             "type": "range",
             "unit": "",
             "write_from": null
@@ -1272,6 +1284,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "image",
             "help": "Vide = suit la hauteur (proportions gardées) ; les deux vides = inchangé.",
             "help_fallback": null,
@@ -1289,6 +1302,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1307,6 +1321,7 @@
               "convert"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "number",
             "unit": "",
             "write_from": null
@@ -1326,6 +1341,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "image",
             "help": "Vide = suit la largeur (proportions gardées) ; les deux vides = inchangé.",
             "help_fallback": null,
@@ -1343,6 +1359,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1361,6 +1378,7 @@
               "convert"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "number",
             "unit": "",
             "write_from": null
@@ -1397,6 +1415,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "transform",
             "help": "",
             "help_fallback": null,
@@ -1414,6 +1433,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1435,6 +1455,7 @@
               "convert"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "select",
             "unit": "",
             "write_from": null
@@ -1454,6 +1475,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "transform",
             "help": "",
             "help_fallback": null,
@@ -1471,6 +1493,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1492,6 +1515,7 @@
               "convert"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "toggle",
             "unit": "",
             "write_from": null
@@ -1511,6 +1535,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "transform",
             "help": "",
             "help_fallback": null,
@@ -1528,6 +1553,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1549,6 +1575,7 @@
               "convert"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "toggle",
             "unit": "",
             "write_from": null
@@ -1568,6 +1595,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "video",
             "help": "0 = sans perte, 23 = défaut, 51 = pire qualité.",
             "help_fallback": null,
@@ -1585,6 +1613,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1603,6 +1632,7 @@
               "convert"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "number",
             "unit": "",
             "write_from": null
@@ -1622,6 +1652,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "video",
             "help": "Vide = inchangé.",
             "help_fallback": null,
@@ -1639,6 +1670,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1657,6 +1689,7 @@
               "convert"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "number",
             "unit": "",
             "write_from": null
@@ -1676,6 +1709,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "video",
             "help": "Sortie GIF uniquement.",
             "help_fallback": null,
@@ -1693,6 +1727,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1711,6 +1746,7 @@
               "convert"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "number",
             "unit": "",
             "write_from": null
@@ -1730,6 +1766,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "video",
             "help": "Sortie GIF uniquement — hauteur calculée pour garder les proportions.",
             "help_fallback": null,
@@ -1747,6 +1784,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1765,6 +1803,7 @@
               "convert"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "number",
             "unit": "",
             "write_from": null
@@ -1805,6 +1844,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "audio",
             "help": "",
             "help_fallback": null,
@@ -1822,6 +1862,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1840,6 +1881,7 @@
               "convert"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "select",
             "unit": "",
             "write_from": null
@@ -1876,6 +1918,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "audio",
             "help": "",
             "help_fallback": null,
@@ -1893,6 +1936,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1911,6 +1955,7 @@
               "convert"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "select",
             "unit": "",
             "write_from": null
@@ -1943,6 +1988,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "audio",
             "help": "",
             "help_fallback": null,
@@ -1960,6 +2006,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1978,6 +2025,7 @@
               "convert"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "select",
             "unit": "",
             "write_from": null
@@ -1997,6 +2045,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "audio",
             "help": "",
             "help_fallback": null,
@@ -2014,6 +2063,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -2032,6 +2082,7 @@
               "convert"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "toggle",
             "unit": "",
             "write_from": null
@@ -2064,6 +2115,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "posttraitement",
             "help": "Post-traitement IA via l'app enhancer — appliqué après la conversion (charge un modèle GPU).",
             "help_fallback": null,
@@ -2081,6 +2133,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -2099,6 +2152,7 @@
               "enhance"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "select",
             "unit": "",
             "write_from": null
@@ -2118,6 +2172,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "posttraitement",
             "help": "Post-traitement IA via l'app enhancer — appliqué après la conversion (charge un modèle GPU).",
             "help_fallback": null,
@@ -2135,6 +2190,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -2153,6 +2209,7 @@
               "enhance"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "toggle",
             "unit": "",
             "write_from": null
@@ -2172,6 +2229,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "posttraitement",
             "help": "Post-traitement IA via l'app enhancer — appliqué après la conversion (charge un modèle GPU).",
             "help_fallback": null,
@@ -2189,6 +2247,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -2210,6 +2269,7 @@
               "enhance"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "toggle",
             "unit": "",
             "write_from": null

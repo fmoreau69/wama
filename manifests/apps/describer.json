@@ -1041,6 +1041,7 @@
               "item": "settingsOutputFormat",
               "panel": "output_style"
             },
+            "empty_label": "",
             "group": "",
             "help": "Niveau de détail de la description générée.",
             "help_fallback": null,
@@ -1058,6 +1059,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1073,6 +1075,7 @@
               "describe"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "select",
             "unit": "",
             "write_from": null
@@ -1109,6 +1112,7 @@
               "item": "settingsOutputLanguage",
               "panel": "output_language"
             },
+            "empty_label": "",
             "group": "",
             "help": "",
             "help_fallback": null,
@@ -1126,6 +1130,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1143,6 +1148,7 @@
               "coherence"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "select",
             "unit": "",
             "write_from": null
@@ -1166,6 +1172,7 @@
               "item": "settingsMaxLength",
               "panel": "max_length"
             },
+            "empty_label": "",
             "group": "",
             "help": "Longueur maximale (caractères) de la description.",
             "help_fallback": null,
@@ -1183,6 +1190,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1198,6 +1206,7 @@
               "describe"
             ],
             "step": 50,
+            "stores_unchecked": false,
             "type": "range",
             "unit": "",
             "write_from": null
@@ -1221,6 +1230,7 @@
               "item": "settingsAsrModel",
               "panel": "asr_model"
             },
+            "empty_label": "",
             "group": "",
             "help": "Clé de catalogue du modèle de transcription, ou « auto ».",
             "help_fallback": {
@@ -1240,6 +1250,7 @@
             "options_abilities": false,
             "options_auto": true,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1266,6 +1277,7 @@
               "transcribe"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "select",
             "unit": "",
             "write_from": null
@@ -1289,6 +1301,7 @@
               "item": "settingsQualityIntent",
               "panel": "quality_intent"
             },
+            "empty_label": "",
             "group": "",
             "help": "Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources.",
             "help_fallback": null,
@@ -1306,6 +1319,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1324,6 +1338,7 @@
               "transcribe"
             ],
             "step": 1,
+            "stores_unchecked": false,
             "type": "intent",
             "unit": "",
             "write_from": null
@@ -1347,6 +1362,7 @@
               "item": "settingsVisionModel",
               "panel": "vision_model"
             },
+            "empty_label": "",
             "group": "",
             "help": "Clé de catalogue du modèle de vision, ou « auto ».",
             "help_fallback": {
@@ -1366,6 +1382,7 @@
             "options_abilities": false,
             "options_auto": "silent",
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1385,6 +1402,7 @@
               "describe"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "select",
             "unit": "",
             "write_from": null
@@ -1425,6 +1443,7 @@
               "item": "settingsVisionTemperature",
               "panel": "vision_temperature"
             },
+            "empty_label": "",
             "group": "",
             "help": "Le hasard du modèle. À 0, même entrée, même résultat ; plus haut, le résultat varie d'un lancement à l'autre. Un modèle distant ne garantit pas toujours le même résultat, même à 0.",
             "help_fallback": null,
@@ -1442,6 +1461,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1458,6 +1478,7 @@
               "describe"
             ],
             "step": 0.05,
+            "stores_unchecked": false,
             "type": "temperature",
             "unit": "",
             "write_from": null
@@ -1489,6 +1510,7 @@
               "item": "settingsVisionSeed",
               "panel": "vision_seed"
             },
+            "empty_label": "",
             "group": "",
             "help": "Vide : un tirage neuf à chaque lancement. Une graine fixée, avec les mêmes réglages et le même modèle, redonne le même résultat sur cette machine.",
             "help_fallback": null,
@@ -1506,6 +1528,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1522,6 +1545,7 @@
               "describe"
             ],
             "step": 1,
+            "stores_unchecked": false,
             "type": "seed",
             "unit": "",
             "write_from": null
@@ -1553,6 +1577,7 @@
               "item": "settingsVisionTopP",
               "panel": "vision_top_p"
             },
+            "empty_label": "",
             "group": "",
             "help": "Le modèle ne tire que parmi ses choix les plus probables, jusqu'à cette part du total : plus bas, un résultat plus sûr et moins varié ; 1, tous les choix.",
             "help_fallback": null,
@@ -1570,6 +1595,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1586,6 +1612,7 @@
               "describe"
             ],
             "step": 0.05,
+            "stores_unchecked": false,
             "type": "top_p",
             "unit": "",
             "write_from": null
@@ -1609,6 +1636,7 @@
               "item": "settingsLlmModel",
               "panel": "llm_model"
             },
+            "empty_label": "",
             "group": "",
             "help": "Clé de catalogue du modèle de langage, ou « auto ».",
             "help_fallback": {
@@ -1628,6 +1656,7 @@
             "options_abilities": false,
             "options_auto": "silent",
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1647,6 +1676,7 @@
               "coherence"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "select",
             "unit": "",
             "write_from": null
@@ -1687,6 +1717,7 @@
               "item": "settingsLlmTemperature",
               "panel": "llm_temperature"
             },
+            "empty_label": "",
             "group": "",
             "help": "Le hasard du modèle. À 0, même entrée, même résultat ; plus haut, le résultat varie d'un lancement à l'autre. Un modèle distant ne garantit pas toujours le même résultat, même à 0.",
             "help_fallback": null,
@@ -1704,6 +1735,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1721,6 +1753,7 @@
               "coherence"
             ],
             "step": 0.05,
+            "stores_unchecked": false,
             "type": "temperature",
             "unit": "",
             "write_from": null
@@ -1752,6 +1785,7 @@
               "item": "settingsLlmSeed",
               "panel": "llm_seed"
             },
+            "empty_label": "",
             "group": "",
             "help": "Vide : un tirage neuf à chaque lancement. Une graine fixée, avec les mêmes réglages et le même modèle, redonne le même résultat sur cette machine.",
             "help_fallback": null,
@@ -1769,6 +1803,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1786,6 +1821,7 @@
               "coherence"
             ],
             "step": 1,
+            "stores_unchecked": false,
             "type": "seed",
             "unit": "",
             "write_from": null
@@ -1817,6 +1853,7 @@
               "item": "settingsLlmTopP",
               "panel": "llm_top_p"
             },
+            "empty_label": "",
             "group": "",
             "help": "Le modèle ne tire que parmi ses choix les plus probables, jusqu'à cette part du total : plus bas, un résultat plus sûr et moins varié ; 1, tous les choix.",
             "help_fallback": null,
@@ -1834,6 +1871,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1851,6 +1889,7 @@
               "coherence"
             ],
             "step": 0.05,
+            "stores_unchecked": false,
             "type": "top_p",
             "unit": "",
             "write_from": null
@@ -1874,6 +1913,7 @@
               "item": "settingsGenerateSummary",
               "panel": "globalGenerateSummary"
             },
+            "empty_label": "",
             "group": "",
             "help": "",
             "help_fallback": null,
@@ -1891,6 +1931,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1904,6 +1945,7 @@
             "show_if": null,
             "stales": null,
             "step": null,
+            "stores_unchecked": false,
             "type": "toggle",
             "unit": "",
             "write_from": null
@@ -1932,6 +1974,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "",
             "help": "",
             "help_fallback": null,
@@ -1949,6 +1992,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1964,6 +2008,7 @@
               "summarize"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "radio",
             "unit": "",
             "write_from": null
@@ -1987,6 +2032,7 @@
               "item": "settingsVerifyCoherence",
               "panel": "globalVerifyCoherence"
             },
+            "empty_label": "",
             "group": "",
             "help": "",
             "help_fallback": null,
@@ -2004,6 +2050,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -2017,6 +2064,7 @@
             "show_if": null,
             "stales": null,
             "step": null,
+            "stores_unchecked": false,
             "type": "toggle",
             "unit": "",
             "write_from": null

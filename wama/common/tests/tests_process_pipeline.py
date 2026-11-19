@@ -1500,6 +1500,47 @@ class WhatTheCardShowsTest(TestCase):
         decorate(item)
         self.assertEqual([], item.notice_chips, 'a failed line says nothing of its old result')
 
+    def test_a_detections_output_gives_its_labels_to_a_setting_and_its_counts_to_the_strip(self):
+        """2026-11-19 (Fabien : see on the card what was found ; choose what to blur among the
+        intermediate result, without detecting again). Read from the DECLARED output type, for any
+        app : a `multiselect` setting whose `options_from` names the output port receives its
+        labels for THIS element, and the strip lists what the detection found, most first."""
+        from types import SimpleNamespace
+        from wama.common.catalog.function_catalog import PortSpec
+        from wama.common.services.process_pipeline import item_schema_choices
+        from wama.common.utils import detections as dets
+        doc = dets.new_document(media='image', width=10, height=10)
+        dets.add(doc, 0, [dets.detection(box=[1, 1, 4, 4], label='face'),
+                          dets.detection(box=[5, 5, 9, 9], label='logo'),
+                          dets.detection(box=[1, 5, 4, 9], label='face')])
+        dets.write(os.path.join(self.tmp, 'found.json'), doc)
+        pipeline = AppPipeline('demo_pipeline', (
+            ProcessSpec('plan', label='Détection', outputs=('found_file',)),), label='Demo')
+        APP_PIPELINES['demo_pipeline'] = pipeline
+        self.addCleanup(APP_PIPELINES.pop, 'demo_pipeline', None)
+        item = _Element(status=JOB_SUCCESS, found_file=SimpleNamespace(name='found.json'))
+        schema = [{'name': 'skip', 'type': 'multiselect',
+                   'options_from': {'port': 'detections', 'property': 'labels'}},
+                  {'name': 'other', 'type': 'text'}]
+        with mock.patch.object(AppPipeline, '_ports',
+                               return_value=([], [PortSpec('detections', 'detections')])):
+            served = item_schema_choices(schema, item)
+            self.assertEqual([['face', 'face'], ['logo', 'logo']], served[0]['choices'])
+            self.assertNotIn('choices', schema[0], 'the declared schema is untouched')
+            self.assertIs(schema[1], served[1])
+            self.assertEqual([], pipeline.output_property(item, 'another_port', 'labels'))
+            item.found_file = SimpleNamespace(name='')
+            self.assertEqual([], item_schema_choices(schema, item)[0]['choices'],
+                             'nothing rendered yet : no choice, the field says so')
+        self.assertEqual({'face': 2, 'logo': 1}, process_runs.found_by_label('detections', 'found.json'))
+        self.assertIsNone(process_runs.found_by_label('video', 'found.json'), 'another type')
+        process_runs.start(item, 'plan')
+        process_runs.succeed(item, 'plan', output_summary={process_runs.FOUND_KEY: {'logo': 1, 'face': 2}})
+        self.assertEqual([{'label': 'face', 'count': 2}, {'label': 'logo', 'count': 1}],
+                         pipeline.card_rows(item)[0]['found'])
+        process_runs.fail(item, 'plan', 'boom')
+        self.assertEqual([], pipeline.card_rows(item)[0]['found'], 'a failed line found nothing')
+
     def test_the_requested_model_is_declared_once_and_read_by_the_card(self):
         """Each app told the strip, the progress view and the ▶ of a process which model the
         card asks for (2026-10-04). It is declared ONCE (`model_of`) ; `card_view` reads it when
@@ -1663,6 +1704,25 @@ class SkeletonRunsThePipelineTest(TestCase):
         process_runs.mark_stale(item, ['plan'])
         self._run(item, plan=saying())
         self.assertEqual([], process_runs.line(item, 'plan').output_summary['notices'])
+
+    def test_a_line_that_renders_detections_keeps_what_it_found(self):
+        """2026-11-19 : the skeleton reads the DECLARED output type of the process — a detections
+        document is counted by label on its line ; another type keeps no count."""
+        from django.conf import settings
+        from wama.common.utils import detections as dets
+        rel = f'found_line_{os.getpid()}.json'
+        path = Path(settings.MEDIA_ROOT, rel)
+        doc = dets.new_document(media='image', width=10, height=10)
+        dets.add(doc, 0, [dets.detection(box=[1, 1, 4, 4], label='face')])
+        dets.write(str(path), doc)
+        self.addCleanup(path.unlink, missing_ok=True)
+        item = self._element('pipeline_found')
+        typed = lambda spec: 'detections' if spec.key == 'plan' else 'video'   # noqa: E731
+        with mock.patch.object(AppPipeline, 'output_type', side_effect=typed):
+            self._run(item, plan=lambda element, ctx: {'label': 'plan.out', 'output_ref': rel},
+                      render=lambda element, ctx: {'label': 'render.out', 'output_ref': rel})
+        self.assertEqual({'face': 1}, process_runs.line(item, 'plan').output_summary['found'])
+        self.assertNotIn('found', process_runs.line(item, 'render').output_summary)
 
     def test_the_card_reports_every_model_its_processes_employed(self):
         with mock.patch('wama.common.utils.task_skeleton._signal') as signal:

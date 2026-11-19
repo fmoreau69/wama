@@ -32,12 +32,13 @@
         pickBtn.dataset.tracking = 'pick';
         pickBtn.innerHTML = '<i class="fas fa-crosshairs"></i> Désigner un objet';
         pickBtn.title = 'Puis cliquer sur l’objet dans le média : il est segmenté et suivi, ses zones proposées';
-        var classSelect = document.createElement('select');
-        classSelect.className = 'form-select form-select-sm';
+        // La classe des zones proposées : le champ commun (`WamaDetections.classPicker`) — une
+        // classe proposée (demandée, ou déjà trouvée) ou écrite à la main.
+        var classPicker = global.WamaDetections.classPicker(ctx, 'Classe des zones proposées');
+        var classSelect = classPicker.input;
         classSelect.dataset.tracking = 'class';
-        classSelect.title = 'Classe des zones proposées';
         head.appendChild(pickBtn);
-        head.appendChild(classSelect);
+        head.appendChild(classPicker.element);
         var list = document.createElement('div');
         list.className = 'wama-tracking-list';
         body.appendChild(head);
@@ -46,16 +47,7 @@
         var targets = [];            // {id, i, point, label, frames: [{i, box}], done, error}
         var counter = 0, next = -1, polling = null, lastPost = 0, picking = false;
 
-        function fillClasses() {
-            var classes = (ctx.context().classes || []).filter(Boolean);
-            if (!classes.length) classes = ['face'];
-            classSelect.innerHTML = '';
-            classes.forEach(function (c) {
-                var o = document.createElement('option');
-                o.value = c; o.textContent = c;
-                classSelect.appendChild(o);
-            });
-        }
+        function fillClasses() { classPicker.refresh(); }
 
         function available() { return !!(routes.track_cursor && routes.track_results && ctx.canEdit); }
 
@@ -174,7 +166,7 @@
             picking = false;
             counter += 1;
             targets.push({ id: 't' + Date.now().toString(36) + counter, i: p.i || 0, point: p.point,
-                           label: classSelect.value || 'face', frames: [], done: false, error: '' });
+                           label: classPicker.value(), frames: [], done: false, error: '' });
             render();
             // L'index des résultats d'abord (une page ne rejoue pas ceux d'avant), puis le curseur.
             (next < 0 ? fetch(routes.track_results + '?since=-1', { credentials: 'same-origin' })

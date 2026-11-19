@@ -657,6 +657,28 @@ class CorrectionsTest(SimpleTestCase):
         deduced = {i: [d['label'] for d in found if d.get('interpolated')] for i, found in frames.items()}
         self.assertEqual({3: ['face'], 4: ['face']}, {i: v for i, v in deduced.items() if v})
 
+    def test_a_video_counts_its_objects_not_its_boxes(self):
+        """2026-11-19 (the card says what was FOUND) : a face seen on five frames and a plate on
+        seven are two objects — the links of the interpolation, a one-second gap crossed by
+        default ; an image counts its detections."""
+        doc = self._two_objects()
+        self.assertEqual({'face': 1, 'plate': 1}, dets.objects_by_label(doc))
+        self.assertEqual({'face': 2, 'plate': 1}, dets.objects_by_label(doc, window=0),
+                         'a gap that is not crossed opens a second object')
+        self.assertEqual({'face': 2}, dets.objects_by_label(self._doc()))
+        self.assertEqual(['face', 'plate'], dets.labels(doc))
+
+    def test_skipped_labels_leave_the_other_objects_and_the_document_whole(self):
+        """« Ce qu'on floute » : the unchecked labels stay clear, every other detection is kept,
+        a frame left empty disappears, and the detector's document is untouched."""
+        doc = self._two_objects()
+        kept = dets.without_labels(doc, ['face'])
+        self.assertEqual({'plate'}, {d['label'] for f in kept['frames'] for d in f['d']})
+        self.assertEqual(list(range(7)), sorted(f['i'] for f in kept['frames']))
+        self.assertEqual({'face', 'plate'}, {d['label'] for f in doc['frames'] for d in f['d']})
+        self.assertIs(doc, dets.without_labels(doc, []), 'nothing skipped : the document itself')
+        self.assertEqual([], dets.without_labels(doc, ['face', 'plate'])['frames'])
+
 
 class AgreementTest(SimpleTestCase):
     """`boxes_at` + `support` — l'accord géométrique entre sorties (M2/M6, 2026-10-16)."""

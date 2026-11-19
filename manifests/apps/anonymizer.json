@@ -255,6 +255,25 @@
             },
             {
               "args": [],
+              "class": "django.db.models.JSONField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "db_default": {
+                  "expr": "[]",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "list",
+                  "imports": []
+                }
+              },
+              "name": "blur_skip_labels"
+            },
+            {
+              "args": [],
               "class": "django.db.models.BooleanField",
               "kwargs": {
                 "db_default": {
@@ -451,6 +470,21 @@
                 }
               },
               "name": "detection_threshold"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.PositiveIntegerField",
+              "kwargs": {
+                "db_default": {
+                  "expr": "0",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "0",
+                  "imports": []
+                }
+              },
+              "name": "detection_decimation"
             },
             {
               "args": [],
@@ -1031,7 +1065,8 @@
         "anonymizer:yolo:yolov9e-face-lindevs.pt",
         "anonymizer:yolo:yolov9m-face-lindevs.pt",
         "anonymizer:yolo:yolov9s-face-lindevs.pt",
-        "anonymizer:yolo:yolov9t-face-lindevs.pt"
+        "anonymizer:yolo:yolov9t-face-lindevs.pt",
+        "huggingface:nvidia/LocateAnything-3B"
       ]
     },
     "modes": {
@@ -1106,6 +1141,7 @@
             },
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "",
             "help": "Lit par OCR les pages d'un PDF qui n'ont pas de texte (un scan) et le texte dessiné dans ses images, pour y trouver les données personnelles et les occulter à leur place. Coché d'office quand le document a des pages scannées — décochable ; à cocher pour lire le texte de ses images.",
             "help_fallback": null,
@@ -1123,6 +1159,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1136,6 +1173,7 @@
             "show_if": null,
             "stales": null,
             "step": null,
+            "stores_unchecked": false,
             "type": "toggle",
             "unit": "",
             "write_from": null
@@ -1166,6 +1204,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "mode",
             "help": "Classes : une liste d'objets à flouter. Description : ce qu'il faut flouter, décrit en texte.",
             "help_fallback": null,
@@ -1183,6 +1222,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1198,6 +1238,7 @@
               "detect"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "radio",
             "unit": "",
             "write_from": null
@@ -1219,6 +1260,7 @@
             "dom_id": {
               "panel": "user_setting_sam3_prompt"
             },
+            "empty_label": "",
             "group": "description",
             "help": "Ex. « blur all faces and license plates ».",
             "help_fallback": null,
@@ -1236,6 +1278,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1254,6 +1297,7 @@
               "detect"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "textarea",
             "unit": "",
             "write_from": null
@@ -1275,6 +1319,7 @@
             "dom_id": {
               "panel": "user_setting_model_to_use"
             },
+            "empty_label": "",
             "group": "model",
             "help": "Automatique : choisi au lancement selon le curseur et les classes.",
             "help_fallback": null,
@@ -1292,6 +1337,7 @@
             "options_abilities": false,
             "options_auto": true,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "task",
             "options_mode": {
               "app": "anonymizer",
@@ -1300,7 +1346,7 @@
             },
             "options_ports": false,
             "options_query": {
-              "task": "detect,segment"
+              "task": "detect,segment,zero-shot-object-detection"
             },
             "options_resolution": null,
             "options_source": "catalog",
@@ -1313,6 +1359,7 @@
               "detect"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "select",
             "unit": "",
             "write_from": null
@@ -1334,6 +1381,7 @@
             "dom_id": {
               "panel": "user_setting_precision_level"
             },
+            "empty_label": "",
             "group": "model",
             "help": "5 paliers effectifs (n/s/m/l/x) ; à partir de 50, segmentation fine.",
             "help_fallback": null,
@@ -1351,6 +1399,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1366,6 +1415,7 @@
               "detect"
             ],
             "step": 5,
+            "stores_unchecked": false,
             "type": "intent",
             "unit": "",
             "write_from": null
@@ -1387,6 +1437,7 @@
             "dom_id": {
               "panel": "user_setting_detection_threshold"
             },
+            "empty_label": "",
             "group": "comment",
             "help": "",
             "help_fallback": null,
@@ -1404,6 +1455,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1419,7 +1471,117 @@
               "detect"
             ],
             "step": 0.05,
+            "stores_unchecked": false,
             "type": "range",
+            "unit": "",
+            "write_from": null
+          },
+          {
+            "advanced": true,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": 0,
+            "default_from": null,
+            "display_format": "",
+            "dom_id": "",
+            "empty_label": "",
+            "group": "model",
+            "help": "Une image analysée sur N d'une vidéo (1 : toutes). 0 : automatique — chaque modèle sa cadence (LocateAnything : une image par seconde ; YOLO, SAM3 : toutes). Les images sautées sont déduites des images analysées voisines.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-forward-fast",
+            "inline": false,
+            "label": "Décimation de l'analyse (vidéo)",
+            "max": 250,
+            "max_label": "",
+            "min": 0,
+            "min_label": "",
+            "name": "detection_decimation",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_from": null,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "remember": null,
+            "section": "settings",
+            "show_if": null,
+            "stales": [
+              "detect"
+            ],
+            "step": 1,
+            "stores_unchecked": false,
+            "type": "number",
+            "unit": "",
+            "write_from": null
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item"
+            ],
+            "default": [],
+            "default_from": null,
+            "display_format": "",
+            "dom_id": "",
+            "empty_label": "Rien n'est encore détecté sur ce média : la détection dira ce qu'on peut flouter.",
+            "group": "mode",
+            "help": "Ce que la détection a trouvé sur ce média. Décocher ce qu'on veut laisser net : seul le floutage est refait, sans redétecter.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-eye-slash",
+            "inline": false,
+            "label": "Ce qu'on floute",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "blur_skip_labels",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_from": {
+              "port": "detections",
+              "property": "labels"
+            },
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "remember": null,
+            "section": "settings",
+            "show_if": null,
+            "stales": [
+              "blur"
+            ],
+            "step": null,
+            "stores_unchecked": true,
+            "type": "multiselect",
             "unit": "",
             "write_from": null
           },
@@ -1440,6 +1602,7 @@
             "dom_id": {
               "panel": "user_setting_blur_ratio"
             },
+            "empty_label": "",
             "group": "comment",
             "help": "Taille du noyau gaussien (impaire).",
             "help_fallback": null,
@@ -1457,6 +1620,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1472,6 +1636,7 @@
               "blur"
             ],
             "step": 2,
+            "stores_unchecked": false,
             "type": "range",
             "unit": "",
             "write_from": null
@@ -1491,6 +1656,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "",
             "help": "",
             "help_fallback": null,
@@ -1508,6 +1674,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1523,6 +1690,7 @@
               "blur"
             ],
             "step": 1,
+            "stores_unchecked": false,
             "type": "number",
             "unit": "",
             "write_from": null
@@ -1544,6 +1712,7 @@
             "dom_id": {
               "panel": "user_setting_roi_enlargement"
             },
+            "empty_label": "",
             "group": "comment",
             "help": "Aire floutée autour de l'objet : moins de 1 la réduit, plus de 1 l'agrandit.",
             "help_fallback": null,
@@ -1561,6 +1730,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1576,6 +1746,7 @@
               "blur"
             ],
             "step": 0.05,
+            "stores_unchecked": false,
             "type": "range",
             "unit": "",
             "write_from": null
@@ -1597,6 +1768,7 @@
             "dom_id": {
               "panel": "user_setting_progressive_blur"
             },
+            "empty_label": "",
             "group": "comment",
             "help": "",
             "help_fallback": null,
@@ -1614,6 +1786,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1629,6 +1802,7 @@
               "blur"
             ],
             "step": 1,
+            "stores_unchecked": false,
             "type": "range",
             "unit": "",
             "write_from": null
@@ -1648,6 +1822,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "",
             "help": "",
             "help_fallback": null,
@@ -1665,6 +1840,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1680,6 +1856,7 @@
               "blur"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "toggle",
             "unit": "",
             "write_from": null
@@ -1699,6 +1876,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "",
             "help": "Un trou de détection d'au plus ce nombre d'images est comblé, entre deux détections du même objet (même piste, ou même place).",
             "help_fallback": null,
@@ -1716,6 +1894,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1734,6 +1913,7 @@
               "blur"
             ],
             "step": 1,
+            "stores_unchecked": false,
             "type": "number",
             "unit": "",
             "write_from": null
@@ -1753,6 +1933,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "",
             "help": "Un objet reste flouté ce nombre d'images avant sa première détection et après sa dernière (il entre ou sort du champ), à sa vitesse. 0 : jamais.",
             "help_fallback": null,
@@ -1770,6 +1951,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1785,6 +1967,7 @@
               "blur"
             ],
             "step": 1,
+            "stores_unchecked": false,
             "type": "number",
             "unit": "",
             "write_from": null
@@ -1804,6 +1987,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "",
             "help": "Masque au contour de l'objet plutôt qu'au rectangle détecté.",
             "help_fallback": null,
@@ -1821,6 +2005,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1836,6 +2021,7 @@
               "detect"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "toggle",
             "unit": "",
             "write_from": null
@@ -1855,6 +2041,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "afficher",
             "help": "",
             "help_fallback": null,
@@ -1872,6 +2059,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1885,6 +2073,7 @@
             "show_if": null,
             "stales": [],
             "step": null,
+            "stores_unchecked": false,
             "type": "toggle",
             "unit": "",
             "write_from": null
@@ -1904,6 +2093,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "afficher",
             "help": "",
             "help_fallback": null,
@@ -1921,6 +2111,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1934,6 +2125,7 @@
             "show_if": null,
             "stales": [],
             "step": null,
+            "stores_unchecked": false,
             "type": "toggle",
             "unit": "",
             "write_from": null
@@ -1953,6 +2145,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "afficher",
             "help": "",
             "help_fallback": null,
@@ -1970,6 +2163,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1983,6 +2177,7 @@
             "show_if": null,
             "stales": [],
             "step": null,
+            "stores_unchecked": false,
             "type": "toggle",
             "unit": "",
             "write_from": null
@@ -2002,6 +2197,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "afficher",
             "help": "",
             "help_fallback": null,
@@ -2019,6 +2215,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -2032,6 +2229,7 @@
             "show_if": null,
             "stales": [],
             "step": null,
+            "stores_unchecked": false,
             "type": "toggle",
             "unit": "",
             "write_from": null
@@ -2053,6 +2251,7 @@
             "dom_id": {
               "panel": "output_format"
             },
+            "empty_label": "",
             "group": "sortie",
             "help": "« Original » : le format du fichier déposé.",
             "help_fallback": null,
@@ -2146,6 +2345,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -2159,6 +2359,7 @@
             "show_if": null,
             "stales": null,
             "step": null,
+            "stores_unchecked": false,
             "type": "select",
             "unit": "",
             "write_from": null
@@ -2193,6 +2394,7 @@
             "dom_id": {
               "panel": "output_quality"
             },
+            "empty_label": "",
             "group": "sortie",
             "help": "Appliquée à la conversion vers le format choisi.",
             "help_fallback": null,
@@ -2210,6 +2412,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -2241,6 +2444,7 @@
             },
             "stales": null,
             "step": null,
+            "stores_unchecked": false,
             "type": "select",
             "unit": "",
             "write_from": null
@@ -2501,6 +2705,8 @@
             "model_to_use",
             "precision_level",
             "detection_threshold",
+            "detection_decimation",
+            "blur_skip_labels",
             "blur_ratio",
             "rounded_edges",
             "roi_enlargement",
@@ -2763,9 +2969,11 @@
         "add_to_anonymizer": {
           "args": {
             "blur_ratio": "range — Taille du noyau gaussien (impaire). [1–99] (défaut : 75)",
+            "blur_skip_labels": "multiselect — Ce que la détection a trouvé sur ce média. Décocher ce qu'on veut laisser net : seul le floutage est refait, sans redétecter. (défaut : [])",
             "classes": "list",
+            "detection_decimation": "number — Une image analysée sur N d'une vidéo (1 : toutes). 0 : automatique — chaque modèle sa cadence (LocateAnything : une image par seconde ; YOLO, SAM3 : toutes). Les images sautées sont déduites des images analysées voisines. [0–250] (défaut : 0)",
             "detection_threshold": "range — Seuil de détection [0–1] (défaut : 0.25)",
-            "file_path": "str (requis)",
+            "file_path": "str (requis) — plusieurs fichiers arrivés ensemble : une LISTE de chemins, un élément par fichier, rangés en un lot comme un dépôt de plusieurs fichiers sur la card",
             "interpolate_detections": "toggle — Interpoler les détections manquantes (défaut : True)",
             "max_extrapolation_frames": "number — Un objet reste flouté ce nombre d'images avant sa première détection et après sa dernière (il entre ou sort du champ), à sa vitesse. 0 : jamais. [0–30] (défaut : 5)",
             "max_interpolation_frames": "number — Un trou de détection d'au plus ce nombre d'images est comblé, entre deux détections du même objet (même piste, ou même place). [1–60] (défaut : 15)",
@@ -3070,6 +3278,10 @@
     },
     {
       "key": "anonymizer:yolo:yolov9t-face-lindevs.pt",
+      "kind": "model"
+    },
+    {
+      "key": "huggingface:nvidia/LocateAnything-3B",
       "kind": "model"
     },
     {

@@ -101,6 +101,11 @@ def merge(docs) -> dict:
         classes=list(dict.fromkeys(c for d in docs for c in d.get('classes') or [])),
         prompt=next((d['prompt'] for d in docs if d.get('prompt')), ''))
     union['tag'] = 'multi-model'
+    # Des détecteurs de cadences différentes (2026-11-19 : LocateAnything une image par seconde,
+    # YOLO toutes) : l'union se lit au pas le plus LARGE — sur-flouter un trou ne coûte rien.
+    step = max(decimation_of(d) for d in docs)
+    if step > 1:
+        union['decimation'] = step
     for d in docs:
         for frame in d.get('frames') or []:
             add(union, frame['i'], [dict(det) for det in frame.get('d') or []])
@@ -232,9 +237,73 @@ def read(path: str) -> dict:
     return doc
 
 
+def decimation_of(doc: dict) -> int:
+    """Le PAS d'analyse du document : une image analysée sur N (1 : toutes) — ce que le
+    détecteur a posé (`DetectionBackend.decimation_for`)."""
+    try:
+        return max(1, int(doc.get('decimation') or 1))
+    except (TypeError, ValueError):
+        return 1
+
+
 def count(doc: dict) -> int:
     """Le nombre de détections du document (toutes frames)."""
     return sum(len(f.get('d') or []) for f in doc.get('frames') or [])
+
+
+def labels(doc: dict) -> list:
+    """Les LIBELLÉS que porte le document, dans l'ordre où ils apparaissent — ce qu'un détecteur
+    a réellement trouvé : le nom de classe pour un modèle à classes fixes, le concept du prompt
+    pour un modèle qui lit une description (SAM3, LocateAnything). Un libellé vide n'en est pas un."""
+    seen = []
+    for frame in doc.get('frames') or []:
+        for det in frame.get('d') or []:
+            label = det.get('label') or ''
+            if label and label not in seen:
+                seen.append(label)
+    return seen
+
+
+def without_labels(doc: dict, skip) -> dict:
+    """Le document SANS les détections dont le libellé est dans `skip` — une copie, l'original
+    intact (2026-11-19 : « ce qu'on floute », choisi parmi ce qui a été détecté, sans redétecter).
+    Comparaison au libellé exact : `skip` vient des libellés du document lui-même (`labels`).
+    `skip` vide : le document tel quel."""
+    skip = {str(s) for s in (skip or ()) if s}
+    if not skip:
+        return doc
+    out = dict(doc)
+    out['frames'] = []
+    for frame in doc.get('frames') or []:
+        kept = [d for d in frame.get('d') or [] if (d.get('label') or '') not in skip]
+        if kept:
+            out['frames'].append({**frame, 'd': kept})
+    return out
+
+
+def objects_by_label(doc: dict, *, window: int = None) -> dict:
+    """{libellé: nombre d'OBJETS} — ce que la card dit avoir trouvé (2026-11-19, Fabien : « voir
+    directement sur les cards les classes des objets détectés »). Une image (ou un texte) : ses
+    détections. Une vidéo : ses OBJETS — un visage suivi sur trois cents images compte une fois —
+    par la règle « c'est le même objet » de l'interpolation (`_links`), trous d'au plus `window`
+    images franchis (défaut : une seconde de la cadence du document). Un compte, pas une mesure :
+    un objet perdu puis retrouvé au-delà du trou compte deux fois."""
+    frames = _frames_of(doc)
+    if doc.get('media') == 'video':
+        if window is None:
+            window = int(round(float(doc.get('fps') or 0)))
+        # Les images qu'une décimation a sautées ne séparent jamais un objet de lui-même.
+        window = max(int(window), decimation_of(doc) - 1)
+        _all, _after, before = _links(frames, max(0, min(window, MAX_CHAIN_GAP)), 0.2)
+        starts = (det for index in frames for det in frames[index] if id(det) not in before)
+    else:
+        starts = (det for index in frames for det in frames[index])
+    found = {}
+    for det in starts:
+        label = det.get('label') or ''
+        if label:
+            found[label] = found.get(label, 0) + 1
+    return found
 
 
 # ── Géométrie ─────────────────────────────────────────────────────────────────────────────────
@@ -440,6 +509,15 @@ def by_frame(doc: dict, *, interpolate: bool = False, max_gap: int = 0,
     Or le suivi ne donne une piste qu'aux objets CONFIRMÉS — 82 détections sur 533 n'en avaient
     pas — et il en donne une NOUVELLE quand il reperd l'objet : 18 trous sur 19 subsistaient."""
     frames = _frames_of(doc)
+    # Une vidéo analysée une image sur N (`decimation`, 2026-11-19) : les images sautées n'ont pas
+    # été VUES, elles ne sont pas vides — un objet y est déduit d'office, entre deux images
+    # analysées et jusqu'à l'image analysée suivante, quels que soient les réglages. Sans cela, un
+    # visage flouté une image sur vingt-cinq clignoterait : une fuite.
+    step = decimation_of(doc)
+    if step > 1:
+        interpolate = True
+        max_gap = max(int(max_gap or 0), step - 1)
+        max_extrapolation = max(int(max_extrapolation or 0), step - 1)
     fill = interpolate and max_gap > 0
     if not fill and max_extrapolation <= 0:
         return frames

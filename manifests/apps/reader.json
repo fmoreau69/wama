@@ -895,6 +895,7 @@
               "item": "rSettings_read_as_score",
               "panel": "readAsScoreToggle"
             },
+            "empty_label": "",
             "group": "",
             "help": "Lit la page comme une PARTITION imprimée : elle est rendue gravée et éditable (page « Éditer la partition »), téléchargeable en ABC ou en MusicXML. Cochée d'office quand la page porte des portées — décochable.",
             "help_fallback": null,
@@ -912,6 +913,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -925,6 +927,7 @@
             "show_if": null,
             "stales": null,
             "step": null,
+            "stores_unchecked": false,
             "type": "toggle",
             "unit": "",
             "write_from": null
@@ -948,6 +951,7 @@
               "item": "rSettings_backend",
               "panel": "backendSelect"
             },
+            "empty_label": "",
             "group": "",
             "help": "",
             "help_fallback": {
@@ -970,6 +974,7 @@
             "options_abilities": false,
             "options_auto": true,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -989,6 +994,7 @@
               "read"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "select",
             "unit": "",
             "write_from": null
@@ -1012,6 +1018,7 @@
               "item": "rSettings_score_model",
               "panel": "scoreModelSelect"
             },
+            "empty_label": "",
             "group": "",
             "help": "Clé de catalogue du modèle de lecture de partition, ou « auto ».",
             "help_fallback": {
@@ -1031,6 +1038,7 @@
             "options_abilities": false,
             "options_auto": true,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1048,6 +1056,7 @@
               "read_score"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "select",
             "unit": "",
             "write_from": null
@@ -1067,6 +1076,7 @@
             "dom_id": {
               "panel": "qualityIntent"
             },
+            "empty_label": "",
             "group": "",
             "help": "Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources.",
             "help_fallback": null,
@@ -1084,6 +1094,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1120,6 +1131,7 @@
             },
             "stales": null,
             "step": 1,
+            "stores_unchecked": false,
             "type": "intent",
             "unit": "",
             "write_from": null
@@ -1161,6 +1173,7 @@
               "item": "rSettings_mode",
               "panel": "modeSelect"
             },
+            "empty_label": "",
             "group": "",
             "help": "",
             "help_fallback": null,
@@ -1178,6 +1191,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1195,6 +1209,7 @@
               "read"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "select",
             "unit": "",
             "write_from": null
@@ -1223,6 +1238,7 @@
               "item": "rSettings_language",
               "panel": "languageInput"
             },
+            "empty_label": "",
             "group": "",
             "help": "Optionnel (ex. fr, en). Auto-détection si vide.",
             "help_fallback": null,
@@ -1240,6 +1256,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1258,6 +1275,7 @@
               "format"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "text",
             "unit": "",
             "write_from": null
@@ -1281,6 +1299,7 @@
               "item": "rSettings_llm_model",
               "panel": "llmModelSelect"
             },
+            "empty_label": "",
             "group": "",
             "help": "Clé de catalogue du modèle de langage, ou « auto ».",
             "help_fallback": {
@@ -1300,6 +1319,7 @@
             "options_abilities": false,
             "options_auto": "silent",
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1320,6 +1340,7 @@
               "analyze"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "select",
             "unit": "",
             "write_from": null
@@ -1360,6 +1381,7 @@
               "item": "rSettings_llm_temperature",
               "panel": "llmTemperature"
             },
+            "empty_label": "",
             "group": "",
             "help": "Le hasard du modèle. À 0, même entrée, même résultat ; plus haut, le résultat varie d'un lancement à l'autre. Un modèle distant ne garantit pas toujours le même résultat, même à 0.",
             "help_fallback": null,
@@ -1377,6 +1399,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1395,6 +1418,7 @@
               "analyze"
             ],
             "step": 0.05,
+            "stores_unchecked": false,
             "type": "temperature",
             "unit": "",
             "write_from": null
@@ -1426,6 +1450,7 @@
               "item": "rSettings_llm_seed",
               "panel": "llmSeed"
             },
+            "empty_label": "",
             "group": "",
             "help": "Vide : un tirage neuf à chaque lancement. Une graine fixée, avec les mêmes réglages et le même modèle, redonne le même résultat sur cette machine.",
             "help_fallback": null,
@@ -1443,6 +1468,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1461,6 +1487,7 @@
               "analyze"
             ],
             "step": 1,
+            "stores_unchecked": false,
             "type": "seed",
             "unit": "",
             "write_from": null
@@ -1492,6 +1519,7 @@
               "item": "rSettings_llm_top_p",
               "panel": "llmTopP"
             },
+            "empty_label": "",
             "group": "",
             "help": "Le modèle ne tire que parmi ses choix les plus probables, jusqu'à cette part du total : plus bas, un résultat plus sûr et moins varié ; 1, tous les choix.",
             "help_fallback": null,
@@ -1509,6 +1537,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1527,6 +1556,7 @@
               "analyze"
             ],
             "step": 0.05,
+            "stores_unchecked": false,
             "type": "top_p",
             "unit": "",
             "write_from": null
@@ -1550,6 +1580,7 @@
               "item": "rSettings_format_markdown",
               "panel": "formatMarkdownToggle"
             },
+            "empty_label": "",
             "group": "",
             "help": "Une étape : un modèle de langage restructure le texte lu (titres, listes, tableaux) sans rien en retrancher. Le format du fichier se choisit au téléchargement. Le texte natif d'un PDF reste tel quel.",
             "help_fallback": null,
@@ -1567,6 +1598,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1582,6 +1614,7 @@
             },
             "stales": null,
             "step": null,
+            "stores_unchecked": false,
             "type": "toggle",
             "unit": "",
             "write_from": null
@@ -1605,6 +1638,7 @@
               "item": "rSettings_generate_analysis",
               "panel": "generateAnalysisToggle"
             },
+            "empty_label": "",
             "group": "",
             "help": "Analyse LLM du texte lu (résumé, points clés)",
             "help_fallback": null,
@@ -1622,6 +1656,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1637,6 +1672,7 @@
             },
             "stales": null,
             "step": null,
+            "stores_unchecked": false,
             "type": "toggle",
             "unit": "",
             "write_from": null

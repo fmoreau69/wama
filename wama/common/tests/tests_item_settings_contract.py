@@ -68,11 +68,16 @@ def _writable_fields(model, schema):
         elif p.get('type') in ('text', 'textarea') and isinstance(f, (models.CharField,
                                                                         models.TextField)):
             out.append((f.name, ['wama contract a', 'wama contract b']))
+        elif p.get('type') == 'multiselect' and isinstance(f, models.JSONField):
+            # A LIST of choices (2026-11-19): the modal posts it as the JSON of its hidden field.
+            out.append((f.name, [['wama contract a'], ['wama contract b', 'wama contract c']]))
     return out
 
 
 def _posted(value):
     """A value as the ⚙ modal's FormData carries it."""
+    if isinstance(value, list):
+        return json.dumps(value)
     return ('true' if value else 'false') if isinstance(value, bool) else value
 
 

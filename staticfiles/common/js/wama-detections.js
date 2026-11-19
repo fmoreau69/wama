@@ -203,10 +203,66 @@
         });
     }
 
+    /** Les CLASSES qu'une zone ajoutée ou un objet désigné peut porter (2026-11-19, Fabien :
+     *  « rajouter une classe à la main afin de cliquer sur l'objet ») : celles que la page reçoit
+     *  de sa surface (`context.classes` — les classes demandées), celles que le DOCUMENT porte (les
+     *  libellés trouvés : le nom d'une classe comme le concept d'une description), celles des
+     *  corrections déjà faites. Dans l'ordre, sans doublon ; `face` quand il n'y a rien. */
+    function labelChoices(ctx) {
+        var out = [];
+        function keep(label) {
+            label = String(label || '').trim();
+            if (label && out.indexOf(label) < 0) out.push(label);
+        }
+        ((ctx.context() || {}).classes || []).forEach(keep);
+        ((ctx.reads().detections || {}).frames || []).forEach(function (f) {
+            (f.d || []).forEach(function (d) { keep(d.label); });
+        });
+        ((ctx.value() || {}).added || []).forEach(function (a) { keep(a.label); });
+        if (!out.length) keep('face');
+        return out;
+    }
+
+    var pickers = 0;
+    /** Le CHAMP de classe d'une brique : une saisie LIBRE qui propose `labelChoices` (la liste du
+     *  navigateur) — une classe que rien ne propose s'écrit telle quelle (« panneau », « logo »).
+     *  Vide, il vaut la première proposition, qu'il montre en attente : la liste entière s'ouvre
+     *  alors au clic. Rend `{element, input, refresh, value}`. */
+    function classPicker(ctx, title) {
+        pickers += 1;
+        var listId = 'wama-class-choices-' + pickers;
+        var wrap = document.createElement('span');
+        wrap.className = 'wama-class-picker';
+        var input = document.createElement('input');
+        input.type = 'text';
+        input.maxLength = 64;
+        input.className = 'form-control form-control-sm wama-brick-class';
+        input.setAttribute('list', listId);
+        input.title = title + ' — une classe proposée, ou en écrire une autre';
+        var list = document.createElement('datalist');
+        list.id = listId;
+        wrap.appendChild(input);
+        wrap.appendChild(list);
+        function refresh() {
+            var choices = labelChoices(ctx);
+            list.innerHTML = '';
+            choices.forEach(function (c) {
+                var o = document.createElement('option');
+                o.value = c;
+                list.appendChild(o);
+            });
+            input.placeholder = choices[0];
+        }
+        return {
+            element: wrap, input: input, refresh: refresh,
+            value: function () { return input.value.trim() || input.placeholder || 'face'; },
+        };
+    }
+
     global.WamaDetections = {
         MIN_IOU: MIN_IOU, iou: iou, applyCorrections: applyCorrections, objects: objects,
         remove: remove, restore: restore, add: add, move: move,
         removeMany: removeMany, restoreMany: restoreMany, chain: chain, editObject: editObject,
-        addMany: addMany,
+        addMany: addMany, labelChoices: labelChoices, classPicker: classPicker,
     };
 })(typeof window !== 'undefined' ? window : this);

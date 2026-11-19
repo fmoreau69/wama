@@ -333,6 +333,12 @@ class Anonymize(DetectionBackend):
             frame_count=total, engine='yolo', models=[m['name'] for m in self.models],
             classes=wanted)
         doc['tag'] = self._get_model_suffix()
+        # La DÉCIMATION de la card (`DetectionBackend.decimation_for`, 2026-11-19) : ultralytics
+        # analyse une image sur `step` (`vid_stride`), le suivi reste sur les images analysées ; le
+        # document le dit, le floutage déduit les autres. YOLO n'en déclare aucune par défaut.
+        step = 1 if image_mode else self.decimation_for(**{**kwargs, 'fps': fps})
+        if step > 1:
+            doc['decimation'] = step
 
         passes = []
         for rang, entree in enumerate(self.models):
@@ -360,14 +366,15 @@ class Anonymize(DetectionBackend):
                 return _e['yolo'].track(
                     source=source, task=self.task, device=dev, retina_masks=self.ret_mask,
                     imgsz=width, classes=_idx, conf=threshold, max_det=MAX_DETECTIONS,
-                    stream=True, verbose=False)
+                    stream=True, verbose=False, vid_stride=step)
 
             def _pass(dev, _rang=rang, _e=entree, _n=n):
                 # Collectées À PART puis réunies au document : une passe REJOUÉE après une
                 # erreur CUDA (`_reessayer`) n'ajoute pas deux fois ses détections.
                 local = []
                 for index, result in enumerate(_results(dev)):
-                    index = 0 if image_mode else index        # une image : ses échelles, frame 0
+                    # Une image : ses échelles, frame 0 ; une vidéo décimée : l'image analysée.
+                    index = 0 if image_mode else index * step
                     found = list(self._frame_detections(_rang, _e, result, wanted, threshold))
                     if found:
                         local.append((index, found))

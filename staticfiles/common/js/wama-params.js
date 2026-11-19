@@ -760,6 +760,53 @@
     });
   }
 
+  // Une MULTI-SÉLECTION (2026-11-19, « ce qu'on floute » de l'anonymizer) : une case par option.
+  // La valeur lue est le JSON de la liste (champ caché qui porte le nom), que le serveur assainit
+  // (`param_schema._coerce_list`). `stores_unchecked` : la valeur liste les options DÉCOCHÉES —
+  // une exclusion : une option qui apparaît plus tard part cochée. Sans aucune option, le champ dit
+  // `empty_label` au lieu d'une liste vide muette ; la valeur reçue est gardée telle quelle.
+  function _listValue(v) {
+    if (typeof v === 'string') { try { v = JSON.parse(v || '[]'); } catch (e) { v = [v]; } }
+    return Array.isArray(v) ? v.map(String) : [];
+  }
+  registerRenderer('multiselect', function (p, api) {
+    var v = _listValue(api.value);
+    var hidden = '<input type="hidden" id="' + api.id + '" ' + api.idAttr + ' value="' +
+      esc(JSON.stringify(v)) + '">';
+    var opts = api.options(p);
+    if (!opts.length) {
+      return '<div class="small text-muted">' + esc(p.empty_label || 'Aucun choix pour l’instant') +
+        '</div>' + hidden;
+    }
+    var boxes = opts.map(function (o, i) {
+      var listed = v.indexOf(String(o.value)) >= 0;
+      var rid = api.id + '-' + i;
+      return '<div class="form-check form-check-inline">' +
+        '<input class="form-check-input" type="checkbox" id="' + rid + '" data-multiselect-value="' +
+        esc(o.value) + '"' + ((p.stores_unchecked ? !listed : listed) ? ' checked' : '') + '>' +
+        '<label class="form-check-label" for="' + rid + '">' + esc(o.label) + '</label></div>';
+    }).join('');
+    return '<div class="wama-param-multiselect" data-multiselect-for="' + api.id + '"' +
+      (p.stores_unchecked ? ' data-stores-unchecked="1"' : '') + '>' + boxes + '</div>' + hidden;
+  }, { labelIsBlock: true });
+
+  /** Une case cochée ou décochée réécrit le JSON du champ caché que `read()` lit. */
+  function _bindMultiselect(container) {
+    container.querySelectorAll('[data-multiselect-for]').forEach(function (box) {
+      var hidden = document.getElementById(box.getAttribute('data-multiselect-for'));
+      if (!hidden || box._wpMultiselect) return;
+      box._wpMultiselect = true;
+      var unchecked = box.getAttribute('data-stores-unchecked') === '1';
+      box.addEventListener('change', function () {
+        var out = [];
+        box.querySelectorAll('input[data-multiselect-value]').forEach(function (inp) {
+          if (inp.checked !== unchecked) out.push(inp.getAttribute('data-multiselect-value'));
+        });
+        hidden.value = JSON.stringify(out);
+      });
+    });
+  }
+
   function controlHtml(p, ctx, value, resolver) {
     // dom_id : pont de MIGRATION — réutilise l'ID legacy d'un volet existant pour ne pas casser
     // le JS qui le référence (read/apply/save/async). Sinon ID schéma-driven 'wp-{ctx}-{name}'.
@@ -1087,6 +1134,7 @@
     container.innerHTML = html;
     _bindConditional(container);
     _bindMapping(container);
+    _bindMultiselect(container);
     _bindModelHelp(container, schema, ctx);
     _bindCapFrom(container, schema, ctx);
     _bindProcessNeeds(container, schema, ctx);

@@ -41,6 +41,14 @@ class MergeTest(SimpleTestCase):
         by_frame = {f['i']: [d['label'] for d in f['d']] for f in union['frames']}
         self.assertEqual({0: ['face', 'license_plate'], 3: ['license_plate']}, by_frame)
 
+    def test_the_union_of_two_cadences_is_read_at_the_widest_step(self):
+        a = _doc('yolo', ['faces.pt'], {0: [dets.detection(box=[1, 1, 9, 9], label='face')]})
+        b = _doc('locate_anything', ['huggingface:nvidia/LocateAnything-3B'],
+                 {0: [dets.detection(box=[20, 20, 30, 25], label='logo')]})
+        b['decimation'] = 10
+        self.assertEqual(10, dets.merge([a, b])['decimation'])
+        self.assertNotIn('decimation', dets.merge([a, _doc('yolo', ['p.pt'], {})]))
+
     def test_a_single_document_is_returned_as_is(self):
         a = _doc('yolo', ['x.pt'], {}, tag='yolo11n')
         self.assertIs(a, dets.merge([a]))
@@ -112,6 +120,32 @@ class FrameDetectionLoopTest(SimpleTestCase):
         detector = _FakeDetector.make(results, batch=2)
         doc = detector.detect(media_path=self.video, classes2blur=['plate'])
         self.assertEqual([0, 1, 4], [f['i'] for f in doc['frames']])
+
+    def test_a_decimated_video_analyses_one_frame_in_n_and_the_blur_deduces_the_others(self):
+        """2026-11-19 (Fabien : a decimation setting, reachable, for every model, adapted per
+        model). The card's step wins ; under « auto » (0) a detector's declared rate decides ;
+        the document says it, and the blur reads the skipped frames as UNSEEN — filled whatever
+        the interpolation settings say (a face blurred one frame in two would flicker)."""
+        def results(call, k):
+            return [dets.detection(box=[10, 10, 20, 20], label='plate', conf=0.9)]
+        detector = _FakeDetector.make(results, batch=1)
+        doc = detector.detect(media_path=self.video, classes2blur=['plate'],
+                              detection_decimation=2)
+        self.assertEqual([0, 2, 4], [f['i'] for f in doc['frames']])
+        self.assertEqual(3, len(type(detector).calls), 'skipped frames are never analysed')
+        self.assertEqual(2, doc['decimation'])
+        filled = dets.by_frame(doc, interpolate=False, max_gap=0)
+        self.assertEqual([0, 1, 2, 3, 4], sorted(i for i, found in filled.items() if found))
+        self.assertEqual({'plate': 1}, dets.objects_by_label(doc, window=0),
+                         'the skipped frames never split an object')
+        type(detector).ANALYSIS_RATE = 5.0                    # 10 fps : one frame in two
+        self.assertEqual(2, detector.decimation_for(fps=10, detection_decimation=0))
+        self.assertEqual(3, detector.decimation_for(fps=10, detection_decimation=3),
+                         "the card's setting wins")
+        type(detector).ANALYSIS_RATE = None
+        self.assertEqual(1, detector.decimation_for(fps=10), 'no declared rate : every frame')
+        plain = _FakeDetector.make(results).detect(media_path=self.video, classes2blur=['plate'])
+        self.assertNotIn('decimation', plain, 'every frame analysed : nothing to say')
 
 
 class CombinedDetectorsRoutingTest(SimpleTestCase):

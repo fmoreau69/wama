@@ -59,6 +59,29 @@ class DetectionBackend(BaseModelBackend):
         os.makedirs(destination, exist_ok=True)
         return source, destination
 
+    #: Images analysées par SECONDE d'une vidéo sous la décimation « auto » de la card — None :
+    #: toutes. Un détecteur lent le déclare (LocateAnything : 1).
+    ANALYSIS_RATE = None
+
+    def decimation_for(self, fps: float = 0.0, **kwargs) -> int:
+        """Le PAS d'analyse d'une vidéo — une image analysée sur N, la décimation du monde Data
+        (`wama_data.core.export.Declaration.decimation`, ≥ 1 : « garder une ligne sur N »)
+        (2026-11-19, Fabien : « un réglage atteignable et modifiable par l'utilisateur […]
+        universalisé à tous les modèles de l'anonymizer, adapté par modèle »). Celle de la card
+        (`detection_decimation` ≥ 1) prime ; à 0 (« auto »), celle que le détecteur DÉCLARE
+        (`ANALYSIS_RATE`, à la cadence de la vidéo) ; sinon 1 — toutes les images. Les images
+        sautées ne sont pas des images vides : le floutage les déduit (`detections.by_frame`)."""
+        try:
+            requested = int(kwargs.get('detection_decimation') or 0)
+        except (TypeError, ValueError):
+            requested = 0
+        if requested >= 1:
+            return requested
+        rate = self.ANALYSIS_RATE
+        if rate and fps:
+            return max(1, int(round(float(fps) / float(rate))))
+        return 1
+
     def process(self, **kwargs):
         """Le point d'entrée métier du contrat commun : pour un détecteur, la DÉTECTION — un
         document `detections` (`common/utils/detections.py`). Depuis le 2026-10-04 les deux
@@ -187,22 +210,34 @@ class FrameDetectionBackend(DetectionBackend):
             fps=capture.get(cv2.CAP_PROP_FPS) or 25.0, frame_count=total,
             classes=classes, **meta)
         doc['tag'] = self.output_tag()
-        index, last_pct = 0, -10
+        # Une image sur `step` est ANALYSÉE (la décimation) ; les autres sont lues sans être
+        # décodées (`grab`) et le document le dit, pour que le floutage les déduise.
+        step = self.decimation_for(**{**kwargs, 'fps': doc.get('fps') or 0.0})
+        if step > 1:
+            doc['decimation'] = step
+        index, last_pct, analysed, ended = 0, -10, 0, False
         try:
-            while True:
-                images = []
+            while not ended:
+                images, frame_numbers = [], []
                 while len(images) < max(1, self.BATCH_SIZE):
-                    ok, frame = capture.read()
+                    if index % step:
+                        ok, frame = capture.grab(), None
+                    else:
+                        ok, frame = capture.read()
                     if not ok:
+                        ended = True
                         break
-                    images.append(frame)
-                if not images:
-                    break
-                for offset, found in enumerate(_batch(index, images)):
-                    dets.add(doc, index + offset, found)
-                    if on_frame:
-                        on_frame(index + offset, images[offset], found)
-                index += len(images)
+                    if frame is not None:
+                        images.append(frame)
+                        frame_numbers.append(index)
+                    index += 1
+                if images:
+                    for at, image, found in zip(frame_numbers, images,
+                                                _batch(frame_numbers[0], images)):
+                        dets.add(doc, at, found)
+                        if on_frame:
+                            on_frame(at, image, found)
+                    analysed += len(images)
                 if progress:
                     progress(index, total or index)
                 if console_progress and total:
@@ -210,7 +245,7 @@ class FrameDetectionBackend(DetectionBackend):
                     if pct - last_pct >= 10 or pct >= 100:
                         last_pct = pct
                         console_progress(pct)
-                if index % 100 < len(images):
+                if images and analysed % 100 < len(images):
                     gc.collect()
                     self._empty_cuda_cache()
         finally:

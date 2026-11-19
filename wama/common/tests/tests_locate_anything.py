@@ -93,6 +93,52 @@ class GardesEntreeTest(SimpleTestCase):
                         f'tâches annoncées absentes du worker officiel : {set(TACHES) - methodes}')
 
 
+class AnonymizerDetectorTest(SimpleTestCase):
+    """2026-11-19 — a DETECTOR of the anonymizer, held without the model : the common frame loop
+    (`FrameDetectionBackend`), one call per concept of the description, its boxes named after it,
+    one analysed frame per second of a video under « auto »."""
+
+    def _backend(self, boxes_by_concept):
+        from types import SimpleNamespace
+        backend = LocateAnythingBackend()
+        asked = []
+
+        def detect(image, wanted, **kwargs):
+            asked.append(wanted[0])
+            return {'answer': wanted[0]}
+
+        backend._worker = SimpleNamespace(
+            detect=detect,
+            parse_boxes=lambda answer, w, h: boxes_by_concept.get(answer, []))
+        return backend, asked
+
+    def test_it_is_a_frame_detector_that_analyses_one_frame_per_second(self):
+        from wama.common.backends.detection_base import FrameDetectionBackend
+        self.assertTrue(issubclass(LocateAnythingBackend, FrameDetectionBackend))
+        self.assertEqual(25, LocateAnythingBackend().decimation_for(fps=25))
+        self.assertEqual(1, LocateAnythingBackend().decimation_for(fps=25, detection_decimation=1))
+
+    def test_each_concept_is_asked_apart_and_names_its_boxes(self):
+        import numpy as np
+        backend, asked = self._backend({
+            'face': [{'x1': 10, 'y1': 10, 'x2': 40, 'y2': 40}],
+            'license plate': [{'x1': 50, 'y1': 60, 'x2': 90, 'y2': 70},
+                              {'x1': 0, 'y1': 0, 'x2': 1, 'y2': 1}]})       # too small: dropped
+        backend._concepts = backend.concepts_of('face, license plate, face')
+        found = backend.detect_frames([np.zeros((100, 120, 3), np.uint8)], 0.25)
+        self.assertEqual(['face', 'license plate'], asked)
+        self.assertEqual([('face', [10, 10, 40, 40]), ('license plate', [50, 60, 90, 70])],
+                         [(d['label'], d['box']) for d in found[0]])
+        self.assertEqual([], backend.requested_classes(classes2blur=['face']),
+                         'its labels ARE the demand : nothing filtered by the card classes')
+
+    def test_an_empty_description_is_refused_before_loading(self):
+        backend = LocateAnythingBackend()
+        with self.assertRaises(ValueError):
+            backend.prepare(sam3_prompt='  ,  ')
+        self.assertIsNone(backend._worker, 'nothing loaded')
+
+
 class ResolutionDepuisLeCatalogueTest(TestCase):
     """Le modèle prospecté trouve son backend — la moitié qui manquait."""
 

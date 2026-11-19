@@ -906,6 +906,7 @@
               "item": "settingsTtsModel",
               "panel": "tts_model"
             },
+            "empty_label": "",
             "group": "",
             "help": "Clé catalogue du moteur TTS (AIModel.model_key)",
             "help_fallback": null,
@@ -923,6 +924,7 @@
             "options_abilities": false,
             "options_auto": true,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -942,6 +944,7 @@
               "generate"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "select",
             "unit": "",
             "write_from": null
@@ -965,6 +968,7 @@
               "item": "settingsQualityIntent",
               "panel": "quality_intent"
             },
+            "empty_label": "",
             "group": "",
             "help": "Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources.",
             "help_fallback": null,
@@ -982,6 +986,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1000,6 +1005,7 @@
               "generate"
             ],
             "step": 1,
+            "stores_unchecked": false,
             "type": "intent",
             "unit": "",
             "write_from": null
@@ -1084,6 +1090,7 @@
               "item": "settingsLanguage",
               "panel": "language"
             },
+            "empty_label": "",
             "group": "",
             "help": "Langue de synthèse",
             "help_fallback": null,
@@ -1101,6 +1108,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1116,6 +1124,7 @@
               "generate"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "select",
             "unit": "",
             "write_from": null
@@ -1143,6 +1152,7 @@
               "item": "settingsVoicePreset",
               "panel": "voice_preset"
             },
+            "empty_label": "",
             "group": "",
             "help": "Voix de référence (sa_…), voix clonée (ua_…) ou voix propre du moteur",
             "help_fallback": null,
@@ -1160,6 +1170,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1175,6 +1186,7 @@
               "generate"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "select",
             "unit": "",
             "write_from": null
@@ -1198,6 +1210,7 @@
               "item": "settingsSpeed",
               "panel": "speed"
             },
+            "empty_label": "",
             "group": "",
             "help": "Vitesse de parole (0.5 = lent, 2.0 = rapide)",
             "help_fallback": null,
@@ -1215,6 +1228,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1230,6 +1244,7 @@
               "generate"
             ],
             "step": 0.1,
+            "stores_unchecked": false,
             "type": "range",
             "unit": "",
             "write_from": null
@@ -1253,6 +1268,7 @@
               "item": "settingsPitch",
               "panel": "pitch"
             },
+            "empty_label": "",
             "group": "",
             "help": "Hauteur de la voix (0.5 = grave, 2.0 = aigu)",
             "help_fallback": null,
@@ -1270,6 +1286,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1285,6 +1302,7 @@
               "generate"
             ],
             "step": 0.1,
+            "stores_unchecked": false,
             "type": "range",
             "unit": "",
             "write_from": null
@@ -1306,6 +1324,7 @@
               "item": "settingsSentencePause",
               "panel": "sentence_pause"
             },
+            "empty_label": "",
             "group": "",
             "help": "Silence, en secondes, après un point, un point d'exclamation ou d'interrogation.",
             "help_fallback": null,
@@ -1323,6 +1342,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1338,6 +1358,7 @@
               "generate"
             ],
             "step": 0.05,
+            "stores_unchecked": false,
             "type": "range",
             "unit": "",
             "write_from": null
@@ -1359,6 +1380,7 @@
               "item": "settingsClausePause",
               "panel": "clause_pause"
             },
+            "empty_label": "",
             "group": "",
             "help": "Silence, en secondes, après une virgule, un point-virgule, deux-points, une parenthèse ou un tiret d'incise. À 0, la phrase est dite d'un seul souffle.",
             "help_fallback": null,
@@ -1376,6 +1398,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1391,6 +1414,7 @@
               "generate"
             ],
             "step": 0.05,
+            "stores_unchecked": false,
             "type": "range",
             "unit": "",
             "write_from": null
@@ -1429,6 +1453,7 @@
               "item": "settingsTemperature",
               "panel": "temperature"
             },
+            "empty_label": "",
             "group": "",
             "help": "Le hasard du modèle. À 0, même entrée, même résultat ; plus haut, le résultat varie d'un lancement à l'autre. Un modèle distant ne garantit pas toujours le même résultat, même à 0.",
             "help_fallback": null,
@@ -1446,6 +1471,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1461,6 +1487,7 @@
               "generate"
             ],
             "step": 0.05,
+            "stores_unchecked": false,
             "type": "temperature",
             "unit": "",
             "write_from": null
@@ -1490,6 +1517,7 @@
               "item": "settingsSeed",
               "panel": "seed"
             },
+            "empty_label": "",
             "group": "",
             "help": "Vide : un tirage neuf à chaque lancement. Une graine fixée, avec les mêmes réglages et le même modèle, redonne le même résultat sur cette machine.",
             "help_fallback": null,
@@ -1507,6 +1535,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1522,6 +1551,7 @@
               "generate"
             ],
             "step": 1,
+            "stores_unchecked": false,
             "type": "seed",
             "unit": "",
             "write_from": null
@@ -1551,6 +1581,7 @@
               "item": "settingsTopP",
               "panel": "top_p"
             },
+            "empty_label": "",
             "group": "",
             "help": "Le modèle ne tire que parmi ses choix les plus probables, jusqu'à cette part du total : plus bas, un résultat plus sûr et moins varié ; 1, tous les choix.",
             "help_fallback": null,
@@ -1568,6 +1599,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1583,6 +1615,7 @@
               "generate"
             ],
             "step": 0.05,
+            "stores_unchecked": false,
             "type": "top_p",
             "unit": "",
             "write_from": null
@@ -1637,6 +1670,7 @@
               "item": "settingsOutputFormat",
               "panel": "output_format"
             },
+            "empty_label": "",
             "group": null,
             "help": "",
             "help_fallback": null,
@@ -1654,6 +1688,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1667,6 +1702,7 @@
             "show_if": null,
             "stales": null,
             "step": null,
+            "stores_unchecked": false,
             "type": "select",
             "unit": "",
             "write_from": null
@@ -1701,6 +1737,7 @@
               "item": "settingsOutputQuality",
               "panel": "output_quality"
             },
+            "empty_label": "",
             "group": null,
             "help": "Appliquée à la conversion vers le format choisi.",
             "help_fallback": null,
@@ -1718,6 +1755,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1742,6 +1780,7 @@
             },
             "stales": null,
             "step": null,
+            "stores_unchecked": false,
             "type": "select",
             "unit": "",
             "write_from": null

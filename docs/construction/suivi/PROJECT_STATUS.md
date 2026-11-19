@@ -32081,3 +32081,46 @@ main (`sidebar.html`), lisait leur table pour afficher l'effet (`filemanager.js`
   les écrit. L'y appliquer alignerait toutes les voies, mais changerait l'encodage de tous les
   dépôts — mesuré au curseur de naissance 50 : image 85 → 90, vidéo (CRF par défaut d'ffmpeg) →
   CRF 20 `slow`, audio Auto → 224k, une valeur hors des choix du schéma (128/192/256/320k).
+
+## §PALIER 2026-11-19, « ANONYMIZER : ce que la détection a TROUVÉ sur la card, « ce qu'on floute » sans redétecter, la classe d'une zone écrite à la main, LocateAnything détecteur + DÉCIMATION » — commit local, non poussé — 🔴 relancer gunicorn + workers (migrations anonymizer 0041, 0042 appliquées sur la base WSL) — 🔚 décisions de Fabien sur la description universelle (`ROADMAP §17quater`) ; LocateAnything sur GPU (feu vert)
+
+**Décisions de Fabien (19/11)** : (a) « ce qu'on floute » = tout ce qui est détecté par défaut,
+cochable ; (b) les classes en AVANCÉ, la DESCRIPTION universalisée (proposition et avis du concile
+consignés au `§17quater`, rien lancé) ; (c) LocateAnything ouvert, une image par seconde mais un
+réglage atteignable, universel et adapté par modèle — une « décimation », le mot du monde Data.
+
+**Livré** :
+- ① la bande des étapes écrit ce qu'une étape de DÉTECTION a trouvé (« face 12 · plate 3 ») — au
+  COMMUN, pour toute sortie DÉCLARÉE `detections` (`task_skeleton._line_summary` →
+  `process_runs.found_by_label` → `output_summary['found']`, `card_rows['found']`) ; en objets sur une
+  vidéo (`detections.objects_by_label`) ; 25 lignes existantes complétées une fois.
+- ② « Ce qu'on floute » (`Media.blur_skip_labels`, migration 0041) : type de schéma `multiselect`
+  (`WamaParams`, `param_schema._coerce_list`, `batch_views.read_settings_payload` le garde entier),
+  `Param.options_from` (choix lus sur une SORTIE, `process_pipeline.item_schema_choices`), et
+  `stores_unchecked` (la valeur garde les décochés : un objet trouvé en plus est flouté) ; le
+  floutage filtre par `detections.without_labels`, `stales=('blur',)`.
+- ③ la classe d'une zone ajoutée ou d'un objet désigné : une saisie LIBRE qui propose les classes
+  demandées, les libellés trouvés et ceux des corrections (`WamaDetections.classPicker`,
+  `labelChoices`) ; en mode Description, la page ne propose plus « face » par défaut.
+- ④ LocateAnything-3B `FrameDetectionBackend` (un appel par concept, boîtes au nom du concept),
+  tâche `zero-shot-object-detection` au menu, servi en mode Description par l'ensemble commun quand
+  la card le désigne (`tasks._serves_mode` relit la règle du menu) ; DÉCIMATION d'une vidéo
+  (`Media.detection_decimation`, migration 0042 ; `DetectionBackend.decimation_for`,
+  `ANALYSIS_RATE` — LocateAnything 1 i/s ; YOLO par `vid_stride`), le document dit son pas et
+  `detections.by_frame` déduit d'office les images sautées (sinon un visage clignoterait).
+- Relevé de Fabien, card #1047 (« ni l'image ni la boîte ») : pas une régression — l'original
+  `DSC05016_SKQpD9d.JPG` n'est plus sur le disque (#1046 non plus), son pointeur coupé par
+  `check_media_integrity --reparer`. La page le DIT désormais et cadre les zones sur la taille du
+  document.
+
+**Tests** : `tests_detections`, `tests_detection_ensemble`, `tests_locate_anything`,
+`tests_process_pipeline`, `tests_item_settings_contract` (le contrat générique écrit une liste),
+`anonymizer.tests_model_keys.PromptModelTest`, et `tests_settings_surfaces` (un réglage dont les
+choix viennent de la sortie d'UN élément n'a pas de place au volet : la mesure l'écarte, sans
+liste) ; huit contre-épreuves rouges. Suite complète depuis WSL : 11 594 tests, 22 rouges, deux
+de ma main (budget de langue, surfaces) corrigés et rejoués verts ; les 20 autres hors de mes
+fichiers (composer, transcriber, calendrier, poller `wama-processes.js`, `queue_piece`,
+`ui_smoke_surfaces`, `media_paths`, `turn_bounds`, `voice_refs`, `gap_fill` du Lab). ⚠ LocateAnything
+n'a JAMAIS tourné sur GPU (crashs hôte de juillet sous WSL2) : essai réel sur feu vert.
+Manifestes `composer` et `imager` non régénérés (l'export refuse : il perdrait des faits du WIP
+d'autres sessions) — à régénérer par elles.

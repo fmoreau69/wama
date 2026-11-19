@@ -805,13 +805,20 @@ def _record_eta(eta, seconds: float, item) -> None:
         pass
 
 
-def _line_summary(res: dict, spec=None, item=None):
+def _line_summary(res: dict, spec=None, item=None, pipeline=None):
     """Ce que la ligne d'exécution retient du retour d'une glu : son nom lisible, et l'EMPREINTE
     de sa sortie quand ce n'est pas un fichier (`output_fingerprint` — le texte d'une
     transcription : c'est ce qui périme l'aval quand cette sortie est remplacée)."""
     summary = {}
     if res.get('label'):
         summary['label'] = res['label']
+    # Ce qu'un process qui rend des DÉTECTIONS a trouvé, par libellé (2026-11-19) — lu de son type
+    # de sortie déclaré, pour toute app : la bande de la card l'écrit à côté de l'étape.
+    if spec is not None and pipeline is not None and res.get('output_ref'):
+        from wama.common.services import process_runs
+        found = process_runs.found_by_label(pipeline.output_type(spec), res['output_ref'])
+        if found is not None:
+            summary[process_runs.FOUND_KEY] = found
     if res.get('output_fingerprint'):
         summary['fingerprint'] = str(res['output_fingerprint'])
     # La TABLE où la sortie est rangée quand `output_ref` désigne un conteneur de plusieurs tables
@@ -1144,7 +1151,7 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
                     process_runs.succeed, item, node, process_key=process_key,
                     output_ref=res.get('output_ref') or '',
                     model_key=(res.get('models') or [None])[0],
-                    output_summary=_line_summary(res, spec, item),
+                    output_summary=_line_summary(res, spec, item, pipeline),
                     # La photo des réglages telle que la glu les LAISSE (elle a pu en ajuster un).
                     settings_snapshot=pipeline.snapshot(spec, item) if spec is not None else None)
                 _record_eta(res.get('eta'), time.time() - t_step, item)
@@ -1152,7 +1159,7 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
                     ctx.console(res.get('console_success') or f"✓ {res['label']}", level='info')
                 done_share += share
         last_model = next((k for k in (res.get('models') or []) if k), None)
-        last_summary = _line_summary(res, spec, item)
+        last_summary = _line_summary(res, spec, item, pipeline)
         last_fields = dict(res.get('fields') or {})
         # Ce que la CARD a produit = ce que tous ses process joués ont écrit et employé ; son nom
         # lisible est le dernier qu'un process a donné (le dernier process peut ne rien nommer).

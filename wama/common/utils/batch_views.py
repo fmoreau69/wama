@@ -83,7 +83,12 @@ def read_settings_payload(request, schema=None, schema_names=(), empty_is_value=
             data = {}
     else:
         data = dict(request.POST)
-    lists = set(list_names or ())
+    # Un réglage `multiselect` du schéma est une liste lui aussi (2026-11-19) : gardé entier — le
+    # JSON de son champ caché (une modale) ou la liste elle-même (l'inspecteur), que la coercition
+    # assainit.
+    from wama.common.utils.param_schema import _pget
+    lists = set(list_names or ()) | {_pget(p, 'name') for p in schema or ()
+                                     if _pget(p, 'type') == 'multiselect'}
     data = {k: (v if k in lists else (v[0] if v else '')) if isinstance(v, list) else v
             for k, v in data.items()}
     if schema:

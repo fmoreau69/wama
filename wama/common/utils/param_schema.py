@@ -29,7 +29,10 @@ class Param:
     """Description d'UN paramètre, indépendante de la surface de rendu."""
     name: str
     type: str                                   # toggle|select|radio|text|textarea|number|range|intent|datetime
-                                                # |date|mapping
+                                                # |date|mapping|multiselect
+                                                # (`multiselect` = une LISTE de choix, une case par
+                                                #  option — 2026-11-19, « ce qu'on floute » de
+                                                #  l'anonymizer ; voir `stores_unchecked`)
                                                 # (`datetime` = date et heure locales, 2026-09-28 :
                                                 #  programmation d'une card)
                                                 # (`date` = une date seule, `AAAA-MM-JJ` — vide l'EFFACE ;
@@ -229,6 +232,22 @@ class Param:
                                                 # fichier désigné — et posée dans le champ, BORNÉE par son
                                                 # max (y compris celui de `cap_from`). Une valeur que
                                                 # l'utilisateur change ensuite reste la sienne.
+    options_from: Optional[dict] = None         # Les CHOIX d'un élément lus sur la SORTIE d'un de ses
+                                                # process (2026-11-19, Fabien : « ne relancer que
+                                                # l'étape de floutage en sélectionnant ce que l'on veut
+                                                # flouter parmi les objets dont on a le résultat
+                                                # intermédiaire ») : {"port": "<port de sortie du
+                                                # FunctionSpec>", "property": "labels"}. Le sibling de
+                                                # `default_from` (qui lit une ENTRÉE) : le schéma servi
+                                                # pour UN élément reçoit ses `choices`
+                                                # (`process_pipeline.item_schema_choices`) ; sans
+                                                # sortie encore, aucun choix — `empty_label` le dit.
+    stores_unchecked: bool = False              # `multiselect` : la valeur liste les options
+                                                # DÉCOCHÉES — une exclusion. Une option qui apparaît
+                                                # plus tard (un objet qu'une nouvelle détection trouve)
+                                                # part COCHÉE : ce qu'on n'a pas vu n'est jamais écarté.
+    empty_label: str = ""                       # `multiselect` sans aucun choix : ce que le champ dit
+                                                # à la place d'une liste vide muette.
     write_from: Optional[dict] = None           # Un champ texte que le LLM sait ÉCRIRE à la demande
                                                 # (2026-11-08, Fabien : « demander à générer les paroles dans
                                                 # le champ depuis la modale ») : `{"app", "target": "<champ de
@@ -1186,6 +1205,33 @@ def _coerce_mapping(raw):
     return out or None
 
 
+#: Plafonds d'un réglage `multiselect` : des choix, pas un document.
+LIST_MAX_ITEMS = 500
+
+
+def _coerce_list(raw):
+    """Une liste de choix assainie — une liste, ou son JSON posté par un formulaire (le champ caché
+    du rendu `multiselect`) ; doublons et vides retirés, l'ordre gardé. `[]` si rien ne reste
+    (une liste vide est une valeur : « rien d'exclu »)."""
+    import json
+    if (isinstance(raw, (list, tuple)) and len(raw) == 1 and isinstance(raw[0], str)
+            and raw[0].lstrip().startswith('[')):
+        raw = raw[0]           # le champ caché d'une modale, posté seul : son JSON
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw or '[]')
+        except ValueError:
+            raw = [raw]
+    if not isinstance(raw, (list, tuple)):
+        return []
+    out = []
+    for value in list(raw)[:LIST_MAX_ITEMS]:
+        text = str(value if value is not None else '').strip()[:MAPPING_MAX_CHARS]
+        if text and text not in out:
+            out.append(text)
+    return out
+
+
 def coerce_schema_values(schema, data, only_present: bool = True) -> dict:
     """
     Coercition COMPLÈTE d'un mapping selon le schéma : types (booléens) + bornes (numériques).
@@ -1211,6 +1257,9 @@ def coerce_schema_values(schema, data, only_present: bool = True) -> dict:
             continue
         if ptype == 'mapping' and raw is not None:
             out[name] = _coerce_mapping(raw)
+            continue
+        if ptype == 'multiselect' and raw is not None:
+            out[name] = _coerce_list(raw)
             continue
         if ptype in EMPTY_IS_NONE_TYPES and raw == '':
             out[name] = None                    # vide = revenir à celle du MODÈLE (un choix)

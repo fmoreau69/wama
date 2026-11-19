@@ -831,6 +831,16 @@ tranchent une fois sur les briques communes et se propagent. Consignés au fil d
   `process_pipeline.decorate` pose `notice_chips` (lignes réussies seules, lues avec la page) →
   le gabarit les inclut après la sortie. Une app qui veut dire autre chose de son résultat rend
   une remarque ; elle n'écrit ni champ ni pastille.
+  ✅ *(2026-11-19, Fabien : « visualiser directement sur les cards les classes des objets
+  détectés »)* **Ce qu'une étape de DÉTECTION a trouvé**, écrit à côté d'elle dans la bande des
+  étapes (`_card_process_step.html`, `p.found`) : les trois libellés les plus nombreux, la liste
+  entière au survol (« face 12 · plate 3 »). Calculé au COMMUN, pour toute étape dont la sortie
+  DÉCLARÉE est un document `detections` (`task_skeleton._line_summary` →
+  `process_runs.found_by_label` → `output_summary['found']`) : le nom d'une classe comme le concept
+  d'une description, en OBJETS sur une vidéo (un visage suivi compte une fois,
+  `detections.objects_by_label`). Aucune ligne d'app ; les lignes existantes ont été complétées une
+  fois le 2026-11-19. ⏳ Le chip des classes DEMANDÉES de l'anonymizer reste écrit à la main dans
+  sa vue (`_decorate_card`) : il rejoindra le schéma avec `classes2blur` (`INPUT_MODEL_MATCHING §7ter`).
 - **Zone de PREVIEW PERMANENTE** (jamais retirée) : récapitulatif de sortie dès l'ajout (fond
   légèrement distinct, ex. « Transcription (texte) + diarisation · formats après traitement :
   TXT · SRT · PDF · DOCX ») → PENDANT : préviz de process si disponible → APRÈS : préviz réelle.

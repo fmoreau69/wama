@@ -549,6 +549,23 @@ class AppPipeline:
         outputs = self._ports(spec)[1]
         return outputs[0].data_type if outputs else ''
 
+    def output_property(self, item, port: str, prop: str) -> list:
+        """Ce que la PROPRIÉTÉ `prop` de la sortie `port` (un port de sortie déclaré au
+        `FunctionSpec`) vaut sur cet élément — les libellés de son document de détections, par
+        exemple (`Param.options_from`, 2026-11-19). Lue sur le fichier que le process a posé sur
+        l'élément (son premier champ de sortie) ; `[]` tant qu'il n'a rien rendu. Le premier
+        process qui rend ce port et dont le fichier existe répond (le domaine image / vidéo et le
+        domaine document de l'anonymizer écrivent le même champ)."""
+        for spec in self.ordered():
+            match = next((o for o in self._ports(spec)[1] if o.key == port), None)
+            if match is None or not spec.outputs:
+                continue
+            name = getattr(getattr(item, spec.outputs[0], None), 'name', '') or ''
+            values = process_runs.output_property(match.data_type, name, prop)
+            if values:
+                return values
+        return []
+
     def renders_many(self, spec: ProcessSpec) -> bool:
         """Le process rend-il PLUSIEURS objets de son type (`PortSpec.cardinality == 'many'` : les
         pistes séparées du composer) ? Une telle sortie ne se lit jamais comme UN fichier de ce
@@ -1588,6 +1605,10 @@ class AppPipeline:
                              and bool(getattr(item, 'derived_role', ''))),
                 # Les mesures sans référence de sa sortie (`ProcessSpec.checks`, 2026-10-22).
                 'checks': list(summary.get('checks') or []) if row is not None else [],
+                # Ce qu'une étape de DÉTECTION a trouvé, par libellé (2026-11-19) : la bande
+                # l'écrit à côté d'elle — les classes d'un modèle comme les concepts d'un prompt.
+                'found': (process_runs.found_rows(summary)
+                          if row is not None and row.status == JOB_SUCCESS else []),
                 # Rendu, mais son fichier n'est plus sur le disque (`process_runs.output_lost`,
                 # 2026-10-27) : la bande le dit — il ne périme rien, son ▶ le refait.
                 'lost': row is not None and row.status == JOB_SUCCESS
@@ -1862,6 +1883,27 @@ def card_view(item, model_key=DECLARED, preloaded: bool = False):
             # gardée par l'appelant (un test, une vue qui écrit ensuite) relirait du périmé.
             release(item)
     return rows, state, dict(PROCESS_STATUS_CHOICES).get(state, state)
+
+
+def item_schema_choices(schema, item) -> list:
+    """Le schéma servi pour UN élément, ses `options_from` RÉSOLUS (2026-11-19) : un réglage qui
+    lit ses choix sur la sortie d'un process de la card (« ce qu'on floute » : les libellés que la
+    détection a trouvés) reçoit les `choices` de cet élément — une copie, le schéma déclaré
+    intact. Sans pipeline, ou sans réglage à résoudre : le schéma tel quel."""
+    def source_of(p):
+        return p.get('options_from') if isinstance(p, dict) else getattr(p, 'options_from', None)
+    if not any(source_of(p) for p in schema or ()):
+        return schema
+    pipeline = pipeline_of(item)
+    out = []
+    for p in schema:
+        source = source_of(p)
+        if source and pipeline is not None:
+            values = pipeline.output_property(item, source.get('port') or '',
+                                              source.get('property') or '')
+            p = dict(p if isinstance(p, dict) else p.to_dict(), choices=[[v, v] for v in values])
+        out.append(p)
+    return out
 
 
 def decorate(item, model_key=DECLARED, preloaded: bool = False):

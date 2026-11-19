@@ -1266,6 +1266,7 @@
               "item": "settingsBackend",
               "panel": "backendSelect"
             },
+            "empty_label": "",
             "group": "",
             "help": "",
             "help_fallback": {
@@ -1285,6 +1286,7 @@
             "options_abilities": false,
             "options_auto": true,
             "options_cloud": true,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1311,6 +1313,7 @@
               "transcribe"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "select",
             "unit": "",
             "write_from": null
@@ -1330,6 +1333,7 @@
             "dom_id": {
               "panel": "qualityIntent"
             },
+            "empty_label": "",
             "group": "",
             "help": "Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources.",
             "help_fallback": null,
@@ -1347,6 +1351,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1363,6 +1368,7 @@
             },
             "stales": null,
             "step": 1,
+            "stores_unchecked": false,
             "type": "intent",
             "unit": "",
             "write_from": null
@@ -1390,6 +1396,7 @@
               "item": "settingsHotwords",
               "panel": "hotwordsInput"
             },
+            "empty_label": "",
             "group": "",
             "help": "Séparés par des virgules",
             "help_fallback": null,
@@ -1407,6 +1414,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1422,6 +1430,7 @@
               "transcribe"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "textarea",
             "unit": "",
             "write_from": null
@@ -1446,6 +1455,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "",
             "help": "Retire les répétitions et les mots de remplissage (« euh », « ben »…) : un texte à lire plutôt qu'un verbatim. Seuls certains modèles le savent (Fluid Speech).",
             "help_fallback": null,
@@ -1463,6 +1473,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1478,6 +1489,7 @@
               "transcribe"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "toggle",
             "unit": "",
             "write_from": null
@@ -1500,6 +1512,7 @@
               "item": "settingsPreprocess",
               "panel": "preprocessingToggle"
             },
+            "empty_label": "",
             "group": "",
             "help": "",
             "help_fallback": null,
@@ -1517,6 +1530,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1530,6 +1544,7 @@
             "show_if": null,
             "stales": null,
             "step": null,
+            "stores_unchecked": false,
             "type": "toggle",
             "unit": "",
             "write_from": null
@@ -1549,6 +1564,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "",
             "help": "Amène chaque voix au même niveau tout au long de l'audio (les voix faibles sont remontées, les fortes rabaissées, sans remonter le bruit des silences). Appliqué en premier, avant le prétraitement. Mesuré : aide les enregistrements lointains ou faits à bas niveau, neutre sur un enregistrement propre.",
             "help_fallback": null,
@@ -1566,6 +1582,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1579,6 +1596,7 @@
             "show_if": null,
             "stales": null,
             "step": null,
+            "stores_unchecked": false,
             "type": "toggle",
             "unit": "",
             "write_from": null
@@ -1598,6 +1616,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "",
             "help": "Décoché : l'audio nivelé ou débruité reste produit et écoutable (aperçu, page de correction — pour mieux entendre en corrigeant), mais la transcription et les locuteurs écoutent l'original.",
             "help_fallback": null,
@@ -1615,6 +1634,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1628,6 +1648,7 @@
             "show_if": null,
             "stales": null,
             "step": null,
+            "stores_unchecked": false,
             "type": "toggle",
             "unit": "",
             "write_from": null
@@ -1660,6 +1681,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "",
             "help": "Whisper et Albert sautent les passages jugés sans parole. « Auto » vérifie d'abord que le filtre ne rejette pas une parole lointaine (entretien enregistré à distance) et le désactive alors. « Désactivé » garde tout, au risque de texte inventé dans les longs silences.",
             "help_fallback": null,
@@ -1677,6 +1699,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1692,6 +1715,7 @@
               "transcribe"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "select",
             "unit": "",
             "write_from": null
@@ -1724,6 +1748,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "",
             "help": "« Auto » écoute plusieurs passages de l'audio avant de transcrire : s'il entend plusieurs langues, chaque passage est transcrit dans la sienne. « Une seule » garde la même langue partout (évite qu'un passage bruité soit traduit). « Plusieurs » la redécide à chaque passage de 30 s.",
             "help_fallback": null,
@@ -1741,6 +1766,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1756,6 +1782,7 @@
               "transcribe"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "select",
             "unit": "",
             "write_from": null
@@ -1778,6 +1805,7 @@
               "item": "settingsDiarization",
               "panel": "diarizationToggle"
             },
+            "empty_label": "",
             "group": "",
             "help": "Séparation des locuteurs (pyannote)",
             "help_fallback": null,
@@ -1795,6 +1823,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1808,6 +1837,7 @@
             "show_if": null,
             "stales": null,
             "step": null,
+            "stores_unchecked": false,
             "type": "toggle",
             "unit": "",
             "write_from": null
@@ -1836,6 +1866,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "",
             "help": "community-1 succède à 3.1 (mêmes auteurs). En cours d'évaluation sur des réunions annotées : le meilleur des deux n'est pas encore établi.",
             "help_fallback": null,
@@ -1853,6 +1884,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1868,6 +1900,7 @@
               "diarize"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "select",
             "unit": "",
             "write_from": null
@@ -1890,6 +1923,7 @@
               "item": "settingsGenerateSummary",
               "panel": "globalGenerateSummary"
             },
+            "empty_label": "",
             "group": "",
             "help": "",
             "help_fallback": null,
@@ -1907,6 +1941,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1920,6 +1955,7 @@
             "show_if": null,
             "stales": null,
             "step": null,
+            "stores_unchecked": false,
             "type": "toggle",
             "unit": "",
             "write_from": null
@@ -1948,6 +1984,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "",
             "help": "",
             "help_fallback": null,
@@ -1965,6 +2002,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1983,6 +2021,7 @@
               "summarize"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "radio",
             "unit": "",
             "write_from": null
@@ -2005,6 +2044,7 @@
               "item": "settingsVerifyCoherence",
               "panel": "globalVerifyCoherence"
             },
+            "empty_label": "",
             "group": "",
             "help": "Score + correction proposée côte à côte",
             "help_fallback": null,
@@ -2022,6 +2062,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -2035,6 +2076,7 @@
             "show_if": null,
             "stales": null,
             "step": null,
+            "stores_unchecked": false,
             "type": "toggle",
             "unit": "",
             "write_from": null
@@ -2052,6 +2094,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "",
             "help": "ex. Réunion projet WAMA",
             "help_fallback": null,
@@ -2069,6 +2112,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -2082,6 +2126,7 @@
             "show_if": null,
             "stales": null,
             "step": null,
+            "stores_unchecked": false,
             "type": "text",
             "unit": "",
             "write_from": null
@@ -2099,6 +2144,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "",
             "help": "",
             "help_fallback": null,
@@ -2116,6 +2162,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -2129,6 +2176,7 @@
             "show_if": null,
             "stales": null,
             "step": null,
+            "stores_unchecked": false,
             "type": "date",
             "unit": "",
             "write_from": null
@@ -2146,6 +2194,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "",
             "help": "Renommez chaque intervenant. Les noms apparaissent dans le document de sortie (l'audio et les segments ne sont pas modifiés).",
             "help_fallback": null,
@@ -2163,6 +2212,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -2176,6 +2226,7 @@
             "show_if": null,
             "stales": null,
             "step": null,
+            "stores_unchecked": false,
             "type": "mapping",
             "unit": "",
             "write_from": null
@@ -2193,6 +2244,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "empty_label": "",
             "group": "",
             "help": "L'audio que lit la page de correction : l'original, ou la sortie d'un process qui le prépare.",
             "help_fallback": null,
@@ -2210,6 +2262,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -2223,6 +2276,7 @@
             "show_if": null,
             "stales": null,
             "step": null,
+            "stores_unchecked": false,
             "type": "mapping",
             "unit": "",
             "write_from": null

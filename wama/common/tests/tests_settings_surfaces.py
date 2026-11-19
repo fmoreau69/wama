@@ -44,6 +44,11 @@ def measured_gaps():
             for p in schema:
                 if p.get('type') == 'hidden':
                     continue  # carriers (media_type…), never shown
+                if p.get('options_from'):
+                    # Its choices are read on the OUTPUT of one element (2026-11-19, « what we
+                    # blur » among what was detected) : the panel sets the cards TO COME, which
+                    # have no output yet — never a default.
+                    continue
                 contexts = set(p.get('contexts') or ())
                 if ('item' in contexts) != ('panel' in contexts):
                     gaps.add((app_id, attr, p['name']))

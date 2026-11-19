@@ -57,7 +57,9 @@ PARAMS = derive_from_model(
         # ── Quoi détecter ──
         "target_mode", "sam3_prompt", "model_to_use",
         # ── Réglage de détection ──
-        "precision_level", "detection_threshold",
+        "precision_level", "detection_threshold", "detection_decimation",
+        # ── Ce qu'on floute parmi ce qui est détecté ──
+        "blur_skip_labels",
         # ── Comment flouter ──
         "blur_ratio", "rounded_edges", "roi_enlargement", "progressive_blur",
         # ── Temporel (vidéo) ──
@@ -124,10 +126,38 @@ PARAMS = derive_from_model(
             help="5 paliers effectifs (n/s/m/l/x) ; à partir de 50, segmentation fine.",
             chip=True, group="model", stales=("detect",),
         ),
+        # CE QU'ON FLOUTE parmi ce que la détection a trouvé (2026-11-19, décision de Fabien :
+        # « par défaut tout ce qui a été détecté », et sélectionner / désélectionner) — une case
+        # par LIBELLÉ du document de détections de CE média (`options_from`, résolu au service de
+        # sa ⚙) : le nom de classe d'un modèle à classes comme le concept d'une description, sans
+        # distinction. La valeur garde les décochés (`stores_unchecked`) : un objet qu'une
+        # détection relancée trouve en plus est flouté. Le changer ne refait que le floutage.
+        "blur_skip_labels": dict(
+            type="multiselect", label="Ce qu'on floute", icon="fa-eye-slash", group="mode",
+            contexts=("item",), default=[],
+            options_from={"port": "detections", "property": "labels"}, stores_unchecked=True,
+            empty_label="Rien n'est encore détecté sur ce média : la détection dira ce qu'on "
+                        "peut flouter.",
+            help="Ce que la détection a trouvé sur ce média. Décocher ce qu'on veut laisser net : "
+                 "seul le floutage est refait, sans redétecter.",
+            stales=("blur",),
+        ),
         "detection_threshold": dict(
             type="range", label="Seuil de détection", icon="fa-crosshairs",
             dom_id={"panel": "user_setting_detection_threshold"}, min=0, max=1, step=0.05,
             group="comment", stales=("detect",),
+        ),
+        # La DÉCIMATION de l'analyse d'une vidéo (2026-11-19, décision de Fabien : « un réglage
+        # atteignable et modifiable par l'utilisateur », adapté par modèle) : la forme du monde
+        # Data (`Declaration.decimation`, une image sur N), « auto » à 0 — chaque détecteur sa
+        # cadence déclarée, donc une passe à plusieurs modèles garde la sienne pour chacun.
+        "detection_decimation": dict(
+            type="number", label="Décimation de l'analyse (vidéo)", icon="fa-forward-fast",
+            min=0, max=250, step=1, advanced=True, group="model",
+            help="Une image analysée sur N d'une vidéo (1 : toutes). 0 : automatique — chaque "
+                 "modèle sa cadence (LocateAnything : une image par seconde ; YOLO, SAM3 : "
+                 "toutes). Les images sautées sont déduites des images analysées voisines.",
+            stales=("detect",),
         ),
         # ⚠ step=2 N'ÉTAIT PAS ARBITRAIRE (compris le 2026-08-19) : `blur_ratio` est la TAILLE
         # DE NOYAU d'un flou gaussien, qui DOIT être impaire — `normalize_blur_ratio`

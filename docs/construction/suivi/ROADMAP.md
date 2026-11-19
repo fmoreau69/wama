@@ -4584,6 +4584,10 @@ de Fabien)** :
   2026-10-10 EgoBlur et RT-DETR via `FrameDetectionBackend`, `561c5719` ; LocateAnything n'en
   hérite pas encore*), éprouvé de bout en
   bout sur GPU (jamais tourné sur ce poste), et grisé pour la VIDÉO par sa latence (1,5–7 s/image).
+  🔄 *2026-11-19 (décision de Fabien)* : condition 1 levée — `FrameDetectionBackend`, proposé en
+  mode Description (tâche `zero-shot-object-detection` ouverte au menu), servi par l'ensemble
+  commun ; la vidéo n'est plus grisée mais DÉCIMÉE (une image par seconde par défaut, réglage de
+  card). ⏳ condition 2 : jamais tourné sur GPU (crashs hôte de juillet — essai sur feu vert). §17quater.
 - **pose / classify / obb** : hors du menu de l'anonymizer (filtre par tâche, rien de supprimé) ;
   ils restent au catalogue pour le Detector — qui devra les chercher PAR TÂCHE, pas par app (leur
   `source` est encore `anonymizer`, héritage du rangement des poids).
@@ -4593,6 +4597,71 @@ de Fabien)** :
   quand un détecteur de visages échoue (profil, distance), une main… : une 3ᵉ désignation
   (« parties du corps »), avec un travail moteur (points → zones). Pour une silhouette entière, la
   segmentation de la classe « personne » fait déjà mieux.
+
+### 17quater. Anonymizer — DÉCRIRE ce qu'on anonymise, les classes en avancé (2026-11-19) 🔄
+
+> Fabien, 2026-11-19 : *« laisser la sélection des classes telle qu'elle est faite actuellement en
+> avancé et universaliser/uniformiser le fonctionnement par description […] l'utilisateur n'a qu'à
+> écrire sa description et en fonction de sa description et de son geste sur le curseur
+> rapide/qualité, on aurait un petit détecteur du ou des modèles les plus appropriés »* ; plus tard,
+> la PROFONDEUR (premier / arrière-plan, « à environ 10 m », « la plus proche »), la COULEUR
+> majoritaire (« le visage de la personne au pull rouge »), et des MODES (floutage, suppression,
+> remplacement, inversion de la sélection). Contraintes : aucune régression, l'existant reste
+> fonctionnel ; la modale et le volet peuvent être réorganisés. *« On termine déjà le travail en
+> cours avant de se lancer sur les nouveaux sujets. Le seul point à tenir compte pour le moment
+> c'est la généralisation du prompting. »*
+
+**Livré le 2026-11-19 (ce qui prépare la voie, sans rien en changer pour l'utilisateur d'avant)** :
+ce que la détection a TROUVÉ, par libellé, sur la bande de la card (`process_runs.found_by_label`,
+lu du type de sortie déclaré) ; « Ce qu'on floute » choisi parmi les libellés trouvés, sans
+redétecter (`Param.options_from` + type `multiselect`, `stores_unchecked` : un objet trouvé en plus
+est flouté) ; la classe d'une zone de la page d'édition proposée ou écrite
+(`WamaDetections.classPicker`) ; LocateAnything détecteur de l'anonymizer en mode Description ; la
+DÉCIMATION d'une vidéo (`DetectionBackend.decimation_for`, la forme de
+`wama_data.core.export.Declaration.decimation`, cadence déclarée par modèle, images sautées
+déduites d'office par `detections.by_frame`).
+
+**Proposition (soumise au concile le 2026-11-19, fil n° 66 de l'assistant)** :
+1. **Une demande STRUCTURÉE** tirée de la description par la pipeline de prompts commune (skill
+   `anonymizer-detection` étendu) : une liste de cibles `{concept, of: {concept, attributes},
+   plane, distance_m, rank}` — « la plaque de la voiture rouge la plus proche » →
+   `{concept: license plate, of: {concept: car, attributes: {color: red}}, rank: nearest}`. Les
+   classes cochées en avancé deviennent des cibles sans attribut.
+2. **Un routeur PAR CONCEPT**, sur le catalogue : une classe d'un détecteur dédié installé → la
+   couverture mesurée (`model_coverage`) ; sinon un modèle à vocabulaire ouvert (SAM3 : contours ;
+   LocateAnything : expressions, texte de scène) ; le curseur arbitre. Tous dans l'ensemble commun
+   (`DetectorSet`) → UN document : l'exclusivité Classes / Description tombe.
+3. **Une étape « Qualification »** (process optionnel entre Détection et Floutage) : attributs
+   DÉTERMINISTES rangés dans le document (`attrs`) — couleur dominante (k-moyennes HSV dans le
+   contour), profondeur (Depth Pro, mètres ; plan premier / arrière), relation « appartient à »
+   (le visage dans la boîte d'une personne), rang (le plus proche). « Ce qu'on floute » s'étend des
+   libellés aux attributs ; changer la règle ne refait que le floutage.
+4. **Des modes de rendu** du floutage : flou, pixellisation, masque plein, INVERSION (tout sauf la
+   sélection ; l'arrière-plan par la seule profondeur).
+5. **Vidéo** : PROPAGER les boîtes des images-clés d'un détecteur lent par le suiveur de SAM3 (celui
+   du clic « désigner un objet ») plutôt qu'interpoler sur une seconde.
+Ordre : (a) description d'abord + routeur + cible affichée ; (b) qualification et sélection sur
+attributs ; (c) modes simples ; (d) propagation ; (e) suppression / remplacement après décision.
+
+**Avis du concile (2026-11-19)** : routeur par concept VALIDÉ (le grounding VLM est un « luxe
+analytique », trop lent pour une vidéo longue) ; qualification déterministe VALIDÉE
+(explicable, sobre) ; propagation par SAM3 VALIDÉE ; ordre VALIDÉ ; la cible structurée doit rester
+invisible ou très simplifiée pour l'utilisateur, l'échec d'une cible se dire de façon suggestive
+(approcher → expliquer → proposer une autre voie), pas bloquante ; frontière Anonymizer / Detector
+(§17bis) soutenue FERMEMENT — l'un détruit, l'autre fabrique. **Faille majeure relevée** : logos,
+textes incrustés (écrans, badges, panneaux), tatouages ne sont pas des classes par défaut —
+s'appuyer sur la seule description fait dépendre la garantie de la vigilance de l'opérateur ; le
+système doit les proposer de lui-même. Et la validation humaine reste indispensable (occlusions,
+données biométriques non faciales).
+
+**Décisions de Fabien attendues** : (1) la description devient-elle LA saisie par défaut, les
+classes en « Avancé » — et la cible structurée montrée sous le champ (lisible, corrigeable) ou
+cachée ? (2) des cibles par défaut proposées d'office (visages, plaques, texte de scène, logos,
+écrans) que l'utilisateur décoche, pour lever la faille du concile ? (3) suppression et
+remplacement : dans l'anonymizer quand la garantie reste « rien d'identifiable » (visage
+synthétique), ou au Detector seul (§17bis) ? (4) la qualification — couleur et profondeur d'abord,
+relation et rang ensuite ? (5) LocateAnything sur GPU : feu vert pour un essai réel (risque de
+crash hôte mesuré en juillet sous WSL2) ?
 
 ### 17ter. Reconstruction 2D→3D + chaîne objets 3D (consigné 2026-08-18 — NON ouvert)
 

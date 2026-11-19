@@ -48,6 +48,7 @@
             "model_to_use",
             "precision_level",
             "detection_threshold",
+            "detection_decimation",
             "use_segmentation",
             "file",
             "classes2blur"
@@ -73,6 +74,7 @@
           ],
           "share": 3,
           "watched": [
+            "blur_skip_labels",
             "blur_ratio",
             "rounded_edges",
             "roi_enlargement",

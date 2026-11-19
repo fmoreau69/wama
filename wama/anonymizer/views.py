@@ -922,8 +922,10 @@ def get_media_settings(request, media_id):
         user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
         media = visible_or_404(Media, user, pk=media_id)
         # Le schéma du DOMAINE du média (2026-11-02) : un document a le sien — la modale le rend
-        # tel que servi ici, avec ses groupes (seul le schéma image / vidéo en déclare).
-        schema = _media_schema(media)
+        # tel que servi ici, avec ses groupes (seul le schéma image / vidéo en déclare). Les choix
+        # lus sur une sortie de la card (« ce qu'on floute ») y sont posés pour CE média.
+        from wama.common.services.process_pipeline import item_schema_choices
+        schema = item_schema_choices(_media_schema(media), media)
         names = {field['name'] for field in schema}
         domain = element_domain_or_first(media)
 

@@ -836,6 +836,7 @@
             "dom_id": {
               "item": "settingsTextContent"
             },
+            "empty_label": "",
             "group": "",
             "help": "La relance régénère la voix depuis ce texte.",
             "help_fallback": null,
@@ -853,6 +854,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -868,6 +870,7 @@
               "speak"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "textarea",
             "unit": "",
             "write_from": null
@@ -891,6 +894,7 @@
               "item": "settingsTtsModel",
               "panel": "tts_model"
             },
+            "empty_label": "",
             "group": "",
             "help": "",
             "help_fallback": null,
@@ -908,6 +912,7 @@
             "options_abilities": false,
             "options_auto": true,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -927,6 +932,7 @@
               "speak"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "select",
             "unit": "",
             "write_from": null
@@ -950,6 +956,7 @@
               "item": "settingsQualityIntent",
               "panel": "quality_intent"
             },
+            "empty_label": "",
             "group": "",
             "help": "Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources.",
             "help_fallback": null,
@@ -967,6 +974,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -985,6 +993,7 @@
               "speak"
             ],
             "step": 1,
+            "stores_unchecked": false,
             "type": "intent",
             "unit": "",
             "write_from": null
@@ -1069,6 +1078,7 @@
               "item": "settingsLanguage",
               "panel": "language"
             },
+            "empty_label": "",
             "group": "",
             "help": "",
             "help_fallback": null,
@@ -1086,6 +1096,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1101,6 +1112,7 @@
               "speak"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "select",
             "unit": "",
             "write_from": null
@@ -1128,6 +1140,7 @@
               "item": "settingsVoicePreset",
               "panel": "voice_preset"
             },
+            "empty_label": "",
             "group": "",
             "help": "",
             "help_fallback": null,
@@ -1145,6 +1158,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1160,6 +1174,7 @@
               "speak"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "select",
             "unit": "",
             "write_from": null
@@ -1198,6 +1213,7 @@
               "item": "settingsTtsTemperature",
               "panel": "tts_temperature"
             },
+            "empty_label": "",
             "group": "",
             "help": "Le hasard du modèle. À 0, même entrée, même résultat ; plus haut, le résultat varie d'un lancement à l'autre. Un modèle distant ne garantit pas toujours le même résultat, même à 0.",
             "help_fallback": null,
@@ -1215,6 +1231,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1230,6 +1247,7 @@
               "speak"
             ],
             "step": 0.05,
+            "stores_unchecked": false,
             "type": "temperature",
             "unit": "",
             "write_from": null
@@ -1259,6 +1277,7 @@
               "item": "settingsTtsSeed",
               "panel": "tts_seed"
             },
+            "empty_label": "",
             "group": "",
             "help": "Vide : un tirage neuf à chaque lancement. Une graine fixée, avec les mêmes réglages et le même modèle, redonne le même résultat sur cette machine.",
             "help_fallback": null,
@@ -1276,6 +1295,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1291,6 +1311,7 @@
               "speak"
             ],
             "step": 1,
+            "stores_unchecked": false,
             "type": "seed",
             "unit": "",
             "write_from": null
@@ -1320,6 +1341,7 @@
               "item": "settingsTtsTopP",
               "panel": "tts_top_p"
             },
+            "empty_label": "",
             "group": "",
             "help": "Le modèle ne tire que parmi ses choix les plus probables, jusqu'à cette part du total : plus bas, un résultat plus sûr et moins varié ; 1, tous les choix.",
             "help_fallback": null,
@@ -1337,6 +1359,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1352,6 +1375,7 @@
               "speak"
             ],
             "step": 0.05,
+            "stores_unchecked": false,
             "type": "top_p",
             "unit": "",
             "write_from": null
@@ -1375,6 +1399,7 @@
               "item": "settingsAnimationModel",
               "panel": "animation_model"
             },
+            "empty_label": "",
             "group": "",
             "help": "",
             "help_fallback": {
@@ -1394,6 +1419,7 @@
             "options_abilities": false,
             "options_auto": "silent",
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1411,6 +1437,7 @@
               "animate"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "select",
             "unit": "",
             "write_from": null
@@ -1433,6 +1460,7 @@
               "item": "settingsUseEnhancer",
               "panel": "use_enhancer"
             },
+            "empty_label": "",
             "group": "",
             "help": "Restauration faciale haute qualité — légèrement plus lent. Photo animée seulement : sans effet sur un avatar 3D.",
             "help_fallback": null,
@@ -1450,6 +1478,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1465,6 +1494,7 @@
               "enhance"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "toggle",
             "unit": "",
             "write_from": null
@@ -1487,6 +1517,7 @@
               "item": "settingsBboxShift",
               "panel": "bbox_shift"
             },
+            "empty_label": "",
             "group": "",
             "help": "Décalage vertical de la zone bouche (px). 0 = auto. Photo animée seulement : sans effet sur un avatar 3D.",
             "help_fallback": null,
@@ -1504,6 +1535,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1519,6 +1551,7 @@
               "animate"
             ],
             "step": 1,
+            "stores_unchecked": false,
             "type": "range",
             "unit": "",
             "write_from": null
@@ -1571,6 +1604,7 @@
               "item": "settingsOutputFormat",
               "panel": "output_format"
             },
+            "empty_label": "",
             "group": null,
             "help": "",
             "help_fallback": null,
@@ -1588,6 +1622,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1603,6 +1638,7 @@
               "enhance"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "select",
             "unit": "",
             "write_from": null
@@ -1639,6 +1675,7 @@
               "item": "settingsOutputQuality",
               "panel": "output_quality"
             },
+            "empty_label": "",
             "group": null,
             "help": "Appliquée à la conversion vers le format choisi.",
             "help_fallback": null,
@@ -1656,6 +1693,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_from": null,
             "options_group": "",
             "options_mode": null,
             "options_ports": false,
@@ -1681,6 +1719,7 @@
               "enhance"
             ],
             "step": null,
+            "stores_unchecked": false,
             "type": "select",
             "unit": "",
             "write_from": null

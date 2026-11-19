@@ -208,6 +208,25 @@ def _catalogue_key(value):
         return None
 
 
+#: La clé de catalogue de SAM3 — le détecteur d'une description sous « auto », et le suivi d'un
+#: objet désigné d'un clic (`TRACKING_MODEL_KEY`).
+SAM3_KEY = 'anonymizer:sam3'
+
+
+def _serves_mode(model_key: str, media) -> bool:
+    """Le modèle sert-il le MODE de la card ? La règle que borne le menu (`app_modes.
+    mode_model_filter` → `model_selector.matches_inputs`), relue au lancement : un modèle que le
+    menu n'offrirait pas dans ce mode ne s'y lance pas."""
+    from wama.common.utils.app_modes import element_domain_or_first, mode_model_filter
+    from wama.model_manager.models import AIModel
+    from wama.model_manager.services.model_selector import matches_inputs
+    model = AIModel.objects.filter(model_key=model_key).first()
+    if model is None:
+        return False
+    rule = mode_model_filter('anonymizer', element_domain_or_first(media), media.target_mode)
+    return matches_inputs(model, rule.get('available_inputs'), consumes=rule.get('consumes'))
+
+
 def _detection_kwargs(media, user, ensure_model=None):
     """Ce que le détecteur reçoit, et les modèles qu'il emploiera (clés de catalogue) : choix du
     ou des modèles par la couverture des classes demandées, ou SAM3 pour une description.
@@ -217,8 +236,9 @@ def _detection_kwargs(media, user, ensure_model=None):
     retient que des modèles installés (`model_coverage`)."""
     precision_level = media.precision_level
     use_segmentation = media.use_segmentation
-    # Mode DESCRIPTION (`app_modes`) : la seule désignation par texte branchée au moteur de
-    # floutage est SAM3 — LocateAnything, au catalogue, n'y est pas encore relié.
+    # Mode DESCRIPTION (`app_modes`) : SAM3 sous « auto » ; un autre modèle qui lit une
+    # description, DÉSIGNÉ sur la card (LocateAnything, 2026-11-19), passe par l'ensemble commun
+    # des détecteurs (`detection_ensemble`, son backend tiré du catalogue) — plus bas.
     use_sam3 = media.target_mode == 'description'
     sam3_prompt = media.sam3_prompt
 
@@ -244,6 +264,9 @@ def _detection_kwargs(media, user, ensure_model=None):
         # classe est un nom, jamais true/false/none/vide.
         'classes2blur': sane_classes(media.classes2blur),
         'detection_threshold': media.detection_threshold,
+        # La DÉCIMATION d'une vidéo (2026-11-19) : 0 = « auto », chaque détecteur sa cadence
+        # déclarée (`DetectionBackend.decimation_for`).
+        'detection_decimation': getattr(media, 'detection_decimation', 0) or 0,
         'precision_level': precision_level,
         'use_segmentation': use_segmentation,
         # SAM3 parameters
@@ -259,7 +282,28 @@ def _detection_kwargs(media, user, ensure_model=None):
     # Clé de catalogue, identifiant ou chemin d'avant, ou « auto » → '' (`catalogue_key_for`).
     from wama.common.utils.model_keys import model_id
     from .utils.yolo_utils import catalogue_key_for, model_path_for
-    user_specified_key = '' if use_sam3 else catalogue_key_for(media.model_to_use)
+    designated = catalogue_key_for(media.model_to_use)
+    if use_sam3 and designated and designated != SAM3_KEY and not _serves_mode(designated, media):
+        # Un modèle resté d'un autre mode (une liste de classes) ne lit pas de description : la
+        # card le garde, SAM3 tourne, et la console le dit.
+        _console(user.id, f"{designated} ne lit pas de description : SAM3 la détecte.", 'warning')
+        designated = ''
+    if use_sam3 and designated and designated != SAM3_KEY:
+        # Un modèle à DESCRIPTION désigné (2026-11-19) : l'ensemble commun le sert par SON
+        # backend, la description traitée en concepts (`sam3_prompt`) pour demande. Refusé en le
+        # disant quand rien ne le sert — jamais un repli muet sur SAM3.
+        from wama.common.backends.manager import backend_for_key
+        if backend_for_key(designated) is None:
+            raise ValueError(f"Aucun moteur ne sait lancer {designated} pour anonymiser. "
+                             "Choisissez « auto » ou un autre modèle dans les réglages.")
+        if ensure_model is not None:
+            ensure_model(designated)
+        kwargs['use_sam3'] = False
+        kwargs['models'] = [{'model_key': designated, 'path': None, 'name': designated,
+                             'classes': None}]
+        _console(user.id, f"Description : {designated} — « {sam3_prompt or ''} »")
+        return kwargs, [designated]
+    user_specified_key = '' if use_sam3 else designated
     if user_specified_key:
         # Le select liste par TÂCHE (route F4b ⑤, 2026-10-07) : un modèle de détection d'une
         # autre source peut y entrer. Le lancement refuse ce que rien ne sert, avec la raison —
@@ -480,7 +524,7 @@ def _detect(media, ctx):
     # Un modèle employé absent (désigné sur la card — déjà demandé ci-dessus, avant d'être lu —,
     # ou SAM3) : la route l'installe, la tâche attend — jamais un téléchargement par la librairie
     # au chargement, ni un repli muet.
-    for key in used_models + (['anonymizer:sam3'] if kwargs.get('use_sam3') else []):
+    for key in used_models + ([SAM3_KEY] if kwargs.get('use_sam3') else []):
         ctx.ensure_model(key)
     _console(user.id, f"Détection — média {media.id}…")
     ctx.progress(2)
@@ -544,7 +588,13 @@ def _blur(media, ctx):
     # Les corrections humaines (page de correction, chantier SURFACES) : une couche à part,
     # réappliquée ici à chaque floutage — une détection relancée ne les perd pas.
     doc = detections.apply_corrections(doc, media.detection_corrections)
+    # « Ce qu'on floute » (2026-11-19) : les libellés décochés restent nets — choisis parmi ce que
+    # la détection a trouvé, sans la refaire. Une zone ajoutée à la main suit sa classe.
+    skipped = list(getattr(media, 'blur_skip_labels', None) or [])
+    doc = detections.without_labels(doc, skipped)
     user = media.user
+    if skipped:
+        _console(user.id, f"Floutage : laissé net — {', '.join(skipped)}", 'info')
     source = media.file.path   # le fichier de la card, pointé ou non (cf. `_detect`, R104)
     video = doc.get('media') == 'video'
     frames_map = detections.by_frame(
@@ -744,7 +794,7 @@ def detect_media(**kwargs):
             try:
                 # Le MODÈLE porte son moteur ; le backend s'en dérive (2026-09-07).
                 from wama.common.backends.manager import backend_for_key
-                SAM3Processor = backend_for_key('anonymizer:sam3')
+                SAM3Processor = backend_for_key(SAM3_KEY)
                 if SAM3Processor is None:
                     raise ImportError("anonymizer:sam3 : aucun backend résolu depuis le "
                                       "catalogue (ligne absente, ou sans moteur déclaré)")
@@ -815,7 +865,7 @@ def set_media_progress(media_id: int, percent: int) -> None:
 # en cache, la page les accepte ou les refuse et son enregistrement en fait une version.
 
 #: La clé de catalogue du moteur de suivi — le SAM3 que la détection par description charge déjà.
-TRACKING_MODEL_KEY = 'anonymizer:sam3'
+TRACKING_MODEL_KEY = SAM3_KEY
 
 
 def track_channel(media_id):
