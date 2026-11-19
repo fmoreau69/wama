@@ -8418,8 +8418,9 @@ l'export pdf […] centralisé et parfaitement aligné sur le fonctionnement du 
   prennent la qualité JPEG du préréglage image (80 / 90 / 98 au lieu de 88 en dur).
 Mesuré sur la présentation (37 pages) : Rapide **10,2 Mo** (vidéo 6,8 Mo) · Équilibré 37,3 Mo (vidéo
 32,7 Mo, PLUS lourde que la source de 32,1 Mo : ce cran garde la pleine définition en CRF 20) ·
-Qualité 51,6 Mo. ⏳ Décision de Fabien : le défaut de l'export, ou le réglage vidéo du cran
-« Équilibré ». ⏳ Le bouton PDF de la page de présentation elle-même (page autonome, sans Bootstrap ni
+Qualité 51,6 Mo. ✅ Décision de Fabien le même jour : l'export part de « Rapide » (`page_pdf.export_params`
+déclare `default='web'` à la fabrique commune, dont le défaut reste « Équilibré » partout ailleurs) —
+le bouton de la page de présentation, qui exporte sans modale, aussi. ⏳ Le bouton PDF de la page de présentation elle-même (page autonome, sans Bootstrap ni
 `WamaParams`) exporte au défaut, sans modale.
 
 **31.7 La PERSONNALISATION, cartographiée puis alignée** ⏳ — à ouvrir APRÈS le travail en cours

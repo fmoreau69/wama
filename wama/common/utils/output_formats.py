@@ -194,7 +194,8 @@ def output_format_params(domain, contexts=None, dom_id_format=None, dom_id_quali
 
 
 def output_quality_param(contexts=None, dom_id=None, group: str | None = None,
-                         help: str = "Appliquée à la conversion vers le format choisi.", **extra):
+                         help: str = "Appliquée à la conversion vers le format choisi.",
+                         default: str | None = None, **extra):
     """Le réglage COMMUN « Qualité » d'une sortie (Rapide / Équilibré / Qualité), celui que
     `apply_output_settings` et l'export PDF des pages appliquent par le converter
     (`apply_inline_conversion`). Une fabrique (2026-11-19) : le réglage était construit dans
@@ -203,10 +204,11 @@ def output_quality_param(contexts=None, dom_id=None, group: str | None = None,
     Défaut « balanced » (2026-10-11) : celui de TOUTES les colonnes `output_quality` et du repli
     de la conversion. Sans défaut déclaré, une surface générée (volet, modale) proposait la
     PREMIÈRE option, « web » — mesuré sur le volet généré du synthesizer, quand l'ancien volet
-    écrit à la main proposait « Équilibré »."""
+    écrit à la main proposait « Équilibré ». Une surface qui en veut un autre le DÉCLARE
+    (`default=`) : l'export PDF part de « Rapide » (décision de Fabien, 2026-11-19)."""
     from wama.common.utils.param_schema import Param, ALL_CONTEXTS
     return Param(name="output_quality", type="select", label="Qualité", icon="fa-sliders",
-                 choices=get_output_qualities(), default=DEFAULT_PRESET,
+                 choices=get_output_qualities(), default=default or DEFAULT_PRESET,
                  contexts=contexts or ALL_CONTEXTS, dom_id=dom_id or "output_quality",
                  group=group, help=help, **extra)
 

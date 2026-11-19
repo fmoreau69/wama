@@ -530,9 +530,19 @@ l'avatarizer) — toujours pas un domaine ni un mode.
   mécanisme existant, `empty_is_value` : toutes les colonnes de réglage du converter). Le curseur
   de qualité n'est plus défait par les champs repostés inchangés (un réglage CHANGÉ prime). Gardes :
   `converter.tests.PanelSavesTheFlatSettingsTest`, `tests_batch_views.SettingsPayloadTest`.
-  ⏳ Le générateur ne porte `empty_is_value` pour AUCUNE des quatre apps qui le déclarent (reader,
-  enhancer, anonymizer, converter ; `grep` vide dans `common/manifests/`) : une jumelle naît sans —
-  trou antérieur, relevé ici ; la règle de nature, au commun, vaut déjà pour elles. La liste, qui ne peut que baisser (vide depuis), est
+  ⏳ **Trou du GÉNÉRATEUR, relevé à la revérification du même jour** (Fabien : « il faut s'occuper
+  du générateur pour ne pas laisser de piège ou trou ») : une jumelle perd TOUTE la lecture des
+  réglages postés que sa source déclare en ARGUMENT de ses fabriques — `empty_is_value` (reader,
+  enhancer, anonymizer, converter), `item_empty_is_value` (transcriber, composer, converter),
+  `list_settings` (anonymizer). Une première réparation (le manifeste les porte, `views_gen` les
+  réémet en arguments) a été RETIRÉE avant commit : elle recopiait des noms de réglages dans le
+  module généré, ce que la route interdit (`tests_codegen_lot.CheminDeLotTest.
+  test_setting_names_are_read_never_copied` — une liste figée dérive au premier réglage ajouté).
+  La forme qui la respecte : la propriété se DÉCLARE au schéma (le `Param`), que la jumelle reçoit
+  par son `params.py` et que les fabriques lisent à l'exécution — à proposer à Fabien (six apps à
+  porter pour le vide). `list_settings`, lui, se dérive déjà du type `multiselect`
+  (`read_settings_payload`) : il disparaît quand les classes à flouter, aujourd'hui HORS schéma
+  (`anonymizer/params.py:295`), y entrent — le type est né le 2026-11-19 pour elles. La règle de nature, au commun, vaut déjà pour les jumelles. La liste, qui ne peut que baisser (vide depuis), est
   `tests_cap_from_js.OWN_PANEL_SAVE` ; une jumelle de bac à sable n'y est pas jugée (copie figée,
   hors dépôt, régénérée à part — `app_sandbox substitute`). Gardes : `tests_cap_from_js.InspectorSavesThroughTheCommonPathTest` (V8),
   `…EveryPanelSavesThroughTheCommonPathTest`,

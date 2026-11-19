@@ -184,7 +184,8 @@ window.WamaPrez = {steps, go(i) {
         from wama.common.services.page_pdf import export_params, read_export_options
         self.assertEqual([], export_params(slides=False))
         self.assertEqual(['output_quality'], [p.name for p in export_params(slides=True)])
-        self.assertEqual({'output_quality': 'balanced'}, read_export_options({}, slides=True))
+        # Nothing posted (the presentation's own PDF button) : « Rapide », the export's declared default.
+        self.assertEqual({'output_quality': 'web'}, read_export_options({}, slides=True))
         self.assertEqual({'output_quality': 'web'},
                          read_export_options({'output_quality': 'web'}, slides=True))
         with self.assertRaises(ValueError):
@@ -200,7 +201,10 @@ window.WamaPrez = {steps, go(i) {
         request = RequestFactory().get('/')
         presentation = json.loads(views.page_pdf_options(request, 'presentation').content)
         self.assertEqual(['output_quality'], [p['name'] for p in presentation['schema']])
-        self.assertEqual({'output_quality': 'balanced'}, presentation['values'])
+        # « Rapide » by default for the export (Fabien, 2026-11-19), the common default elsewhere.
+        self.assertEqual({'output_quality': 'web'}, presentation['values'])
+        from wama.common.utils.output_formats import DEFAULT_PRESET, output_quality_param
+        self.assertEqual(DEFAULT_PRESET, output_quality_param().default)
         document = json.loads(views.page_pdf_options(request, 'fiches').content)
         self.assertEqual([], document['schema'])
         self.assertTrue(reverse('presentation_pdf_options').endswith('/presentation/pdf/options/'))

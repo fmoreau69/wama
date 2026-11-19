@@ -80,8 +80,10 @@ def export_params(slides: bool) -> list:
     if not slides:
         return []
     from wama.common.utils.output_formats import output_quality_param
+    # « Rapide » par défaut (décision de Fabien, 2026-11-19) : mesuré sur la présentation, 10,2 Mo
+    # contre 37,3 en « Équilibré », qui garde la vidéo en pleine définition.
     return [output_quality_param(
-        contexts=('item',), dom_id='pageExportQuality',
+        contexts=('item',), dom_id='pageExportQuality', default='web',
         help="Qualité des vidéos embarquées (réencodées par le converter) et des images des pages : "
              "« Rapide » donne le PDF le plus léger.")]
 

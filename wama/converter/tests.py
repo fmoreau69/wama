@@ -263,6 +263,14 @@ class PanelSavesTheFlatSettingsTest(TestCase):
         job = self._post(job, quality_intent='15', video_quality='24', resolution_cap='720')
         self.assertEqual(24, job.video_quality)
 
+    def test_settings_written_from_outside_a_form_follow_the_same_rules(self):
+        # The `params` of a Studio node (`write_element_settings`) : the SAME reading as a request.
+        from wama.common.utils.batch_views import write_element_settings
+        job = self._job(media_type='image', input_filename='x.png', output_format='jpg', rotation='90')
+        write_element_settings(job, {'media_type': 'image', 'rotation': '', 'gif_fps': '12'})
+        job.refresh_from_db()
+        self.assertEqual(('', None), (job.rotation, job.gif_fps))
+
     def test_the_batch_settings_follow_the_same_rules(self):
         from django.test import Client
         from wama.converter.models import ConversionBatch

@@ -93,6 +93,15 @@ def read_settings_payload(request, schema=None, schema_names=(), empty_is_value=
                                      if _pget(p, 'type') == 'multiselect'}
     data = {k: (v if k in lists else (v[0] if v else '')) if isinstance(v, list) else v
             for k, v in data.items()}
+    return settings_from_values(data, schema, schema_names, empty_is_value)
+
+
+def settings_from_values(data: dict, schema=None, schema_names=(), empty_is_value=()) -> dict:
+    """La lecture des réglages une fois REÇUS — d'une requête (`read_settings_payload`) ou d'ailleurs
+    (les `params` d'un nœud du Studio, `make_batch_views._write_outside_request`) : coercés selon le
+    schéma, retirés s'ils sortent de la NATURE de l'élément, un champ de `schema_names` laissé vide
+    retiré sauf s'il est dans `empty_is_value`. Une lecture : la seconde, écrite dans la fabrique,
+    n'avait pas la règle de nature (revérification du 2026-11-19)."""
     if schema:
         try:
             from wama.common.utils.param_schema import coerce_schema_values
@@ -706,13 +715,9 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
         formulaire (les `params` d'un nœud du Studio) passent par la MÊME lecture que la requête —
         coercées par le schéma de l'élément, un champ du schéma laissé vide = « ne pas toucher »
         (sauf `empty_is_value`) —, puis par `_write_one`."""
-        from wama.common.utils.param_schema import coerce_schema_values
         item_schema = schema(item) if callable(schema) else schema
         names = {p.get('name') for p in (item_schema or []) if isinstance(p, dict)}
-        names -= set(empty_is_value or ())
-        if item_schema:
-            data = {**data, **coerce_schema_values(item_schema, data)}
-        return _write_one(item, {k: v for k, v in data.items() if not (v == '' and k in names)})
+        return _write_one(item, settings_from_values(dict(data), item_schema, names, empty_is_value))
 
     if (caller == owner or caller.startswith(owner + '.')) and '.tests' not in caller:
         _SETTINGS_WRITERS[work_model] = _write_outside_request
