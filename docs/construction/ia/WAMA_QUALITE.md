@@ -2255,6 +2255,28 @@ ce ne sont pas des décisions de Fabien.
 - **En dernier** : le GPU.
 - Le tirage ne bouge pas.
 
+### 10.10 Adoptants en attente — besoins déjà exprimés, que la forme commune devra couvrir
+
+Personne ne construit de mesure à côté de la conception (décision de Fabien : un système
+universel). Les besoins se consignent ici à mesure qu'ils arrivent.
+
+- **Composer, partitions (session du 2026-11-19, question de Fabien)** : une partition tirée des
+  pistes SÉPARÉES (Demucs, puis MuScriptor par piste, puis fusion) vaut-elle mieux que celle tirée
+  du MÉLANGE ? Trois besoins :
+  1. **Une métrique « notes justes »** : F1 sur l'attaque et la hauteur, par instrument et globale.
+     La librairie `mir_eval` est déjà déclarée par la route (`manifests/libraries/mir_eval.json`).
+     Selon 10.8, elle est PORTÉE par les producteurs d'une partition : les process `parts`,
+     `extract_score`, `rendered_parts` et `rendered_score` du composer.
+  2. **Une RÉFÉRENCE** : un MIDI ou une partition dont on connaît les notes. C'est une médiathèque
+     de sources ouvertes, préparée par la route (sources externes, manifestes `dataset`).
+  3. **Deux CONFIGURATIONS d'une même entrée** comparées sur la même référence : le mélange contre
+     les pistes séparées puis fusionnées. C'est le cas que `batch_evaluation` couvre déjà par ses
+     configurations ; sous 10.8, la configuration se dérivera de ce que le pipeline déclare.
+
+  Ce cas exerce trois bords à la fois : une mesure lue sur plusieurs étapes (les parties fusionnées),
+  une référence d'une autre nature que le texte, et une comparaison de configurations plutôt que de
+  modèles.
+
 ---
 
 ## Voir aussi
