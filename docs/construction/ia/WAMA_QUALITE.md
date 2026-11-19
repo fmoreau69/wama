@@ -2038,10 +2038,12 @@ Le transcriber n'est qu'UN adoptant. Le relevé, par famille de mesure (où la v
    Familles déjà nommées au §0 (qualité, coût, caractérisation) et au §2 (M1–M10) : **qualité contre
    référence**, **sans référence**, **accord / convergence**, **caractérisation** (répétabilité,
    reproductibilité), **coût**, **usage**, **confiance du moteur**.
-2. **Déclarée au manifeste dès la création** : un champ du manifeste `app` (et du nœud de `pipeline`,
-   où `checks` existe déjà), émis par le générateur — ce qui ferme le trou de la jumelle. Le
-   vocabulaire du catalogue des fonctions (`INDICATOR`, facette estimateur) est la forme existante
-   côté Lab et Data : la forme standard doit l'absorber ou s'y raccorder, pas le doubler.
+2. ~~**Déclarée au manifeste dès la création** : un champ du manifeste `app` (et du nœud de
+   `pipeline`, où `checks` existe déjà), émis par le générateur — ce qui ferme le trou de la jumelle.~~
+   *Remplacé le 2026-11-19 par la décision de Fabien (10.8) : la capacité de mesure est portée par
+   le PRODUCTEUR — modèle, fonction ou process —, l'app en fait l'union, son manifeste n'en porte
+   rien.* Le vocabulaire du catalogue des fonctions (`INDICATOR`, facette estimateur) est la forme
+   existante côté Lab et Data : la forme standard doit l'absorber ou s'y raccorder, pas le doubler.
 3. **Planifiée par l'existant** : un scénario de campagne inscrit par l'app (cadence dérivée, VRAM
    déclarée), créneau mesuré par le calendrier, priorité « basse » ; les corpus en manifestes
    `dataset`. La « mesure d'entrée » d'un modèle neuf (P4) en est un cas, pas un mécanisme à part.
@@ -2060,6 +2062,10 @@ confirmer par une mesure de durée, rien n'est lancé) :
 
 ### 10.6 Ce que la session a corrigé dans sa propre proposition, et l'avis du concile
 
+⚠ *Précision du 2026-11-19* : cet avis porte sur la proposition corrigée du MATIN, soumise AVANT le
+recadrage de Fabien et avant les trois inventaires de 10.2–10.4. Il n'a vu ni le Lab et le monde
+Data, ni le planificateur, ni la charge, ni la règle du producteur (10.8). Le concile est relancé sur
+le §10 complet (10.9).
 Proposition du matin (même session), revérifiée au code puis soumise au concile de WAMA (quatre avis :
 Albert gemma-4-31b, ILaaS gemma-4-31b, ILaaS qwen-3.8-27b, Albert deepseek-v4-flash coupé ; relecture
 croisée ; décideur Albert qwen3-coder-30b ; 897 s). Ses défauts, trouvés à la revérification :
@@ -2103,6 +2109,152 @@ tiers se comparent » (faux : ni même corpus, ni même protocole) ; « le banc 
    elle-même, intervalle, calibration contre une référence).
 7. **Le banc hors des apps** (détection, agrandissement) : lots d'app ou banc doté d'un état périmé.
 
+*(2026-11-19 : les questions 1 à 3 sont reprises par 10.8, qui en tranche le principe.)*
+
+### 10.8 Décision de Fabien (2026-11-19) — LE PRODUCTEUR PORTE SA CAPACITÉ DE MESURE, l'app en fait l'union
+
+> *« L'autre façon de voir les choses, c'est de faire porter les mesures possibles par les modèles
+> eux-mêmes. De la même façon que les cards d'entrée font l'union des capacités d'entrée des
+> modèles, la mesure d'une app ferait simplement l'union des capacités de mesure de l'ensemble des
+> modèles tirés par l'application. Comme ça, on ne touche pas aux manifestes des apps et c'est plus
+> cohérent. La card de lot d'évaluation portera l'union des capacités de mesure des modèles mis en
+> jeu dans son lot, et saura si l'évaluation est faisable ou si un modèle du lot n'accepte pas
+> l'évaluation que porte le lot. »* Puis : *« le producteur porte sa capacité de mesure, qu'il soit
+> un modèle, une fonction ou un process »* ; et *« le manifeste d'une app ne porte en principe que
+> la surcharge »*.
+
+**La règle, et le patron qu'elle reprend.** C'est celui des entrées (`INPUT_MODEL_MATCHING §6.3`) :
+- les entrées d'une app sont l'union des entrées de ses modèles (`app_registry.app_input_ports`,
+  `:422`) ;
+- les entrées d'un modèle se DÉRIVENT de sa tâche (`model_manager/models.py::TASK_DEFAULT_INPUTS`,
+  `:415`), complétées de ce qu'il déclare en plus ;
+- l'union dit ce qui EXISTE ; le modèle choisi dit ce qui est requis ou refusé, avec sa raison,
+  jamais caché (`matches_inputs`).
+
+Transposée à la mesure :
+- **une MESURE déclare ce qu'elle lit** ; **un producteur** (modèle, fonction, process) déclare
+  **ce qu'il produit**, ce qu'il fait DÉJÀ : `task`, `supports_timestamps`, `timestamp_languages`,
+  `supports_diarization`, `supports_text_positions`, `classes`, `scale`, `reproducible`, `params`
+  (graine, température) — `model_capabilities.CANONICAL_CAPABILITIES`, `:68-217` ; ports de sortie
+  et facette estimateur d'une fonction (`function_catalog.PortSpec`) ;
+- **la capacité de mesure d'un producteur se dérive** de ce croisement, par la même forme qu'une
+  tâche implique ses entrées. On ne liste pas les mesures modèle par modèle, ce qui ferait des
+  centaines de déclarations recopiées. Exemples :
+  - WER : une transcription ;
+  - cpWER, DER : une sortie qui nomme ses locuteurs ;
+  - LPIPS : un agrandisseur (`scale`) ;
+  - rappel sur vraies boîtes : `classes` couvre celle du jeu (`classes_couvertes`, déjà la règle du
+    banc) ;
+  - répétabilité à graine fixée : `seed` dans `params`, et une mesure qui contredit `reproducible`
+    le RÉFUTE ;
+  - accord : des producteurs de même tâche sur la même entrée ;
+- **l'app mesure l'union** de ce que ses producteurs savent mesurer ; son manifeste n'en porte rien,
+  sauf une SURCHARGE (la règle de ses entrées : `app_own_input_ports`, `:617`) ;
+- **la card de lot d'évaluation** porte l'union pour proposer, et dit, mesure par mesure, quel
+  producteur du lot ne la porte pas. ⚠ « Mesurable » n'est pas « comparable » : la comparaison exige
+  toujours la même référence et la même catégorie (§4.1, §4.4).
+
+**Point 1, vérifié au code : le port de référence N'EST PAS dérivé aujourd'hui.** Fabien s'attendait
+à l'inverse (« je suis quasiment sûr que c'est déjà le cas »). Le code :
+- il est ouvert par une CAPACITÉ D'APP (`app_registry.app_result_ports`, `:771-810`, docstring :
+  « entrées que l'APP consomme elle-même — jamais un modèle ») ;
+- cette capacité est déclarée dans `APP_CATALOG` (transcriber, `has_reference_result`, `:1849`) et
+  exportée au manifeste (`manifests/apps/transcriber.json:17-18`) ;
+- c'est la décision écrite le 2026-09-23 (`INPUT_MODEL_MATCHING §6.7` : « la seule famille
+  d'entrées qu'aucun modèle ne peut déclarer »).
+
+Sous la règle du producteur, cette raison tombe : c'est la MESURE que porte un producteur qui
+consomme la référence. Le port s'ouvre donc de lui-même quand l'union contient une mesure qui en
+exige une. Décision de Fabien : *« le port de référence doit être aligné et je ne vois pas de
+raison qu'il ne suive pas la règle de l'union des modèles »*. ⏳ À appliquer quand la mesure se
+construira. `INPUT_MODEL_MATCHING §6.7` et la docstring d'`app_result_ports` sont alors à corriger ;
+ce sont des constats exacts AUJOURD'HUI.
+
+Même lecture pour `has_result_import` (« Résultat existant ») : ce n'est pas une mesure, mais son
+port est DÉJÀ déclaré ailleurs, deux fois.
+- Le process `import` du transcriber l'écoute (`transcriber/function_specs.py:224`,
+  `watched=('work_result',)`), et sa fonction déclare ce port d'entrée (`:129`).
+- L'aligneur l'exige par sa tâche (`TASK_DEFAULT_INPUTS[ALIGNMENT]`,
+  `model_manager/models.py:433` : `('work_audio', 'work_result')`).
+- La capacité d'app double donc des déclarations de producteurs. À vérifier quand on y touchera,
+  dans la même passe.
+
+**Point 3, exploré au code : `EvaluationSpec` redéclare presque tout ce que le pipeline déclare
+déjà.** Champ par champ (déclaration du transcriber, `transcriber/apps.py:65-172`) :
+
+| champ d'`EvaluationSpec` | ce qui le porte DÉJÀ | verdict |
+|---|---|---|
+| `reference_field` (`reference_result`) | le jeton du port (`app_modes.INPUT_TYPES`), même nom que le champ de l'élément | dérivable |
+| `model_key` | la ligne du process mesuré : `ProcessRun.model_key` (`common/models.py:1523`) — c'est déjà ce que lisent les mesures sans référence (`result_evaluation.py:456`) | dérivable |
+| `segment_model_key` (le diariseur) | la ligne du process `diarize` (`function_specs.py:228`) : son `model_key` | dérivable — la mesure se range sous le process qui l'a produite |
+| `config_params` (réglages qui changent le résultat) | ce que chaque réglage PÉRIME (`Param.stales`, `transcriber/params.py`) et les interrupteurs des process amont (`ProcessSpec.toggle`, `depends_on`) — réunis par `AppPipeline.watched_of` (`process_pipeline.py:513`). La liste de l'`EvaluationSpec` en est la recopie, marquée `wama:redondance-ok` (`apps.py:165`) | doublon |
+| `input_identity` (l'audio) | `AppPipeline.input_of` (`process_pipeline.py:1263`), déjà lu par `speech_coverage` | dérivable |
+| `result_text`, `result_segments` | le résultat lisible de chaque process (`ProcessSpec.result`, `result_format`, `function_specs.py:222`, `:231`) | **PAS dérivable tel quel**, vérifié : `transcription_text` rend `transcript.text` (`transcript_documents.py:244-245`, `:311-313`), que la correction humaine ÉCRASE — `_asr_text` lit exprès les segments PRODUITS. La mesure doit lire ce que le PRODUCTEUR a rendu, pas l'état courant de l'élément. La révision fait déjà cette distinction (origine `process` / `manual`), mais elle ne garde pas un texte qui n'est pas un fichier. Question ouverte : où lire la sortie d'un producteur |
+| `result_field`, `import_result` | le process `import` et son port (ci-dessus) | doublon |
+| `disagreement` (M1) | c'est une MESURE (`divergence`), pas une propriété d'app | va au registre des mesures |
+| `metrics`, `protocol` | la mesure elle-même | registre des mesures |
+| `read_reference`, `reference_extensions`, `language` | le lecteur de documents de l'app (`transcript_documents`, le même que lit l'import) ; la langue de l'élément | reste à l'app : lire SON format est propre à elle — forme à trouver |
+
+⇒ **La mesure s'attache au PROCESS qui produit**, c'est la règle 2. Une étape de pipeline connaît
+déjà son modèle (sa ligne), ses réglages (ce qu'elle surveille), son entrée et son résultat. Il ne
+reste propre à l'app que la lecture d'une référence dans son format. Le trou du générateur (la
+jumelle qui a perdu `register_evaluation`) disparaît : il n'y a plus de déclaration d'app à émettre.
+
+**Un gisement gratuit pour la répétabilité, relevé au passage.**
+- Chaque résultat produit crée une révision de l'élément (`ItemRevision`, `common/models.py:1381` ;
+  `revisions.record_revision`, posée une fois dans le squelette de tâche). Elle garde l'origine
+  (traitement, correction à la main, fichier fourni), les modèles, la photo des réglages et
+  l'empreinte de chaque fichier de sortie.
+- La ligne de process garde elle aussi sa photo de réglages (`process_runs.snapshot`).
+- Deux révisions d'un même élément, aux mêmes réglages et au même modèle, sont donc deux passes
+  RÉPÉTÉES déjà faites. Leur empreinte, identique ou non, dit le déterminisme sans aucun calcul GPU
+  de plus.
+- ⏳ À mesurer : combien de telles paires existent en base, et pour quelles apps. Le contenu des
+  sorties n'est gardé que pour les apps qui le déclarent (`keep_outputs`, le Writer d'abord) ; la
+  dispersion au-delà de « identique ou non » demande donc de les rejouer.
+
+### 10.9 Concile relancé sur le §10 complet (2026-11-19)
+
+**Le dossier.** Il est autonome : le cadre de Fabien, la règle du producteur, les relevés de 10.2 à
+10.4 et de 10.8, et sept questions.
+
+**Les agents.** Quatre avis : Albert gemma-4-31b ; ILaaS gemma-4-31b ; Albert qwen3-coder-30b ;
+Albert deepseek-v4-flash, dont la réponse a été coupée. Puis une relecture croisée et un décideur,
+Albert mistral-small-3.2-24b. Durée : 1 238 s.
+
+⚠ C'est un AVIS, pas une mesure. Trois agents ont lu la doc (§10, `briques.md`, `ROADMAP §30`) ;
+aucun n'a lu le code. Chaque point est confronté ci-dessous. Les ✅ sont retenus dans la proposition,
+ce ne sont pas des décisions de Fabien.
+
+| point du concile | lecture |
+|---|---|
+| **Q1** — la règle du producteur est juste, unanime. Elle a trois bords : une mesure de RELATION (l'accord) lit plusieurs producteurs ; une étape sans modèle produit aussi ; la VALEUR dépend du corpus | ✅ Tout est retenu. La mesure doit pouvoir déclarer qu'elle lit PLUSIEURS lignes d'étapes. L'étape sans modèle est déjà la règle 2 (le producteur peut être un process). La capacité est au producteur, la valeur au couple (producteur, population) : c'est la règle de population du §4.1, inchangée |
+| **Q2** — la RÉVISION est le support de « ce que le producteur a rendu », unanime. Condition : en garder le CONTENU pour toute étape mesurable ; puis surveiller le volume | ✅ C'est la condition de faisabilité, et elle n'est pas remplie aujourd'hui : le contenu n'est gardé que pour les apps qui déclarent `keep_outputs`, et seulement s'il est un FICHIER. Le texte d'une transcription n'en est pas un. La purge existe déjà (les `keep` dernières révisions et les publiées gardent leurs fichiers, `revisions.py:9-13`) |
+| **Q3** — stocker la mesure PRIMAIRE (`ResultEvaluation` contre référence, la ligne d'étape sans référence), CALCULER à la lecture ce qui se dérive (accord, agrégats, caractérisation). Trois avis contre un | ✅ C'est le patron d'`internal_scores` (calculé à la lecture, rien d'écrit au catalogue). L'avis isolé qui voulait tout stocker n'est pas retenu |
+| **Q3 bis** — les indicateurs du Lab sont des mesures SANS référence ; pas de magasin à part pour eux | ✅ Ils iraient sur la ligne de leur étape, comme les `checks` ; aujourd'hui ils restent dans `results_summary`. Aucun magasin à part n'avait été proposé : le décideur prête cette idée à tort |
+| **Q4** — unir les mondes par un CONTRAT commun dans le substrat (famille, sens, unité, incertitude, agrégation, lecture, population, coût, protocole versionné). La facette estimateur (Lab, Data) et la déclaration des Médias en deviennent des adoptants. « On n'unit pas les mondes, on unit le contrat » ; les calculs ne s'unifient pas | ✅ Juste. Le domicile reste à vérifier : `common/catalog/` (la glu inter-mondes) ou un registre de plus dans `registries_builtin`, qui en compte dix-neuf sans aucun de mesures (10.3). C'est une décision de Fabien |
+| **Q5** — le COÛT est déclaré par la MESURE (nul, CPU ou GPU, et un temps estimé). Une campagne refuse ce qui dépasse son créneau. On commence à coût GPU nul. **D'abord, appliquer le délai des scénarios**, qui ne l'est pas (`nightly_tests`, TODO) | ✅ Le coût est sur la mesure, au registre, pas sur l'app. Le créneau mesuré et le refus existent pour la planification (`BEAT_WINDOWS`, `scheduled_actions.place`) ; l'admission scénario par scénario n'existe pas. Le délai non appliqué et la suite du commun sans verdict sont des PRÉALABLES (`WAMA_VERIFICATION §11`), pas des à-côtés |
+| **Q5 bis** — ce qui est gratuit d'abord : le déterminisme par les révisions, le rejeu des `checks`, l'accord sur les lots existants, la confiance des moteurs déjà écrite, la conformité d'une sortie à sa forme déclarée | ✅ Cela recoupe le premier tri de 10.5. « Conformité de forme » est une idée de mesure sans référence de plus, à instruire |
+| **Q6** — une mesure est « éprouvée » si elle est stable sur ses répétitions, CORRÉLÉE au jugement humain là où il existe, et **SENSIBLE** : elle bouge dans le bon sens quand on dégrade la sortie (deepseek) | ✅ Les trois sont retenus. Le dernier est la contre-épreuve appliquée à une métrique : il prolonge le « rapport de sensibilité » du concile du 12/11 (§0). ❌ « Sur trois jeux distincts » est un seuil inventé ; « documentée et au manifeste » n'est pas un critère d'épreuve |
+| Une mesure qui RÉFUTE un fait déclaré (`reproducible`) : qui gagne ? (deepseek) | ✅ La mesure gagne, et les deux restent visibles. C'est la forme de la dérivation du moteur (un moteur déclaré, réfuté, garde sa trace) |
+| MANQUE : le sort des mesures quand un élément est supprimé, ou qu'un modèle est retiré ou remplacé | ✅ C'est une vraie question, non vérifiée au code : la ligne `ResultEvaluation` vit avec son élément ; on ignore ce que la succession (`succession.py`) fait des notes d'un modèle remplacé. À instruire |
+| ❌ « Le manifeste de l'app doit porter sa capacité à lire une référence » ; et le décideur, en résumé : « commencer par déclarer les mesures dans les manifestes » | Contraire à la décision de Fabien (10.8) dans sa forme ; juste sur le fond, sur UN point : lire une référence dans SON format reste propre à l'app (10.8, dernière ligne de la table). Ce n'est pas un champ de mesure, c'est un lecteur du format de sortie de l'app. ⏳ À vérifier : il pourrait se ranger à côté de l'écrivain d'export qu'elle déclare déjà (`register_export_builder`, `transcriber/apps.py:63`), qui en est l'inverse |
+| ❌ « Le port de référence par capacité d'app est une anomalie confirmée par le responsable » (un avis) | Faux. C'était une décision écrite (23/09, `INPUT_MODEL_MATCHING §6.7`), que la règle du producteur RÉVISE (10.8) |
+
+**Ce que l'avis change à l'ordre** (proposition, à valider) :
+- **Préalables**, hors du système de mesure : appliquer le délai des scénarios ; rendre son verdict à
+  la suite du commun (`WAMA_VERIFICATION §11`).
+- **Puis, sans GPU** :
+  - le contrat commun et ses familles ;
+  - le croisement lecture × production ;
+  - la rétention du contenu pour les étapes mesurables ;
+  - les premières mesures gratuites : déterminisme par les révisions, `checks` rejoués, accord des
+    lots existants.
+- **Ensuite** : le coût et l'admission dans les campagnes, et l'épreuve des mesures (stabilité,
+  sensibilité, calibration).
+- **En dernier** : le GPU.
+- Le tirage ne bouge pas.
+
 ---
 
 ## Voir aussi
@@ -2134,3 +2286,8 @@ tiers se comparent » (faux : ni même corpus, ni même protocole) ; « le banc 
   borné par la charge ; le tirage inchangé tant que la mesure n'est pas éprouvée) : inventaire de
   tout ce qui mesure déjà, déclarations, planifieurs et campagnes, cible, avis du concile, sept
   questions. Rien d'implémenté.
+- **2026-11-19** — §10.8, décision de Fabien : le PRODUCTEUR (modèle, fonction, process) porte sa
+  capacité de mesure, l'app en fait l'union, son manifeste n'en porte rien. Vérifié au code : le port
+  de référence est une capacité d'app (à dériver) ; `EvaluationSpec` redéclare le pipeline ; la
+  révision garde les passes répétées. §10.9 : concile relancé sur le §10 complet, avis confronté.
+  Rien d'implémenté.
