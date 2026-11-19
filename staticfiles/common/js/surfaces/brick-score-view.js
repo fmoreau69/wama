@@ -640,7 +640,38 @@
             if (lit.length && lit[0][0]) global.WamaFollow.into(body, lit[0][0]);
         };
 
-        function onNote(abcelem, tuneNumber, classes, analysis, drag) {
+        /** Le RANG, du grave à l'aigu, de la tête d'accord cliquée (`event` : le 6ᵉ argument d'abcjs),
+         *  ou null : un clic hors d'une tête, ou un élément d'une seule note. Le plus bas à l'écran est
+         *  le plus grave ; un clic à côté des têtes prend la plus proche en hauteur. */
+        function headRank(event) {
+            var target = event && event.target;
+            var group = target && target.closest ? target.closest('.abcjs-note') : null;
+            var heads = group ? Array.prototype.slice.call(group.querySelectorAll('.abcjs-notehead')) : [];
+            if (heads.length < 2) return null;
+            var y = function (h) { var r = h.getBoundingClientRect(); return r.top + r.height / 2; };
+            var clicked = target.closest('.abcjs-notehead');
+            if (!clicked && event.clientY != null) {
+                clicked = heads.reduce(function (best, h) {
+                    return Math.abs(y(h) - event.clientY) < Math.abs(y(best) - event.clientY) ? h : best;
+                }, heads[0]);
+            }
+            if (!clicked) return null;
+            var lowFirst = heads.slice().sort(function (a, b) { return y(b) - y(a); });
+            return lowFirst.indexOf(clicked);
+        }
+
+        /** Ce qu'un clic CHOISIT : la note d'un accord sous la tête cliquée (2026-11-19, Fabien : « on
+         *  ne sélectionne qu'un accord entier ») — son accord gardé à côté, pour les gestes de temps,
+         *  qui valent pour l'accord —, sinon tout l'élément. */
+        function pick(start, end, event) {
+            var rank = headRank(event);
+            var notes = rank == null ? [] : Score.chordNotes(text(), start, end);
+            if (rank == null || rank >= notes.length) return { start: start, end: end };
+            return { start: notes[rank].start, end: notes[rank].end, rank: rank,
+                     chord: { start: start, end: end } };
+        }
+
+        function onNote(abcelem, tuneNumber, classes, analysis, drag, event) {
             if (!abcelem || abcelem.startChar == null) return;
             // abcjs donne le focus à la note APRÈS nous avoir prévenus : on le reprend ensuite.
             setTimeout(focusBrick, 0);
@@ -648,36 +679,73 @@
             // texte édité, que les gestes réécrivent.
             var start = toSource(abcelem.startChar), end = toSource(abcelem.endChar);
             if (start < 0) return;
+            var picked = pick(start, end, event);
             if (drag && drag.step && editable()) {
-                transpose(start, end, drag.step);
+                transpose(picked.start, picked.end, drag.step);
                 return;
             }
-            selection = { start: start, end: end };
+            selection = picked;
             highlight();
             var ms = Score.eventTime(timings, abcelem.startChar);
             if (ms != null && axis) axis.seek(axisSeconds(ms));
         }
 
-        /** La note choisie, surlignée par abcjs (`rangeHighlight`) — refait après chaque gravure. */
+        /** La note choisie, surlignée par abcjs (`rangeHighlight`) — refait après chaque gravure. Une
+         *  note d'accord : abcjs surligne l'accord, sa tête est marquée en plus. */
         function highlight() {
             if (!tune || !tune.engraver || !tune.engraver.rangeHighlight) return;
             try { tune.engraver.rangeHighlight(selection ? toShown(selection.start) : -1,
                                                selection ? toShown(selection.end) : -1); }
             catch (e) { /* gravure en cours de remplacement */ }
+            paper.querySelectorAll('.wama-score-picked').forEach(function (h) { h.classList.remove('wama-score-picked'); });
+            if (!selection || selection.rank == null) return;
+            var head = chordHead(toShown(selection.chord.start), selection.rank);
+            if (head) head.classList.add('wama-score-picked');
         }
 
-        /** ↑ ↓ (ou le glisser d'abcjs) : `step` degrés VERS LE BAS — la note garde sa place choisie. */
+        /** La tête de rang `rank` (du grave à l'aigu) de l'élément gravé qui commence à `shownStart`. */
+        function chordHead(shownStart, rank) {
+            try {
+                var found = null;
+                (tune.engraver.staffgroups || []).forEach(function (group) {
+                    (group.voices || []).forEach(function (voice) {
+                        (voice.children || []).forEach(function (child) {
+                            if (!found && child.abcelem && child.abcelem.startChar === shownStart) found = child;
+                        });
+                    });
+                });
+                var el = found && found.elemset && found.elemset[0];
+                var heads = el ? Array.prototype.slice.call(el.querySelectorAll('.abcjs-notehead')) : [];
+                var y = function (h) { var r = h.getBoundingClientRect(); return r.top + r.height / 2; };
+                return heads.sort(function (a, b) { return y(b) - y(a); })[rank] || null;
+            } catch (e) { return null; }
+        }
+
+        /** ↑ ↓ (ou le glisser d'abcjs) : `step` degrés VERS LE BAS — la note garde sa place choisie,
+         *  et une note d'accord la sienne dans l'accord. */
         function transpose(start, end, step) {
             edit(function (v) {
                 var out = Score.transposeAt(v, start, end, step);
-                if (selection && selection.start === start) selection.end = end + (out.length - v.length);
+                var delta = out.length - v.length;
+                if (selection && selection.start === start) {
+                    selection.end = end + delta;
+                    if (selection.chord) selection.chord.end += delta;
+                    // Transposée, une note peut changer de rang dans l'accord : elle reste la même note.
+                    if (selection.chord) {
+                        var notes = Score.chordNotes(out, selection.chord.start, selection.chord.end);
+                        var same = notes.findIndex(function (n) { return n.start === start; });
+                        if (same >= 0) selection.rank = same;
+                    }
+                }
                 return out;
             });
         }
 
-        /** ← → + − : un geste refusé (la mesure ne le permet pas) ne fait pas de cran, il se dit. */
+        /** ← → + − : un geste refusé (la mesure ne le permet pas) ne fait pas de cran, il se dit. Une
+         *  note d'accord : le geste de temps vaut pour son accord, qui tient un seul temps. */
         function retime(op) {
-            var r = Score.retime(text(), selection.start, op, step ? 1 / Number(step) : undefined);
+            var at = selection.chord ? selection.chord.start : selection.start;
+            var r = Score.retime(text(), at, op, step ? 1 / Number(step) : undefined);
             if (r.error) { ctx.status(r.error, 'error'); return; }
             selection = { start: r.start, end: r.end };
             edit(function () { return r.abc; });

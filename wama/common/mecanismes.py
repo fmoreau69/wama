@@ -2542,7 +2542,13 @@ MECHANISMS = (
               "la vidéo seule, les deux de Comparer sur le même axe — l'ancien `syncVideos` retiré), "
               "l'horloge passe d'une face à l'autre par l'axe, la visionneuse passe à l'axe les "
               "touches du magnéto (Espace, J/K/L, Début/Fin) et la surcouche dessine l'image "
-              "PRÉSENTÉE (`requestVideoFrameCallback`) — précision mesurée par `common.preview_sync`",
+              "PRÉSENTÉE (`requestVideoFrameCallback`) — précision mesurée par `common.preview_sync`. "
+              "2026-11-19 (Fabien : « l'aperçu ouvert en modale ne garde pas les sélections de "
+              "l'aperçu de la card ») : un aperçu EN LIGNE qui ouvre la visionneuse (double-clic sur "
+              "la card, `faceViewer.open` du volet et de l'échange) lui passe ce qu'il tient — "
+              "position, lecture en cours, audio écouté d'une partition (`_heldBy`, `_openHeld`) —, "
+              "le passage que la visionneuse fait déjà d'une face à l'autre ; l'horloge d'un hôte "
+              "se lit au lecteur audio COMMUN avant tout `<audio>` du DOM (`_hostMedia`)",
               'wama/common/utils/preview_registry.py', '',
               annexes=('wama/common/utils/preview_utils.py',
                        'wama/common/static/common/js/media-preview.js',

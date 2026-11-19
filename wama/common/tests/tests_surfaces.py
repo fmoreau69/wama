@@ -1346,6 +1346,34 @@ class ScoreRulesTest(SimpleTestCase):
         self.assertIn('wrap: global.WamaScorePlayer.WRAP', brick, 'the export is laid out the same')
         self.assertIn('new global.ResizeObserver', brick, 'a resized zone is laid out again')
 
+    def test_one_note_of_a_chord_is_picked_and_moved_alone(self):
+        """2026-11-19 (Fabien : « on ne sélectionne qu'un accord entier ; impossible de déplacer une
+        note d'un accord ») : the notes of a chord, lowest first — the head clicked picks ONE, and
+        a transposition rewrites that note only ; fields and quoted symbols are not notes."""
+        abc = 'X:1\nK:C\n"C"[ec_G]2 [K:G] G2|'
+        start = abc.index('[ec')
+        end = abc.index(']', start) + 1
+        notes = self._call('chordNotes(%s, %d, %d)' % (json.dumps(abc), start, end))
+        self.assertEqual(['_G', 'c', 'e'], [abc[n['start']:n['end']] for n in notes],
+                         'lowest first, each with its own accidental')
+        middle = notes[1]
+        moved = self._call('transposeAt(%s, %d, %d, -1)' % (json.dumps(abc), middle['start'], middle['end']))
+        self.assertIn('[ed_G]2', moved, 'the clicked note alone goes up one degree, the others stay')
+        quoted = abc.index('"C"')
+        self.assertEqual(3, len(self._call('chordNotes(%s, %d, %d)' % (json.dumps(abc), quoted, end))),
+                         'a chord symbol before the chord is skipped')
+        field = abc.index('[K:G]')
+        self.assertEqual([], self._call('chordNotes(%s, %d, %d)' % (json.dumps(abc), field, field + 5)))
+        single = abc.index('G2|')
+        self.assertEqual([], self._call('chordNotes(%s, %d, %d)' % (json.dumps(abc), single, single + 2)),
+                         'a single note : nothing to choose')
+        brick = _js('common/js/surfaces/brick-score-view.js')
+        self.assertIn('function onNote(abcelem, tuneNumber, classes, analysis, drag, event)', brick,
+                      'abcjs gives the mouse event as its 6th argument : the head clicked')
+        self.assertIn('var picked = pick(start, end, event);', brick)
+        self.assertIn('var at = selection.chord ? selection.chord.start : selection.start;', brick,
+                      'a gesture in time moves the whole chord')
+
     def test_two_views_choose_a_score_by_its_origin_then_its_form(self):
         """2026-11-19 (Fabien, 18/11 : « une brique partition générique […] choisir l'origine de la
         partition », two bricks kept to compare) : the versions of a view are offered by ORIGIN,

@@ -478,10 +478,15 @@
      *  l'identifiant du lecteur audio commun. */
     function _hostMedia(host) {
         if (!host || !host.querySelector) return null;
-        const el = host.querySelector('.wama-compare-base') || host.querySelector('video, audio');
-        if (el) return { el: el };
+        const base = host.querySelector('.wama-compare-base');
+        if (base) return { el: base };
+        // Le lecteur audio COMMUN avant tout `<audio>` du DOM (2026-11-19) : il joue sa copie de
+        // lecture (`WamaAudioPlayer.current`), l'élément posé dans la page n'est pas celui qu'on
+        // entend — mesuré : 1,5 s au lecteur, 0,999 s à l'élément, et c'est lui qu'on reprenait.
         const player = host.querySelector('.wama-audio-player[id^="audioPlayer_"]');
-        return player ? { player: player.id.replace('audioPlayer_', '') } : null;
+        if (player) return { player: player.id.replace('audioPlayer_', '') };
+        const el = host.querySelector('video, audio');
+        return el ? { el: el } : null;
     }
 
     /** {base, time, playing} du média montré par `host` (il est arrêté), ou `previous` quand la
@@ -1102,9 +1107,12 @@
             try {
                 const m = Object.assign({}, last);
                 m._baseUrl = baseUrl; m.sides = last.sides; m.side = last.side;
-                const walk = addressSequence(opts.sequence && opts.sequence(), m);
-                if (walk) openSequence(walk);
-                else openForCard(m, opts.card || null, 0);
+                // Ce que tient l'aperçu (position, lecture, audio écouté) passe à la visionneuse.
+                _openHeld(m, _heldBy(host, baseUrl), function (m) {
+                    const walk = addressSequence(opts.sequence && opts.sequence(), m);
+                    if (walk) openSequence(walk);
+                    else openForCard(m, opts.card || null, 0);
+                });
             } catch (err) { /* no-op */ }
         }
         // Double-clic sur l'aperçu → la visionneuse, sur la face montrée. Une vignette de la grille
@@ -1241,17 +1249,40 @@
      * (.preview-media-link) and the double-click trigger on card previews (.wama-card-preview).
      * Depuis une card : la séquence des cards de sa file (←/→, ↑/↓).
      */
+    /** Ce que tient l'aperçu EN LIGNE `host` au moment où il ouvre la visionneuse (2026-11-19,
+     *  Fabien : « l'aperçu ouvert en modale ne garde pas les sélections de l'aperçu de la card ») :
+     *  sa position et sa lecture en cours (`takeClock`, qui l'arrête), et l'audio qu'écoute une
+     *  partition. Ce que la visionneuse fait passer d'une face à l'autre (`_goSide`), de la card à
+     *  elle. La face montrée, elle, passait déjà (`data-preview-url`). */
+    function _heldBy(host, base) {
+        if (!host || !host.querySelector) return null;
+        const scoreFace = host.querySelector('.wama-score-face');
+        return { clock: takeClock(host, base, null), from: scoreFace ? (scoreFace.dataset.listened || '') : '' };
+    }
+    /** Ouvre la visionneuse sur `data` (`opener(data)`), ce que tenait l'aperçu repris. */
+    function _openHeld(data, held, opener) {
+        if (held && held.from && !data._fromSide) data._fromSide = held.from;
+        opener(data);
+        if (held && held.clock) {
+            _modalClock = held.clock;
+            giveClock(_modalContainer(), held.clock, data._baseUrl);
+        }
+    }
+
     function openPreview(endpoint, indicatorEl) {
         if (!endpoint) {
             console.warn('[MediaPreview] No preview URL specified');
             return;
         }
         if (indicatorEl) indicatorEl.style.opacity = '0.5';
+        const held = _heldBy(indicatorEl, _itemAddress(endpoint));
         _fetchItem(endpoint)
             .then(function (data) {
                 const card = _cardOf(indicatorEl);
-                if (card) openForCard(data, card, 0);
-                else showPreviewModal(data);
+                _openHeld(data, held, function (d) {
+                    if (card) openForCard(d, card, 0);
+                    else showPreviewModal(d);
+                });
             })
             .catch(function(err) {
                 showPreviewError(err.message);

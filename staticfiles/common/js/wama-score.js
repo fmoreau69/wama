@@ -82,6 +82,36 @@
         return out;
     }
 
+    /** Les NOTES d'un accord `[…]` du texte `abc[start, end)` — `[{start, end, degree}]` (la hauteur
+     *  seule : altération, lettre, octave), de la plus GRAVE à la plus aiguë ; [] hors d'un accord
+     *  ou pour une seule note (2026-11-19, Fabien : « on ne sélectionne qu'un accord entier,
+     *  impossible de déplacer une note d'un accord »). Un champ en ligne (`[K:…]`, `[V:…]`), un
+     *  accord chiffré ou une décoration entre guillemets ne sont pas des notes. */
+    function chordNotes(abc, start, end) {
+        var text = String(abc || '');
+        var i = start, notes = [];
+        while (i < end && text[i] !== '[') {
+            if (QUOTED[text[i]]) { var q = text.indexOf(QUOTED[text[i]], i + 1); i = q < 0 ? end : q + 1; continue; }
+            i++;
+        }
+        if (i >= end || /^\[[A-Za-z]:/.test(text.slice(i, i + 3))) return [];
+        var close = text.indexOf(']', i);
+        if (close < 0 || close >= end) close = end;
+        for (var j = i + 1; j < close;) {
+            if (QUOTED[text[j]]) { var k = text.indexOf(QUOTED[text[j]], j + 1); j = k < 0 ? close : k + 1; continue; }
+            PITCH.lastIndex = j;
+            var m = PITCH.exec(text);
+            if (m && m.index === j && j + m[0].length <= close) {
+                notes.push({ start: j, end: j + m[0].length, degree: degree(m[2], m[3]) });
+                j += m[0].length;
+                continue;
+            }
+            j++;
+        }
+        if (notes.length < 2) return [];
+        return notes.sort(function (a, b) { return a.degree - b.degree || a.start - b.start; });
+    }
+
     function transposeAt(abc, start, end, step) {
         step = Math.round(Number(step) || 0);
         if (!step || start == null || end == null || end <= start) return abc;
@@ -614,7 +644,7 @@
 
     global.WamaScore = {
         degree: degree, pitchText: pitchText, transposeToken: transposeToken,
-        transposeAt: transposeAt, voiceOf: voiceOf, timeline: timeline,
+        transposeAt: transposeAt, chordNotes: chordNotes, voiceOf: voiceOf, timeline: timeline,
         playingAt: playingAt, eventTime: eventTime,
         syncOf: syncOf, anchorPairs: anchorPairs, timeMap: timeMap, timingFor: timingFor,
         barAt: barAt, parseBar: parseBar, retime: retime, unitAt: unitAt,

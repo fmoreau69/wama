@@ -263,6 +263,29 @@ class OneFaceSwitchTest(SimpleTestCase):
         self.assertEqual([12.5, 1], [out[3], out[4]], 'the next face resumes where the first one was')
         self.assertEqual([0, 0], [out[5], out[6]], 'never from one item to another')
         self.assertIsNone(out[7])
+        # 2026-11-19 (Fabien : « l'aperçu ouvert en modale ne garde pas les sélections de l'aperçu de
+        # la card ») : a host with the COMMON player AND an `<audio>` in the DOM — the player plays
+        # its playback copy, the element is not what is heard. Measured : 1.5 s against 0.999 s, and
+        # the element was the one taken.
+        both = self.v8.eval("""(function () {
+            var P = window.WamaMediaPreview;
+            var heard = {currentTime: 1.5, paused: false, ended: false, pause: function () { heard.paused = true; }};
+            var stale = {currentTime: 0.999, paused: true, ended: false, pause: function () {}};
+            window.WamaAudioPlayer = {current: function (id) { return id === 'card7' ? heard : null; }};
+            var host = {querySelector: function (sel) {
+                if (sel.indexOf('wama-audio-player') >= 0) return {id: 'audioPlayer_card7'};
+                if (sel.indexOf('video') >= 0) return stale;
+                return null; }};
+            return [P.takeClock(host, '/p/7/', null), heard.paused];
+        })()""")
+        self.assertEqual({'base': '/p/7/', 'time': 1.5, 'playing': True}, dict(both[0]),
+                         'the common player is the one heard')
+        self.assertTrue(both[1], 'and it is the one stopped')
+        script = (JS / 'media-preview.js').read_text(encoding='utf-8')
+        self.assertIn('const held = _heldBy(indicatorEl, _itemAddress(endpoint));', script,
+                      'the card opens the viewer with what its preview holds')
+        self.assertIn('_openHeld(m, _heldBy(host, baseUrl), function (m) {', script,
+                      'and so does a face viewer (panel, assistant exchange)')
 
     def test_the_playback_follows_the_face_on_the_axis(self):
         """Since 2026-11-05 a video of the preview FOLLOWS a time axis (`playOnAxis`), the only clock,

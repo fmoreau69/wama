@@ -1323,7 +1323,10 @@ register_brick(UIBrick(
                 "`origin` et leur `form` (2026-11-19, décision de Fabien : une brique Partition "
                 "générique) donnent deux choix, « Origine » puis « Forme » ; `options.origin` : "
                 "l'origine montrée d'abord ; une version `edits` se corrige quand la page l'édite et "
-                "se LIT sinon, ce qui permet deux vues de la même page sur deux partitions.",
+                "se LIT sinon, ce qui permet deux vues de la même page sur deux partitions. Un clic "
+                "sur une tête d'ACCORD choisit cette note seule (`WamaScore.chordNotes`, du grave à "
+                "l'aigu) : ↑ ↓ et le glisser la déplacent, les gestes de temps valent pour l'accord "
+                "(2026-11-19, Fabien : « on ne sélectionne qu'un accord entier »).",
     script='common/js/surfaces/brick-score-view.js',
     requires=('vendors/abcjs-6.4.4/abcjs-basic-min.js', 'common/js/wama-axis.js',
               'common/js/wama-score.js',
