@@ -594,6 +594,30 @@ COMPLET, avec son aperçu et son pipeline, au-dessus de ses pistes.
   2. une **card fille porteuse de sous-cards filles** — la card #1632 (l'audio source) porterait les
      cards de ses pistes séparées.
 
+**Suite du même jour.** Proposé, et accepté dans son principe par Fabien : AFFICHER les cards
+dérivées rangées sous leur card source, repliables, sans changer le comportement d'un lot. Son
+objection : un morceau seul séparé montrerait UN lot à UNE fille visible qui porte ses pistes —
+*« une légère incohérence »* ; ne serait-ce pas à la card source d'appliquer une étape à SES pistes
+(depuis la mère : toutes les cards ; depuis la source : ses pistes) ? Mesuré : la cause unique est
+l'ENVELOPPEMENT d'une source seule dans un lot neuf (`derived_cards.py:94-97`, `wrap_in_batch`) ;
+la card mère montre l'UNION des étapes qui ont lieu sur au moins une fille
+(`wama_actions.batch_process_rows`) et son ▶ joue le ▶ de chaque fille (`process_views.start_on_batch`,
+qui prend déjà une LISTE d'éléments).
+
+**Avis du concile (2026-11-19, quatre agents, une décision en relecture croisée)** — trois sur
+quatre pour **B** : la FAMILLE (source + dérivées) est une VUE calculée sur `derived_from`, pas une
+entité ; la séparation n'enveloppe plus une source SEULE dans un lot (une source déjà dans un lot de
+l'utilisateur y range ses pistes comme aujourd'hui) ; le ▶ de la source porte sur ses seules
+dérivées, celui de la mère sur tout le lot. Ordre proposé : (1) ne plus envelopper une source seule,
+après un audit de ce qui suppose qu'une dérivée est toujours dans un lot ; (2) l'affichage imbriqué ;
+(3) le ▶ de portée famille (`start_on_batch` sur les dérivées) ; (4) référence de réglages,
+« Réaligner » et export ZIP pour une famille hors lot. Le quatrième agent préfère **A** (garder
+l'enveloppement) : B redéfinit quatre mécanismes pour une gêne visuelle. Deux réserves à garder
+quelle que soit l'option : les deux ▶ voisins doivent se DISTINGUER (icône, libellé « ▶ pistes » /
+« ▶ lot »), et l'affichage s'arrête à deux niveaux (une dérivée de dérivée se compte, ne s'imbrique
+pas). **Dossiers / chutiers (C) : rejetés à l'unanimité** — un besoin de rangement se traiterait en
+VUE de la file (filtre, onglet), pas en structure. ⏳ Décision de Fabien.
+
 ---
 
 ## 6. Unification avec la MÉTA-APP (chaînage graphique) — anticiper dès maintenant
