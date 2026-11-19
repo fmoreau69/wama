@@ -110,7 +110,10 @@ ROUTE_ALIASES = {
     # restent des BOUCHONS dans le généré : nom de vue ET kwarg dévient de la convention
     # (`<int:pk>`) — les harmoniser est un chantier de PORTAGE de l'imager, pas un alias. Ses
     # ▶ / ↻ / « tout lancer » y sont revenus le 2026-10-29 (fabrique `item_views`).
-    'upload': ('generate', 'create'),
+    # ⚠ L'alias est un nom de VUE (la route `create/` de l'imager appelle `views.create_generation`) :
+    # avec le seul `create`, le corps généré portait le nom de la ROUTE et la vue appelée restait un
+    # bouchon 501 — ajout, lot attaché et fichier de lot d'`imager_01` en échec (2026-11-19).
+    'upload': ('generate', 'create', 'create_generation'),
     # anonymizer nomme ses gestes d'après son modèle (`Media`) : `clear_all_media`. Ajouté le
     # 2026-09-12 après une erreur de mesure QUI A COÛTÉ UN FAUX CONSTAT : j'avais mesuré
     # `reverse('anonymizer:duplicate')` → NoReverseMatch et conclu « l'app n'a pas le geste »,

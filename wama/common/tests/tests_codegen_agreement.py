@@ -167,6 +167,33 @@ class TheGeneratedUploadReceivesADesignationTest(_Rendered):
         self.assertEqual({}, wrong)
 
 
+class ARouteNeverCallsAStubOfAGeneratedGestureTest(_Rendered):
+    """A route whose name belongs to a gesture the generator WROTE (`urls_gen.ROUTE_ALIASES`, its
+    canonical name or an alias) calls that body, never a 501 stub : the imager's `create/` route
+    calls `create_generation`, and the body was generated under `create` only — add, attached lot
+    and batch file of `imager_01` all ended on the stub (2026-11-19)."""
+
+    def test_no_route_of_a_generated_gesture_lands_on_a_stub(self):
+        from wama.common.manifests.codegen.urls_gen import ROUTE_ALIASES, render_urls
+        from wama.common.manifests.codegen.views_gen import render_views
+        wrong = {}
+        for app, manifest in self.manifests.items():
+            urls, _ = render_urls(manifest)
+            views, _ = render_views(manifest)
+            if urls is None or views is None:
+                continue
+            stubs = set(re.findall(r'^def (\w+)\([^)]*\):\n(?:\s+"""[^\n]*\n)?\s+return JsonResponse\('
+                                   r"\{'error': '\[manifest-gen[^']*endpoint non g",
+                                   views, re.M))
+            real = _defined(views) - stubs
+            for view, route_name in re.findall(r"views\.(\w+),\s*name='(\w+)'", urls):
+                family = next(({c, *alts} for c, alts in ROUTE_ALIASES.items()
+                               if route_name == c or route_name in alts), None)
+                if family and family & real and view in stubs:
+                    wrong.setdefault(app, []).append(f'{route_name} → {view}')
+        self.assertEqual({}, wrong)
+
+
 class TheGeneratedPageOffersTheUrlImportItsSourceDeclaresTest(_Rendered):
     """The URL IMPORT button is offered when the source declares `has_url_import` — never because
     it `accepts_url`, which says the URL is part of the CREATION (the imager's reference image) :
