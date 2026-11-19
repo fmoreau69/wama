@@ -494,7 +494,12 @@ def render_index(manifest: dict, element: tuple = None) -> tuple:
 
     caps = body.get('capabilities') or {}
     url_bits = url_js = ''
-    if caps.get('accepts_url') or caps.get('has_url_import'):
+    # L'IMPORT par URL (un bouton qui fait entrer un fichier) se déclare `has_url_import`.
+    # `accepts_url` dit autre chose : l'URL fait partie de la CRÉATION (l'image de référence de
+    # l'imager, la mélodie du composer), et la source n'offre aucun bouton. Lire les deux offrait aux
+    # jumelles de l'imager, du composer, du synthesizer et du reader un import que leur source
+    # déclare ne pas avoir (2026-11-18, `imager_01.video.url_import`).
+    if caps.get('has_url_import'):
         url_bits = (f" show_url=True url_input_id='{PID}Url' url_submit_id='{PID}UrlSubmit'"
                     " url_placeholder='https://… (page web, média distant)'")
         # L'URL est routée vers le MÊME formalisme de lot (une URL = un lot d'une ligne) :

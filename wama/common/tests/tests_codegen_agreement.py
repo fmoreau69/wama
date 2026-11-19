@@ -167,6 +167,29 @@ class TheGeneratedUploadReceivesADesignationTest(_Rendered):
         self.assertEqual({}, wrong)
 
 
+class TheGeneratedPageOffersTheUrlImportItsSourceDeclaresTest(_Rendered):
+    """The URL IMPORT button is offered when the source declares `has_url_import` — never because
+    it `accepts_url`, which says the URL is part of the CREATION (the imager's reference image) :
+    the twins of four apps offered an import their source declares not to have (2026-11-18)."""
+
+    def test_the_import_button_follows_has_url_import(self):
+        from wama.common.manifests.codegen.templates_gen import render_index
+        wrong, offered = {}, 0
+        for app, manifest in self.manifests.items():
+            page, _ = render_index(manifest)
+            if page is None:
+                continue
+            if isinstance(page, dict):     # the page and its partials, by file
+                page = '\n'.join(str(v) for v in page.values())
+            declared = bool((manifest['body'].get('capabilities') or {}).get('has_url_import'))
+            rendered = 'url_submit_id=' in page
+            offered += rendered
+            if declared != rendered:
+                wrong[app] = {'has_url_import': declared, 'rendered': rendered}
+        self.assertEqual({}, wrong)
+        self.assertGreater(offered, 0, 'no app offers a URL import : the rule would be blank')
+
+
 class TheGeneratedCardReadsWhatTheViewsSetTest(_Rendered):
     """The generated card titles itself with `elem.input_filename` and names its output with
     `elem.output_filename`; on a real model both are @property glue the generated model loses

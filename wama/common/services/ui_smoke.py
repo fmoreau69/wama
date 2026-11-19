@@ -434,6 +434,15 @@ def _element_surface(app: str) -> str:
     return domain_surface(app, domain) if domain else app
 
 
+def _batch_create_button(page) -> str:
+    """Le « Ajouter » de la barre de lot du volet que montre la page (`<base>CreateOnlyBtn` de
+    `batch_detect_bar.html`, chaque card de domaine a la sienne) ; `#batchCreateOnlyBtn` sur une page
+    à une file. Viser le premier de la page cliquait la barre CACHÉE du premier domaine : l'URL collée
+    sur la page document de l'anonymizer ne créait rien (2026-11-18)."""
+    scope = _page_scope(page)
+    return f'{scope}[id$="CreateOnlyBtn"]' if scope else '#batchCreateOnlyBtn'
+
+
 def _page_domain_extensions(app: str, exts) -> list:
     """Les extensions d'entrée de l'app que le DOMAINE de la page prend (`accepts`, lu par
     `app_modes.domain_nature`) ; toutes hors d'une page de domaine. Un geste qui fait ARRIVER un
@@ -2506,12 +2515,12 @@ def check_app_url_import(app: str, url_path: str):
                     # répond directement (famille RÉSOLUE). On attend la première ; son absence
                     # n'est pas un échec, c'est l'autre branche.
                     try:
-                        page.wait_for_selector('#batchCreateOnlyBtn', state='visible',
+                        page.wait_for_selector(_batch_create_button(page), state='visible',
                                                timeout=15000)
                         familles.append('différée (pipeline de lot)')
                         try:
                             with page.expect_navigation(wait_until='load', timeout=30000):
-                                page.click('#batchCreateOnlyBtn', timeout=15000)
+                                page.click(_batch_create_button(page), timeout=15000)
                         except Exception:
                             pass          # une app peut rafraîchir sa file sans recharger
                         try:
@@ -2911,11 +2920,11 @@ def check_app_folder_import(app: str, url_path: str):
                     # Certaines apps font passer un dépôt multiple par l'APERÇU DE LOT (même
                     # chaîne que le fichier de lot et l'URL) : on ne présume pas, on regarde.
                     try:
-                        page.wait_for_selector('#batchCreateOnlyBtn', state='visible',
+                        page.wait_for_selector(_batch_create_button(page), state='visible',
                                                timeout=8000)
                         try:
                             with page.expect_navigation(wait_until='load', timeout=30000):
-                                page.click('#batchCreateOnlyBtn', timeout=15000)
+                                page.click(_batch_create_button(page), timeout=15000)
                         except Exception:
                             pass
                     except Exception:
@@ -4210,7 +4219,7 @@ def _monter_un_lot_par_gabarit(page, app: str = ''):
     # `<base>CreateOnlyBtn`, `<base>CreateCount` de `batch_detect_bar.html`).
     scope = _page_scope(page)
     bar = f'{scope}[id$="DetectBar"]' if scope else '#batchDetectBar'
-    create = f'{scope}[id$="CreateOnlyBtn"]' if scope else '#batchCreateOnlyBtn'
+    create = _batch_create_button(page)
     if not page.query_selector(bar):
         raise SkipScenario("aucune barre de détection de lot dans la page (`show_batch_bar` "
                            "non déclaré) — le fichier de lot n'a pas de surface ici")

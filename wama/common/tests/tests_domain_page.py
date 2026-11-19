@@ -285,6 +285,12 @@ class TheNightlyGesturesSweepEveryDomainTest(SimpleTestCase):
                         and ui_smoke.PAGE_ROOT_JS not in line):
                     drifted.append(f'{path.name}:{n}')
         self.assertEqual([], drifted)
+        # « Ajouter » of a batch bar is read by ONE rule (`_batch_create_button`) : the bare id is
+        # the first domain's bar, hidden on another domain's page (2026-11-18, URL import).
+        bare = [f'{p.name}:{n}' for p in sorted(root.glob('ui_smoke*.py'))
+                for n, line in enumerate(p.read_text(encoding='utf-8').splitlines(), 1)
+                if "'#batchCreateOnlyBtn'" in line]
+        self.assertEqual(1, len(bare), bare)
 
     def test_the_page_of_a_domain_is_the_page_asked_for(self):
         """The arrival check compares the PATH: the page of a domain is asked with its query."""
