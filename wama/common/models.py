@@ -147,8 +147,11 @@ JOB_STATUS_ALIASES = {
     # deux apps qui les employaient ayant déjà migré (`converter/0005`, `reader/0008`). Ils ne
     # survivaient plus que dans du code défensif — et un alias qui ne traduit rien fait croire à
     # une compatibilité qu'il n'y a plus à tenir.
-    # ⚠ NE PAS les réintroduire au motif du `filemanager` : il emploie ces deux mots pour SES
-    # opérations de fichiers (`filemanager.js:480-489`), jamais pour un état de file.
+    # ⚠ NE PAS les réintroduire au motif du `filemanager`. ~~Il emploie ces deux mots pour SES
+    # opérations de fichiers, jamais pour un état de file~~ — FAUX, corrigé le 2026-11-19 : sa
+    # conversion rapide comparait à `DONE`/`ERROR` l'état de l'élément du converter, et ne se
+    # terminait plus à l'écran depuis le retrait ; elle lit désormais l'état commun
+    # (`WamaApp.normalizeStatus` → SUCCESS / FAILURE). Plus aucun lecteur de ces deux mots.
     'PROCESSING': JOB_RUNNING, 'STARTED': JOB_RUNNING,   # Celery — un vocabulaire qu'on ne POSSÈDE pas
 }
 

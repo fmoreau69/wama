@@ -329,7 +329,7 @@
 
         const modal       = document.getElementById('converterQuickModal');
         const fmtSel      = document.getElementById('converterQuickFormat');
-        const presetSel   = document.getElementById('converterQuickPreset');
+        const qualityHost = document.getElementById('converterQuickQuality');
         const fnameEl     = document.getElementById('converterQuickFilename');
         const errEl       = document.getElementById('converterQuickError');
         const confirmBtn  = document.getElementById('converterQuickConfirmBtn');
@@ -353,29 +353,46 @@
 
         fnameEl.textContent = filename || filePath;
 
-        // L'EFFET RÉEL du preset, affiché sous le select (question Fabien 02/09 : « faut-il
-        // afficher les paramètres correspondants ? ») — la table vient de converter:api_presets
-        // (SERVIE, jamais recopiée : une copie divergerait), rendue pour le type détecté du
-        // fichier. La modale reste rapide ; l'app est le lieu du réglage fin.
+        // QUALITÉ : le CURSEUR commun du converter (2026-11-19), RENDU par `WamaParams` depuis le
+        // schéma que sert converter:api_presets, à sa position de NAISSANCE pour ce compte — comme
+        // dans la ⚙ et le volet. Sous lui, l'EFFET réel de la position (question Fabien 02/09 :
+        // « faut-il afficher les paramètres correspondants ? »), calculé par le serveur
+        // (`values_for_intent`) : rien n'est recopié ici. La modale avait son menu de trois presets,
+        // leurs libellés et la lecture de leur table. Elle reste rapide : l'app est le lieu du
+        // réglage fin.
         const effectEl = document.getElementById('converterQuickPresetEffect');
-        const _LIBELLES = { quality: 'qualité', video_quality: 'CRF', audio_bitrate: 'débit',
-                            preset: 'encodage' };
-        function renderPresetEffect() {
-            if (!effectEl || !window.__converterPresets) return;
-            const vals = (window.__converterPresets[mediaType] || {})[presetSel.value] || {};
-            const morceaux = Object.entries(vals)
-                .map(([k, v]) => (_LIBELLES[k] || k) + ' ' + v);
-            effectEl.textContent = morceaux.length
-                ? '→ ' + morceaux.join(' · ')
+        const presetsUrl = config.converterPresetsUrl || '/converter/api/presets/';
+        // Les libellés sont ceux du SCHÉMA, servis avec l'effet (`effect_labels`) : la modale en
+        // recopiait une table ; un réglage que le schéma ne déclare pas garde son nom.
+        function showEffect(effect, labels) {
+            if (!effectEl) return;
+            const parts = Object.entries(effect || {}).map(([k, v]) => ((labels || {})[k] || k) + ' ' + v);
+            effectEl.textContent = parts.length
+                ? '→ ' + parts.join(' · ')
                 : (mediaType === 'document' ? '→ sans effet pour un document' : '');
         }
-        if (effectEl && presetSel) {
-            if (window.__converterPresets) renderPresetEffect();
-            else fetch('/converter/api/presets/')
-                .then(r => r.ok ? r.json() : null)
-                .then(d => { if (d) { window.__converterPresets = d.presets; renderPresetEffect(); } })
+        function qualityFor(position) {
+            const query = '?media_type=' + encodeURIComponent(mediaType || '')
+                + (position != null && position !== '' ? '&quality_intent=' + encodeURIComponent(position) : '');
+            return fetch(presetsUrl + query, { credentials: 'same-origin' })
+                .then(r => r.ok ? r.json() : null).catch(() => null);
+        }
+        function chosenQuality() {
+            return (qualityHost && window.WamaParams) ? (WamaParams.read(qualityHost) || {}).quality_intent : '';
+        }
+        if (qualityHost) { qualityHost.innerHTML = ''; qualityHost.onchange = null; }
+        showEffect({});
+        if (qualityHost && mediaType && window.WamaApp && WamaApp.loadScript) {
+            Promise.all([WamaApp.loadScript(config.paramsScript, () => !!window.WamaParams), qualityFor(null)])
+                .then(([, data]) => {
+                    if (!data || !data.schema || !window.WamaParams) return;
+                    WamaParams.render(qualityHost, data.schema, { context: 'item', values: data.values || {} });
+                    showEffect(data.effect, data.effect_labels);
+                    // `onchange` REMPLACE l'écouteur à chaque ouverture (la modale est réutilisée).
+                    qualityHost.onchange = () => qualityFor(chosenQuality())
+                        .then(d => { if (d) showEffect(d.effect, d.effect_labels); });
+                })
                 .catch(() => {});
-            presetSel.onchange = renderPresetEffect;   // remplace (pas d'accumulation entre ouvertures)
         }
         errEl.style.display = 'none';
         errEl.textContent   = '';
@@ -398,7 +415,7 @@
             if (modal._poller) { modal._poller.stopAll(); modal._poller = null; }
         }
 
-        // Poll the ephemeral job status until DONE/ERROR (with stall guard) — boucle COMMUNE
+        // Poll the ephemeral job status until SUCCESS/FAILURE (with stall guard) — boucle COMMUNE
         // `WamaApp.Poller` (2026-10-13 : c'était un `setInterval` local à la seconde, qui relançait
         // sans attendre la réponse et tournait en onglet caché). Les tours se comptent aux
         // RÉPONSES : un serveur lent ne fait plus déclarer le worker muet.
@@ -417,9 +434,15 @@
                 onData: (_jobId, s) => {
                     ticks++;
                     setProgress(s.progress || 0);
+                    // L'état COMMUN de l'élément (`make_progress_views`, depuis le 2026-10-03 :
+                    // SUCCESS / FAILURE / RUNNING…), lu par la brique commune (2026-11-19). La modale
+                    // attendait `DONE` / `ERROR`, retirés du vocabulaire le 2026-09-18 : une
+                    // conversion réussie ne se terminait jamais à l'écran (ni toast, ni libération
+                    // de la ligne éphémère), et la fermer ANNULAIT une conversion déjà faite.
+                    const state = WamaApp.normalizeStatus(s.status);
 
                     // Stall guard: still RUNNING at 0% after STALL_TICKS → worker likely down.
-                    if (s.status === 'RUNNING' && (s.progress || 0) === 0 && ticks >= STALL_TICKS) {
+                    if (state === 'RUNNING' && (s.progress || 0) === 0 && ticks >= STALL_TICKS) {
                         stopPolling();
                         _converterCancel(jobId);     // revoke the zombie so it won't run later
                         modal._activeJobId = null;
@@ -430,7 +453,7 @@
                         return;
                     }
 
-                    if (s.status === 'DONE') {
+                    if (state === 'SUCCESS') {
                         stopPolling();
                         modal._activeJobId = null;
                         setProgress(100);
@@ -439,7 +462,7 @@
                         const fd = new FormData(); fd.append('csrfmiddlewaretoken', csrfToken);
                         fetch(dismissUrl, { method: 'POST', body: fd }).catch(() => {});
                         bootstrap.Modal.getInstance(modal).hide();
-                    } else if (s.status === 'ERROR') {
+                    } else if (state === 'FAILURE') {
                         stopPolling();
                         modal._activeJobId = null;
                         errEl.textContent = s.error_message || 'Erreur de conversion';
@@ -489,7 +512,8 @@
                 fd.append('csrfmiddlewaretoken', csrfToken);
                 fd.append('file_path', filePath);
                 fd.append('output_format', fmt);
-                fd.append('quality_preset', presetSel ? presetSel.value : 'balanced');
+                const quality = chosenQuality();
+                if (quality !== undefined && quality !== null && quality !== '') fd.append('quality_intent', quality);
                 const resp = await fetch(config.converterQuickUrl || '/converter/quick/', {
                     method: 'POST',
                     body: fd,
@@ -501,9 +525,11 @@
                     resetBtn();
                     return;
                 }
-                // Job started — show progress and poll until done.
+                // Job started — show progress and poll until done. `id` : le contrat COMMUN des vues
+                // d'ajout (la vue le rend depuis le 2026-08-22, `eedb84465`) ; ce code lisait
+                // encore `job_id`, et suivait `/converter/undefined/status/` (2026-11-19).
                 setProgress(data.progress || 1);
-                pollStatus(data.job_id, fmt);
+                pollStatus(data.id, fmt);
             } catch(err) {
                 errEl.textContent = 'Erreur réseau : ' + err.message;
                 errEl.style.display = '';

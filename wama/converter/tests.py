@@ -212,6 +212,80 @@ class QualityIntentWritesTheColumnsTest(TestCase):
         self.assertTrue(names['quality'].get('advanced'))
 
 
+class QuickConvertTakesTheCommonSliderTest(TestCase):
+    """La CONVERSION RAPIDE du gestionnaire de fichiers (2026-11-19, Fabien : « l'aligner sur le
+    fonctionnement commun de WAMA ») : sa qualité est le curseur commun, rendu du schéma et
+    appliqué par le geste de la ⚙ — la modale avait son menu de trois presets, la vue sa propre
+    écriture du preset, et une position « Équilibré » forcée quand rien n'était posté."""
+
+    PNG = bytes.fromhex(
+        '89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de'
+        '0000000c49444154789c63f8cfc00000000300015f0f18e20000000049454e44ae426082')
+
+    def setUp(self):
+        from pathlib import Path
+        from django.conf import settings
+        from django.contrib.auth.models import User
+        self.user, _ = User.objects.get_or_create(username='t_quick')
+        self.client.force_login(self.user)
+        self.rel = f'users/{self.user.id}/temp/quick_source.png'
+        source = Path(settings.MEDIA_ROOT) / self.rel
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_bytes(self.PNG)
+        self.addCleanup(source.unlink, missing_ok=True)
+
+    def _convert(self, **gesture):
+        from unittest import mock
+        from wama.converter.models import ConversionJob
+        task = mock.Mock(id='t-quick')
+        with mock.patch('wama.converter.tasks.convert_media_task.delay', return_value=task):
+            r = self.client.post(reverse('converter:quick_convert'),
+                                 {'file_path': self.rel, 'output_format': 'jpg', **gesture})
+        self.assertEqual(r.status_code, 200, r.content)
+        return ConversionJob.objects.get(pk=r.json()['id'])
+
+    def test_the_slider_position_writes_the_encoding_like_the_settings_window(self):
+        job = self._convert(quality_intent='85')
+        self.assertEqual((job.quality, job.quality_intent, job.quality_preset), (98, 85, 'max'))
+
+    def test_a_named_preset_still_writes_its_values_and_the_slider_position(self):
+        job = self._convert(quality_preset='web')
+        self.assertEqual((job.quality, job.quality_intent, job.quality_preset), (80, 15, 'web'))
+
+    def test_without_a_gesture_the_element_is_born_like_by_any_other_way(self):
+        """Counter-proof : no « Équilibré » forced any more — the common birth, nothing more."""
+        job = self._convert()
+        self.assertEqual((job.quality, job.quality_preset), (85, ''))
+
+    def test_the_window_reads_its_slider_and_the_real_effect_from_the_server(self):
+        url = reverse('converter:api_presets')
+        data = self.client.get(url, {'media_type': 'image', 'quality_intent': '85'}).json()
+        self.assertEqual({'media_type', 'quality_intent'}, {p['name'] for p in data['schema']})
+        self.assertEqual('intent', next(p for p in data['schema'] if p['name'] == 'quality_intent')['type'])
+        self.assertEqual(50, data['values']['quality_intent'], 'the birth position of this account')
+        self.assertEqual({'optimize': True, 'quality': 98}, data['effect'], 'the « max » position')
+        from wama.converter.params import PARAMS_JSON
+        declared = {p['name']: p['label'] for p in PARAMS_JSON if p.get('label')}
+        self.assertEqual({'quality': declared['quality']}, data['effect_labels'],
+                         'the labels the schema declares — `optimize` is not declared, it keeps its name')
+        self.assertEqual({'quality': 90}, self.client.get(url, {'media_type': 'image'}).json()['effect'])
+        self.assertEqual({'presets'}, set(self.client.get(url).json()), 'the table alone, as the tool reads it')
+
+    def test_the_window_writes_no_quality_choice_of_its_own_and_follows_the_common_id(self):
+        from pathlib import Path
+        from django.conf import settings
+        root = Path(settings.BASE_DIR)
+        sidebar = (root / 'wama/filemanager/templates/filemanager/sidebar.html').read_text(encoding='utf-8')
+        script = (root / 'wama/filemanager/static/filemanager/js/filemanager.js').read_text(encoding='utf-8')
+        self.assertNotIn('converterQuickPreset"', sidebar)
+        self.assertNotIn('<option value="balanced"', sidebar)
+        self.assertNotIn("'quality_preset'", script)
+        self.assertIn("fd.append('quality_intent'", script)
+        self.assertNotIn('data.job_id', script, 'the quick view answers the common `id`')
+        self.assertNotIn("video_quality: 'CRF'", script, 'the effect labels come from the schema')
+        self.assertEqual(script, (root / 'staticfiles/filemanager/js/filemanager.js').read_text(encoding='utf-8'))
+
+
 class SauverCommeProfilTest(TestCase):
     """Le lecteur de la modale « Sauver comme profil » doit lire ce que WamaParams ÉMET.
 

@@ -3071,10 +3071,21 @@ Fabien. Mesuré d'abord :
    ferait toutes~~ — **sans objet, mesuré le 2026-11-17** : `list_media_assets` rend les voix et
    les avatars du système depuis le 16/11 (la vue de la médiathèque, `tool_api.py:1285`),
    `synthesize_text` dit la forme d'une voix (`'sa_<id>'`, `'ua_<id>'`, `tool_api.py:680`),
-   `add_to_avatarizer` prend `avatar_gallery_name`, `list_model_choices` le catalogue. Reste un
+   `add_to_avatarizer` prend `avatar_gallery_name`, `list_model_choices` le catalogue. ~~Reste un
    portage, pas une décision : la conversion rapide du gestionnaire lit encore la table des
-   préréglages (`converter:api_presets`, `filemanager.js:357-378`), que le curseur commun
-   (`quality_intent`) a remplacée dans le schéma (`converter/params.py:80-84`).
+   préréglages~~ — **soldé le 2026-11-19** (Fabien : « l'aligner sur le fonctionnement commun ») :
+   la modale rend le curseur du schéma par `WamaParams` (servi par `converter:api_presets` avec sa
+   position de naissance, l'effet réel de la position et ses libellés du schéma) ; `quick_convert`
+   applique le geste par les fonctions de la ⚙ (`_apply_quality_gesture`, `_quality_spread`), sans
+   plus forcer « Équilibré ». Deux défauts anciens de la même modale corrigés au passage : elle
+   suivait `data.job_id` (la vue rend `id` depuis le 2026-08-22) et attendait `DONE`/`ERROR`
+   (retirés le 2026-09-18) — une conversion réussie ne se terminait plus à l'écran. Garde :
+   `converter.tests.QuickConvertTakesTheCommonSliderTest`, `tests_status_ui` (aucun script ne
+   compare un état à un mot retiré). ⏳ **Décision de Fabien** : à la NAISSANCE d'un élément (dépôt,
+   import, lot, outil), le curseur est une trace sans effet sur l'encodage (`apply_birth_settings`,
+   garde `test_l_element_nait_COMPLET…` : qualité 85 du schéma) ; l'y appliquer changerait
+   l'encodage de tous les dépôts (mesuré : image 85 → 90, vidéo CRF d'ffmpeg → 20 `slow`, audio
+   Auto → 224k, valeur hors des choix du schéma).
 
 8. **L'AUTO-DIAGNOSTIC : la trace des outils devient une mesure** (même jour, demande de Fabien :
    « améliorer l'auto-diagnostic de WAMA […] qu'il sache débuguer lui-même sous la supervision de

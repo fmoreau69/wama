@@ -449,9 +449,35 @@ def api_presets(request):
     « faut-il afficher les paramètres correspondants au preset ? ») — elle affiche sous le
     select l'effet RÉEL du preset choisi pour le type du fichier, sans devenir un
     formulaire : la rapidité est sa raison d'être, l'app reste le lieu du réglage fin.
+
+    Avec `media_type` (la nature du fichier, 2026-11-19 — la modale passe au CURSEUR commun) :
+    `schema`, les paramètres que la modale rend par `WamaParams` (le curseur du schéma et la
+    nature qui pilote son `show_if`, jamais un champ écrit à la main) ; `values`, leur valeur de
+    NAISSANCE pour ce compte (la cascade de toute création, `new_element_settings`) ; `effect`,
+    les réglages d'encodage qu'écrit la position `quality_intent` (sinon celle de naissance) —
+    l'interpolation ne vit que dans `values_for_intent`, jamais recopiée côté client ; et
+    `effect_labels`, le LIBELLÉ que le schéma déclare pour chacun (la modale en recopiait une
+    table ; un réglage que le schéma ne déclare pas garde son nom).
     """
-    from .utils.quality_presets import _PRESETS
-    return JsonResponse({'presets': _PRESETS})
+    from .utils.quality_presets import _PRESETS, values_for_intent
+    answer = {'presets': _PRESETS}
+    media_type = (request.GET.get('media_type') or '').strip().lower()
+    if media_type:
+        from wama.common.utils.user_settings import new_element_settings
+        from .models import ConversionJob
+        from .params import PARAMS_JSON
+        birth = (new_element_settings(request.user, 'converter', PARAMS_JSON, ConversionJob,
+                                      post=None, context={'media_type': media_type})
+                 if request.user.is_authenticated else {})
+        position = (request.GET.get('quality_intent') or '').strip() or birth.get('quality_intent')
+        effect = values_for_intent(media_type, position) if position not in (None, '') else {}
+        labels = {p.get('name'): p.get('label') for p in PARAMS_JSON if p.get('label')}
+        answer.update(
+            schema=[p for p in PARAMS_JSON if p.get('name') in ('media_type', 'quality_intent')],
+            values={'media_type': media_type, 'quality_intent': birth.get('quality_intent')},
+            effect=effect,
+            effect_labels={name: labels[name] for name in effect if name in labels})
+    return JsonResponse(answer)
 
 
 # ⬇ « Télécharger tout » de la barre de file : le ZIP de la file que compte la barre globale,
@@ -759,16 +785,18 @@ def quick_convert(request):
     POST params:
         file_path      : chemin absolu ou relatif à MEDIA_ROOT du fichier source
         output_format  : format cible (absent : automatique selon la nature)
-        quality_preset : 'web' | 'balanced' | 'max' (défaut 'balanced')
+        quality_intent : le CURSEUR commun 0-100 (la modale le rend du schéma, 2026-11-19)
+        quality_preset : 'web' | 'balanced' | 'max' — une position nommée, encore acceptée
+                         (frontière des DONNÉES : outils, appels anciens)
+    Le geste de qualité est celui de la ⚙ (`_apply_quality_gesture` + `_quality_spread`) : il
+    ÉCRIT ses réglages d'encodage ; sans geste, l'élément naît comme par toute autre voie.
     """
     from .tasks import convert_media_task
-    from .utils.quality_presets import DEFAULT_PRESET, PRESET_CHOICES
 
     file_path_str = request.POST.get('file_path', '').strip()
     output_fmt    = (request.POST.get('output_format', '') or '').strip().lower()
-    preset        = (request.POST.get('quality_preset', '') or '').strip().lower()
-    if preset not in PRESET_CHOICES:
-        preset = DEFAULT_PRESET
+    gesture = {k: request.POST.get(k) for k in ('quality_intent', 'quality_preset')
+               if (request.POST.get(k) or '').strip()}
 
     if not file_path_str:
         return JsonResponse({'error': 'Chemin de fichier manquant'}, status=400)
@@ -800,7 +828,7 @@ def quick_convert(request):
     if chosen:
         remember_output_format(request.user, media_type, output_fmt)
 
-    # ── Quick convert : ephemeral + in-place + preset ─────────────────────────
+    # ── Quick convert : ephemeral + in-place ──────────────────────────────────
     dest_dir = str(rel_path.parent).replace('\\', '/')  # source folder, relative to MEDIA_ROOT
     job = ConversionJob.objects.create(
         user=request.user,
@@ -810,19 +838,17 @@ def quick_convert(request):
         output_format=output_fmt,
         ephemeral=True,
         dest_dir=dest_dir,
-        quality_preset=preset,
         status='RUNNING',
     )
     # MODÈLE ÉVÉNEMENTIEL (02/09) : la tâche lit les COLONNES — le job naît complet par la
-    # cascade commune (2026-10-18), puis le preset du menu contextuel Filemanager s'ÉTALE
-    # par-dessus (sinon il serait une trace inerte) ; et il pose la position du curseur commun
-    # (trace, chantier C).
+    # cascade commune (2026-10-18), puis le geste de qualité de la modale s'ÉTALE par-dessus,
+    # par les fonctions de la ⚙ (2026-11-19 : la modale avait son menu de presets et la vue sa
+    # propre écriture du preset ; le curseur et sa trace sont ceux de toutes les surfaces).
     from wama.common.utils.user_settings import inputs_by_port
     champs = apply_birth_settings(job, media_type, inputs=inputs_by_port('converter', str(abs_path)))
-    if preset:
-        from .utils.quality_presets import preset_values
-        champs += [f for f in job.poser_reglages(preset_values(media_type, preset)) if f not in champs]
-        champs += [f for f in _apply_quality_gesture(job, {'quality_preset': preset}) if f not in champs]
+    if gesture:
+        champs += [f for f in _apply_quality_gesture(job, gesture) if f not in champs]
+        champs += [f for f in job.poser_reglages(_quality_spread(job, gesture)) if f not in champs]
     if champs:
         job.save(update_fields=champs)
     task = convert_media_task.delay(job.id)

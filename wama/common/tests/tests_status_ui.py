@@ -100,6 +100,26 @@ class CardsStatutAwaitingTest(SimpleTestCase):
                         offenders.append(f'{rel}:{n}')
         self.assertEqual([], offenders, 'select the card by `[data-status="…"]` instead')
 
+    def test_no_script_compares_a_status_to_a_removed_state_word(self):
+        """The READING side of the 2026-09-18 removal of `DONE` / `ERROR` (`JOB_STATUS_ALIASES`).
+        The filemanager's quick convert still waited for them on the converter's item, which the
+        common progress view answers in the common vocabulary : a successful conversion never ended
+        on screen, and closing the window cancelled it (found 2026-11-19). A state is read through
+        `WamaApp.normalizeStatus` and compared to the common words."""
+        import re
+        removed = re.compile(r"""status\s*[!=]==?\s*['"](DONE|ERROR)['"]|['"](DONE|ERROR)['"]\s*[!=]==?\s*[\w.]*status""")
+        offenders = []
+        for root in (BASE / 'wama', BASE / 'wama_lab', BASE / 'wama_data'):
+            for path in list(root.rglob('*.js')) + list(root.rglob('*.html')):
+                rel = path.relative_to(BASE).as_posix()
+                if '/vendors/' in rel:
+                    continue
+                for n, line in enumerate(path.read_text(encoding='utf-8', errors='replace')
+                                         .splitlines(), 1):
+                    if removed.search(line):
+                        offenders.append(f'{rel}:{n}')
+        self.assertEqual([], offenders, 'compare `WamaApp.normalizeStatus(…)` to SUCCESS / FAILURE')
+
     def test_plus_aucune_chaine_de_libelles_de_statut_en_dur_dans_les_cards(self):
         """Le libellé vient de `get_status_display` (choices communs) : une chaîne
         {% if %}En attente{% elif %}… recopiée par gabarit est la duplication que la

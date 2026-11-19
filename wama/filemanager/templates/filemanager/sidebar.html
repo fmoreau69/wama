@@ -1,5 +1,6 @@
 {% load static %}
 {% load wama_json %}
+{% load wama_static %}
 {% comment %}
   « Envoyer vers… » ne se calcule plus chez le client (2026-09-14) : le sous-menu interroge le
   résolveur SERVEUR (`common:api_envoyer_vers_chemins`, `common/services/send_to.py`), le même que
@@ -158,6 +159,9 @@
         converterStatusUrl: '{% url "converter:status" 0 %}',
         converterDismissUrl: '{% url "converter:dismiss" 0 %}',
         converterCancelUrl: '{% url "converter:cancel" 0 %}',
+        converterPresetsUrl: '{% url "converter:api_presets" %}',
+        {# Le moteur des réglages, chargé À LA DEMANDE (il n'est pas global) : le curseur de la modale. #}
+        paramsScript: '{% static_v "common/js/wama-params.js" %}',
         converterOutputFormats: {{ converter_output_formats_json|script_json }},
     };
 </script>
@@ -179,16 +183,13 @@
                 <select id="converterQuickFormat" class="form-select form-select-sm bg-body text-body-emphasis border-secondary">
                     <option value="">— choisissez —</option>
                 </select>
-                <label class="form-label small fw-bold mb-1 mt-2">Qualité</label>
-                <select id="converterQuickPreset" class="form-select form-select-sm bg-body text-body-emphasis border-secondary">
-                    <option value="web">Rapide (web)</option>
-                    <option value="balanced" selected>Équilibré</option>
-                    <option value="max">Qualité</option>
-                </select>
-                {% comment %}L'effet RÉEL du preset (question Fabien 02/09 : « faut-il afficher
-                les paramètres correspondants ? ») — rempli par le JS depuis converter:api_presets
-                (la table SERVIE, jamais recopiée), selon le type détecté du fichier. La modale
-                reste rapide : l'app est le lieu du réglage fin.{% endcomment %}
+                {% comment %}La QUALITÉ est le curseur commun du converter (2026-11-19) : RENDU par
+                `WamaParams` depuis le schéma que sert converter:api_presets (avec sa position de
+                naissance pour ce compte), comme dans la ⚙ et le volet. La modale portait un menu de
+                trois presets écrit ici à la main. Sous lui, l'effet RÉEL de la position (question
+                Fabien 02/09 : « faut-il afficher les paramètres correspondants ? »), calculé par le
+                serveur. La modale reste rapide : l'app est le lieu du réglage fin.{% endcomment %}
+                <div id="converterQuickQuality" class="mt-2"></div>
                 <small class="text-info d-block mt-1" id="converterQuickPresetEffect"></small>
                 <small class="text-muted d-block mt-1">Le fichier converti sera créé à côté de l'original.</small>
                 <!-- Progress (shown during conversion) -->

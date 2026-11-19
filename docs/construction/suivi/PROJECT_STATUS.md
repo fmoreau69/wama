@@ -32049,3 +32049,35 @@ Résultat : `avatarizer.attach_lot` vert (audio → lot de 2 ; image → lot de 
 `CARD_DESIGN §11.11 G` complété. Restes nommés : `avatarizer_01` (ci-dessus) ; aux autres sessions,
 les rouges de la suite complète du 18/11 qu'elles portent (`separation_stems` et `clean_mode` non
 canoniques, porte des voix des jumelles, budget des noms de test 1316 > 1315).
+
+## §PALIER 2026-11-19, « CONVERSION RAPIDE AU CURSEUR COMMUN ; sa barre et sa fin réparées » — commit local, non poussé — 🔴 relancer gunicorn (vue du converter, gabarit de la barre latérale, `staticfiles`) — 🔚 décision de Fabien : le curseur de qualité doit-il s'appliquer à la NAISSANCE d'un élément du converter ?
+
+Demande de Fabien (« l'aligner sur le fonctionnement commun de WAMA »). Confronté au code : la
+modale de conversion rapide du gestionnaire de fichiers portait un menu de trois presets écrit à la
+main (`sidebar.html`), lisait leur table pour afficher l'effet (`filemanager.js`), et sa vue
+(`quick_convert`) refaisait le geste de qualité à sa façon en forçant « Équilibré ».
+- ✅ la modale rend le curseur du SCHÉMA par `WamaParams` (moteur chargé à la demande,
+  `WamaApp.loadScript`), à la position de naissance du compte ; `converter:api_presets`, avec la
+  nature du fichier, sert ce schéma, cette position, l'effet RÉEL d'une position
+  (`values_for_intent`) et ses libellés du schéma — la table recopiée des libellés est retirée ;
+  la table des presets reste servie telle quelle (outil `get_converter_presets`) ;
+- ✅ `quick_convert` applique le geste par les fonctions de la ⚙ (`_apply_quality_gesture`,
+  `_quality_spread`) ; une clé de preset reste acceptée (frontière des données) ; sans geste,
+  l'élément naît comme par toute autre voie ;
+- ✅ deux défauts ANCIENS de la même modale : elle suivait `data.job_id` alors que la vue rend `id`
+  depuis le 2026-08-22 (`eedb84465`), et attendait `DONE`/`ERROR`, retirés du vocabulaire le
+  2026-09-18 — une conversion réussie ne se terminait plus à l'écran, et fermer la modale
+  l'annulait. Elle lit l'état commun (`WamaApp.normalizeStatus`). La note de `JOB_STATUS_ALIASES`
+  (`common/models.py`) qui disait le filemanager étranger à ces mots était FAUSSE : corrigée, datée.
+- Vérifié au navigateur (serveur jetable, compte de test) : curseur à 50 → « Qualité d'encodage
+  90 », à 85 → « optimize true · Qualité d'encodage 98 », POST `quality_intent=85`, conversion
+  réussie, ligne libérée (`dismiss`), modale fermée.
+- Gardes : `converter.tests.QuickConvertTakesTheCommonSliderTest` (5) ;
+  `tests_status_ui.CardsStatutAwaitingTest.test_no_script_compares_a_status_to_a_removed_state_word`
+  (générique, tout le dépôt). Contre-épreuves en processus : 5 neutralisations, 5 rouges.
+- ⏳ **Décision de Fabien** — à la NAISSANCE d'un élément du converter (dépôt de card, import, lot,
+  outil de l'assistant), le curseur n'est qu'une trace : `apply_birth_settings` n'écrit pas ses
+  réglages d'encodage (garde `test_l_element_nait_COMPLET…` : qualité 85 du schéma), seule la ⚙
+  les écrit. L'y appliquer alignerait toutes les voies, mais changerait l'encodage de tous les
+  dépôts — mesuré au curseur de naissance 50 : image 85 → 90, vidéo (CRF par défaut d'ffmpeg) →
+  CRF 20 `slow`, audio Auto → 224k, une valeur hors des choix du schéma (128/192/256/320k).
