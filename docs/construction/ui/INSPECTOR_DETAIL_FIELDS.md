@@ -272,6 +272,57 @@ Voir l'audit (transcriber `backend→engine` `audio→source_file` … ; reader 
 
 ---
 
+## Chips de la card ↔ section INFOS du volet, et format des DURÉES — chantier ouvert le 2026-11-19 ⏳
+
+> Fabien, 2026-11-19 : *« régler les écarts entre les chips affichées sur la card et celles qui
+> vivent dans la section INFOS du volet droit […] il faut terminer l'alignement sur ce point. On fait
+> ça proprement et en profondeur pour un alignement parfait »* ; et pour les durées : *« une petite
+> fonction au commun pour aligner les durées en heures, minutes et secondes […] elle n'est pas
+> appliquée partout. Il faudrait qu'elle soit utilisée partout où il y a des durées »*.
+
+**Mesuré le 2026-11-19** (recensement en lecture seule, points clés relus au code) :
+- **Deux déclarations** de ce qui se montre : les chips de la card lisent les champs `chip=True` du
+  schéma, mis en forme par `display_format` (`card_chips.chips_for` → `param_schema.format_display`) ;
+  la section INFOS lit la liste `extra` de la spec de détail (`register_app_detail_spec`) et, pour la
+  durée de l'entrée, la chaîne que CHAQUE app met dans `duration_display`
+  (`detail_registry.py:375-377`), affichée telle quelle (`wama-inspector.js:138`, `:201`). Card
+  témoin : « 1:35 » en chip, « Durée 95s » au volet — et « 95s » aussi sur la card, section Sortie
+  (`composer/models.py:312`, `_generation_card.html:72`).
+- **La brique commune existe, en jumelles** : `WamaApp.formatDuration` (`wama-app-base.js:1500`,
+  « m:ss » / « h:mm:ss ») et `media_probe.format_duration` (`media_probe.py:27`) — mais la JS ARRONDIT
+  (`:1503`) quand la Python TRONQUE (`:35`) : 95,6 s = « 1:36 » ici, « 1:35 » là. `WamaAxis.formatTime`
+  (`wama-axis.js:125`, horloge du lecteur, dixièmes en option) est une troisième écriture du même
+  format.
+- **Réécrites ~10 fois** (même calcul, autre nom ; la plupart SANS les heures — « 62:00 ») :
+  `wama-audio-player.js:31`, `media_library/models.py:154` et `:210`, `synthesizer/models.py:301`,
+  `anonymizer/views.py:308` et `:327`, `describer/views.py:314`, `describer/backends/video_backend.py:382`,
+  `document_export.py:443`, `cam_analyzer/…/index.js:5794` (toujours h:mm:ss),
+  `face_analyzer/video.html:1671`, `face_analyzer/index.html:226`.
+- **Une seconde famille, « 1 min 35 s », sans brique commune** : `ProcessingTimeMixin.processing_display`
+  (`common/models.py:185`), `WamaEta` (`wama-eta.js:33-51`), `media-preview.js:699-704` (une durée de
+  MÉDIA, là où la card dit « 1:35 »), `gateway/core.py:245`, `composer/models.py:338` (« ~1min35s »).
+- **Horodatages techniques dupliqués** : segments (`transcriber/models.py:284`, et
+  `process_pipeline.py:64` `_clock` sans les heures) ; SRT ×3 (`transcriber/models.py:293`,
+  `transcriber/views.py:931`, `asr_eval_corpus.py:123`).
+- **Affichages bruts** : la bande des process « 95 s » (`_card_process_step.html:18`,
+  `wama-app-base.js:1582`), un chip numérique sans `display_format` (`card_chips.py:212-216` — seul le
+  composer en déclare un), `enhancer/_audio_card.html:33`, `imager/_generation_card.html:73`,
+  `media-library.js:890`, cam_analyzer ; `imager.duration_display` est le TEMPS DE TRAITEMENT affiché
+  comme « Durée » de l'entrée (`imager/models.py:323-334`).
+- Garde existante : `tests_display_format` (les jumelles rendent le même texte sur des entiers ;
+  l'écart d'arrondi lui échappe).
+
+**Plan proposé (⏳ deux décisions de Fabien avant d'écrire)** : (1) UNE brique, deux jumelles alignées
+(même arrondi), avec les formes que WAMA emploie — horloge (média, position), précision au dixième ou
+à la milliseconde (segments, SRT), et la famille « unités » si elle est gardée ; (2) la section INFOS
+met en forme par la MÊME déclaration que les chips (`display_format`, champs du schéma), plus aucune
+chaîne d'app ; (3) chaque réécriture remplacée par la brique, chaque affichage brut déclaré ; (4) une
+garde générique qui relève une mise en forme locale d'une durée, liste de restes qui ne peut que
+baisser. *Décisions* : la famille « 1 min 35 s » (temps de traitement, ETA) se garde-t-elle à côté de
+l'horloge ? Et la règle d'arrondi (tronquer comme le lecteur et la jumelle Python, ou arrondir).
+
+---
+
 ## Voir aussi — la frontière avec `WAMA_VOLETS.md` (ajouté 2026-08-22)
 
 Les deux documents décrivent **deux couches** de la même région d'écran, et ne se recouvrent pas
