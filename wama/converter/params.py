@@ -109,11 +109,13 @@ PARAMS = [
     # affichait « 0 = inchangé », vrai seulement quand les DEUX sont vides. La refonte de
     # présentation (mode %/px, slider relatif, renvoi aux unités du profil) est consignée
     # ROADMAP §23.4 (question Fabien 02/09) — à dessiner avec la card v4, pas champ par champ.
-    Param(name="resize_w", group="image", type="number", label="Largeur (px)", icon="fa-arrows-left-right",
-          min=0, show_if=IMG, contexts=ITEM_BATCH,
+    # Image ET vidéo depuis le 2026-11-19 (groupe « Transformations ») : le moteur vidéo les lisait
+    # déjà (`video_backend._build_vf`), seul le schéma les cachait à la vidéo.
+    Param(name="resize_w", group="transform", type="number", label="Largeur (px)", icon="fa-arrows-left-right",
+          min=0, show_if=IMG_VID, contexts=ITEM_BATCH,
           help="Vide = suit la hauteur (proportions gardées) ; les deux vides = inchangé."),
-    Param(name="resize_h", group="image", type="number", label="Hauteur (px)", icon="fa-arrows-up-down",
-          min=0, show_if=IMG, contexts=ITEM_BATCH,
+    Param(name="resize_h", group="transform", type="number", label="Hauteur (px)", icon="fa-arrows-up-down",
+          min=0, show_if=IMG_VID, contexts=ITEM_BATCH,
           help="Vide = suit la largeur (proportions gardées) ; les deux vides = inchangé."),
 
     # ── Transformations (image OU vidéo) ──────────────────────────────────────
@@ -132,6 +134,15 @@ PARAMS = [
     Param(name="video_quality", group="video", type="number", label="Qualité vidéo (CRF)", icon="fa-film",
           min=0, max=51, show_if=VID, contexts=ITEM_BATCH,
           help="0 = sans perte, 23 = défaut, 51 = pire qualité."),
+    # Le PLAFOND de définition (2026-11-19, décision de Fabien : le cran « Rapide » en 720p) :
+    # le CÔTÉ COURT ramené à cette valeur, JAMAIS agrandi — une vidéo plus petite reste telle
+    # quelle, une vidéo verticale garde son sens (`video_backend._build_vf`). Posé par le curseur,
+    # retouchable ici ; une taille explicite (`resize_w` / `resize_h`) prime.
+    Param(name="resolution_cap", group="video", type="select", label="Définition maximale",
+          icon="fa-down-left-and-up-right-to-center", show_if=VID, contexts=ITEM_BATCH,
+          choices=[("", "Inchangée"), ("1080", "1080p"), ("720", "720p"), ("540", "540p"),
+                   ("480", "480p")],
+          help="Réduit la vidéo à cette définition (côté court), sans jamais l'agrandir."),
     Param(name="fps", group="video", type="number", label="Images/s (FPS)", icon="fa-video",
           min=1, max=120, show_if=VID, contexts=ITEM_BATCH, help="Vide = inchangé."),
     # Sortie GIF uniquement (video_backend._to_gif). Déclarés ici parce que le SCHÉMA est la

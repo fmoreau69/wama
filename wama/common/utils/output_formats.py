@@ -185,19 +185,30 @@ def output_format_params(domain, contexts=None, dom_id_format=None, dom_id_quali
         condition = {"field": "output_format", "in": converted}
         if keep_size:
             condition = {"any": [condition, {"field": "output_keep_size"}]}
-        params.append(
-            # Défaut « balanced » (2026-10-11) : celui de TOUTES les colonnes `output_quality` et
-            # du repli de la conversion (`apply_output_settings`). Sans défaut déclaré, une surface
-            # générée (volet, modale) proposait la PREMIÈRE option, « web » — mesuré sur le volet
-            # généré du synthesizer, quand l'ancien volet écrit à la main proposait « Équilibré ».
-            Param(name="output_quality", type="select", label="Qualité", icon="fa-sliders",
-                  choices=get_output_qualities(), default=DEFAULT_PRESET, contexts=ctx,
-                  dom_id=dom_id_quality or "output_quality", group=group, show_if=condition,
-                  help=("Appliquée quand la sortie est réencodée : format choisi, ou résolution "
-                        "d'origine gardée." if keep_size
-                        else "Appliquée à la conversion vers le format choisi."), **extra)
-        )
+        params.append(output_quality_param(
+            contexts=ctx, dom_id=dom_id_quality, group=group, show_if=condition,
+            help=("Appliquée quand la sortie est réencodée : format choisi, ou résolution "
+                  "d'origine gardée." if keep_size
+                  else "Appliquée à la conversion vers le format choisi."), **extra))
     return params
+
+
+def output_quality_param(contexts=None, dom_id=None, group: str | None = None,
+                         help: str = "Appliquée à la conversion vers le format choisi.", **extra):
+    """Le réglage COMMUN « Qualité » d'une sortie (Rapide / Équilibré / Qualité), celui que
+    `apply_output_settings` et l'export PDF des pages appliquent par le converter
+    (`apply_inline_conversion`). Une fabrique (2026-11-19) : le réglage était construit dans
+    `output_format_params` seul, et l'export PDF en aurait demandé une copie.
+
+    Défaut « balanced » (2026-10-11) : celui de TOUTES les colonnes `output_quality` et du repli
+    de la conversion. Sans défaut déclaré, une surface générée (volet, modale) proposait la
+    PREMIÈRE option, « web » — mesuré sur le volet généré du synthesizer, quand l'ancien volet
+    écrit à la main proposait « Équilibré »."""
+    from wama.common.utils.param_schema import Param, ALL_CONTEXTS
+    return Param(name="output_quality", type="select", label="Qualité", icon="fa-sliders",
+                 choices=get_output_qualities(), default=DEFAULT_PRESET,
+                 contexts=contexts or ALL_CONTEXTS, dom_id=dom_id or "output_quality",
+                 group=group, help=help, **extra)
 
 
 def _domain_from_output_types(output_types) -> str | None:

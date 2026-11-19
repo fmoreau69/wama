@@ -150,6 +150,75 @@ window.WamaPrez = {steps, go(i) {
                                    lambda target: (404, 'text/plain', b''), 'http://wama.page')
             self.assertEqual(before, open(path, 'rb').read())
 
+    def test_each_video_is_reencoded_by_the_converter_at_the_chosen_quality(self):
+        """The export's quality is the COMMON output's (`output_quality`) : the video is re-encoded
+        in MP4 by the converter's inline conversion — the one every app uses — never the source."""
+        import tempfile
+        from pathlib import Path
+        from unittest import mock
+
+        from wama.common.utils import html_render
+
+        seen = {}
+
+        def convert(source, fmt, preset, **kwargs):
+            seen.update(fmt=fmt, preset=preset, source_kept=Path(source).read_bytes())
+            out = Path(source).with_suffix('.mp4')
+            out.write_bytes(b'lighter')
+            return str(out)
+
+        with tempfile.TemporaryDirectory() as folder, \
+                mock.patch('wama.converter.utils.inline_convert.apply_inline_conversion',
+                           side_effect=convert), \
+                mock.patch('wama.common.utils.pdf_pages.embed_videos') as embed:
+            html_render._embed_step_videos(
+                f'{folder}/slides.pdf', [{'src': 'http://wama.page/static/v/clip.webm', 'page': 1,
+                                          'box': (0, 0, 1, 1)}],
+                lambda target: (200, 'video/webm', b'served'), 'http://wama.page', 'web')
+        self.assertEqual({'fmt': 'mp4', 'preset': 'web', 'source_kept': b'served'}, seen)
+        placed = embed.call_args.args[1][0]
+        self.assertEqual((b'lighter', 'clip.mp4', 'video/mp4'),
+                         (placed['data'], placed['name'], placed['mime']))
+
+    def test_the_export_options_are_the_common_output_quality_read_by_the_gate(self):
+        from wama.common.services.page_pdf import export_params, read_export_options
+        self.assertEqual([], export_params(slides=False))
+        self.assertEqual(['output_quality'], [p.name for p in export_params(slides=True)])
+        self.assertEqual({'output_quality': 'balanced'}, read_export_options({}, slides=True))
+        self.assertEqual({'output_quality': 'web'},
+                         read_export_options({'output_quality': 'web'}, slides=True))
+        with self.assertRaises(ValueError):
+            read_export_options({'output_quality': 'ultra'}, slides=True)
+        self.assertEqual({}, read_export_options({'output_quality': 'web'}, slides=False))
+
+    def test_the_options_of_a_slides_page_are_served_and_a_document_has_none(self):
+        import json
+
+        from django.urls import reverse
+
+        from wama import views
+        request = RequestFactory().get('/')
+        presentation = json.loads(views.page_pdf_options(request, 'presentation').content)
+        self.assertEqual(['output_quality'], [p['name'] for p in presentation['schema']])
+        self.assertEqual({'output_quality': 'balanced'}, presentation['values'])
+        document = json.loads(views.page_pdf_options(request, 'fiches').content)
+        self.assertEqual([], document['schema'])
+        self.assertTrue(reverse('presentation_pdf_options').endswith('/presentation/pdf/options/'))
+
+    def test_the_export_script_parses_and_is_served_as_written(self):
+        from pathlib import Path
+
+        from django.conf import settings
+        try:
+            from py_mini_racer import MiniRacer
+        except ImportError:
+            self.skipTest('py_mini_racer absent de ce venv')
+        name = 'wama-export-options.js'
+        src = Path(settings.BASE_DIR, 'wama/common/static/common/js', name).read_text(encoding='utf-8')
+        served = Path(settings.BASE_DIR, 'staticfiles/common/js', name).read_text(encoding='utf-8')
+        MiniRacer().eval('(function(){' + src + '\n})')
+        self.assertEqual(served, src)
+
     def test_a_new_rendering_does_not_serve_the_old_cached_pdf(self):
         """The cache is keyed by the rendered HTML : the HTML of the presentation did not change when
         its videos became playable, so the version of the rendering is part of the key."""

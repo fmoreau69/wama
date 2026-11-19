@@ -206,12 +206,20 @@ def _build_vf(options: dict) -> list:
     # nature (« Garder la résolution d'origine », 2026-10-16). `width` / `height` restent lus.
     w = int(options.get('resize_w') or options.get('width') or 0)
     h = int(options.get('resize_h') or options.get('height') or 0)
+    try:
+        cap = int(options.get('resolution_cap') or 0)
+    except (TypeError, ValueError):
+        cap = 0
     if w and h:
         parts.append(f"scale={w}:{h}")
     elif w:
         parts.append(f"scale={w}:-2")
     elif h:
         parts.append(f"scale=-2:{h}")
+    elif cap > 0:
+        # Le PLAFOND de définition (`resolution_cap`, 2026-11-19) : le CÔTÉ COURT ramené à `cap`,
+        # jamais agrandi, l'autre côté suivant le ratio (pair, `-2`). Une taille explicite prime.
+        parts.append(f"scale='if(gte(iw,ih),-2,min(iw,{cap}))':'if(gte(iw,ih),min(ih,{cap}),-2)'")
 
     # Rotation (CCW degrees) — applied after scale so the user-provided
     # dimensions refer to the source orientation

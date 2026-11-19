@@ -233,14 +233,34 @@ def page_pdf(request, page, slug=None):
         template, slides, page_path, name = entry['template'], entry['slides'], reverse(page), page
     else:
         raise Http404(f"Page sans export PDF : {page}")
+    from wama.common.services.page_pdf import read_export_options
+    try:
+        options = read_export_options(request.GET, slides)
+    except ValueError as e:
+        return HttpResponse(f"Réglage d'export refusé : {e}", status=400,
+                            content_type='text/plain; charset=utf-8')
     context = entry['context']() if entry.get('context') else None
-    pdf = build_pdf(request, template, page_path=page_path, slides=slides, context=context)
+    pdf = build_pdf(request, template, page_path=page_path, slides=slides, context=context,
+                    options=options)
     if pdf is None:
         return HttpResponse("Export PDF indisponible : le navigateur de rendu (Chromium) n'a pas pu "
                             "produire le document sur ce serveur.", status=503,
                             content_type='text/plain; charset=utf-8')
     return FileResponse(open(pdf, 'rb'), content_type='application/pdf', as_attachment=True,
                         filename=f'wama-{name}.pdf')
+
+
+def page_pdf_options(request, page, slug=None):
+    """Les RÉGLAGES de l'export PDF d'une page (`page_pdf.export_params`), pour la modale commune
+    (`wama-export-options.js`) : leur schéma et leurs valeurs — un schéma vide pour un document,
+    dont l'export télécharge alors tel quel."""
+    from django.http import JsonResponse
+    from wama.common.services.page_pdf import export_params
+    from wama.common.utils.param_schema import schema_to_dicts
+    slides = False if page == 'report' else bool((PDF_PAGES.get(page) or {}).get('slides'))
+    schema = schema_to_dicts(export_params(slides))
+    return JsonResponse({'title': 'Exporter en PDF', 'schema': schema,
+                         'values': {p['name']: p.get('default') for p in schema}})
 
 
 #: Ce que l'assistant répond pendant qu'une libération de la carte est en cours — un message

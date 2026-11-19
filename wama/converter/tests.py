@@ -155,7 +155,9 @@ class QualityIntentWritesTheColumnsTest(TestCase):
         self.assertEqual((q[0], q[2], q[4]), (80, 90, 98))
         self.assertTrue(80 < q[1] < 90 and 90 < q[3] < 98)
         crf = [values_for_intent('video', v)['video_quality'] for v in (15, 50, 85)]
-        self.assertEqual(crf, [23, 20, 16])
+        # « Rapide (web) » vraiment léger depuis le 2026-11-19 (décision de Fabien) : CRF 28 en 720p.
+        self.assertEqual(crf, [28, 20, 16])
+        self.assertEqual(values_for_intent('video', 15)['resolution_cap'], '720')
         self.assertEqual(values_for_intent('audio', 67)['audio_bitrate'][-1], 'k')
         self.assertLess(values_for_intent('image', 0)['quality'], 81)          # sous la 1re position
         self.assertEqual(values_for_intent('image', 100)['quality'], 98)      # au-delà de la dernière
@@ -556,3 +558,35 @@ class InlineSameFormatReencodeTest(TestCase):
             self.assertEqual(str(src), result)
             self.assertEqual(b'reencoded', src.read_bytes())
             self.assertEqual(['out.png'], sorted(p.name for p in Path(tmp).iterdir()))
+
+
+class VideoResolutionCapTest(TestCase):
+    """The converter REDUCES a video (2026-11-19, Fabien's decision : « Rapide » in 720p) — the short
+    side brought down to `resolution_cap`, never enlarged, an explicit size first ; played by the
+    real ffmpeg on generated test patterns."""
+
+    def _encode(self, size: str, **options) -> tuple:
+        import subprocess
+        import tempfile
+        from pathlib import Path
+
+        from wama.converter.backends.video_backend import _get_ffmpeg, convert_video
+        from wama.common.utils.video_utils import get_media_info
+        ffmpeg = _get_ffmpeg()
+        with tempfile.TemporaryDirectory() as tmp:
+            src, out = Path(tmp) / 'src.mp4', Path(tmp) / 'out.mp4'
+            subprocess.run([ffmpeg, '-v', 'error', '-f', 'lavfi', '-i', f'testsrc=size={size}:rate=10',
+                            '-t', '1', '-pix_fmt', 'yuv420p', str(src)], check=True)
+            convert_video(str(src), str(out), 'mp4', options=options)
+            info = get_media_info(str(out))
+        return info.get('width'), info.get('height')
+
+    def test_the_short_side_is_brought_down_to_the_cap(self):
+        self.assertEqual((1280, 720), self._encode('1920x1080', resolution_cap='720'))
+        self.assertEqual((720, 1280), self._encode('1080x1920', resolution_cap='720'))
+
+    def test_a_smaller_video_is_never_enlarged(self):
+        self.assertEqual((640, 360), self._encode('640x360', resolution_cap='720'))
+
+    def test_an_explicit_size_comes_first(self):
+        self.assertEqual((320, 180), self._encode('1920x1080', resolution_cap='720', resize_w=320))

@@ -8394,9 +8394,62 @@ présentation et que la vidéo soit lisible […] universel et réutilisable san
 jouée à l'affichage de la page et au clic, l'image de la page (l'affiche) dessous. Toute vidéo posée
 dans une présentation au moteur canvas l'est d'elle-même. Mesuré : export réel de la présentation,
 37 pages, 36,4 Mo, la vidéo (30,6 Mo, octets intacts) page 34, à la place de la vidéo de la
-diapositive. ⚠ NON mesuré : la LECTURE dans un lecteur — le multimédia normalisé est annoncé lu par
-Acrobat, Foxit, PDF-XChange et Okular, pas par les lecteurs des navigateurs, Aperçu ni les téléphones
-(qui montrent l'image) ; aucun lecteur n'est pilotable depuis une session, à confirmer par Fabien dans
-Acrobat (installé sur le poste). ⏳ Un document A4 (rapports, fiches)
-n'embarque pas encore ses vidéos — aucun n'en contient ; la qualité réduite proposée le 12/11 n'est pas
-appliquée (le fichier est embarqué tel qu'il est servi).
+diapositive. **Lecture constatée par Fabien** (2026-11-19) : Firefox ✅ ; Acrobat Reader ✅ sur le poste
+de développement (Acrobat 26.2 — il ouvre le lecteur multimédia de Windows dans la diapositive) ;
+Chrome et Edge ✗ (leur lecteur PDF intégré ne joue aucun multimédia) ; un ancien Acrobat X ✗ (il
+renvoie vers une page de téléchargement de lecteur qui n'existe plus). ⏳ Un document A4 (rapports,
+fiches) n'embarque pas encore ses vidéos — aucun n'en contient.
+✅ **La QUALITÉ de l'export, réglable, le même jour** (Fabien : « un pdf de 35 Mo me semble un peu
+conséquent […] un paramètre à pouvoir régler via les capacités du converter […] une petite modale à
+l'export pdf […] centralisé et parfaitement aligné sur le fonctionnement du converter ») :
+- le converter RÉDUIT une vidéo : `resize_w` / `resize_h` valent pour la vidéo (son moteur les lisait
+  déjà), et le plafond `resolution_cap` ramène le côté court à une définition sans jamais agrandir ;
+  le cran « Rapide (web) » vidéo passe à 720p en CRF 28 (décision de Fabien) — garde
+  `converter.tests.VideoResolutionCapTest`, par ffmpeg réel ;
+- l'export lit la qualité de la SORTIE commune (`output_formats.output_quality_param`, fabrique
+  extraite de `output_format_params`) : `page_pdf.export_params` / `read_export_options`, une
+  présentation seulement ; la modale est la modale commune (`WamaParams.renderSettingsModal`), ouverte
+  par tout lien qui déclare `data-wama-export-options` (`common/js/wama-export-options.js`) ;
+- les vidéos sont réencodées en MP4 par la conversion synchrone du converter
+  (`apply_inline_conversion`, celle des autres apps), dans un dossier de travail ; les images des pages
+  prennent la qualité JPEG du préréglage image (80 / 90 / 98 au lieu de 88 en dur).
+Mesuré sur la présentation (37 pages) : Rapide **10,2 Mo** (vidéo 6,8 Mo) · Équilibré 37,3 Mo (vidéo
+32,7 Mo, PLUS lourde que la source de 32,1 Mo : ce cran garde la pleine définition en CRF 20) ·
+Qualité 51,6 Mo. ⏳ Décision de Fabien : le défaut de l'export, ou le réglage vidéo du cran
+« Équilibré ». ⏳ Le bouton PDF de la page de présentation elle-même (page autonome, sans Bootstrap ni
+`WamaParams`) exporte au défaut, sans modale.
+
+**31.7 La PERSONNALISATION, cartographiée puis alignée** ⏳ — à ouvrir APRÈS le travail en cours
+(Fabien, 2026-11-19 : « On ne le fait pas maintenant […] quand on aura terminé le travail en cours »).
+Les questions posées, telles quelles :
+- **Les options avancées en ACCORDÉON, systématiquement** : elles SURCHARGENT le préréglage ou le
+  profil de réglages de l'utilisateur, et permettent du même coup de CONSULTER ce que le préréglage
+  ou le profil pose. *Mesuré le 2026-11-19 :* l'accordéon existe au commun (`Param.advanced`,
+  `param_schema.py:176`, groupe « Avancé » rendu par `wama-params.js`) et la cascade aussi
+  (`param_schema.effective_settings` : défauts du schéma ← préréglage ← réglages posés) ; il est peu
+  employé — dans le converter, seule la qualité d'IMAGE est `advanced`, les réglages vidéo que le
+  curseur écrit (CRF, définition maximale) sont en clair.
+- **Les profils de réglages de l'utilisateur, et leur ÉDITION** : l'alignement n'est peut-être pas
+  terminé. *Mesuré :* la table commune `common.UserAppSetting` (avec `ElementPreference`) cohabite
+  avec TROIS modèles propres à une app — `converter.ConversionProfile`, `cam_analyzer.AnalysisProfile`,
+  `enhancer.UserSettings` — à confronter à la règle « réglages retenus : UNE clé pour toutes les apps »
+  (`2c5befc01`, 2026-11-12) avant toute page d'édition.
+- **Une page de personnalisation des FORMATS DE CONVERSION ?** La page « Formats médias » existe
+  (registre `media_formats`, section « WAMA ») ; les préréglages de qualité vivent dans le converter
+  (`quality_presets.py`).
+- **Les raccourcis clavier** se règlent aujourd'hui sur la page « Briques UI » (section « WAMA »,
+  `account_page=True`) ; viendra une page de gestion des CONTRÔLEURS (clavier, souris, périphériques,
+  capteurs, contrôleurs MIDI…).
+- **Une page « Personnalisation » dans « Mon atelier »**, qui centraliserait l'accès à toutes les
+  pages de personnalisation — la crainte de Fabien : qu'à force de personnalisations, l'utilisateur ne
+  s'y retrouve plus. *Mesuré :* « Mon atelier » compte trois pages (Skills, Prononciations, Fonctions) ;
+  le reste de ce qui se personnalise est ailleurs (« Mon profil », « Briques UI », dispositions de
+  page — `reset_page_layout` —, thèmes `UserTheme`, pipelines du Studio `StudioPipeline`).
+- **La cartographie COMPLÈTE**, actuelle et à venir — Studio (pipelines réorganisés par chacun) et la
+  future application de création d'interfaces par assemblage de briques UI (`WAMA_VOLETS §3-ter`)
+  compris —, pour vérifier que tout ce qui touche à la personnalisation suit le même fonctionnement
+  (déclaré, au commun, provenance et promotion de `ROADMAP §29`).
+La règle posée par Fabien pour ce chantier : *« On ne suppose rien, on ne devine rien, on ne casse rien,
+on ne perd rien. On aligne, on complète l'existant si nécessaire, on fait les meilleures UI/UX
+possibles »* — au commun, réutilisable partout, via les capacités du converter pour ce qui est des
+formats et qualités.

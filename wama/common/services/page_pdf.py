@@ -71,25 +71,61 @@ def make_fetcher(request):
     return fetch_off_loop
 
 
-def page_pdf(request, template, *, page_path, slides=False, context=None):
+def export_params(slides: bool) -> list:
+    """Les RÉGLAGES de l'export PDF d'une page (2026-11-19, demande de Fabien : « une petite modale à
+    l'export pdf […] centralisé et parfaitement aligné sur le fonctionnement du converter ») — la
+    QUALITÉ de la sortie commune (`output_formats.output_quality_param` : Rapide / Équilibré /
+    Qualité), appliquée par le converter aux vidéos embarquées et aux images des pages. Une
+    présentation seulement : un document A4 n'a ni capture ni vidéo à réencoder."""
+    if not slides:
+        return []
+    from wama.common.utils.output_formats import output_quality_param
+    return [output_quality_param(
+        contexts=('item',), dom_id='pageExportQuality',
+        help="Qualité des vidéos embarquées (réencodées par le converter) et des images des pages : "
+             "« Rapide » donne le PDF le plus léger.")]
+
+
+def read_export_options(data, slides: bool) -> dict:
+    """Les réglages d'un export lus dans `data` (la requête), bornés par leur schéma — un choix hors
+    liste lève `ValueError` (la porte commune, `invalid_choice_values`), un réglage absent prend
+    son défaut déclaré."""
+    from wama.common.utils.param_schema import invalid_choice_values, schema_to_dicts
+    schema = schema_to_dicts(export_params(slides))
+    given = {p['name']: data.get(p['name']) for p in schema if data.get(p['name']) not in (None, '')}
+    bad = invalid_choice_values(schema, given)
+    if bad:
+        name, (refused, valid) = next(iter(bad.items()))
+        raise ValueError(f"{name} : « {', '.join(map(str, refused))} » refusé "
+                         f"(valides : {', '.join(valid)})")
+    return {p['name']: given.get(p['name'], p.get('default')) for p in schema}
+
+
+def page_pdf(request, template, *, page_path, slides=False, context=None, options=None):
     """Chemin du PDF de `template` tel que le voit `request.user`, ou None si aucun moteur n'a pu le faire.
 
     `context` : celui que la VUE de la page passe à son gabarit — sans lui, le PDF montrerait
     une autre page que celle qu'on lit (la frise de la présentation, par exemple).
+    `options` : les réglages de l'export (`read_export_options`) — la qualité de sortie.
     """
+    import json
+
     from django.template.loader import render_to_string
     from wama.common.utils.html_render import PAGE_RENDER_VERSION, render_page_to_pdf
 
+    options = dict(options or {})
     html = render_to_string(template, context, request=request)
-    # La version du rendu entre dans la clé : un rendu qui change ne resert pas l'ancien PDF.
-    key = hashlib.sha256(f'{PAGE_RENDER_VERSION}\n{slides}\n{page_path}\n{html}'
-                         .encode('utf-8')).hexdigest()[:24]
+    # La version du rendu et les réglages entrent dans la clé : un rendu qui change, ou une autre
+    # qualité, ne resert pas l'ancien PDF.
+    key = hashlib.sha256(f'{PAGE_RENDER_VERSION}\n{json.dumps(options, sort_keys=True)}\n{slides}'
+                         f'\n{page_path}\n{html}'.encode('utf-8')).hexdigest()[:24]
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     out = CACHE_DIR / f'{key}.pdf'
     if out.is_file() and out.stat().st_size > 0:
         return out
     tmp = out.with_suffix('.part.pdf')
-    if not render_page_to_pdf(html, str(tmp), fetch=make_fetcher(request), path=page_path, slides=slides):
+    if not render_page_to_pdf(html, str(tmp), fetch=make_fetcher(request), path=page_path, slides=slides,
+                              quality=options.get('output_quality') or ''):
         return None
     tmp.replace(out)
     return out

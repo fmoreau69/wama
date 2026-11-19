@@ -200,7 +200,7 @@ _HIDE_FIXED_JS = """() => document.querySelectorAll('body *').forEach(el => {
 #: doit pas resservir un PDF fait par l'ancien. À monter à chaque changement de ce que produit
 #: `render_page_to_pdf` — y compris la retouche des vidéos (`pdf_pages.embed_videos`) : le 19/11,
 #: l'apparence ajoutée à l'annotation n'apparaissait pas, le PDF du premier essai étant resservi.
-PAGE_RENDER_VERSION = 3
+PAGE_RENDER_VERSION = 4   # 4 : vidéos réencodées et images à la qualité de la sortie (2026-11-19)
 
 #: Les VIDÉOS d'une étape : celles que sa frame CONTIENT — la règle du moteur, qui lit une vidéo à
 #: l'arrivée de la caméra sur sa frame (`wama-presentation.js`, `frame.contains(v)`) ; leur cadre à
@@ -220,7 +220,7 @@ _GO_STEP_JS = """i => new Promise(r => {
 
 
 def render_page_to_pdf(html: str, output_path: str, *, fetch, path: str = '/', slides: bool = False,
-                       origin: str = 'http://wama.page') -> bool:
+                       origin: str = 'http://wama.page', quality: str = '') -> bool:
     """Une PAGE de WAMA (HTML déjà rendu) → PDF, par Chromium headless, sans passer par le serveur.
 
     Tout ce que la page demande à son origine (statiques, JSON) passe par `fetch(path_et_requête)`, qui
@@ -232,8 +232,14 @@ def render_page_to_pdf(html: str, output_path: str, *, fetch, path: str = '/', s
     masquées. WebGL sur le PROCESSEUR (SwiftShader) : jamais de carte graphique pour un export.
     Les VIDÉOS d'une étape y restent JOUABLES (2026-11-19) : chacune est embarquée à sa place dans la
     page (`pdf_pages.embed_videos`), son image restant dessous pour un lecteur qui ne joue pas.
+    `quality` : la QUALITÉ de la sortie commune (`web` / `balanced` / `max`, celle du converter,
+    défaut `balanced`) — les images des pages prennent la qualité JPEG du préréglage IMAGE, les
+    vidéos sont réencodées en MP4 par le converter au préréglage VIDÉO (`apply_inline_conversion`).
     Retourne False si Chromium est indisponible.
     """
+    from wama.converter.utils.quality_presets import DEFAULT_PRESET, preset_values
+    quality = quality or DEFAULT_PRESET
+    jpeg_quality = int(preset_values('image', quality).get('quality') or 90)
     try:
         from playwright.sync_api import sync_playwright
     except ImportError:
@@ -271,7 +277,8 @@ def render_page_to_pdf(html: str, output_path: str, *, fetch, path: str = '/', s
                     for i in range(page.evaluate('window.WamaPrez.steps.length')):
                         page.evaluate(_GO_STEP_JS, i)
                         page.wait_for_timeout(700)      # une scène 3D s'accroche à `settled`, puis rend
-                        shots.append(base64.b64encode(page.screenshot(type='jpeg', quality=88)).decode())
+                        shots.append(base64.b64encode(
+                            page.screenshot(type='jpeg', quality=jpeg_quality)).decode())
                         videos += [dict(v, page=i) for v in page.evaluate(_STEP_VIDEOS_JS, i)]
                     book = ctx.new_page()
                     book.set_content(
@@ -286,14 +293,43 @@ def render_page_to_pdf(html: str, output_path: str, *, fetch, path: str = '/', s
         logger.warning(f"Page → PDF indisponible ({e})")
         return False
     if videos and os.path.exists(output_path):
-        _embed_step_videos(output_path, videos, fetch, origin)
+        _embed_step_videos(output_path, videos, fetch, origin, quality)
     return os.path.exists(output_path) and os.path.getsize(output_path) > 0
 
 
-def _embed_step_videos(output_path: str, videos: list, fetch, origin: str) -> None:
+#: Le format d'une vidéo embarquée : le MP4 (H.264) que lisent les lecteurs de PDF de bureau.
+EMBEDDED_VIDEO_FORMAT = 'mp4'
+
+
+def _reencoded(body: bytes, name: str, quality: str) -> tuple:
+    """`(octets, nom)` d'une vidéo réencodée en MP4 par le CONVERTER au préréglage `quality`
+    (`apply_inline_conversion`, la conversion des autres apps), dans un dossier de travail jetable —
+    la source servie n'est jamais touchée. En cas d'échec, la vidéo telle qu'elle est servie, et
+    l'échec est DIT."""
+    import posixpath
+
+    from wama.common.utils.work_dir import work_dir
+    from wama.converter.utils.inline_convert import apply_inline_conversion
+    try:
+        with work_dir('wama_pdf_video') as folder:
+            source = os.path.join(folder, name)
+            with open(source, 'wb') as f:
+                f.write(body)
+            out = apply_inline_conversion(source, EMBEDDED_VIDEO_FORMAT, quality)
+            with open(out, 'rb') as f:
+                data = f.read()
+        if data:
+            return data, posixpath.splitext(name)[0] + '.' + EMBEDDED_VIDEO_FORMAT
+    except Exception as e:
+        logger.warning(f"Vidéo {name} non réencodée ({e}) : embarquée telle qu'elle est servie")
+    return body, name
+
+
+def _embed_step_videos(output_path: str, videos: list, fetch, origin: str, quality: str = '') -> None:
     """Les vidéos relevées étape par étape, lues par le même `fetch` que la page (le serveur ne
-    s'appelle pas lui-même), puis embarquées dans le PDF. Une vidéo illisible est DITE et laissée :
-    sa page garde son image, le PDF reste valide."""
+    s'appelle pas lui-même), réencodées au préréglage `quality` par le converter (`_reencoded`),
+    puis embarquées dans le PDF. Une vidéo illisible est DITE et laissée : sa page garde son
+    image, le PDF reste valide."""
     import posixpath
     from urllib.parse import urlsplit
 
@@ -305,9 +341,11 @@ def _embed_step_videos(output_path: str, videos: list, fetch, origin: str) -> No
         if status != 200 or not body:
             logger.warning(f"Vidéo non embarquée dans le PDF ({url}) : statut {status}")
             continue
-        placed.append({'page': video['page'], 'box': video['box'], 'data': body,
-                       'name': posixpath.basename(urlsplit(url).path) or 'video.mp4',
-                       'mime': (ctype or 'video/mp4').split(';')[0].strip()})
+        name = posixpath.basename(urlsplit(url).path) or 'video.mp4'
+        data, name = _reencoded(body, name, quality) if quality else (body, name)
+        placed.append({'page': video['page'], 'box': video['box'], 'data': data, 'name': name,
+                       'mime': 'video/mp4' if name.endswith('.' + EMBEDDED_VIDEO_FORMAT)
+                       else (ctype or 'video/mp4').split(';')[0].strip()})
     try:
         embed_videos(output_path, placed)
     except Exception as e:

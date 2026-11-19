@@ -1955,7 +1955,9 @@ MECHANISMS = (
               "`render_outputs` (2026-10-03) GARDE le fichier d'origine (`<nom>.native<ext>`, champ "
               "`native_outputs` du mixin `NativeOutputsMixin`, déclaré à la rétention) tant que ces "
               "réglages le transforment : le process « sortie » d'une app se rejoue SEUL, sans "
-              "regénérer",
+              "regénérer. La QUALITÉ a sa fabrique (`output_quality_param`, 2026-11-19), lue aussi "
+              "par l'export PDF des présentations (`page_pdf.export_params`) : vidéos réencodées et "
+              "images des pages au préréglage du converter",
               'wama/common/utils/output_formats.py',
               'docs/construction/architecture/WAMA_APP_CONVENTIONS.md §6.4'),
     Mechanism('output_process', 'Process « Sortie » d\'une card',

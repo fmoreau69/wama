@@ -16,8 +16,12 @@ _PRESETS = {
         'max':      {'quality': 98, 'optimize': True},
     },
     'video': {
-        # video_quality = CRF (lower = better) ; preset = x264 speed/efficiency
-        'web':      {'video_quality': 23, 'preset': 'medium'},
+        # video_quality = CRF (lower = better) ; preset = x264 speed/efficiency ;
+        # resolution_cap = côté court maximal, jamais agrandi (`video_backend._build_vf`).
+        # « Rapide (web) » vraiment léger depuis le 2026-11-19 (décision de Fabien) : 720p en CRF 28.
+        # Mesuré sur la vidéo des gestes nocturnes (1080p, 2 min, 32,1 Mo) : 6,7 Mo, contre 25,9 Mo
+        # en pleine définition au CRF 23 d'avant.
+        'web':      {'video_quality': 28, 'preset': 'medium', 'resolution_cap': '720'},
         'balanced': {'video_quality': 20, 'preset': 'slow'},
         'max':      {'video_quality': 16, 'preset': 'slow'},
     },
