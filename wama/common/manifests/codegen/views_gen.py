@@ -660,11 +660,22 @@ def _nature_url(url):
     bloc_domaine = '' if not (multi and _noms_schema) else f'''
 
 def _birth_domain(nature='', post=None):
-    """Le domaine où NAÎT un élément — la règle de la card, sur un témoin non sauvé."""
-    from wama.common.utils.app_modes import element_domain_or_first
+    """Le domaine où NAÎT un élément — celui que la card POSTE (`domain`, son lot et son URL, comme
+    les pages réelles), sinon la règle de la card, sur un témoin non sauvé."""
+    from wama.common.utils.app_modes import element_domain_or_first, get_domains
+    posted = (post.get('domain') if post is not None else None) or ''
+    if posted and posted in [d.get('id') for d in get_domains('{app}')]:
+        return posted
     value = {posted_value} or {known_nature}
     return element_domain_or_first({item}(**({{{spec_field!r}: value}} if value else {{}})))
 '''
+    # … et l'élément d'un domaine POSTÉ naît avec le champ qui le range dans ce domaine
+    # (`app_modes.domain_birth_field`, la table de la spec lue à l'envers) — 2026-11-19.
+    birth_field = ('' if not multi else '''
+    from wama.common.utils.app_modes import domain_birth_field
+    _born = domain_birth_field('{app}', domain) if post is not None and post.get('domain') == domain else None
+    if _born:
+        values.setdefault(_born[0], _born[1])'''.replace('{app}', app))
     birth = ('' if not multi else f'''
     from wama.common.utils.app_modes import domain_schema
     domain = _birth_domain(nature, post)
@@ -681,7 +692,7 @@ def _element_settings(user, nature='', post=None, inputs=None):
     from wama.common.utils.user_settings import new_element_settings{birth}
     values = new_element_settings(user, '{app}', {birth_schema}, {item}, post=post,
                                   context={contexte_nature}, options_field=_OPTIONS_FIELD,
-                                  inputs=inputs{birth_scope}){retrait_nature}
+                                  inputs=inputs{birth_scope}){retrait_nature}{birth_field}
     return values
 
 

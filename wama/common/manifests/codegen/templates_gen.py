@@ -90,9 +90,9 @@ def render_index(manifest: dict, element: tuple = None) -> tuple:
     from wama.common.manifests.codegen.views_gen import page_domains
     doms = page_domains(body)
     (PID, V_PARAMS, V_DEFAULTS, V_MATCH, OPENER, BATCH_VAR, BATCH_BASE, IMPORT_VAR, CARD_SCOPE,
-     PROGRESS_SCOPE, QUEUE_SCOPE) = (f'\x00{n}\x00' for n in (
+     PROGRESS_SCOPE, QUEUE_SCOPE, CARD_DOMAIN) = (f'\x00{n}\x00' for n in (
         'pid', 'params', 'defaults', 'match', 'opener', 'batch_var', 'batch_base', 'import_var',
-        'card_scope', 'progress_scope', 'queue_scope'))
+        'card_scope', 'progress_scope', 'queue_scope', 'card_domain'))
 
     def _scoped(text, dom=None, home=None):
         """Le texte d'UN domaine — ou, sans domaine, celui de la page à une file. `home` : le
@@ -110,7 +110,8 @@ def render_index(manifest: dict, element: tuple = None) -> tuple:
                      BATCH_VAR: 'window._batchImport', BATCH_BASE: '', IMPORT_VAR: 'window._import',
                      CARD_SCOPE: f" card_domain='{home}' card_id='{app}NewItem'",
                      PROGRESS_SCOPE: f" domain='{home}' queue_id='{app}Queue'",
-                     QUEUE_SCOPE: f" domain='{home}' queue_id='{app}Queue' batches=batches_list"}
+                     QUEUE_SCOPE: f" domain='{home}' queue_id='{app}Queue' batches=batches_list",
+                     CARD_DOMAIN: f"'{home}'"}
             for token, value in table.items():
                 text = text.replace(token, value)
             return text
@@ -129,6 +130,7 @@ def render_index(manifest: dict, element: tuple = None) -> tuple:
             QUEUE_SCOPE: (f" queue_id='{pid}Queue' batches=batches_list" if dom is None else
                           f" domain='{dom}' queue_id='{pid}Queue' batches=domain_batches.{dom}"
                           f" collapse_prefix='{pid}BatchItems'"),
+            CARD_DOMAIN: "''" if dom is None else f"'{dom}'",
         }
         for token, value in table.items():
             text = text.replace(token, value)
@@ -148,6 +150,7 @@ def render_index(manifest: dict, element: tuple = None) -> tuple:
             PROGRESS_SCOPE: f" domain='{own_domain}' queue_id='{pid}Queue'",
             QUEUE_SCOPE: (f" domain='{own_domain}' queue_id='{pid}Queue' batches={ctx}.batches_list"
                           f" collapse_prefix='{pid}BatchItems'"),
+            CARD_DOMAIN: f"'{own_domain}'",
         }
         for token, value in table.items():
             text = text.replace(token, value)
@@ -684,6 +687,10 @@ def render_index(manifest: dict, element: tuple = None) -> tuple:
             Object.keys(v).forEach(function (k) {{
                 if (v[k] !== '' && v[k] != null && !fd.has(k)) fd.append(k, v[k]);
             }});
+            // Et le DOMAINE de la card, comme l'imager réel (`fd.append('domain', …)`) : la vue y
+            // lit où naît l'élément (`_birth_domain`, `app_modes.domain_birth_field`).
+            var dom = {CARD_DOMAIN};
+            if (dom && !fd.has('domain')) fd.append('domain', dom);
         }},
         afterCreate:     function () {{ location.reload(); }},
     }});

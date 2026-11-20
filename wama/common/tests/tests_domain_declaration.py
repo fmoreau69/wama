@@ -398,6 +398,25 @@ class DomainsAreFoundInTheDatabaseTest(TestCase):
     def test_the_fleet_has_a_shared_surface_to_measure(self):
         self.assertTrue(_shared_surfaces(), 'no surface shared by two domains: the guard is empty')
 
+    def test_an_element_born_with_the_birth_field_of_a_domain_belongs_to_it(self):
+        """`app_modes.domain_birth_field` reads the SAME table backwards (2026-11-19) : the element
+        that a card of a domain posts is born in it — the imager's video card did it by hand
+        (`handle_file2img`), a generated page reads it. The default domain has nothing to set."""
+        from wama.common.utils.app_modes import (domain_birth_field, domain_schema_name,
+                                                 element_domain)
+        measured = 0
+        for app, surface, model, form, served in _shared_surfaces():
+            for domain in served:
+                born = domain_birth_field(app, domain)
+                with self.subTest(surface=surface, domain=domain):
+                    if isinstance(form, dict) and form.get('default') == domain_schema_name(app, domain):
+                        self.assertIsNone(born, 'the default domain takes what the table does not name')
+                        continue
+                    self.assertIsNotNone(born)
+                    self.assertEqual(domain, element_domain(model(**{born[0]: born[1]})))
+                    measured += 1
+        self.assertGreater(measured, 0, 'no domain needs a birth field: the guard is empty')
+
     def test_each_domain_filter_keeps_exactly_the_elements_of_its_domain(self):
         from wama.common.tests.tests_queue_delete_contract import _instance
         from wama.common.utils.app_modes import domain_filter

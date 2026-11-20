@@ -680,6 +680,28 @@ def domain_filter(app: str, domain_id: str):
     return lambda qs: qs.filter(**{f"{form['field']}__in": mine})
 
 
+def domain_birth_field(app: str, domain_id: str) -> tuple | None:
+    """`(champ, valeur)` à poser sur un élément NAISSANT pour qu'il soit de ce domaine — la lecture
+    inverse de `domain_filter`, sur la MÊME déclaration (`params_schema` de la spec de détail :
+    `{field, map, default}`) : la première valeur de la table qui mène au schéma du domaine. None
+    quand rien n'est à poser : domaine qui a son modèle à lui, domaine par DÉFAUT (il prend tout ce
+    que la table ne nomme pas), ou spec sans champ. L'imager réel le fait à la main (`handle_file2img`
+    : `domain='video'` → `txt2vid`) ; une page générée le lit ici (2026-11-19 : une URL ou un lot
+    posés sur la card vidéo d'`imager_01` naissaient image)."""
+    from wama.common.utils.detail_registry import DetailRegistry
+    surface = domain_surface(app, domain_id)
+    if len(surface_domains(app, surface)) <= 1:
+        return None
+    form = ((DetailRegistry.get(surface) or {}).get('spec') or {}).get('params_schema')
+    if not (isinstance(form, dict) and form.get('field') and 'map' in form):
+        return None
+    name = domain_schema_name(app, domain_id)
+    if form.get('default') == name:
+        return None
+    value = next((k for k, v in (form.get('map') or {}).items() if v == name), None)
+    return (form['field'], value) if value is not None else None
+
+
 def domain_filters(app: str, surface: str) -> dict:
     """`{domaine: filtre}` des domaines qui PARTAGENT la surface `surface` ({} quand elle n'en sert
     qu'un) — ce que la fabrique de progression attend pour une barre par domaine.

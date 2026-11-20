@@ -245,6 +245,13 @@ class ABatchCarriesThePanelOfItsCardTest(_Rendered):
                      if '_element_settings(user, ' in line and not line.lstrip().startswith('def ')]
             if any('request.POST' not in c and '_posted' not in c and 'post' not in c for c in calls):
                 wrong.setdefault(app, []).append('a batch view that ignores the posted panel')
+            # A page with several domains : the batch posts its card's DOMAIN, the view reads it
+            # first, and the element is born with that domain's field (2026-11-19).
+            if '\ndef _birth_domain(' in views:
+                if "fd.append('domain', dom)" not in page:
+                    wrong.setdefault(app, []).append('a batch that does not post its domain')
+                if "post.get('domain')" not in views or 'domain_birth_field(' not in views:
+                    wrong.setdefault(app, []).append('a view that ignores the posted domain')
         self.assertEqual({}, wrong)
 
 
