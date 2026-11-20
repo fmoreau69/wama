@@ -1167,7 +1167,12 @@
         // instant (détections / floutage de l'anonymizer) sous l'aperçu, la vue choisie gardée.
         function follow() {
             stopDuring();
-            const follower = followDuring(baseUrl, {
+            // DÉCLARÉ avant l'appel : la boucle commune lit son premier tour À LA CONSTRUCTION
+            // (`immediate`), et un élément déjà fini y appelle `onEnd` avant que `followDuring` ne
+            // rende — `const follower = …` le laissait alors en zone morte (« Cannot access
+            // 'follower' before initialization », mesuré le 2026-11-19 sur la page de reader_01).
+            let follower = null;
+            follower = followDuring(baseUrl, {
                 isRunning: running,
                 // Fin du suivi : le calcul est fini → la Sortie. Encore en cours, c'est que la
                 // surface ne publie rien (`sides.during_capable`) : ce qui est montré reste, et

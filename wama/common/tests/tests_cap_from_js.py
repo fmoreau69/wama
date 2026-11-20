@@ -1715,6 +1715,25 @@ class PreviewModalTest(SimpleTestCase):
         v8.eval((JS / 'media-preview.js').read_text(encoding='utf-8'))
         return v8
 
+    def test_a_card_already_finished_ends_before_its_follower_is_returned(self):
+        """The common loop reads its first turn at CONSTRUCTION (`immediate`) : for a card already
+        finished, `onEnd` runs BEFORE `followDuring` returns. The face viewer's `follow()` read its
+        follower in `onEnd` from a `const` assigned by that call — « Cannot access 'follower' before
+        initialization » on `reader_01`'s page (2026-11-19). So it is declared before the call."""
+        v8 = self._follower_v8()
+        out = v8.eval("""(function () {
+            var returned = false, endedBeforeReturn = null;
+            var f = window.WamaMediaPreview.followDuring('/p/9/', {
+              isRunning: function () { return false; },
+              onEnd: function () { endedBeforeReturn = !returned; }});
+            returned = true;
+            return endedBeforeReturn;
+        })()""")
+        self.assertTrue(out, 'the first turn ends a finished card at once : the order matters')
+        follow = self._body('media-preview.js', 'function follow()')
+        self.assertRegex(follow, r'let follower = null;\s+follower = followDuring\(',
+                         'the follower read by onEnd must exist before followDuring calls it')
+
     def test_the_follower_renders_changes_only_keeps_the_view_and_ends_on_the_card(self):
         v8 = self._follower_v8()
         out = v8.eval("""(function () {
