@@ -253,9 +253,12 @@ class CheminDeLotTest(SimpleTestCase):
         self.assertRegex(corps, r"kwargs\.update\(_deposit_settings\(user, kwargs\.get\('media_type', ''\), "
                                 r"request\.POST, \{'\w+': f\}\)\)", "upload ne déroule pas la cascade")
         bc = _fonction(self.src, 'batch_create')
-        self.assertEqual(bc.count("kwargs.update(_element_settings(user, kwargs.get('media_type', '')))"), 2,
+        # … avec le VOLET de la card qui a posté le lot (2026-11-19, `formDataBuilder` du gabarit) :
+        # ses réglages et le domaine où naît l'élément.
+        self.assertEqual(bc.count("kwargs.update(_element_settings(user, kwargs.get('media_type', ''), "
+                                  "request.POST))"), 2,
                          'les DEUX branches de batch_create (URL, fichier) doivent dérouler '
-                         'la cascade — les filles de lot naissaient sans valeurs')
+                         'la cascade, volet posté compris — les filles de lot naissaient sans valeurs')
 
     def test_setting_names_are_read_never_copied(self):
         """Reste n°4 de la file du 2026-10-18 : `check_redundancy` relevait les noms de réglages
