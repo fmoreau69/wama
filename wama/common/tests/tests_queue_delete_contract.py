@@ -1216,6 +1216,75 @@ class APollSaysTheLotOfItsElementTest(TestCase):
         for trace in ('batch.total', 'markFocus', 'location.reload', 'sessionStorage'):
             self.assertIn(trace, body, 'reshaped by the server render, focused, once per total')
 
+    # A lot of three on the page, the common queue brick loaded in V8 with a fake DOM, fetch and
+    # clock : a click on 🗑 of card 1, then the answers of the follower of card 2.
+    _QUEUE_V8 = """
+        var now = 1000, reloads = 0, stored = {};
+        Date.now = function () { return now; };
+        var listeners = {};
+        var location = {reload: function () { reloads++; }, href: 'http://t/enhancer/'};
+        var sessionStorage = {getItem: function (k) { return stored[k] || null; },
+                              setItem: function (k, v) { stored[k] = v; }};
+        var group = {dataset: {batchId: '9'}, children: [],
+                     querySelectorAll: function () { return group.children.slice(); },
+                     querySelector: function () { return null; },
+                     remove: function () {}, closest: function () { return null; }};
+        function card(id) {
+            var c = {dataset: {id: id}, closest: function (s) { return s === '.batch-group' ? group : null; },
+                     remove: function () { group.children = group.children.filter(function (x) { return x !== c; }); }};
+            group.children.push(c);
+            return c;
+        }
+        var c1 = card('1'), c2 = card('2'), c3 = card('3');
+        var btn = {dataset: {deleteUrl: '/enhancer/delete/1/', id: '1', confirm: 'false'},
+                   querySelector: function () { return null; },
+                   closest: function (s) { return s === '.delete-btn[data-delete-url]' ? btn
+                                                : s === '.wama-card' ? c1 : null; }};
+        var document = {cookie: '', addEventListener: function (t, f) { (listeners[t] = listeners[t] || []).push(f); },
+                        querySelector: function (s) { var m = /data-id="(\\d+)"/.exec(s);
+                            return m ? (group.children.filter(function (c) { return c.dataset.id === m[1]; })[0] || null) : null; },
+                        querySelectorAll: function () { return []; }};
+        var window = {location: location}, alerts = [];
+        function FormData() {}
+        function alert(m) { alerts.push(m); }
+        function fetch() {
+            return Promise.resolve({status: 200, ok: true, json: function () {
+                return Promise.resolve({deleted: true, batch: {id: 9, total: 2, success_count: 0}}); }});
+        }
+        function fire(type, e) { (listeners[type] || []).forEach(function (f) { f(e); }); }
+        function answer(sentAt, total) {
+            fire('wama:poll-data', {detail: {id: 2, sentAt: sentAt, data: {id: 2, batch: {id: 9, total: total}}}});
+        }
+    """
+
+    def test_an_answer_sent_before_a_removal_never_reloads_the_page(self):
+        """The follower of a card of the lot asks its state every 1.2 s. An answer whose request
+        left BEFORE a removal was applied still says the lot of before (3), while the page shows 2 :
+        read as « cards were born », it reloaded the page (`enhancer.delete_from_batch`, « la page
+        s'est RECHARGÉE », 2026-11-21, green when replayed alone). Such an answer says the queue of
+        before ; an answer sent after the removal that says more cards still reshapes the page."""
+        try:
+            from py_mini_racer import MiniRacer
+        except ImportError:
+            self.skipTest('py_mini_racer absent de ce venv')
+        js = Path(__file__).parent.parent / 'static/common/js'
+        v8 = MiniRacer()
+        v8.eval(self._QUEUE_V8)
+        v8.eval((js / 'queue-actions.js').read_text(encoding='utf-8'))
+        v8.eval("now = 1500; fire('click', {target: btn});")        # the removal, applied at 1500
+        self.assertEqual(['2', '3'], list(v8.eval("group.children.map(function (c) { return c.dataset.id; })")))
+        v8.eval("now = 1600; answer(1400, 3);")      # left at 1400, before the removal : stale
+        self.assertEqual(0, v8.eval('reloads'), 'an answer of before the removal says the old lot')
+        v8.eval("now = 3000; answer(2800, 3);")      # left after it, and says one card more
+        self.assertEqual(1, v8.eval('reloads'), 'a card born in the lot still reshapes the page')
+        # The answer is dated at its DEPARTURE by the common loop, the one every follower runs on.
+        poller = (js / 'wama-app-base.js').read_text(encoding='utf-8')
+        tick = poller[poller.index('Poller.prototype._tick'):]
+        tick = tick[:tick.index('\n  };')]
+        self.assertLess(tick.index('const sentAt = Date.now()'), tick.index('fetch(url)'),
+                        'dated before the request leaves')
+        self.assertIn('sentAt: sentAt', tick[tick.index("'wama:poll-data'"):])
+
 
 # ── La grille : les critères qui tiennent ce palier ───────────────────────────────────────────
 

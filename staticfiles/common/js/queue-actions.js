@@ -337,7 +337,12 @@
     // un trou de la route elle-même : le 2026-08-23, le rechargement systématique était devenu
     // conditionnel à un champ que rien ne vérifiait. La vue dit maintenant ce que DEVIENT le lot
     // (`batch`, brique serveur `batch_common.batch_state`) et la file se met à jour ici.
+    // L'heure du dernier retrait APPLIQUÉ à la file (2026-11-21) — lue par la remise en forme d'un
+    // lot (`wama:poll-data`, plus bas).
+    let lastRemovalAt = 0;
+
     function standardFollowUp(id, btn, batch) {
+        lastRemovalAt = Date.now();
         const card = document.querySelector('.wama-card[data-id="' + id + '"]')
                   || (btn && btn.closest('.wama-card'));
         const group = card && card.closest('.batch-group');
@@ -376,9 +381,14 @@
     // est marquée pour être retrouvée (`WamaQueue.markFocus`, le geste du ⧉) et la page se
     // recharge. Une fois par (élément, total) : une entrée que la page ne peut pas montrer en
     // entier (une file filtrée) ne fait jamais boucler le rechargement.
+    // ⚠ Une réponse dont la requête est partie AVANT le dernier retrait appliqué dit le lot d'avant
+    // ce retrait : elle compte encore la card retirée, et se lisait comme « des cards sont nées » —
+    // la page se rechargeait (`enhancer.delete_from_batch`, 2026-11-21). Elle ne dit rien ; le tour
+    // suivant du suivi, parti après, dit le lot tel qu'il est.
     document.addEventListener('wama:poll-data', function (e) {
         const detail = e.detail || {}, data = detail.data || {}, batch = data.batch;
         if (!batch || data.id == null) return;
+        if (detail.sentAt != null && detail.sentAt <= lastRemovalAt) return;
         const card = document.querySelector('.wama-card[data-id="' + data.id + '"]');
         const holder = card && (card.closest('.batch-group') || card.closest('.wama-queue-entry'));
         if (!holder) return;

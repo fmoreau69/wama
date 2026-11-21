@@ -211,6 +211,9 @@
     clearTimeout(st.timer);
     if (pageHidden()) return;
     const self = this;
+    // L'heure de DÉPART de la requête, annoncée avec sa réponse (2026-11-21) : une réponse partie
+    // avant un geste de la page (le retrait d'une card de son lot) dit la file d'AVANT ce geste.
+    const sentAt = Date.now();
     let pending;
     if (this.request) {
       pending = Promise.resolve().then(function () { return self.request(id); });
@@ -229,7 +232,8 @@
         // n'a de ligne à écrire ; l'événement ne change rien à son `onData`.
         if (typeof document !== 'undefined' && typeof CustomEvent === 'function') {
           try {
-            document.dispatchEvent(new CustomEvent('wama:poll-data', { detail: { id: id, data: data } }));
+            document.dispatchEvent(new CustomEvent('wama:poll-data',
+                                   { detail: { id: id, data: data, sentAt: sentAt } }));
           } catch (e) { /* une écoute fautive ne casse pas le suivi */ }
         }
         let out;

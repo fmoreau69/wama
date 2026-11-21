@@ -3419,7 +3419,17 @@ def check_app_duplicate_delete(app: str, url_path: str):
                 # Locator ici aussi : la card du doublon vient d'apparaître et peut être
                 # re-rendue par le premier tour de polling (même cause que ci-dessus).
                 page.locator(f'{sel_del}:visible').first.click(timeout=15000)
-                page.wait_for_timeout(3000)
+                # Le DÉPART de la card, pas une durée (même règle que `delete_from_batch`) : le 🗑
+                # commun enchaîne trois requêtes — aperçu des fichiers libérés, retrait, décision
+                # sur les fichiers — avant de retirer la card ; une attente fixe de 3 s rendait le
+                # geste rouge sur un serveur chargé (balayage du 2026-11-21, vert rejoué seul).
+                try:
+                    page.wait_for_function(
+                        "(id) => !(document.querySelector('.tab-pane[data-domain].active') || document)"
+                        ".querySelector('.wama-card[data-id=\"' + id + '\"]')",
+                        arg=str(doublon), timeout=15000)
+                except Exception:
+                    pass
                 ids2 = page.evaluate(IDS)
                 if doublon in ids2:
                     return False, (f"doublon #{doublon} toujours présent après clic sur "
