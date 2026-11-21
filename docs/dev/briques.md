@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**245 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**247 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -276,7 +276,7 @@ UNE ligne par (élément, nœud du pipeline, clé d'instance) : état du process
 
 - **Domicile** : `wama/common/services/process_runs.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Lignes d'exécution des process — la pièce du MOTEUR COMMUN de pipeline qui dit « tel process, pour telle card, dans tel état ». Doc : `WAMA_APP_GENERATION_ROUTE.md §10.6` points 4.1 à 4.5 (marche P3).
-- **API publique** (27) :
+- **API publique** (30) :
   - `address(item) -> dict` — Adresse d'un élément : `{app, object_type, object_id}` — dérivée de l'élément SEUL, pour
   - `lines(item)` — Les lignes d'exécution d'un élément (une requête, ordonnée par nœud).
   - `lines_by_item(items) -> dict` — `{pk (texte): [lignes]}` des éléments d'UN même modèle — UNE requête pour toute une page
@@ -290,6 +290,9 @@ UNE ligne par (élément, nœud du pipeline, clé d'instance) : état du process
   - `await_resources(item, node_id: str=MAIN_NODE, *, process_key: str='', instance_key: str='', task_id: str='')` — Le tour du process est venu, la VRAM libre ne suffit pas : la ligne le dit, sans effacer
   - `succeed(item, node_id: str=MAIN_NODE, *, instance_key: str='', output_ref: str='', output_summary: dict | None=None, model_key: str | None=None, process_key: s…` — Le process a RENDU son résultat : `SUCCESS`, durée mesurée depuis `start`.
   - `output_lost(row) -> bool` — La ligne désigne une sortie FICHIER (`output_ref`, relatif à `MEDIA_ROOT`) que le disque ne
+  - `found_by_label(output_type: str, output_ref: str)` — `{libellé: nombre d'objets}` d'une sortie dont le TYPE déclaré est `detections` — le
+  - `output_property(output_type: str, output_ref: str, prop: str) -> list` — La propriété `prop` de la sortie `output_ref` (relative à `MEDIA_ROOT`) d'un type déclaré —
+  - `found_rows(summary) -> list` — Ce que la bande d'une card écrit de `summary[FOUND_KEY]` : `[{label, count}]`, les plus
   - `annotate(item, node_id: str=MAIN_NODE, *, instance_key: str='', **values)` — Ajoute `values` à ce que la ligne retient de sa sortie (`output_summary`), sans toucher à
   - `fail(item, node_id: str=MAIN_NODE, message: str='', *, instance_key: str='', process_key: str='')` — Le process a ÉCHOUÉ — le message est gardé sur la ligne ; la sortie précédente, elle,
   - `close_open(item, to_status: str=JOB_FAILURE, message: str='') -> int` — Referme les lignes OUVERTES d'un élément qu'on arrête ou qu'on réconcilie : une tâche
@@ -351,11 +354,12 @@ Choisit la stratégie de chargement (plein GPU, déchargement) sur la vue de SON
 
 ### Pipeline déclaré d'une app (plusieurs process)
 
-Une app DÉCLARE les process de sa card (`ProcessSpec` : amonts, réglages surveillés, degré, condition d'application) comme le cam_analyzer déclare ses passes ; le registre devient un manifeste `pipeline` à nœuds `function` (`register_app_pipeline`). Dit ce qu'un lancement JOUE (`steps_to_run` : ce qui n'est plus à jour et son aval ; une card à jour relancée rejoue tout), ce qui est PÉRIMÉ (`refresh` : réglage changé, sortie d'amont remplacée, cascade) et l'état déduit de la card (`card_state`). L'exécution reste au squelette de tâche (`run_item_task(pipeline=…, processes=…)`), une ligne d'exécution par process. Une VUE lit dans une fenêtre (`preload` … `release`) : lignes lues une fois, réponses de `applies` retenues par (process, modèle) — un `applies` peut résoudre le backend du modèle (0,56 s l'appel, mesuré le 2026-10-05). 2026-10-21 : une ligne ne COMPTE que tant que l'élément demande son process (`still_counts` — un amont qui n'a plus lieu ne laisse plus son aval périmé à jamais) ; un aval LIT la sortie de son amont par un geste (`output_of`, `upstream_output` : le plus proche amont qui rend ce type) ; un process DÉTACHÉ de son aval (`split_from`) garde valables les lignes rendues avant le détachement ; ce que les process ont ÉCRIT (`produced_fields`), dont une copie repart sans. 2026-10-22 : une relance COMPLÈTE libère ce qui ne compte plus (`release_absent`) ; un process peut ne pas LIRE ses amonts (`upstream_switch`, `read_upstreams`). 2026-11-05 : ce qu'un process EXIGE du modèle de la card est une DONNÉE (`needs`, grammaire `show_if` sur la fiche du catalogue, `model_serves`), posée dans `WAMA_APP_PROCESSES` : l'écran cache les réglages d'un process que le modèle choisi ne sert pas. 2026-11-18 : une étape peut être IMPOSÉE par une autre étape activée qui la lit (`required_by_steps`, `imposing_step`) comme par le modèle (`required_by`) — sa case cochée, verrouillée, et la raison dite (`imposed_by`)
+Une app DÉCLARE les process de sa card (`ProcessSpec` : amonts, réglages surveillés, degré, condition d'application) comme le cam_analyzer déclare ses passes ; le registre devient un manifeste `pipeline` à nœuds `function` (`register_app_pipeline`). Dit ce qu'un lancement JOUE (`steps_to_run` : ce qui n'est plus à jour et son aval ; une card à jour relancée rejoue tout), ce qui est PÉRIMÉ (`refresh` : réglage changé, sortie d'amont remplacée, cascade) et l'état déduit de la card (`card_state`). L'exécution reste au squelette de tâche (`run_item_task(pipeline=…, processes=…)`), une ligne d'exécution par process. Une VUE lit dans une fenêtre (`preload` … `release`) : lignes lues une fois, réponses de `applies` retenues par (process, modèle) — un `applies` peut résoudre le backend du modèle (0,56 s l'appel, mesuré le 2026-10-05). 2026-10-21 : une ligne ne COMPTE que tant que l'élément demande son process (`still_counts` — un amont qui n'a plus lieu ne laisse plus son aval périmé à jamais) ; un aval LIT la sortie de son amont par un geste (`output_of`, `upstream_output` : le plus proche amont qui rend ce type) ; un process DÉTACHÉ de son aval (`split_from`) garde valables les lignes rendues avant le détachement ; ce que les process ont ÉCRIT (`produced_fields`), dont une copie repart sans. 2026-10-22 : une relance COMPLÈTE libère ce qui ne compte plus (`release_absent`) ; un process peut ne pas LIRE ses amonts (`upstream_switch`, `read_upstreams`). 2026-11-05 : ce qu'un process EXIGE du modèle de la card est une DONNÉE (`needs`, grammaire `show_if` sur la fiche du catalogue, `model_serves`), posée dans `WAMA_APP_PROCESSES` : l'écran cache les réglages d'un process que le modèle choisi ne sert pas. 2026-11-18 : une étape peut être IMPOSÉE par une autre étape activée qui la lit (`required_by_steps`, `imposing_step`) comme par le modèle (`required_by`) — sa case cochée, verrouillée, et la raison dite (`imposed_by`). Même jour : la FORME de la face d'une sortie qui n'est pas un média (un fichier de DONNÉES) se déclare aussi (`result_format` lu dans le fichier, `FILE_FORMATS` : `timed_words`, des mots horodatés en lignes datées — les paroles du composer disaient « Preview not available »)
 
 - **Domicile** : `wama/common/services/process_pipeline.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Pipeline DÉCLARÉ d'une app — la pièce du moteur commun qui dit « cette card porte PLUSIEURS process, dans cet ordre, et voici lesquels sont à (re)jouer ». Doc : `WAMA_APP_GENERATION_ROUTE.md §10.6` points 3.2, 4.3 à 4.5 (marche P3, palier B) et décision n°11.
-- **API publique** (15) :
+- **API publique** (17) :
+  - `words_segments(words, gap: float=1.2, longest: int=14) -> list` — Des MOTS HORODATÉS (`[{word, start, end}]`, les paroles d'une chanson, un alignement) en
   - `segments_text(segments) -> str` — Des SEGMENTS de parole (`result_format='segments'` : `[{speaker, time_range, text}]`) en
   - `preload(items) -> None` — Lit en UNE requête les lignes d'exécution de tous ces éléments (même modèle) et les pose
   - `release(item) -> None` — Referme la fenêtre de `preload` sur cet élément : une instance gardée par l'appelant (un
@@ -369,6 +373,7 @@ Une app DÉCLARE les process de sa card (`ProcessSpec` : amonts, réglages surve
   - `inapplicable_settings(item, rows=None, pipeline=None) -> tuple` — Les réglages SANS OBJET pour cette card (2026-11-17, Fabien : « une card de piste séparée
   - `app_pipeline(app: str) -> AppPipeline | None` — Le pipeline déclaré par l'app `app`, ou None — même lecture que `pipeline_of`, quand on
   - `card_view(item, model_key=DECLARED, preloaded: bool=False)` — Ce que la card et la vue de progression montrent du PIPELINE d'un élément (`§10.6` 5.1) :
+  - `item_schema_choices(schema, item) -> list` — Le schéma servi pour UN élément, ses `options_from` RÉSOLUS (2026-11-19) : un réglage qui
   - `decorate(item, model_key=DECLARED, preloaded: bool=False)` — Pose `processes`, `shown_state`, `shown_state_label` sur l'élément — ce que lisent les
   - `decorate_cards(items, each=None) -> list` — Les cards d'une PAGE : leurs lignes d'exécution lues en UNE requête (`preload`), puis
 
@@ -384,14 +389,16 @@ Avancement d'une tâche Celery HORS file d'items publié dans le cache (F5-proof
 
 ### Retrouver un fichier de l'utilisateur, dossiers connectés compris
 
-Recherche PAR NOM (casse et accents ignorés) dans ce que l'arbre du gestionnaire montre — temporaires, entrées et sorties de chaque app LUES à `_app_folders_config`, dossiers connectés résolus par `resolve_mount_path` : aucune liste de dossiers. Bornée par racine (temps, entrées) et une racine tronquée est DITE (`incomplete`). Porte aussi `mounted_file` : `designate` et les outils acceptent `mounts/…`, COPIÉ à l'entrée d'une app, jamais déplacé (2026-10-11, outil `find_user_files`). ⚠ La recherche du gestionnaire (`api_search`, 25 dossiers écrits à la main, sans les dossiers connectés) reste à rallier
+Recherche PAR NOM (casse et accents ignorés) dans ce que l'arbre du gestionnaire montre — temporaires, entrées et sorties de chaque app LUES à `_app_folders_config`, dossiers connectés résolus par `resolve_mount_path` : aucune liste de dossiers. Bornée par racine (temps, entrées) et une racine tronquée est DITE (`incomplete`). Porte aussi `mounted_file` : `designate` et les outils acceptent `mounts/…`, COPIÉ à l'entrée d'une app, jamais déplacé (2026-10-11, outil `find_user_files`). Le MÊME périmètre se LIT : `locations` nomme les dossiers de l'arbre, `list_folder` en lit un par le même parcours borné (2026-11-16, outil `list_user_files`). ⚠ La recherche du gestionnaire (`api_search`, 25 dossiers écrits à la main, sans les dossiers connectés) reste à rallier
 
 - **Domicile** : `wama/common/services/user_files.py` · **doc** : [docs/construction/exploitation/MEDIA_STORAGE_TIERING.md](../construction/exploitation/MEDIA_STORAGE_TIERING.md)
 - **Module** : Retrouver un fichier de l'utilisateur PAR SON NOM, partout où le gestionnaire de fichiers le montre — dossier temporaire, entrées et sorties de chaque app, dossiers CONNECTÉS (locaux, réseau, nuage).
-- **API publique** (4) :
+- **API publique** (6) :
   - `is_mount_path(path) -> bool` — Ce chemin désigne-t-il un dossier CONNECTÉ (`mounts/<id>/…`) ?
   - `mounted_file(path, user)` — Le chemin DISQUE d'un fichier `mounts/<id>/…` de CET utilisateur, ou None.
   - `search_roots(user) -> list` — Les racines de recherche de cet utilisateur, dans l'ordre de l'arbre du gestionnaire :
+  - `locations(user) -> list` — Les dossiers de l'arbre de cet utilisateur, tels qu'on les DÉSIGNE :
+  - `list_folder(user, folder: str, *, limit: int=200) -> dict` — Les fichiers d'UN dossier de l'arbre (sous-dossiers compris), les plus récents d'abord :
   - `find_user_files(user, query: str, *, limit: int=20) -> dict` — Les fichiers de `user` dont le NOM contient tous les mots de `query` (casse et accents
 
 ### Squelette de tâche
@@ -415,7 +422,7 @@ Registre déclaratif de scénarios + runner sérialisé VRAM-aware (wired/ui/con
 
 - **Domicile** : `wama/common/services/nightly_tests.py` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md §Tests fonctionnels nocturnes](../construction/suivi/PROJECT_STATUS.md)
 - **Module** : Charpente des tests fonctionnels nocturnes de WAMA. ============================================================================
-- **API publique** (19) :
+- **API publique** (22) :
   - `class SkipScenario(Exception)` — Levée par un `run` quand une dépendance est absente (modèle/lib non installé) :
   - `class Scenario` — Un test fonctionnel déclaratif. `run(ctx) -> (ok: bool, detail: str)` ; peut lever.
   - `class ScenarioResult`
@@ -429,6 +436,7 @@ Registre déclaratif de scénarios + runner sérialisé VRAM-aware (wired/ui/con
   - `is_test_account(user) -> bool` — Un compte de TEST déclaré (`TEST_USERNAMES`) : ce qu'il exécute ne MESURE pas la machine.
   - `sweep_test_witnesses() -> int` — Efface les FICHIERS témoins restés dans les dossiers média des comptes de TEST.
   - `free_vram() -> None` — Téardown VRAM best-effort entre scénarios (réutilise le cleaner du model_manager).
+  - `scenario_domain(sc: Scenario) -> str` — Le domaine que nomme l'id d'un scénario (`enhancer.audio.preview` → `audio`), '' sinon.
   - `run_one(sc: Scenario, ctx: dict) -> ScenarioResult` — Exécute UN scénario (timing + capture d'exception). NB : timeout dur = TODO prod
   - `run_all(scenarios: Optional[List[Scenario]]=None, write: bool=True, cadence: Optional[str]=None) -> dict` — Joue les scénarios EN SÉRIE, téardown VRAM avant/après chacun. Retourne le rapport.
   - `build_report(results: List[ScenarioResult]) -> dict`
@@ -642,7 +650,8 @@ La page « Exploitation » (`common:operations`, administrateurs) rassemble ce q
 
 - **Domicile** : `wama/common/operations.py` · **doc** : [docs/construction/suivi/ROADMAP.md §31.1](../construction/suivi/ROADMAP.md)
 - **Module** : Les OPÉRATIONS d'exploitation de WAMA — ce qu'un administrateur lance depuis la page « Exploitation » (`common:operations`) ou par l'assistant (`dev_run_operation`), au lieu d'ouvrir un terminal (2026-11-14, `ROADMAP §31.1`, demande de Fabien : « certaines fonctions pourraient être intéressantes à exécuter depuis WAMA, comme les tests, check_docs »).
-- **API publique** (2) :
+- **API publique** (3) :
+  - `job_row(job: dict, prefix: str) -> dict` — La tâche d'une opération telle que la page la montre : le LIBELLÉ de son opération (sa clé
   - `operations() -> list` — Les opérations, dans l'ordre déclaré : `[{'key', 'label', 'icon', 'description', 'argument'}]`
   - `command(key: str, argument: str='') -> list` — Les arguments de `manage.py` pour l'opération `key` — `ValueError` (lisible) pour une
 
@@ -1137,11 +1146,11 @@ Un PLAN déclaré dans le catalogue des docs (extraits de sections marquées + f
 
 ### Envoyer vers (chaînage progressif, hors studio)
 
-La SORTIE d'une card devient l'ENTRÉE d'une autre app, sans passer par le studio. RÉSOLVEUR en lecture seule : il rend les chemins de sortie (clé canonique `result_file`/`result_files` du schéma de détail), les apps ÉLIGIBLES et l'URL de l'endpoint. L'envoi lui-même passe par `filemanager:api_import` — celui qui sert déjà « Envoyer vers… » — donc aucun second dispatch et aucune garde de chemin recopiée. ⚠ Les destinations sont DÉRIVÉES de trois conditions (importeur, extension déclarée, accès) et jamais listées : c'est la leçon du Geste 14, où le menu offrait trois apps que le serveur refusait. Une app qui ne prendrait qu'une PARTIE des fichiers n'est pas offerte — un envoi partiel silencieux ferait croire le résultat entier transmis. Porte aussi l'INVERSE (2026-09-18) : `item_for_output_path` — de quel élément un chemin de `media/` est la SORTIE (candidats par requête, CONFIRMATION par l'adapter), route `api/element-pour-chemin/` — ce qui donne à l'arbre les gestes d'élément
+La SORTIE d'une card devient l'ENTRÉE d'une autre app, sans passer par le studio. RÉSOLVEUR en lecture seule : il rend les chemins de sortie (clé canonique `result_file`/`result_files` du schéma de détail), les apps ÉLIGIBLES et l'URL de l'endpoint. L'envoi lui-même passe par `filemanager:api_import` — celui qui sert déjà « Envoyer vers… » — donc aucun second dispatch et aucune garde de chemin recopiée. ⚠ Les destinations sont DÉRIVÉES de trois conditions (importeur, extension déclarée, accès) et jamais listées : c'est la leçon du Geste 14, où le menu offrait trois apps que le serveur refusait. Une app qui ne prendrait qu'une PARTIE des fichiers n'est pas offerte — un envoi partiel silencieux ferait croire le résultat entier transmis. Une app SANS PAGE qui déclare recevoir des fichiers DÉSIGNÉS (`register_pageless_tool(receives_designations=True)` — l'assistant, 2026-11-17) est offerte par déclaration, accès et règle de la désignation (`check_designation`) : la page lui livre les chemins par l'événement du glisser (`filemanager:designate`), rien n'est importé. Porte aussi l'INVERSE (2026-09-18) : `item_for_output_path` — de quel élément un chemin de `media/` est la SORTIE (candidats par requête, CONFIRMATION par l'adapter), route `api/element-pour-chemin/` — ce qui donne à l'arbre les gestes d'élément
 
 - **Domicile** : `wama/common/services/send_to.py` · **doc** : [docs/construction/architecture/WAMA_VERIFICATION.md](../construction/architecture/WAMA_VERIFICATION.md)
 - **Module** : ENVOYER VERS — la sortie d'une card devient l'entrée d'une autre app.
-- **API publique** (9) :
+- **API publique** (11) :
   - `sorties_de(surface: str, instance) -> list` — Chemins RELATIFS à `media/` des sorties DÉCLARÉES de cet élément.
   - `result_paths(surface: str, instance) -> list` — Les sorties DÉCLARÉES de cet élément (`sorties_de`), en chemins ABSOLUS de fichiers présents
   - `batch_outputs(surface: str, batch, viewer=None) -> tuple` — Les sorties DÉCLARÉES de tous les éléments d'un LOT — `(chemins, éléments, sans_sortie)`.
@@ -1149,8 +1158,10 @@ La SORTIE d'une card devient l'ENTRÉE d'une autre app, sans passer par le studi
   - `format_destinations(user, formats) -> list` — Chaque format, avec les apps qui reçoivent son extension (`destinations` : les trois
   - `render_for_sending(surface: str, elements, formats, user) -> list` — Rend chaque format de chaque élément, et range le fichier dans les sorties de l'app de
   - `item_for_output_path(user, chemin: str, *, visible: bool=False, carried: bool=False)` — L'élément dont `chemin` (relatif à `media/`) est une SORTIE déclarée — `(surface,
+  - `designation_receivers(user) -> list` — Les apps SANS PAGE qui reçoivent des fichiers DÉSIGNÉS (`register_pageless_tool(
+  - `designable(user, path) -> bool` — Ce chemin passe-t-il LA règle d'une désignation (`media_paths.check_designation` :
   - `destinations(user, chemins, partiel: bool=False) -> list` — Apps qui savent RECEVOIR ces fichiers. Trois conditions, toutes nécessaires.
-  - `destinations_dossier(user) -> list` — Apps qui savent recevoir un DOSSIER entier : importeur + accès (`_apps_receveuses`).
+  - `destinations_dossier(user, folder: str='') -> list` — Apps qui savent recevoir un DOSSIER entier : importeur + accès (`_apps_receveuses`).
 
 ### Faits en ligne (balises de registre)
 
@@ -1880,6 +1891,20 @@ Que peut faire WAMA de ce fichier ? — ports d'app + lot + manifeste + médiath
   - `register_intake_probe(key: str, fn) -> None` — Un monde déclare sa sonde d'intake (appelé depuis son `apps.py:ready()`).
   - `capabilities_for_path(path, user=None) -> dict` — Chemin de fichier → cibles typées AVEC leur rôle, composées des déclarations — pour `user`
 
+### La trace des outils de l'assistant, devenue une mesure
+
+Chaque étape d'outil porte son verdict (`ok`) et sa durée (`seconds`), écrits par UN constructeur (`step`) pour tous ses écrivains — la boucle, les relances de fin de tâche, les familles suivies — sous UNE règle d'échec (`result_error`, celle des refus du tour). Le lecteur (`usage`) agrège par outil : appels, échecs, durée médiane, erreurs les plus fréquentes, sous-agents compris ; lu par `manage.py tool_usage` (opération « Outils de l'assistant ») et par la page des apps (comptes seuls). L'AUTO-DIAGNOSTIC de l'assistant (2026-11-16, `WAMA_HARNESS §9` chantier 3)
+
+- **Domicile** : `wama/common/services/tool_trace.py` · **doc** : [docs/construction/ia/WAMA_HARNESS.md](../construction/ia/WAMA_HARNESS.md)
+- **Module** : La TRACE des outils de l'assistant devenue une MESURE — `WAMA_HARNESS §9`, chantier 3 (écart 6).
+- **API publique** (6) :
+  - `result_error(result) -> str` — L'erreur que porte le résultat d'un outil, '' s'il a abouti — LA règle (contrat des outils :
+  - `step(tool: str, args, result, *, started: float | None=None, **extra) -> dict` — Une étape d'outil telle que la trace la garde : `{tool, args, result, ok[, seconds]}` et ce
+  - `step_ok(entry: dict) -> bool` — L'étape a-t-elle abouti ? Son champ `ok` ; pour une étape écrite avant lui, la même règle.
+  - `family(tool: str) -> str` — La famille d'un outil : `development` (surface de développement, `dev_*`), `delegation`
+  - `callable_tools() -> set` — Les outils que l'assistant peut appeler : le registre, la surface de développement, et le
+  - `usage(days: int | None=None) -> dict` — Ce que les fils persistés disent des outils, sur les `days` derniers jours (tout, sinon).
+
 ### Moteur de l'assistant IA
 
 Boucle agentique multi-surface (prompts, outils tool_api, local/cloud) — la vue web et /api/v1/assistant/chat/ en sont des clients. Porte aussi les SOUS-AGENTS et le COUNCIL (2026-10-29, `WAMA_HARNESS §7.4`) : bornes d'un tour, verbe `delegate` (vagues parallèles par serveur, agents du registre de 1 à n, vote / décideur / relecture croisée), réglage « Sous-agents » auto + curseur. Et ses COMMANDES (2026-11-06, `assistant_commands`) : `/concile`, `/competence`, `/effort`, `/modele`, `/oublier`, `/code`, `/aide` — déclarées une fois, jouées par `conversation_turn` pour toutes les surfaces, chacune un geste existant rendu explicite
@@ -1910,7 +1935,7 @@ Les pages du menu Applications — apps du catalogue et surfaces déclarées, lu
 
 - **Domicile** : `wama/common/services/navigation.py` · **doc** : [docs/construction/ia/WAMA_LLM.md](../construction/ia/WAMA_LLM.md)
 - **Module** : Les PAGES qu'un utilisateur peut ouvrir — ce que l'assistant propose quand on lui demande « emmène-moi sur… » (outil `open_page`, 2026-10-11), et le menu du compte (2026-10-14).
-- **API publique** (8) :
+- **API publique** (9) :
   - `account_pages_for(user, allowed_apps=None) -> list` — Les pages du COMPTE que `user` peut ouvrir, dans l'ordre du menu : `[{'key', 'label',
   - `account_menu(user, allowed_apps=None) -> list` — Le menu du COMPTE de `user` : `[{'key', 'label', 'icon', 'submenu', 'pages': […]}]`, une
   - `remember_page_domain(user, app: str, domain: str) -> bool` — Retient `domain` comme celui de `user` pour `app` — s'il est DÉCLARÉ par l'app. Rend False
@@ -2009,7 +2034,7 @@ Un worker publie plusieurs vues du même instant (`publish_partial(variant=, lab
   - `get_partial_text(app_name, pk)` — Lecture du texte partiel (endpoints de progression des apps + `?side=during`).
   - `clear_partial(app_name, pk)` — Worker : retire l'aperçu partiel (fin de traitement — la face SORTIE prend le relais).
   - `unified_preview(request, app_name: str, pk: int)` — Unified preview endpoint for any registered app.
-  - `with_playback_copy(data, request)` — Une vidéo que le navigateur ne lit pas est servie par sa COPIE DE LECTURE quand elle
+  - `with_playback_copy(data, request)` — Une vidéo que le navigateur ne lit pas — ou un audio qu'il ne POSITIONNE pas juste, un MP3
   - `register_app_preview(app_name: str, model_class, file_field: str='input_file', user_field: str='user', duration_field: str=None, width_field: str=None, height_…` — Convenience function to register an app with common field patterns.
   - `anonymizer_preview_adapter(media, request)` — Custom adapter for Anonymizer Media model. None once the input file is RELEASED (the
   - `transcriber_preview_adapter(transcript, request)` — Custom adapter for Transcriber Transcript model.
@@ -2108,7 +2133,7 @@ Les objets détectés d'un média, frame par frame (boîte, contour en polygones
 
 - **Domicile** : `wama/common/utils/detections.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Les DÉTECTIONS d'un média, sur disque — le type de donnée commun `detections` (`common/catalog/data_types.DataType.DETECTIONS` : objets détectés par frame — frame, bbox, classe, piste).
-- **API publique** (22) :
+- **API publique** (26) :
   - `new_document(*, media: str, width: int, height: int, fps: float=0.0, frame_count: int=1, engine: str='', models=(), classes=(), prompt: str='') -> dict` — Un document vide, prêt à recevoir ses frames (`add`).
   - `detection(*, box, label: str='', conf: float=1.0, track=None, polygons=None) -> dict` — Une détection au format du document : entiers pour les pixels, confiance arrondie.
   - `text_span(*, start: int, end: int, label: str, conf: float=1.0, sources=()) -> dict` — Une détection dans un TEXTE (2026-10-28, ROADMAP §16.4bis) : le passage `[start, end[` en
@@ -2119,7 +2144,11 @@ Les objets détectés d'un média, frame par frame (boîte, contour en polygones
   - `support(items, *, iou: float=AGREEMENT_IOU) -> list` — L'ACCORD géométrique entre sorties (`WAMA_QUALITE` M2/M6, 2026-10-16) — les objets que
   - `write(path: str, doc: dict) -> str` — Écrit le document (frames ordonnées) ; rend le chemin.
   - `read(path: str) -> dict` — Lit un document ; lève `ValueError` si ce n'en est pas un.
+  - `decimation_of(doc: dict) -> int` — Le PAS d'analyse du document : une image analysée sur N (1 : toutes) — ce que le
   - `count(doc: dict) -> int` — Le nombre de détections du document (toutes frames).
+  - `labels(doc: dict) -> list` — Les LIBELLÉS que porte le document, dans l'ordre où ils apparaissent — ce qu'un détecteur
+  - `without_labels(doc: dict, skip) -> dict` — Le document SANS les détections dont le libellé est dans `skip` — une copie, l'original
+  - `objects_by_label(doc: dict, *, window: int=None) -> dict` — {libellé: nombre d'OBJETS} — ce que la card dit avoir trouvé (2026-11-19, Fabien : « voir
   - `mask_to_polygons(mask, epsilon: float=1.0, min_area: float=4.0) -> list` — Contours d'un masque (H×W, 0-1 ou 0-255) en polygones entiers, simplifiés à `epsilon`
   - `points_to_polygons(points, epsilon: float=1.0) -> list` — Un contour donné en points (ultralytics `masks.xy`) → polygones entiers simplifiés.
   - `polygons_to_mask(polygons, shape) -> 'object'` — Le masque (uint8, 0/255) que dessinent des polygones sur une image de forme `shape`.
@@ -2196,13 +2225,14 @@ Mesure les 8 facettes F1–F8 des apps par analyse du code réel
 
 ### Les pages d'un PDF en images
 
-Une image par page, rendue à la résolution demandée dans un dossier FOURNI par l'appelant (son `work_dir`, qui le supprime quoi qu'il advienne) ; PyMuPDF, `pdf2image` en repli, la rotation de la page appliquée. Née le 2026-11-06 de deux copies privées, dans les moteurs d'OCR GLM-OCR et olmOCR (portés), quand la lecture de partition (copisteria, qui appelait poppler, absent de l'hôte) en demandait une troisième. Le 2026-11-10 (décision de Fabien), l'INVERSE : `pages_to_pdf`, des pages (images, PDF) en UN PDF — une image à 150 ppp (la règle du converter pour une image → PDF), un JPEG posé tel quel, l'EXIF appliqué — lue par le fichier fichier unique d'un lot de pages (`export_formats.combine_lot`), le dépôt « un seul document » du Reader, et `ocr_base.upright_document` (les pages d'un PDF redressées et mises d'aplomb comme une photo, avant tout moteur — le contrat OCR l'applique à chaque `run`, jumelles générées comprises)
+Une image par page, rendue à la résolution demandée dans un dossier FOURNI par l'appelant (son `work_dir`, qui le supprime quoi qu'il advienne) ; PyMuPDF, `pdf2image` en repli, la rotation de la page appliquée. Née le 2026-11-06 de deux copies privées, dans les moteurs d'OCR GLM-OCR et olmOCR (portés), quand la lecture de partition (copisteria, qui appelait poppler, absent de l'hôte) en demandait une troisième. Le 2026-11-10 (décision de Fabien), l'INVERSE : `pages_to_pdf`, des pages (images, PDF) en UN PDF — une image à 150 ppp (la règle du converter pour une image → PDF), un JPEG posé tel quel, l'EXIF appliqué — lue par le fichier fichier unique d'un lot de pages (`export_formats.combine_lot`), le dépôt « un seul document » du Reader, et `ocr_base.upright_document` (les pages d'un PDF redressées et mises d'aplomb comme une photo, avant tout moteur — le contrat OCR l'applique à chaque `run`, jumelles générées comprises). Le 2026-11-19 (demande de Fabien), une VIDÉO JOUABLE dans une page (`embed_videos`) : le fichier embarqué à sa place, en annotation Screen + action Rendition (le multimédia normalisé du PDF), jouée à l'affichage de la page et au clic, l'image de la page restant dessous — lue par l'export PDF des présentations (`html_render.render_page_to_pdf`), qui y pose toute `<video>` qu'une étape contient, sans une ligne par vidéo
 
 - **Domicile** : `wama/common/utils/pdf_pages.py` · **doc** : [wama/model_manager/PROSPECTION_PIPELINE.md](../../wama/model_manager/PROSPECTION_PIPELINE.md)
-- **Module** : Les PAGES d'un PDF en images — une par page, écrites dans un dossier FOURNI par l'appelant ; et l'inverse, des pages (images, PDF) en UN PDF (`pages_to_pdf`, 2026-11-10).
-- **API publique** (2) :
+- **Module** : Les PAGES d'un PDF en images — une par page, écrites dans un dossier FOURNI par l'appelant ; et l'inverse, des pages (images, PDF) en UN PDF (`pages_to_pdf`, 2026-11-10) ; et une VIDÉO jouable posée dans une page (`embed_videos`, 2026-11-19 : l'export de la présentation).
+- **API publique** (3) :
   - `pdf_page_images(pdf_path: str, dest_dir: str, dpi: int=200, prefix: str='page') -> list` — Les chemins des images (`<prefix>_0000.png`…, une par page, dans l'ordre) de `pdf_path`,
   - `pages_to_pdf(paths, output_path: str, dpi: int=PAGE_DPI) -> str` — UN PDF fait de `paths`, dans l'ordre (2026-11-10, décision de Fabien : « fusionner tous
+  - `embed_videos(pdf_path: str, videos) -> int` — Embarque chaque vidéo de `videos` dans `pdf_path` (réécrit en place) et rend leur nombre.
 
 ### Manifestes
 
@@ -2334,17 +2364,18 @@ QUATRE leviers pour tenir la règle « modèle principal catégorisé, sous-dép
 
 ### Réglages de sortie (formats, agrandissement)
 
-Source commune des formats+qualités de fichier par domaine (réutilise le vocabulaire converter) ET leur APPLICATION : `apply_output_settings` enchaîne agrandissement (image) puis conversion après n'importe quel backend (2026-09-30). L'agrandissement (`output_upscale`, opt-in `include_upscale`) tire l'upscaler du catalogue — tâche `upscale`, capacité `scale` = facteur, curseur qualité de l'item — sans nommer ni modèle ni app ; il vivait dans UN backend (diffusers, LANCZOS ×2), ignoré des autres. `render_outputs` (2026-10-03) GARDE le fichier d'origine (`<nom>.native<ext>`, champ `native_outputs` du mixin `NativeOutputsMixin`, déclaré à la rétention) tant que ces réglages le transforment : le process « sortie » d'une app se rejoue SEUL, sans regénérer
+Source commune des formats+qualités de fichier par domaine (réutilise le vocabulaire converter) ET leur APPLICATION : `apply_output_settings` enchaîne agrandissement (image) puis conversion après n'importe quel backend (2026-09-30). L'agrandissement (`output_upscale`, opt-in `include_upscale`) tire l'upscaler du catalogue — tâche `upscale`, capacité `scale` = facteur, curseur qualité de l'item — sans nommer ni modèle ni app ; il vivait dans UN backend (diffusers, LANCZOS ×2), ignoré des autres. `render_outputs` (2026-10-03) GARDE le fichier d'origine (`<nom>.native<ext>`, champ `native_outputs` du mixin `NativeOutputsMixin`, déclaré à la rétention) tant que ces réglages le transforment : le process « sortie » d'une app se rejoue SEUL, sans regénérer. La QUALITÉ a sa fabrique (`output_quality_param`, 2026-11-19), lue aussi par l'export PDF des présentations (`page_pdf.export_params`) : vidéos réencodées et images des pages au préréglage du converter
 
 - **Domicile** : `wama/common/utils/output_formats.py` · **doc** : [docs/construction/architecture/WAMA_APP_CONVENTIONS.md §6.4](../construction/architecture/WAMA_APP_CONVENTIONS.md)
 - **Module** : Source COMMUNE des formats + qualités de FICHIER de sortie — pendant de voice_options pour la sortie.
-- **API publique** (17) :
+- **API publique** (18) :
   - `get_output_formats(domain: str) -> List[Tuple[str, str]]` — [(valeur, libellé)] des formats de fichier de sortie pour un domaine. 'original' = inchangé.
   - `format_option_groups(natures, extra=()) -> list` — Les options de format d'une app qui rend PLUSIEURS natures selon l'élément (l'enhancer et
   - `quality_applies(item, output_format: str | None=None) -> bool` — La qualité a-t-elle un effet sur la sortie de cet élément ? Oui quand le fichier est
   - `get_output_qualities(domain: str | None=None) -> List[Tuple[str, str]]` — Presets de qualité (web/équilibré/max). `domain` réservé pour d'éventuelles variantes futures.
   - `keep_size_param(contexts=None, dom_id=None, group: str | None=None, **extra)` — Le réglage « Garder la résolution d'origine » (2026-10-16, demande de Fabien) : la sortie
   - `output_format_params(domain, contexts=None, dom_id_format=None, dom_id_quality=None, include_quality: bool=True, group: str | None=None, include_upscale: bool=…` — Fabrique les Param COMMUNS output_format (+ output_quality) pour un domaine, prêts à concaténer au
+  - `output_quality_param(contexts=None, dom_id=None, group: str | None=None, help: str='Appliquée à la conversion vers le format choisi.', default: str | None=None…` — Le réglage COMMUN « Qualité » d'une sortie (Rapide / Équilibré / Qualité), celui que
   - `output_format_params_for_app(app_name: str, contexts=None, dom_id_format=None, dom_id_quality=None, include_quality: bool=True, group: str | None=None, domain:…` — AUTO depuis APP_CATALOG : lit `multi_format_download` (early/late) + déduit le domaine des
   - `upscale_factor(value) -> int` — `'x4'` → 4, `'x2'` → 2 ; 0 pour « aucun » ou une valeur illisible.
   - `upscale_output_image(path: str, factor, *, item=None, app_id=None, denoise: bool=False, progress_callback=None) -> tuple` — Agrandit l'image `path` EN PLACE par un upscaler TIRÉ du catalogue ; rend `(largeur,
@@ -2416,7 +2447,7 @@ La vue `start/<pk>/<process>/` d'une app à pipeline — `make_process_start_vie
 
 - **Domicile** : `wama/common/utils/process_views.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common — La vue « ▶ d'UN process » d'une card : fabrique commune (`make_process_start_view`).
-- **API publique** (3) :
+- **API publique** (6) :
   - `process_reset_for(work_model)` — La remise à zéro par process que l'app de `work_model` déclare à sa fabrique, ou None.
   - `start_one_process(work_model, pk, process, *, user, task_for, reset_on_start=None, reset_for_process=None)` — Le ▶ d'UNE étape d'un élément : `(élément, tâche, None)`, ou `(None, None, (statut HTTP,
   - `start_on_batch(work_model, elements, process, *, user)` — Le ▶ d'UNE étape sur chaque élément d'un LOT (2026-11-18, décision de Fabien : « le plus
@@ -2676,9 +2707,10 @@ Les six ACTIONS de lot en une fabrique — `make_batch_views` : batch_start, bat
 
 - **Domicile** : `wama/common/utils/batch_views.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §11](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common — Les VUES DE LOT : fabrique commune (`make_batch_views`).
-- **API publique** (13) :
+- **API publique** (14) :
   - `default_reset(progress_field: str='progress') -> dict` — `DEFAULT_RESET` d'un élément dont la progression porte un autre nom (anonymizer :
   - `read_settings_payload(request, schema=None, schema_names=(), empty_is_value=(), list_names=())` — Les RÉGLAGES postés à une vue d'édition — JSON ou formulaire, coercés selon le schéma.
+  - `settings_from_values(data: dict, schema=None, schema_names=(), empty_is_value=()) -> dict` — La lecture des réglages une fois REÇUS — d'une requête (`read_settings_payload`) ou d'ailleurs
   - `apply_item_settings(item, data, *, params_fields=(), options_field=None, extra_names=())` — Pose sur `item` les réglages présents dans `data` — colonnes déclarées (`params_fields`)
   - `columns_snapshot(item) -> dict` — Les colonnes de `item` telles qu'elles sont À CET INSTANT — à prendre juste après l'avoir
   - `columns_changed(item, before: dict) -> list` — Les colonnes que l'écriture des réglages a CHANGÉES depuis `columns_snapshot` — ce que
@@ -2712,7 +2744,7 @@ Bouton « Ajouter à la file » de la card d'entrée : consigne + réglages du v
 
 ### Axe de temps partagé (transport commun)
 
-L'AXE auquel les vues s'abonnent et que le magnéto pilote — jamais une vue (`WAMA_DATA_WORLD §5bis`) : lecture, pause, aller, sauts, vitesse signée, shuttle ; l'axe est la SEULE horloge (2026-11-02, Fabien : le modèle de BIND, fin du « média maître ») — les médias attachés, autant qu'il en faut, le SUIVENT, recalés par une vitesse à peine corrigée puis un repositionnement (seuils réglables), muets en arrière ; un média qui joue et attend ses données retient l'axe le temps qu'elles arrivent (2026-11-08, `SYNC.hold`) ; un geste sur un média est une commande ; le pas suit la cadence la plus fine déclarée ; sous charge les avis s'espacent, jamais le temps ; vitesse CHOISIE distincte du cran de shuttle ; clavier du magnéto. Né le 2026-10-15 avec la partition du composer ; l'éditeur du transcriber y est porté le 2026-10-20 (parité geste par geste, `transcriber.editor_parity`), les vidéos de l'APERÇU le 2026-11-05 (une vitesse choisie sur un média devient une commande, un média que l'axe n'a pas tu n'est jamais relancé, `keys` rend le magnéto sans l'inscrire — pour une couche du clavier comme la visionneuse) ; le cam_analyzer reste à porter (matrice de parité). Le 2026-10-21 : le TRANSPORT commun montable partout (`wama-transport.js`), les règles des SEGMENTS sans DOM (`wama-segments.js`) et les PICS FINS d'un média au commun (`waveform.dense_peaks`, fichier dérivé au dossier caché comme la copie de lecture). Le même jour, REDÉCOUPAGE décidé par Fabien — quatre niveaux, aucun ne connaît les autres : l'axe (le temps), le transport (ses COMMANDES seulement), les VUES qui le regardent (la ligne de temps `wama-timeline.js` : onde fenêtrée et couches, bande de qualité, minimap, zoom, outil Bornes) et les OUTILS DE DOMAINE (l'écriture à la lecture, brique `playback_writing`) ; un « aller à » se dit aux abonnés (`seek(t, 'goto')`)
+L'AXE auquel les vues s'abonnent et que le magnéto pilote — jamais une vue (`WAMA_DATA_WORLD §5bis`) : lecture, pause, aller, sauts, vitesse signée, shuttle ; l'axe est la SEULE horloge (2026-11-02, Fabien : le modèle de BIND, fin du « média maître ») — les médias attachés, autant qu'il en faut, le SUIVENT, recalés par une vitesse à peine corrigée puis un repositionnement (seuils réglables), muets en arrière — sauf un média qui DÉCLARE un lecteur à rebours (`attach(el, {reverse})`, `wama-reverse-audio.js` : le son décodé une fois, retourné, joué à la vitesse du recul ; 2026-11-18, Fabien : « je veux entendre le son à l'envers en lecture inversée […] tous les logiciels audiovisuels lisent l'audio à reculon ») : le lecteur audio commun et les lecteurs du mixage le déclarent ; un média qui joue et attend ses données retient l'axe le temps qu'elles arrivent (2026-11-08, `SYNC.hold`) ; un geste sur un média est une commande ; le pas suit la cadence la plus fine déclarée ; sous charge les avis s'espacent, jamais le temps ; vitesse CHOISIE distincte du cran de shuttle ; clavier du magnéto. Né le 2026-10-15 avec la partition du composer ; l'éditeur du transcriber y est porté le 2026-10-20 (parité geste par geste, `transcriber.editor_parity`), les vidéos de l'APERÇU le 2026-11-05 (une vitesse choisie sur un média devient une commande, un média que l'axe n'a pas tu n'est jamais relancé, `keys` rend le magnéto sans l'inscrire — pour une couche du clavier comme la visionneuse) ; le cam_analyzer reste à porter (matrice de parité). Le 2026-10-21 : le TRANSPORT commun montable partout (`wama-transport.js`), les règles des SEGMENTS sans DOM (`wama-segments.js`) et les PICS FINS d'un média au commun (`waveform.dense_peaks`, fichier dérivé au dossier caché comme la copie de lecture). Le même jour, REDÉCOUPAGE décidé par Fabien — quatre niveaux, aucun ne connaît les autres : l'axe (le temps), le transport (ses COMMANDES seulement), les VUES qui le regardent (la ligne de temps `wama-timeline.js` : onde fenêtrée et couches, bande de qualité, minimap, zoom, outil Bornes) et les OUTILS DE DOMAINE (l'écriture à la lecture, brique `playback_writing`) ; un « aller à » se dit aux abonnés (`seek(t, 'goto')`)
 
 - **Domicile** : `wama/common/static/common/js/wama-axis.js` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 
@@ -2808,11 +2840,11 @@ data-* du ⚙ DÉRIVÉS du schéma (contrat cardSettings de l'inspecteur, qui li
 
 ### Domaines → modes
 
-Schéma déclaratif des onglets-domaine et modes par app — scope la file ; un domaine NOMME son schéma de réglages (`params_schema`), sa surface est la clé de son modèle d'élément et le domaine d'un élément se dérive (`element_domain`), et se cherche en base par la même déclaration (`domain_filter`, 2026-11-01) ; un mode est un RÉGLAGE (`mode_param`) qui borne le menu de modèles (`options_mode`) ; une page à plusieurs domaines montre les volets de UN domaine (`_domain_tabs.html`, `WamaModes.domainTabs` : volets de file, réglages du volet, 2026-11-01) — celui que le SOCLE choisit depuis le 2026-11-12 : l'adresse (`?domain=`), sinon le compte (`navigation.page_domain`), le titre de la page en sélecteur (`_page_domain.html`), plus d'onglets ; chaque domaine déclare ce qu'il fait (`description`) et l'À propos, la Console et le compte de la file sont ceux du domaine de la page ; un fichier arrivé hors de sa card rejoint le domaine de sa NATURE (`arrival_domain`, `file_nature`, `surface_file_nature` — la lecture propre d'un domaine déclarée par `extension_natures`), et « Envoyer vers » retient ce domaine pour la page de l'app (2026-11-01) ; un fichier déjà reçu (URL, ligne de lot) se lit sans la porte (`domain_nature`), et une SOURCE pas encore arrivée dit sa nature par son adresse (`surface_source_nature`, 2026-11-10)
+Schéma déclaratif des onglets-domaine et modes par app — scope la file ; un domaine NOMME son schéma de réglages (`params_schema`), sa surface est la clé de son modèle d'élément et le domaine d'un élément se dérive (`element_domain`), et se cherche en base par la même déclaration (`domain_filter`, 2026-11-01) ; un mode est un RÉGLAGE (`mode_param`) qui borne le menu de modèles (`options_mode`) ; une page à plusieurs domaines montre les volets de UN domaine (`_domain_tabs.html`, `WamaModes.domainTabs` : volets de file, réglages du volet, 2026-11-01) — celui que le SOCLE choisit depuis le 2026-11-12 : l'adresse (`?domain=`), sinon le compte (`navigation.page_domain`), le titre de la page en sélecteur (`_page_domain.html`), plus d'onglets ; chaque domaine déclare ce qu'il fait (`description`) et l'À propos, la Console et le compte de la file sont ceux du domaine de la page ; un fichier arrivé hors de sa card rejoint le domaine de sa NATURE (`arrival_domain`, `file_nature`, `surface_file_nature` — la lecture propre d'un domaine déclarée par `extension_natures`), et « Envoyer vers » retient ce domaine pour la page de l'app (2026-11-01) ; un fichier déjà reçu (URL, ligne de lot) se lit sans la porte (`domain_nature`), et une SOURCE pas encore arrivée dit sa nature par son adresse (`surface_source_nature`, 2026-11-10) ; les lots d'une page se rangent par domaine par `batch_common.batches_by_domain` (2026-11-15 : le premier élément du lot dit son domaine, la règle de la card — anonymizer, imager)
 
 - **Domicile** : `wama/common/utils/app_modes.py` · **doc** : [docs/construction/ui/MODES_QUEUE_UX.md](../construction/ui/MODES_QUEUE_UX.md)
 - **Module** : Schéma déclaratif DOMAINES → MODES des apps — clé de voûte UX (voir MODES_QUEUE_UX.md).
-- **API publique** (31) :
+- **API publique** (34) :
   - `get_app_modes(app: str) -> dict` — Schéma {domains:[…]} d'une app, ou {} si non déclaré.
   - `get_domains(app: str) -> list`
   - `has_domain_tabs(app: str) -> bool` — True si l'app a PLUSIEURS domaines : sa page se choisit par domaine — le titre du socle en
@@ -2834,6 +2866,7 @@ Schéma déclaratif des onglets-domaine et modes par app — scope la file ; un 
   - `element_schema_name(element) -> str` — Le nom du schéma de réglages du domaine d'un élément (`element_domain_or_first`), '' : le
   - `element_schema(element) -> list` — Le schéma de réglages d'un ÉLÉMENT — celui du domaine où il se range, de son app (une
   - `domain_filter(app: str, domain_id: str)` — Les éléments de ce domaine EN BASE : `callable(queryset) -> queryset`, ou None quand le
+  - `domain_birth_field(app: str, domain_id: str) -> tuple | None` — `(champ, valeur)` à poser sur un élément NAISSANT pour qu'il soit de ce domaine — la lecture
   - `domain_filters(app: str, surface: str) -> dict` — `{domaine: filtre}` des domaines qui PARTAGENT la surface `surface` ({} quand elle n'en sert
   - `accepts(app: str, domain_id: str) -> tuple` — Catégories média (MEDIA_CATEGORIES) que ce domaine prend en ENTRÉE.
   - `domain_for_category(app: str, categorie: str) -> str | None` — Domaine d'une app capable d'accueillir cette catégorie média — base du ROUTAGE d'un
@@ -3052,11 +3085,11 @@ Sous la consigne de la card d'entrée, ce que l'app rendrait — PENDANT la frap
 
 ### Schéma de paramètres
 
-Source unique des réglages d'app : volet droit, modales (item ET lot, `context`) et DÉFAUTS APPLICABLES d'un élément naissant (applicable_defaults, filtre show_if au vocabulaire du moteur JS) sont dérivés de lui. Depuis le 01/09 il porte AUSSI LA cascade des valeurs effectives (effective_settings : défauts du schéma ← preset ← réglages POSÉS — formulation Fabien, ROADMAP §23.2bis) : la base ne stocke que le POSÉ (vide = « le preset décide »), les défauts restent au schéma — c'est ce qui rend un preset POSSIBLE, et ce qui a remplacé resolve_options du converter + les défauts en dur des backends. Depuis le 12/10 (ROUTE §10.6 3.3bis, R1) c'est LA forme de tous les mondes : le pont `param_from_spec` projette les `ParamSpec` d'une fonction sans perte, le Studio rend tous ses nœuds par WamaParams (renderer commun `media_picker`, `isGesture`), et la PORTE des refus (`schema_refusals`/`checked_values` : choix hors liste, nombre illisible ou hors grille) est lue par la porte des outils, le lancement d'un graphe, l'exécution d'une fonction et le moteur de vue Data. Depuis le 18/10 un PORTEUR peut valoir une LISTE, lue « l'une de » par les deux juges de `show_if` (la nature encore inconnue de ce que reçoit un nœud du Studio : les réglages de chaque nature possible se montrent), et la réduction de la ⚙ d'UN process a son jumeau serveur (`scoped_names` ⟷ `scopedSchema`), lu par le nœud d'étape et son exécuteur. La TEMPÉRATURE commune (2026-10-21) : `temperature_param(<champ modèle>)`, type `temperature` (vide = celle du modèle), lié à son modèle par une LISTE de `cap_from` (`cap_bindings` ⟷ `capBindings`) — grisé s'il ne tire pas, valeur de l'éditeur rappelée, borné au maximum et au minimum du moteur, une ligne qui dit si le résultat est REPRODUCTIBLE (2026-10-22). Et une condition `show_if` dont le champ n'est pas RENDU dans le conteneur ne cache rien (même date). Un réglage `advanced` sans groupe se range dans le groupe « Avancé » replié sur TOUTE surface, la température comprise (même date), avec ses deux voisins `seed_param` / `top_p_param` (types `seed`, `top_p`) ; vide = un CHOIX pour les trois (`EMPTY_IS_NONE_TYPES`), la graine de l'imager comprise
+Source unique des réglages d'app : volet droit, modales (item ET lot, `context`) et DÉFAUTS APPLICABLES d'un élément naissant (applicable_defaults, filtre show_if au vocabulaire du moteur JS) sont dérivés de lui. Depuis le 01/09 il porte AUSSI LA cascade des valeurs effectives (effective_settings : défauts du schéma ← preset ← réglages POSÉS — formulation Fabien, ROADMAP §23.2bis) : la base ne stocke que le POSÉ (vide = « le preset décide »), les défauts restent au schéma — c'est ce qui rend un preset POSSIBLE, et ce qui a remplacé resolve_options du converter + les défauts en dur des backends. Depuis le 12/10 (ROUTE §10.6 3.3bis, R1) c'est LA forme de tous les mondes : le pont `param_from_spec` projette les `ParamSpec` d'une fonction sans perte, le Studio rend tous ses nœuds par WamaParams (renderer commun `media_picker`, `isGesture`), et la PORTE des refus (`schema_refusals`/`checked_values` : choix hors liste, nombre illisible ou hors grille) est lue par la porte des outils, le lancement d'un graphe, l'exécution d'une fonction et le moteur de vue Data. Depuis le 18/10 un PORTEUR peut valoir une LISTE, lue « l'une de » par les deux juges de `show_if` (la nature encore inconnue de ce que reçoit un nœud du Studio : les réglages de chaque nature possible se montrent), et la réduction de la ⚙ d'UN process a son jumeau serveur (`scoped_names` ⟷ `scopedSchema`), lu par le nœud d'étape et son exécuteur. La TEMPÉRATURE commune (2026-10-21) : `temperature_param(<champ modèle>)`, type `temperature` (vide = celle du modèle), lié à son modèle par une LISTE de `cap_from` (`cap_bindings` ⟷ `capBindings`) — grisé s'il ne tire pas, valeur de l'éditeur rappelée, borné au maximum et au minimum du moteur, une ligne qui dit si le résultat est REPRODUCTIBLE (2026-10-22). Et une condition `show_if` dont le champ n'est pas RENDU dans le conteneur ne cache rien (même date). Un réglage `advanced` sans groupe se range dans le groupe « Avancé » replié sur TOUTE surface, la température comprise (même date), avec ses deux voisins `seed_param` / `top_p_param` (types `seed`, `top_p`) ; vide = un CHOIX pour les trois (`EMPTY_IS_NONE_TYPES`), la graine de l'imager comprise. Un réglage posté HORS de la nature de l'élément — sa condition ne lit que des porteurs cachés — n'est pas écrit (`settings_outside_nature`, lu par `read_settings_payload`, 2026-11-19 : jumeau à l'écriture d'`applicable_defaults`)
 
 - **Domicile** : `wama/common/utils/param_schema.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Schéma de paramètres WAMA — source unique pour rendre les réglages d'une app dans TOUTES les surfaces (modale item/batch, volet inspecteur card/batch/file) depuis une seule description, au lieu de markup dupliqué par template (cause des divergences).
-- **API publique** (44) :
+- **API publique** (45) :
   - `class Param` — Description d'UN paramètre, indépendante de la surface de rendu.
   - `format_display(value, display_format: str) -> Optional[str]` — La valeur dans le FORMAT déclaré (`Param.display_format`), None si le format est inconnu
   - `derive_from_model(model_class, include: List[str], overrides: dict=None) -> List[Param]` — Construit la liste de `Param` d'une app à partir des champs d'un modèle Django.
@@ -3073,6 +3106,7 @@ Source unique des réglages d'app : volet droit, modales (item ET lot, `context`
   - `condition_met(cond, values) -> bool` — Une condition de la grammaire `show_if` est-elle satisfaite par `values` ? — la lecture
   - `condition_fields(cond) -> List[str]` — Les champs qu'une condition `show_if` LIT — un seul, ou ceux de chaque branche d'un `any`
   - `scoped_names(schema, names) -> List[str]` — Les réglages de la ⚙ d'UN process : `names` (ce qu'il surveille), plus le champ qui COMMANDE
+  - `settings_outside_nature(schema, values) -> set` — Les réglages postés qui n'appartiennent pas à la NATURE de l'élément (2026-11-19, le converter
   - `applicable_defaults(schema, values=None) -> dict` — Défauts APPLICABLES d'un schéma pour un élément NAISSANT : params de contexte 'item'
   - `panel_dom_id(p)` — dom_id du param sur la surface VOLET, ou None s'il n'y figure pas.
   - `panel_name_key(p)` — Clé de stockage = le NOM du param, s'il figure au volet (None sinon). L'autre règle que
@@ -3188,7 +3222,7 @@ Canonicalise capabilities (tâche, modalités, entrées) — source du filtrage 
 
 - **Domicile** : `wama/common/utils/model_capabilities.py` · **doc** : [docs/construction/ui/INPUT_MODEL_MATCHING.md](../construction/ui/INPUT_MODEL_MATCHING.md)
 - **Module** : Vocabulaire CANONIQUE des capacités modèle (`AIModel.capabilities`) — SOURCE UNIQUE.
-- **API publique** (23) :
+- **API publique** (24) :
   - `is_language_tag(value) -> bool` — Vrai pour un code de langue du vocabulaire (`fr`, `yue`, `zh-cn`) ou `ANY_LANGUAGE`.
   - `languages_outside_vocabulary(caps) -> Dict[str, list]` — `{clé: valeurs refusées}` des clés de langue de `caps` — une valeur qui n'est pas une liste
   - `reads_temperature(caps: Dict[str, Any]) -> bool` — La fiche dit-elle que le modèle LIT la température ? (son nom dans `params`).
@@ -3208,7 +3242,8 @@ Canonicalise capabilities (tâche, modalités, entrées) — source du filtrage 
   - `supports_timestamps_for(caps: Dict[str, Any], lang: str) -> bool` — Horodatage mot disponible POUR CETTE LANGUE.
   - `declared_engine_flag(cls, flag: str)` — Valeur d'un `supports_*` telle que la classe de moteur la DÉCLARE — ou `None`.
   - `declared_engine_value(cls, name: str)` — `(déclaré, valeur)` d'un attribut que la classe de moteur écrit dans son PROPRE corps (ou
-  - `apply_engine_flags(caps: Dict[str, Any], cls) -> Dict[str, Any]` — Réaligne `caps` sur ce que la classe de moteur DÉCLARE — rend un NOUVEAU dict.
+  - `declared_model_capabilities(cls, model_key: str='') -> Dict[str, Any]` — Les capacités qu'un moteur déclare pour UN de ses modèles (`SUPPORTED_MODELS[…]
+  - `apply_engine_flags(caps: Dict[str, Any], cls, model_key: str='') -> Dict[str, Any]` — Réaligne `caps` sur ce que la classe de moteur DÉCLARE — rend un NOUVEAU dict.
   - `normalize_capabilities(raw: Dict[str, Any]) -> Dict[str, Any]` — Convertit un dict `capabilities` produit avec des clés legacy vers le vocabulaire canonique.
   - `is_canonical_key(key: str) -> bool` — Vrai si `key` fait partie du vocabulaire canonique (utilitaire d'audit/tests).
   - `derive_inputs_from_tasks(tasks: str, is_video: bool=False) -> Dict[str, Any]` — `tasks` (raccourci d'app) → vocabulaire CANONIQUE : task + entrées consommées.
@@ -3247,7 +3282,7 @@ Décide seul qui voit quel élément, sur DEUX axes qui se cumulent : le TIER du
 
 - **Domicile** : `wama/accounts/permissions.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : Modèle d'accès WAMA à DEUX AXES (voir PROFILES_PERMISSIONS.md) : - PROFIL DE COMPTE (tier, unique, hiérarchique) : anonymous < utilisateur < developpeur < admin. - RÔLES MÉTIER (cumulatifs, = Django Groups préfixés 'role:') : communication / recherche / …
-- **API publique** (23) :
+- **API publique** (24) :
   - `is_guest_account(user) -> bool` — Ce compte est-il un compte de SERVICE pour visiteur non connecté — le compte `anonymous`
   - `account_kind(user) -> str` — 'test' pour un compte de test (préfixe `wama_`) ou le compte système anonyme, 'person'
   - `app_group(app_id)`
@@ -3269,6 +3304,7 @@ Décide seul qui voit quel élément, sur DEUX axes qui se cumulent : le TIER du
   - `user_roles(user)` — Ensemble des clés de rôles métier d'un user (depuis ses Groups 'role:*').
   - `accessible(user, kind, element_id)` — Un user peut-il accéder à cet élément ? Point UNIQUE de décision (nav, vues, studio, outils).
   - `accessible_apps(user, app_ids)` — Sous-ensemble d'app_ids accessibles à user (préserve l'ordre).
+  - `accessible_tools(user, tool_names)` — Sous-ensemble des outils `tool_api` que `user` peut exécuter (préserve l'ordre) — la
   - `presented_apps()` — Les outils que MONTRENT les vues des droits (scène de la présentation, constellation des
   - `access_cases()` — Tous les cas du modèle d'accès : chaque tier × chaque combinaison de rôles × chaque app.
 
@@ -3537,7 +3573,7 @@ Chaque app DÉCLARE son monde (media | data | lab | transverse) et son identité
   - `world_label(world: str) -> str` — Libellé d'un monde ; le nom brut si le monde est inconnu (jamais une chaîne vide).
   - `register_app_world(app_id: str, world: str) -> None` — Déclare le monde d'une app hors catalogue. Refuse un monde hors vocabulaire, et refuse
   - `register_surface(app_id: str, *, world: str, label: str, url_name: str, icon: str, description: str='', color: str | None=None, nav_hide: bool=False, order: in…` — Déclare la PAGE d'une app hors catalogue : son monde et son identité (libellé, route,
-  - `register_pageless_tool(app_id: str, *, world: str, label: str, icon: str, probe: str, description: str='') -> None` — Déclare un outil gardé SANS PAGE : son monde et son identité. Idempotent, comme
+  - `register_pageless_tool(app_id: str, *, world: str, label: str, icon: str, probe: str, description: str='', receives_designations: bool=False) -> None` — Déclare un outil gardé SANS PAGE : son monde et son identité. Idempotent, comme
   - `pageless_tools() -> list` — Les outils sans page déclarés (copies), par libellé.
   - `pageless_tool_for(app: str) -> dict | None` — L'outil sans page `app`, ou None — le pendant de `surface_for`.
   - `declared_identity(app: str) -> dict | None` — L'identité DÉCLARÉE d'une app hors catalogue (libellé, monde, description…) : sa surface,
@@ -3783,7 +3819,7 @@ SEULE frontière entre les deux vocabulaires du monde Data : le référentiel (p
 
 ### Refusion de pistes séparées
 
-Recompose un morceau depuis ses pistes séparées SANS dégrader ce qu'on garde : l'original + Σ (gain − 1) · piste — tout à 1, l'original exact ; une piste à 0 retranchée (2026-11-16, demande de Fabien : « refusionner en retirant seulement la batterie »). Lecture stéréo à fréquence donnée (`audio_decode.decode_stereo`, un mp3 garde ses deux canaux) ; jamais écrêté. Le process `remix` du composer la lit ; le mixage en temps réel (gains continus) reprendra la même formule
+Recompose un morceau depuis ses pistes séparées SANS dégrader ce qu'on garde : l'original + Σ (gain − 1) · piste — tout à 1, l'original exact ; une piste à 0 retranchée (2026-11-16, demande de Fabien : « refusionner en retirant seulement la batterie »). Lecture stéréo à fréquence donnée (`audio_decode.decode_stereo`, un mp3 garde ses deux canaux) ; jamais écrêté. Le process `remix` du composer la lit. Le MIXAGE EN TEMPS RÉEL (2026-11-17, page d'édition) joue la MÊME formule dans le navigateur (`wama-stem-mix.js`, WebAudio) : toutes les sources parties au même échantillon, une piste décodée seulement quand elle quitte 100 % (borne de 1,5 Go, dite), le mixage étant une version de plus que l'axe suit ; la brique `stem_mixer` écrit les niveaux sur la card (`remix_levels`), que la refusion relit. TROIS MODES (Fabien, 2026-11-17, `WamaStemMix.modeFor`) : rien touché → l'original en <audio> ; touché à ×1 → cette formule exacte ; touché à une autre vitesse → l'ADDITION Σ gain · piste, un <audio> par piste attaché à l'axe (hauteur gardée, ~10-20 ms entre lecteurs, accepté en édition) — chaque fichier téléchargé une fois et joué depuis la mémoire (`blob:`) : six lecteurs tenaient les six connexions de l'hôte. 2026-11-18 : le SOLO (bouton S, Fabien) — une aide d'écoute, jamais écrite : les niveaux restent ce qui s'écrit et se rend
 
 - **Domicile** : `wama/common/utils/stem_mix.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : RECOMPOSER un morceau depuis ses pistes séparées (2026-11-16, demande de Fabien : « refusionner les stems pour recréer un audio complet ou partiel — par exemple en retirant seulement la batterie »).
@@ -3793,7 +3829,7 @@ Recompose un morceau depuis ses pistes séparées SANS dégrader ce qu'on garde 
 
 ### Repères d'une partition sur son audio
 
-Où tombe chaque mesure d'une partition dans l'audio dont elle est tirée : un couple (instant écrit, instant d'audio) par barre, écrit DANS l'ABC (ligne `% wama-sync:` de l'en-tête) par le moteur qui la note — `midi_score` (intro écrite en mesures de silence), SheetSage2 (ses temps datés, chaque mesure à sa longueur écrite) — et lu par la page (`WamaScore.syncOf`/`timeMap`) : la note colorée et la lecture MIDI (`WamaMidiPlayer.retimed`, un tempo par mesure) tombent où l'audio la joue. Né le 2026-11-15 (cards de Fabien : le calage deviné se trompait de 6 à 16 s) ; une partition fournie, sans repères, se cale sur la 1re et la dernière attaque
+Où tombe chaque mesure d'une partition dans l'audio dont elle est tirée : un couple (instant écrit, instant d'audio) par barre, écrit DANS l'ABC (ligne `% wama-sync:` de l'en-tête) par le moteur qui la note — `midi_score` (intro écrite en mesures de silence), SheetSage2 (ses temps datés, chaque mesure à sa longueur écrite) — et lu par la page (`WamaScore.syncOf`/`timeMap`) : la note colorée et la lecture MIDI (`WamaMidiPlayer.retimed`, un tempo par mesure) tombent où l'audio la joue. Né le 2026-11-15 (cards de Fabien : le calage deviné se trompait de 6 à 16 s) ; une partition fournie, sans repères, se cale sur la 1re et la dernière attaque — celles de l'audio ÉCOUTÉ depuis le 2026-11-18 (`?only=rhythm&source=`, une version de `Surface.sources_of` : seul le Rendu les donnait, une reprise sans rendu n'avait rien à suivre). La face « Partition » de la visionneuse reçoit ce que lit la page (`preview_utils._score_page_reads` : adresse de données, versions, version de chaque face) — un seul calage, page et visionneuse. Même jour : la gravure JUSTIFIÉE à la largeur de sa zone (`WamaScorePlayer.engrave`, reflux `wrap` d'abcjs à espacement borné, regravée plus large plutôt que coupée)
 
 - **Domicile** : `wama/common/utils/score_timing.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Les REPÈRES d'une partition : où tombe chacune de ses mesures dans l'audio dont elle est tirée.
@@ -4005,7 +4041,7 @@ Source UNIQUE des natures de média (image/video/audio/document/archive/dataset/
   - `world_label(world: str) -> str` — Libellé d'un monde ; le nom brut si le monde est inconnu (jamais une chaîne vide).
   - `register_app_world(app_id: str, world: str) -> None` — Déclare le monde d'une app hors catalogue. Refuse un monde hors vocabulaire, et refuse
   - `register_surface(app_id: str, *, world: str, label: str, url_name: str, icon: str, description: str='', color: str | None=None, nav_hide: bool=False, order: in…` — Déclare la PAGE d'une app hors catalogue : son monde et son identité (libellé, route,
-  - `register_pageless_tool(app_id: str, *, world: str, label: str, icon: str, probe: str, description: str='') -> None` — Déclare un outil gardé SANS PAGE : son monde et son identité. Idempotent, comme
+  - `register_pageless_tool(app_id: str, *, world: str, label: str, icon: str, probe: str, description: str='', receives_designations: bool=False) -> None` — Déclare un outil gardé SANS PAGE : son monde et son identité. Idempotent, comme
   - `pageless_tools() -> list` — Les outils sans page déclarés (copies), par libellé.
   - `pageless_tool_for(app: str) -> dict | None` — L'outil sans page `app`, ou None — le pendant de `surface_for`.
   - `declared_identity(app: str) -> dict | None` — L'identité DÉCLARÉE d'une app hors catalogue (libellé, monde, description…) : sa surface,
@@ -4233,14 +4269,14 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
 
 - **Domicile** : `wama/tool_api.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Tool API
-- **API publique** (142) :
+- **API publique** (153) :
   - `tool_effect(effect: str, *, sub_agent: bool=True, reason: str='')` — Marque l'EFFET d'un outil sur sa fonction. `sub_agent=False` retire une LECTURE de ce qu'un
   - `effect_of(tool_name: str) -> dict | None` — L'effet déclaré d'un outil du registre, None s'il n'en déclare pas (ou n'existe pas).
   - `tool_schema(provider)` — Déclare le schéma des arguments d'un outil : `provider()` rend une liste de `Param` (ou de
   - `tool_param_schema(tool_name: str) -> list` — Le schéma (liste de dicts) des arguments que lit l'outil : celui qu'il déclare
   - `sub_agent_tools() -> frozenset` — Les outils qu'un sous-agent peut appeler — DÉRIVÉS des marques, jamais recopiés : les
   - `tool_annotations(tool_name: str) -> dict` — Les annotations MCP d'un outil, tirées de sa marque — UNE déclaration, deux lecteurs : notre
-  - `list_user_files(user, folder: str='temp') -> dict` — List ALL files in one of the user's folders (any extension).
+  - `list_user_files(user, folder: str='temp') -> dict` — List the files of ONE folder of the user's file tree (any extension, sub-folders included),
   - `find_user_files(user, query: str, limit: int=20) -> dict` — Find the user's files BY NAME everywhere the File Manager shows them: the temporary folder,
   - `add_to_anonymizer(user, file_path: str, sam3_prompt: str='', classes: list=None, precision_level: int=None, app_label: str='anonymizer', **params) -> dict` — Copy a file into the anonymizer input queue and create a Media DB entry. An image or a video
   - `sam3_examples() -> dict` — Return recommended SAM3 text prompt examples.
@@ -4248,12 +4284,12 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `add_to_enhancer(user, file_path: str, ai_model: str='', denoise: bool=None, blend_factor: float=None, app_label: str='enhancer', **params) -> dict` — Register a file for enhancement and create the Enhancement DB entry.
   - `add_to_audio_enhancer(user, file_path: str, engine: str='', mode: str='', denoising_strength: float=None, quality: int=None, **params) -> dict` — Register an audio file for speech enhancement.
   - `synthesize_text(user, text: str='', work_file: str='', reference_voice: str='', language: str=None, tts_model: str=None, voice_preset: str=None, speed: float=N…` — Create a VoiceSynthesis job — from raw text OR from a work file, with an optional
-  - `compose_music(user, prompt: str, model: str=None, duration: float=None, work_score: str=None, work_audio: str=None, app_label: str='composer', **params) -> dict` — Create a Composer generation job (music or SFX) and start it immediately.
+  - `compose_music(user, prompt: str='', model: str=None, duration: float=None, work_score: str=None, work_audio: str=None, app_label: str='composer', **params) ->…` — Create a Composer generation job (music or SFX) and start it immediately.
   - `add_to_describer(user, file_path: str, output_style: str=None, output_language: str=None, max_length: int=None, app_label: str='describer', **params) -> dict` — Copy a file into the describer queue and create a Description DB entry.
   - `add_to_transcriber(user, file_path: str, backend: str=None, preprocess_audio: bool=None, hotwords: str=None, enable_diarization: bool=None, app_label: str='tra…` — Copy a file into the transcriber queue and create a Transcript DB entry.
   - `add_to_reader(user, file_path: str, backend: str=None, mode: str=None, language: str=None, app_label: str='reader', **params) -> dict` — Copy a file into the reader queue and create a ReadingItem DB entry.
   - `convert_file(user, file_path: str, output_format: str='', quality_preset: str='balanced', app_label: str='converter', **params) -> dict` — Queue a file conversion and start it immediately.
-  - `list_media_assets(user, asset_type: str='', q: str='') -> dict` — List the user's personal media library assets.
+  - `list_media_assets(user, asset_type: str='', q: str='', origin: str='', page: int=1) -> dict` — List the media-library assets the user can USE: their own, those shared with them (lab,
   - `fold_side_panels(user, folded: bool=True) -> dict` — Fold or unfold the two side panels of the page (file explorer on the left, panel on the
   - `use_hand_mode(user, on: bool=True) -> dict` — Turn the HAND mode on or off — driving a 3D scene with the hands, through the webcam ("active
   - `open_page(user, page: str, domain: str='') -> dict` — Take the user to a WAMA page — an application ("emmène-moi sur l'Anonymizer", "ouvre la
@@ -4295,6 +4331,8 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `get_model_evaluation_progress(user, kind: str='assess') -> dict` — Progress of a model evaluation started by assess_proposed_models ('assess') or
   - `list_model_proposals(user, kind: str='') -> dict` — The PROPOSALS waiting for an administrator's decision (model manager, « Propositions »):
   - `list_model_choices(user, task: str='', model_type: str='', modality: str='', source: str='', app: str='', domain: str='', mode: str='', cloud: bool=False) -> d…` — The models an app's model selector offers, read from the catalogue — the same list as the
+  - `get_converter_presets(user) -> dict` — The converter's quality presets ('web', 'balanced', 'max') and what each one sets for an
+  - `get_image_resolutions(user, model: str='') -> dict` — The image sizes the imager offers: with `model`, the resolutions recommended for that model
   - `free_memory(user, action: str, model_key: str='', confirm: bool=False) -> dict` — Free memory as the model manager's buttons do: 'unload' one resident model (`model_key`),
   - `free_gpu_for_item(user, app: str, item_id: int, confirm: bool=False) -> dict` — Agree that the WHOLE graphics card be freed so one of the user's items waiting for resources
   - `control_memory_cleaner(user, action: str, check_interval_s: int=0, idle_threshold_s: int=0, ram_warning_percent: float=0, ram_critical_percent: float=0) -> dict` — Start, stop or configure the automatic memory cleaner of the model manager page, which unloads
@@ -4323,6 +4361,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `duplicate_item(user, app: str, pk: int) -> dict` — Duplicate ONE of the user's items, so it can be re-run with different settings.
   - `stop_item(user, app: str, pk: int) -> dict` — Stop ONE of the user's items that is waiting or running — the stop button of its card.
   - `update_item_settings(user, app: str, pk: int, settings: dict=None) -> dict` — Change the settings of ONE of the user's items — the settings button of its card.
+  - `start_process_on_items(user, app: str, process: str, item_ids=None) -> dict` — Run a step of the ORIGIN card from a SELECTION of the cards derived from it — the right-click
   - `launch_batch(user, app: str, batch_id: int) -> dict` — Start (or restart) every item of one of the user's batches — the ▶ button of the batch card.
   - `start_process_on_batch(user, app: str, batch_id: int, process: str) -> dict` — Run ONE step on every item of one of the user's batches — the ▶ of a step in the band of the
   - `update_batch_settings(user, app: str, batch_id: int, settings: dict=None, promote_from: int=None, realign: bool=False, scope: str='', replace_own: list=None) -…` — Set the settings of a whole batch — ONE of three gestures:
@@ -4371,6 +4410,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `relay_next_step(tool_name: str, result: dict) -> dict` — Dit au modèle, DANS LE RÉSULTAT, qu'un ajout n'a lancé AUCUN traitement.
   - `execute_tool(tool_name: str, args: dict, user, *, model_call: bool=False) -> dict` — Dispatch a tool call from the agentic loop.
   - `action_routes() -> dict` — `{route key: view}` of every action route — a path with an `api/` segment — outside the API's
+  - `triad_coverage() -> dict` — `{app: [the tools of its triad that are missing]}` for every app of the catalogue — the
   - `route_coverage() -> dict` — What the assistant's API covers of WAMA's action routes, PAGE by page (a page = the
   - `list_user_files_view(request)`
   - `add_to_anonymizer_view(request)`

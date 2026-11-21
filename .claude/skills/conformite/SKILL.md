@@ -19,8 +19,8 @@ python -c "import json;c=json.load(open('logs/conformity_report.json'))['criteri
 ```
 
 <!-- WAMA:FAITS(conformite) — généré par « python manage.py doc_facts », ne pas éditer -->
-- Critères de la grille : **113** — F1:4 F2:12 F3:24 F4:11 F5:49 F6:6 F7:5 F8:2 *(relevé du 2026-10-29)*
-- Apps mesurées : **10** ; dénominateur par app : **96 à 111** (un critère **non applicable** sort du calcul)
+- Critères de la grille : **115** — F1:4 F2:12 F3:24 F4:11 F5:50 F6:7 F7:5 F8:2 *(relevé du 2026-11-21)*
+- Apps mesurées : **10** ; dénominateur par app : **98 à 113** (un critère **non applicable** sort du calcul)
 <!-- /WAMA:FAITS(conformite) -->
 
 > Les 8 facettes de `docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md` sont **toutes** couvertes depuis le 30/07 —
