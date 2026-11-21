@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**247 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**248 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -2623,10 +2623,11 @@ Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queu
 
 - **Domicile** : `wama/common/models.py` · **doc** : [docs/construction/ui/CARD_DESIGN.md §3bis](../construction/ui/CARD_DESIGN.md)
 - **Module** : Briques de modèles COMMUNES (cf. BATCH_MODEL_AUDIT.md).
-- **API publique** (49) :
+- **API publique** (50) :
   - `job_status_values() -> list` — Les VALEURS des cinq états de FILE, dans l'ordre du vocabulaire.
   - `normalize_job_status(value) -> str` — Un état QUELCONQUE (base, JSON, littéral d'app) → le vocabulaire commun.
   - `class ProcessingTimeMixin(models.Model)` — Durée RÉELLE de traitement, en secondes. Le worker la CALCULE déjà (il la passe au learner
+  - `class MediaDurationMixin` — `duration_display` d'un élément qui porte la durée de son média en secondes (`duration`) :
   - `class NativeOutputsMixin(models.Model)` — Les fichiers D'ORIGINE d'une card dont les réglages de sortie transforment le rendu
   - `class KeptOutputsMixin(models.Model)` — Les fichiers de RÉVISION gardés d'une card — ses sorties telles que chaque révision les a
   - `class DerivedCardMixin(models.Model)` — Une card NÉE d'une autre — un résultat d'une card devenu l'entrée d'une card sœur, dans le
@@ -2795,11 +2796,12 @@ Chips des cards GÉNÉRÉS du schéma params (chip=True), groupés par section v
 
 - **Domicile** : `wama/common/utils/card_chips.py` · **doc** : [docs/construction/ui/CARD_DESIGN.md §10.3](../construction/ui/CARD_DESIGN.md)
 - **Module** : WAMA Common — CHIPS méta des cards (CARD_DESIGN §10.3, pilote Reader 2026-07-06).
-- **API publique** (9) :
+- **API publique** (10) :
   - `catalog_name(model_key: str) -> str` — Le NOM lisible d'un modèle du catalogue (`AIModel.name`) — '' s'il n'y est pas. Mémoïsé
   - `catalog_names(model_keys) -> dict` — `{clé: nom}` de plusieurs modèles en UNE requête pour ceux que le mémo n'a pas — ce que lit
   - `field_unit(field) -> str` — L'UNITÉ d'un champ numérique : `unit` s'il est déclaré, sinon un `chip_label` COURT en
   - `chips_for(instance, params_json, extra=None, values=None)` — Construit la liste des chips d'une card depuis le schéma sérialisé (schema_to_dicts).
+  - `display_value(field, value, instance=None)` — La valeur d'un réglage telle que WAMA la MONTRE — UNE écriture pour les chips de la card et
   - `input_props_for(instance, file_field='input_file', name='')` — Sous-ligne « propriétés RÉELLES du média » de la section ENTRÉE (CARD_DESIGN §11).
   - `notice_chips(rows) -> list` — Les pastilles des REMARQUES qu'ont rendues les process d'une card sur leur résultat — une
   - `common_chips_for_items(items, params_json, values_of=None)` — Chips des réglages COMMUNS aux filles d'un lot — pour la card MÈRE (slot
@@ -2918,7 +2920,7 @@ Vocabulaire commun des formats choisis AU TÉLÉCHARGEMENT (libellé, icône, gr
 
 - **Domicile** : `wama/common/utils/export_formats.py` · **doc** : [docs/construction/architecture/WAMA_APP_CONVENTIONS.md §6.3](../construction/architecture/WAMA_APP_CONVENTIONS.md)
 - **Module** : Vocabulaire COMMUN des formats de TÉLÉCHARGEMENT — libellé, icône et regroupement.
-- **API publique** (19) :
+- **API publique** (21) :
   - `entry(value: str) -> dict` — Décrit UN format. Un format inconnu du vocabulaire reste affichable (repli neutre) —
   - `entries(formats, available=None) -> list[dict]` — Liste ordonnée d'entrées prêtes pour `common/_download_button.html`.
   - `entries_for_app(app_name: str, available=None) -> list[dict]` — Idem, en lisant la déclaration de l'app — l'appelant n'a que son nom à donner.
@@ -2933,6 +2935,8 @@ Vocabulaire commun des formats choisis AU TÉLÉCHARGEMENT (libellé, icône, gr
   - `export_builder_for(app_name: str)` — Le rendu déclaré par l'app, ou `None`. Une app early-binding n'en déclare pas : son
   - `register_lot_builder(app_name: str, builder, formats) -> None` — `builder` : `(éléments, fmt) -> (ext, bytes) | None` — UN fichier fait des résultats des
   - `lot_builder_for(app_name: str)` — Le rendu combiné déclaré par l'app (`register_lot_builder`), ou None.
+  - `step_outputs(item) -> list` — Les FICHIERS que les étapes du pipeline de l'élément ont écrits (`ProcessSpec.outputs`) et
+  - `step_output_entries(item, url: str) -> list` — Les entrées du menu ⬇ d'une card pour ses sorties d'étapes (`step_outputs`) : l'adresse de
   - `result_pages(item) -> list` — Les fichiers résultats DÉCLARÉS de `item` (`send_to.result_paths`, la lecture du ZIP et
   - `combined_formats(app_name: str, items) -> list` — Les formats en lesquels les éléments `items` d'un lot se combinent en UN fichier : ceux du
   - `combined_url(lot_url: str) -> str` — L'adresse du fichier combiné d'un lot : celle de son ZIP (`batch_download`), `combine=1`
@@ -3474,6 +3478,18 @@ Une vidéo qu'une card porte et que le navigateur ne lit pas (conteneur, profil 
   - `backfill_playback_copies(dry_run: bool=False, audio_only: bool=False) -> dict` — Le RATTRAPAGE : les médias que des cards portaient AVANT le récepteur (aucun import ne
   - `register_playback_copy_receivers()` — Branche le récepteur sur tout modèle à champ fichier (le recensement COMMUN,
 
+### Durées lisibles
+
+UNE écriture d'une durée, deux jumelles qui rendent le même texte : l'HORLOGE « 1:35 », « 1:02:30 » (une durée de média, une position ; dixième ou milliseconde en option), les UNITÉS « 1 min 05 s » (un temps de traitement, une attente) et l'horodatage SRT (arrondi à la milliseconde, la forme qui a produit les références de la médiathèque). La valeur est TRONQUÉE, comme le lecteur. Né le 2026-11-19 (demande de Fabien) : une dizaine de réécritures (la plupart sans les heures), deux jumelles qui n'arrondissaient pas pareil, une seconde famille sans brique — toutes portées ; `MediaDurationMixin` donne `duration_display` à un élément qui porte `duration`. Garde : `tests_display_format` (jumelles côte à côte, SRT à l'octet, aucune durée écrite à la main)
+
+- **Domicile** : `wama/common/utils/durations.py` · **doc** : [docs/construction/ui/INSPECTOR_DETAIL_FIELDS.md](../construction/ui/INSPECTOR_DETAIL_FIELDS.md)
+- **Module** : Les DURÉES LISIBLES de WAMA — une écriture côté serveur (2026-11-19, demande de Fabien : « une petite fonction au commun pour aligner les durées en heures, minutes et secondes […] il faudrait qu'elle soit utilisée partout où il y a des durées » ; recensement : `INSPECTOR_DETAIL_FIELDS`, bloc du 2026-11-19 — une dizaine de réécritures, deux jumelles qui n'arrondissaient pas pareil).
+- **API publique** (4) :
+  - `format_clock(seconds, precision: int=0) -> str` — ``95.4 -> '1:35'``, ``3750 -> '1:02:30'``, ``(83.45, 1) -> '1:23.4'`` — une POSITION ou une
+  - `format_duration(seconds) -> str` — La DURÉE d'un média en horloge (``95.4 -> '1:35'``) — '' quand elle est inconnue ou nulle.
+  - `format_elapsed(seconds) -> str` — Un temps de traitement, une attente, en UNITÉS : « 45 s », « 1 min 05 s », « 2 min »,
+  - `srt_timestamp(seconds) -> str` — ``95.4 -> '00:01:35,400'`` — l'horodatage d'un fichier SRT, ARRONDI à la milliseconde (la forme
+
 ### Décodage audio robuste
 
 Décode l'audio là où torchcodec/torchaudio sont cassés (WSL) : soundfile + repli ffmpeg. `decode_audio` laisse un WAV à sa fréquence NATIVE ; un modèle de parole passe par `decode_audio_at` (fréquence GARANTIE, `resample`) — 2026-10-01, cinq consommateurs. Annexe torchaudio_compat = l'autre forme du même problème : shims soundfile posés DANS torchaudio pour les libs tierces qui l'appellent en interne (Coqui, DeepFilterNet)
@@ -3958,8 +3974,7 @@ Durée/codec/dimensions/pages d'un média pour les propriétés de card (via ffm
 
 - **Domicile** : `wama/common/utils/media_probe.py` · **doc** : [docs/construction/suivi/ROADMAP.md §17ter](../construction/suivi/ROADMAP.md)
 - **Module** : WAMA Common — Sonde média (durée / codec / dimensions / pages / entrées).
-- **API publique** (9) :
-  - `format_duration(seconds: float) -> str` — ``95.4 -> '1:35'``, ``3750 -> '1:02:30'`` — affichage court ('' si inconnu/zéro).
+- **API publique** (8) :
   - `probe_audio(path: str) -> dict` — Sonde le premier flux audio d'un fichier.
   - `probe_video(path: str) -> dict` — Sonde le premier flux vidéo : codec • L×H • fps, + durée (stream puis format).
   - `probe_video_format(path: str, *, timeout: int=20) -> dict` — Ce que le NAVIGATEUR regarde du premier flux vidéo : `{container, codec, profile,
@@ -4134,10 +4149,11 @@ Privé / unité / public : filtrage des lectures, mutations inchangées. Depuis 
 
 - **Domicile** : `wama/common/models.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : Briques de modèles COMMUNES (cf. BATCH_MODEL_AUDIT.md).
-- **API publique** (49) :
+- **API publique** (50) :
   - `job_status_values() -> list` — Les VALEURS des cinq états de FILE, dans l'ordre du vocabulaire.
   - `normalize_job_status(value) -> str` — Un état QUELCONQUE (base, JSON, littéral d'app) → le vocabulaire commun.
   - `class ProcessingTimeMixin(models.Model)` — Durée RÉELLE de traitement, en secondes. Le worker la CALCULE déjà (il la passe au learner
+  - `class MediaDurationMixin` — `duration_display` d'un élément qui porte la durée de son média en secondes (`duration`) :
   - `class NativeOutputsMixin(models.Model)` — Les fichiers D'ORIGINE d'une card dont les réglages de sortie transforment le rendu
   - `class KeptOutputsMixin(models.Model)` — Les fichiers de RÉVISION gardés d'une card — ses sorties telles que chaque révision les a
   - `class DerivedCardMixin(models.Model)` — Une card NÉE d'une autre — un résultat d'une card devenu l'entrée d'une card sœur, dans le
