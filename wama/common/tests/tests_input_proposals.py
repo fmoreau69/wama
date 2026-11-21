@@ -175,6 +175,8 @@ class TheSwitchFollowsTheInputTest(SimpleTestCase):
         self.v8 = MiniRacer()
         self.v8.eval(FAKE_DOM + "\ndocument.cookie = ''; var navigator = {}; var localStorage = "
                      "{getItem: function () { return null; }, setItem: function () {}};")
+        # La brique des durées que `WamaApp.formatDuration` appelle (2026-11-19).
+        self.v8.eval((JS / 'wama-durations.js').read_text(encoding='utf-8'))
         self.v8.eval((JS / 'wama-app-base.js').read_text(encoding='utf-8'))
         self.v8.eval((JS / 'wama-input-slots.js').read_text(encoding='utf-8'))
         self.v8.eval((JS / 'wama-params.js').read_text(encoding='utf-8'))

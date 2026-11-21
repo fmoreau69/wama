@@ -44,6 +44,7 @@ from wama.common.models import (JOB_AWAITING_RESOURCES, JOB_PENDING, JOB_RUNNING
                                 JOB_SUCCESS)
 from wama.common.services import process_runs
 from wama.common.services.process_runs import OPTIONAL, REQUIRED
+from wama.common.utils.durations import format_clock, format_elapsed
 
 #: Clé de la photo qui porte l'empreinte des sorties d'amont (« entrée remplacée », point 4.3).
 #: Le `@` l'écarte de tout nom de réglage.
@@ -62,9 +63,9 @@ FILE_FORMATS = ('timed_words',)
 
 
 def _clock(seconds) -> str:
-    """`MM:SS.mmm` — la plage des tours de parole (`format_time_range` du transcriber)."""
-    seconds = max(0.0, float(seconds or 0))
-    return f"{int(seconds // 60):02d}:{seconds % 60:06.3f}"
+    """« 0:05.120 » — la plage des tours de parole, l'horloge commune à la milliseconde
+    (`durations.format_clock`, 2026-11-19 : écrite ici sans les heures)."""
+    return format_clock(float(seconds or 0), 3)
 
 
 def words_segments(words, gap: float = 1.2, longest: int = 14) -> list:
@@ -1575,6 +1576,9 @@ class AppPipeline:
                 'status': (row.status if row is not None
                            else host.status if host is not None else JOB_PENDING),
                 'duration_s': row.duration_s if row is not None else None,
+                # Sa durée telle que la bande l'écrit (2026-11-19, la brique commune des durées :
+                # « 2 min 39 s ») — UNE écriture, pour le gabarit et pour le JS qui le rafraîchit.
+                'duration_text': format_elapsed(row.duration_s) if row is not None else '',
                 'model_key': row.model_key if row is not None else '',
                 # Le modèle EMPLOYÉ, par son nom (2026-11-17, Fabien : « je devrais connaître le
                 # modèle utilisé par chaque sous-process ») — la bande l'écrit à côté de l'étape.

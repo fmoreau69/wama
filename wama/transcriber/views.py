@@ -29,7 +29,8 @@ logger = logging.getLogger(__name__)
 
 
 # Sonde média + formatage durée : brique commune (extraction A5-18, 2026-07-06).
-from wama.common.utils.media_probe import format_duration as _format_duration
+# L'horodatage SRT commun (2026-11-19, `durations.srt_timestamp`) — il était écrit ici, tronqué.
+from wama.common.utils.durations import srt_timestamp
 
 
 def _describe_audio(transcript: Transcript) -> None:
@@ -928,14 +929,6 @@ def _output_stem(t: Transcript) -> str:
     return os.path.splitext(nom)[0]
 
 
-def _srt_ts(s):
-    """Seconds → SRT timestamp HH:MM:SS,mmm."""
-    h, rem = divmod(int(s), 3600)
-    m, sec = divmod(rem, 60)
-    ms = int((s - int(s)) * 1000)
-    return f"{h:02d}:{m:02d}:{sec:02d},{ms:03d}"
-
-
 def build_transcript_bytes(t: Transcript, fmt: str):
     """Return (ext, bytes) for a transcript in `fmt` (txt/srt/pdf/docx), or None.
 
@@ -951,7 +944,7 @@ def build_transcript_bytes(t: Transcript, fmt: str):
         if segments.exists():
             for i, seg in enumerate(segments, 1):
                 speaker = f'[{display_speaker(seg.speaker_id, t.speaker_map)}] ' if seg.speaker_id else ''
-                srt_lines += [str(i), f"{_srt_ts(seg.start_time)} --> {_srt_ts(seg.end_time)}",
+                srt_lines += [str(i), f"{srt_timestamp(seg.start_time)} --> {srt_timestamp(seg.end_time)}",
                               speaker + seg.text, '']
         else:
             srt_lines = ['1', '00:00:00,000 --> 99:59:59,000', t.text, '']

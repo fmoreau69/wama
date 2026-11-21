@@ -223,10 +223,9 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // L'horloge commune (`WamaDurations.clock`, 2026-11-19 : écrite ici sans les heures).
     function formatDuration(seconds) {
-        const mins = Math.floor(seconds / 60);
-        const secs = Math.floor(seconds % 60);
-        return `${mins}:${secs.toString().padStart(2, '0')}`;
+        return window.WamaDurations.clock(Number(seconds) || 0);
     }
 
     async function deleteSession(e) {

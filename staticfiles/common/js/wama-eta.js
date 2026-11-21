@@ -33,9 +33,8 @@ window.WamaEta = window.WamaEta || (function () {
     function _round(sec, confidence) {
         sec = Math.max(0, Math.round(sec));
         if (confidence === 'high') {
-            if (sec < 60) return sec + ' s';
-            var m = Math.floor(sec / 60), s = sec % 60;
-            return s ? m + ' min ' + String(s).padStart(2, '0') + ' s' : m + ' min';
+            // Les unités communes (`WamaDurations.elapsed`, 2026-11-19 : écrites ici à la main).
+            return window.WamaDurations.elapsed(sec) || '0 s';
         }
         // low : arrondi grossier (pas de fausse précision)
         if (sec < 45) return '< 1 min';

@@ -311,9 +311,8 @@ def get_file_properties(description):
             if result.returncode == 0:
                 duration = float(result.stdout.strip())
                 description.duration_seconds = duration
-                mins = int(duration // 60)
-                secs = int(duration % 60)
-                description.duration_display = f"{mins}:{secs:02d}"
+                from wama.common.utils.durations import format_clock    # l'horloge commune (2026-11-19)
+                description.duration_display = format_clock(duration)
                 return f"{description.duration_display} - {size}"
         except:
             pass

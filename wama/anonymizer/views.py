@@ -36,6 +36,7 @@ from ..common.utils.media_paths import get_app_media_path, ensure_app_media_dirs
 # Le chemin d'un fichier d'app se COMPOSE (`get_relative_media_path`), il ne
 # s'écrit pas — préalable au domicile unique par utilisateur (2026-09-11).
 from wama.common.utils.media_paths import get_relative_media_path
+from wama.common.utils.durations import format_clock
 
 
 class IndexView(View):
@@ -305,7 +306,7 @@ def add_media_to_db(media, vid_or_path):
         media.height = info['height']
         media.fps = info['fps']
         media.duration_inSec = info['duration']
-        media.duration_inMinSec = f"{int(info['duration'] // 60)}:{int(info['duration'] % 60):02d}"
+        media.duration_inMinSec = format_clock(info['duration'])   # l'horloge commune (2026-11-19)
         media.properties = info['properties']
         media.media_type = info['media_type']
         media.save()
@@ -324,7 +325,7 @@ def add_media_to_db(media, vid_or_path):
         media.height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
         total_frames = vid.get(cv2.CAP_PROP_FRAME_COUNT)
         media.duration_inSec = total_frames / fps if fps > 0 else 0
-        media.duration_inMinSec = f"{int(media.duration_inSec // 60)}:{int(media.duration_inSec % 60):02d}"
+        media.duration_inMinSec = format_clock(media.duration_inSec)
         media.properties = f"{media.width}x{media.height} ({media.fps:.2f}fps)"
         media.media_type = "video"
         media.save()

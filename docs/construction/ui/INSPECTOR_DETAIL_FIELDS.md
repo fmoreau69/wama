@@ -321,6 +321,29 @@ garde générique qui relève une mise en forme locale d'une durée, liste de re
 baisser. *Décisions* : la famille « 1 min 35 s » (temps de traitement, ETA) se garde-t-elle à côté de
 l'horloge ? Et la règle d'arrondi (tronquer comme le lecteur et la jumelle Python, ou arrondir).
 
+✅ **Décidé par Fabien le 2026-11-19** : les deux familles se gardent (l'horloge pour un média ou une
+position, les unités pour une attente) ; la valeur est TRONQUÉE. ✅ **Livré le même jour (durées,
+temps 1 et 3)** — la brique `common/utils/durations.py` (`format_clock` avec dixième ou milliseconde,
+`format_duration`, `format_elapsed`, `srt_timestamp`) et sa jumelle autonome `WamaDurations`
+(`common/js/wama-durations.js`, chargée par `base.html` avant ses consommateurs) ; portés sur elle :
+`WamaApp.formatDuration`, `WamaAxis.formatTime`, le lecteur audio commun, `WamaEta`, l'aperçu (une
+durée reçue en secondes OU déjà écrite), le chronomètre d'enregistrement, l'attente de l'assistant,
+`ProcessingTimeMixin.processing_display`, `media_probe.format_duration` (réexport), la note de durée de
+la bande des étapes (UNE écriture serveur, `card_rows → duration_text`, que le gabarit et le JS
+affichent), les tours de parole (`_clock`, `format_time_range`), les trois écritures SRT (à l'octet de
+celle d'`asr_eval_corpus`), l'export de documents, le pied de réponse Discord, les délais du Studio ;
+composer (« 95s » → `MediaDurationMixin`, « ~1min35s » → unités), synthesizer, anonymizer, describer
+(card et rapport vidéo), médiathèque (modèles et recherche), enhancer (card audio), face_analyzer,
+cam_analyzer. L'imager perd son ALIAS `duration_display` du temps de traitement, que le volet lisait
+comme la durée de l'entrée. Garde : `tests_display_format.OneWritingOfADurationTest` (jumelles côte à
+côte, troncature, SRT à l'octet, aucune durée écrite à la main hors de la brique — restes déclarés :
+aucun ; les jumelles de bac à sable suivent à leur régénération).
+⏳ **Reste — temps 2, l'alignement card ↔ volet** : la mise en forme d'une valeur de réglage vit DANS
+`card_chips.chips_for` (options, catalogue, voix, unités, `display_format`) ; la section INFOS
+(`detail_registry.settings_from_schema`, liste `extra`) montre les mêmes réglages BRUTS. À extraire en
+une fonction commune que les deux lisent. ⏳ Les textes de console (« 12.3s » des tâches) et la page
+d'administration des apps (`apps.html`, médiane en secondes) restent à porter.
+
 ---
 
 ## Voir aussi — la frontière avec `WAMA_VOLETS.md` (ajouté 2026-08-22)

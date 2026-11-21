@@ -441,11 +441,10 @@ def generate_transcript_pdf(transcript) -> bytes:
 
 
 def _fmt_time(seconds):
-    """Format seconds → MM:SS."""
-    if seconds is None:
-        return '??:??'
-    m, s = divmod(int(seconds), 60)
-    return f'{m:02d}:{s:02d}'
+    """Une position en horloge commune (« 1:35 », « 1:02:30 » — `durations.format_clock`,
+    2026-11-19 : écrite ici « MM:SS », sans les heures) ; « ?:?? » quand elle est inconnue."""
+    from wama.common.utils.durations import format_clock
+    return format_clock(seconds) or '?:??'
 
 
 # ──────────────────────────────────────────────────────────────────────────────

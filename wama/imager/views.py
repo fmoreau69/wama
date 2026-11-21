@@ -932,7 +932,7 @@ def _progress_extra(generation):
     """Les clés PROPRES que le JS de l'imager lit : les sorties et leur nature."""
     data = {
         'generated_images': generation.generated_images,
-        'duration': generation.duration_display,
+        'duration': generation.processing_display,
         'output_type': generation.output_type,
         'is_video': generation.is_video_generation,
     }

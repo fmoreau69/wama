@@ -1452,7 +1452,8 @@ class AxisTest(SimpleTestCase):
     def setUp(self):
         from py_mini_racer import MiniRacer
         self.engine = MiniRacer()
-        self.engine.eval(self.SETUP + _js('common/js/wama-axis.js'))
+        # La brique des durées que l'horloge de l'axe appelle (2026-11-19), chargée avant lui par base.html.
+        self.engine.eval(self.SETUP + _js('common/js/wama-durations.js') + _js('common/js/wama-axis.js'))
 
     def _eval(self, script):
         return json.loads(self.engine.eval('JSON.stringify((function(){' + script + '})())'))
@@ -2252,7 +2253,8 @@ class TransportKeysOwnershipTest(SimpleTestCase):
     def setUp(self):
         from py_mini_racer import MiniRacer
         self.engine = MiniRacer()
-        self.engine.eval(self.SETUP + _js('common/js/wama-keys.js') + _js('common/js/wama-axis.js') + '''
+        self.engine.eval(self.SETUP + _js('common/js/wama-keys.js') + _js('common/js/wama-durations.js')
+                         + _js('common/js/wama-axis.js') + '''
             var forwards = 0, toggles = 0, jumps = 0;
             var axis = window.WamaAxis.create({duration: 60, now: function () { return 0; },
                                                frame: function () { return 1; }, cancelFrame: function () {}});
@@ -3754,6 +3756,7 @@ class StemMixTest(SimpleTestCase):
                          + 'window.WamaStemMix = WamaStemMix;'
                          + 'document.addEventListener = function () {};'
                          + 'document.getElementById = function () { return null; };'
+                         + (self.SERVED / 'wama-durations.js').read_text(encoding='utf-8')
                          + (self.SERVED / 'wama-audio-player.js').read_text(encoding='utf-8')
                          + (self.SERVED / 'wama-axis.js').read_text(encoding='utf-8'))
         self.engine.eval("""var frames = [], T = 0;

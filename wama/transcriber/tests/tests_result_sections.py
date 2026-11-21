@@ -14,11 +14,14 @@ from wama.transcriber.models import Transcript, TranscriptSegment
 
 SEP = '=' * 60
 
+# 2026-11-19 : les plages des tours de parole suivent l'horloge commune à la milliseconde
+# (`durations.format_clock`, « 0:01.000 » au lieu de « 00:01.000 ») — décision de Fabien, une seule
+# écriture des durées ; c'est le seul changement de cet export.
 GOLDEN_FULL = '\n'.join([
     SEP, 'TRANSCRIPTION', SEP, 'Bonjour à tous.', '',
     SEP, 'DIARISATION — LOCUTEURS', SEP,
-    '[SPEAKER_00]  00:01.000 - 00:04.500', '  Bonjour', '',
-    '[Inconnu]  00:04.500 - 00:09.000', '  à tous.', '',
+    '[SPEAKER_00]  0:01.000 - 0:04.500', '  Bonjour', '',
+    '[Inconnu]  0:04.500 - 0:09.000', '  à tous.', '',
     SEP, 'COMPTE-RENDU DE RÉUNION', SEP, 'Un résumé.', '',
     'Points clés :', '  • a', '  • b', '', 'Actions :', '  • c', '',
     SEP, 'VÉRIFICATION DE COHÉRENCE', SEP, 'Score : 82/100', '',
@@ -61,12 +64,12 @@ class ResultSectionsTest(TestCase):
         # the common form, the one the export reads.
         from wama.common.services.process_pipeline import segments_text
         segments = docs.diarization_segments(t)
-        self.assertEqual([{'speaker': 'SPEAKER_00', 'time_range': '00:01.000 - 00:04.500',
+        self.assertEqual([{'speaker': 'SPEAKER_00', 'time_range': '0:01.000 - 0:04.500',
                            'text': 'Bonjour'},
-                          {'speaker': 'Inconnu', 'time_range': '00:04.500 - 00:09.000',
+                          {'speaker': 'Inconnu', 'time_range': '0:04.500 - 0:09.000',
                            'text': 'à tous.'}], segments)
-        self.assertEqual('[SPEAKER_00]  00:01.000 - 00:04.500\n  Bonjour\n\n'
-                         '[Inconnu]  00:04.500 - 00:09.000\n  à tous.', segments_text(segments))
+        self.assertEqual('[SPEAKER_00]  0:01.000 - 0:04.500\n  Bonjour\n\n'
+                         '[Inconnu]  0:04.500 - 0:09.000\n  à tous.', segments_text(segments))
         # The summary is markdown (`result_format`) : its key points and actions are real lists,
         # the way the transcriber's own result modal showed them — the export keeps its bullets.
         self.assertEqual('Un résumé.\n\n### Points clés\n- a\n- b\n\n### Actions à mener\n- c',

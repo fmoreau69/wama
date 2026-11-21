@@ -601,7 +601,7 @@
             url,
             name:       r.title || '',
             mime_type:  mime,
-            duration:   r.duration ? `${Math.round(r.duration)}s` : '',
+            duration:   window.WamaDurations.duration(r.duration),   // l'horloge commune (2026-11-19)
             properties: r.author || '',
         };
     }
@@ -887,7 +887,7 @@
 
         const meta = [];
         if (r.author)   meta.push(esc(r.author));
-        if (r.duration) meta.push(`${Math.round(r.duration)}s`);
+        if (r.duration) meta.push(window.WamaDurations.duration(r.duration));
         if (r.width)    meta.push(`${r.width}×${r.height}`);
 
         card.innerHTML = `

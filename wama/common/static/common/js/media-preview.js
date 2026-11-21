@@ -696,12 +696,18 @@
 
     // Légende : nom + métadonnées DÉJÀ présentes dans la réponse unified_preview
     // (durée/résolution/propriétés) — sans nouvel endpoint.
+    /** Une durée de média telle que la carte la montre (2026-11-19) : un nombre de secondes passe
+     *  par l'horloge commune (`WamaDurations.duration`) ; une durée déjà écrite par le serveur
+     *  (« 1:35 ») reste telle quelle — `duration` arrive sous les deux formes. */
+    function _durationText(value) {
+        if (value == null || value === '') return '';
+        return /^\d+(\.\d+)?$/.test(String(value)) ? window.WamaDurations.duration(value) : String(value);
+    }
+
     function _previewMeta(data) {
         const bits = [];
-        if (data.duration) {
-            const d = Math.round(data.duration), m = Math.floor(d / 60), s = d % 60;
-            bits.push(m ? (m + ' min ' + (s < 10 ? '0' : '') + s + ' s') : (s + ' s'));
-        }
+        const duration = _durationText(data.duration);
+        if (duration) bits.push(duration);
         if (data.resolution) bits.push(String(data.resolution));
         if (data.properties) bits.push(String(data.properties));
         return bits;
@@ -1761,7 +1767,7 @@
         const metaParts = [];
         [shown, data].some(function (src) {
             if (!(src.duration || src.resolution || src.properties)) return false;
-            if (src.duration) metaParts.push(src.duration);
+            if (src.duration) metaParts.push(_durationText(src.duration));
             if (src.resolution) metaParts.push(src.resolution);
             if (src.properties) metaParts.push(src.properties);
             return true;

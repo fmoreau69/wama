@@ -86,7 +86,7 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt.
           <span>{{ elem.shown_state_label|default:elem.get_status_display }}</span>
         </span>
         {% if elem.status == 'RUNNING' %}<span class="wama-eta" data-eta-ids="{{ elem.id }}"></span>{% endif %}
-        {% if elem.status == 'SUCCESS' %}{% include 'common/_processing_time.html' with elapsed=elem.duration_display %}{% endif %}
+        {% if elem.status == 'SUCCESS' %}{% include 'common/_processing_time.html' with elapsed=elem.processing_display %}{% endif %}
       </div>
     </div>
 

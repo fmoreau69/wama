@@ -243,8 +243,9 @@ def _turn_follow_ups(resultat: dict, channel: str) -> tuple:
 
 
 def _duration(seconds: float) -> str:
-    seconds = int(round(seconds or 0))
-    return f"{seconds // 60} min {seconds % 60:02d} s" if seconds >= 60 else f"{seconds} s"
+    """Le temps de réponse en unités communes (`durations.format_elapsed`, 2026-11-19)."""
+    from wama.common.utils.durations import format_elapsed
+    return format_elapsed(seconds) or '0 s'
 
 
 def engine_footer(resultat: dict) -> str:

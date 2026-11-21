@@ -1597,13 +1597,14 @@ class WhatTheCardShowsTest(TestCase):
         from django.template.loader import render_to_string
         html = render_to_string('common/_card_processes.html', {'processes': [
             {'key': 'plan', 'label': 'Partition', 'degree': 'required', 'status': JOB_SUCCESS,
-             'duration_s': 159.1, 'model_key': 'family:m', 'output_label': 'a.abc', 'error': ''},
+             'duration_s': 159.1, 'duration_text': '2 min 39 s', 'model_key': 'family:m',
+             'output_label': 'a.abc', 'error': ''},
             {'key': 'render', 'label': 'Rendu', 'degree': 'required', 'status': JOB_STALE,
              'duration_s': 54.0, 'model_key': '', 'output_label': '', 'error': ''}]})
         self.assertIn('data-processes', html)
         self.assertIn('data-process="plan"', html)
         self.assertIn('data-s="STALE"', html)
-        self.assertIn('159 s', html)
+        self.assertIn('2 min 39 s', html, 'the duration in the units of the common brick')
         self.assertIn('périmé', html)
         self.assertEqual('', render_to_string('common/_card_processes.html',
                                               {'processes': []}).strip())
@@ -1633,12 +1634,13 @@ class WhatTheCardShowsTest(TestCase):
               return key ? {querySelector: function (q) {
                 return q === '.wcv3-proc-note' ? notes[key[1]] : {dataset: {}}; }} : null; }};
             window.WamaApp.updateProcessRows(card, [
-              {key: 'plan', status: 'SUCCESS', duration_s: 12, lost: true},
-              {key: 'render', status: 'SUCCESS', duration_s: 7.4, lost: false}]);
+              {key: 'plan', status: 'SUCCESS', duration_s: 12, duration_text: '12 s', lost: true},
+              {key: 'render', status: 'SUCCESS', duration_s: 7.4, duration_text: '7 s', lost: false}]);
             JSON.stringify([notes.plan.textContent, notes.plan.classList.contains('text-warning'),
                             notes.render.textContent, notes.render.classList.contains('text-warning')]);
         '''))
-        self.assertEqual(['sortie perdue', True, '7 s', False], shown)
+        self.assertEqual(['sortie perdue', True, '7 s', False], shown,
+                         'the duration as the server wrote it (`duration_text`, 2026-11-19)')
 
 
 class SkeletonRunsThePipelineTest(TestCase):

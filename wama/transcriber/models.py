@@ -277,31 +277,17 @@ class TranscriptSegment(models.Model):
         return max(0, self.end_time - self.start_time)
 
     def format_time_range(self) -> str:
-        """Format time range as HH:MM:SS - HH:MM:SS."""
-        return f"{self._format_time(self.start_time)} - {self._format_time(self.end_time)}"
-
-    @staticmethod
-    def _format_time(seconds: float) -> str:
-        """Format seconds as HH:MM:SS.mmm."""
-        hours = int(seconds // 3600)
-        minutes = int((seconds % 3600) // 60)
-        secs = seconds % 60
-        if hours > 0:
-            return f"{hours:02d}:{minutes:02d}:{secs:06.3f}"
-        return f"{minutes:02d}:{secs:06.3f}"
-
-    def to_srt_time(self, seconds: float) -> str:
-        """Format time for SRT format (HH:MM:SS,mmm)."""
-        hours = int(seconds // 3600)
-        minutes = int((seconds % 3600) // 60)
-        secs = int(seconds % 60)
-        millis = int((seconds % 1) * 1000)
-        return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
+        """« 0:05.120 - 0:07.450 » : l'horloge commune à la milliseconde (`durations.format_clock`,
+        2026-11-19 — elle était réécrite ici, minutes sur deux chiffres)."""
+        from wama.common.utils.durations import format_clock
+        return f"{format_clock(self.start_time, 3)} - {format_clock(self.end_time, 3)}"
 
     def to_srt_entry(self, index: int) -> str:
-        """Generate SRT entry for this segment."""
-        start = self.to_srt_time(self.start_time)
-        end = self.to_srt_time(self.end_time)
+        """Generate SRT entry for this segment — l'horodatage SRT commun (`durations.srt_timestamp`,
+        2026-11-19 ; il était réécrit ici, tronqué)."""
+        from wama.common.utils.durations import srt_timestamp
+        start = srt_timestamp(self.start_time)
+        end = srt_timestamp(self.end_time)
         speaker_prefix = f"[{self.speaker_id}] " if self.speaker_id else ""
         return f"{index}\n{start} --> {end}\n{speaker_prefix}{self.text}\n\n"
 

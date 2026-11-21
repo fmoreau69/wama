@@ -887,7 +887,9 @@
     var deadline = Date.now() + seconds * 1000;
     function draw() {
       var left = Math.ceil((deadline - Date.now()) / 1000);
-      word.textContent = left > 0 ? 'Réponse dans environ ' + left + ' s' : 'Encore un instant…';
+      // L'attente en unités communes (« 1 min 05 s », 2026-11-19 — « 65 s » écrit ici).
+      word.textContent = left > 0 ? 'Réponse dans environ ' + window.WamaDurations.elapsed(left)
+                                  : 'Encore un instant…';
     }
     draw();
     this.countdownTimer = setInterval(draw, 1000);

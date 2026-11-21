@@ -93,16 +93,8 @@ class VoiceSynthesisModelTest(TestCase):
         self.assertGreater(duration, 0)
         self.assertLess(duration, 300)  # Moins de 5 minutes
 
-    def test_format_duration(self):
-        """Test du formatage de durée."""
-        synthesis = VoiceSynthesis.objects.create(
-            user=self.user,
-            text_file=self.text_file
-        )
-
-        self.assertEqual(synthesis.format_duration(65), "1:05")
-        self.assertEqual(synthesis.format_duration(120), "2:00")
-        self.assertEqual(synthesis.format_duration(0), "0:00")
+    # `test_format_duration` retiré le 2026-11-19 : il gardait une COPIE locale de l'horloge (sans
+    # les heures), remplacée par la brique commune — gardée au commun (`tests_display_format`).
 
     def test_update_metadata(self):
         """Test de la mise à jour des métadonnées."""

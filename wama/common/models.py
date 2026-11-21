@@ -183,12 +183,21 @@ class ProcessingTimeMixin(models.Model):
 
     @property
     def processing_display(self) -> str:
-        """Durée de traitement formatée (ex. '12 min 30 s' / '45 s'). '' si non mesurée."""
-        s = int(self.processing_seconds or 0)
-        if s <= 0:
-            return ''
-        m, sec = divmod(s, 60)
-        return (f"{m} min {sec:02d} s" if m else f"{sec} s")
+        """Durée de traitement en unités (« 12 min 30 s », « 45 s », « 1 h 02 min ») — la brique
+        commune des durées (`durations.format_elapsed`, 2026-11-19) ; '' si non mesurée."""
+        from wama.common.utils.durations import format_elapsed
+        return format_elapsed(self.processing_seconds)
+
+
+class MediaDurationMixin:
+    """`duration_display` d'un élément qui porte la durée de son média en secondes (`duration`) :
+    l'horloge commune (« 1:35 », `durations.format_duration`, 2026-11-19) — celle des chips, que le
+    volet lit (`detail_registry`) et que la card écrit. Sans champ : rien à ajouter en base."""
+
+    @property
+    def duration_display(self) -> str:
+        from wama.common.utils.durations import format_duration
+        return format_duration(getattr(self, 'duration', 0))
 
 
 class NativeOutputsMixin(models.Model):

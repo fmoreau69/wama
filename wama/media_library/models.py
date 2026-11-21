@@ -65,10 +65,10 @@ for _cat in MEDIA_CATEGORIES:
 del _cat, _members
 
 
-from wama.common.models import ScopedManager, ScopedVisibility
+from wama.common.models import MediaDurationMixin, ScopedManager, ScopedVisibility
 
 
-class UserAsset(_AttributesMixin, ScopedVisibility, models.Model):
+class UserAsset(MediaDurationMixin, _AttributesMixin, ScopedVisibility, models.Model):
     """Asset personnel d'un utilisateur, réutilisable dans toutes les apps.
     Hérite de ScopedVisibility : privé par défaut, promouvable vers une unité
     (labo/dépt/université) ou public (médiathèque partagée). Voir §MONDES."""
@@ -150,15 +150,11 @@ class UserAsset(_AttributesMixin, ScopedVisibility, models.Model):
             return f"{self.file_size / 1024:.1f} Ko"
         return f"{self.file_size / 1024 ** 2:.1f} Mo"
 
-    @property
-    def duration_display(self):
-        if not self.duration:
-            return ''
-        m, s = divmod(int(self.duration), 60)
-        return f"{m}:{s:02d}"
+    # `duration_display` : `MediaDurationMixin`, l'horloge commune (2026-11-19 — écrite ici deux
+    # fois, sans les heures).
 
 
-class SystemAsset(_AttributesMixin, models.Model):
+class SystemAsset(MediaDurationMixin, _AttributesMixin, models.Model):
     """
     Asset générique partagé par tous les utilisateurs.
     Géré par les admins ou par téléchargement automatique.
@@ -205,13 +201,6 @@ class SystemAsset(_AttributesMixin, models.Model):
         if self.file_size < 1024 ** 2:
             return f"{self.file_size / 1024:.1f} Ko"
         return f"{self.file_size / 1024 ** 2:.1f} Mo"
-
-    @property
-    def duration_display(self):
-        if not self.duration:
-            return ''
-        m, s = divmod(int(self.duration), 60)
-        return f"{m}:{s:02d}"
 
 
 # ---------------------------------------------------------------------------

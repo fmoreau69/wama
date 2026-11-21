@@ -2,8 +2,8 @@ from functools import cached_property
 
 from django.db import models
 from wama.common.models import (JOB_STATUS_CHOICES, DerivedCardMixin, KeptOutputsMixin,
-                                NativeOutputsMixin, ProcessingTimeMixin, PromptScoped, ScopedManager,
-                                ScopedVisibility)
+                                MediaDurationMixin, NativeOutputsMixin, ProcessingTimeMixin,
+                                PromptScoped, ScopedManager, ScopedVisibility)
 from django.contrib.auth.models import User
 
 from wama.common.utils.media_paths import upload_to_user_input, upload_to_user_output
@@ -16,8 +16,8 @@ from wama.composer.utils.vocals import AUTO as VOCALS_AUTO, CHOICES as VOCALS_CH
 # la brique « Versions » de la surface « Éditer la partition » (`surfaces.py`) la reprend.
 # `DerivedCardMixin` (2026-11-12) : une card PISTE naît d'une autre (process `separate`, brique
 # `common/utils/derived_cards.py`) et la relie par `derived_from` / `derived_role`.
-class ComposerGeneration(DerivedCardMixin, KeptOutputsMixin, ProcessingTimeMixin, NativeOutputsMixin,
-                         PromptScoped, ScopedVisibility):
+class ComposerGeneration(MediaDurationMixin, DerivedCardMixin, KeptOutputsMixin, ProcessingTimeMixin,
+                         NativeOutputsMixin, PromptScoped, ScopedVisibility):
     # Partage F7 (PROFILES_PERMISSIONS §7.4bis) : lectures via visible_to()/visible_or_404,
     # mutations inchangées (filtrées par user) → lecture seule par construction.
     objects = ScopedManager()
@@ -307,10 +307,6 @@ class ComposerGeneration(DerivedCardMixin, KeptOutputsMixin, ProcessingTimeMixin
         from .tasks import stem_tracks
         return stem_tracks(self)
 
-    @property
-    def duration_display(self):
-        return f"{int(self.duration)}s"
-
     def get_model_label(self):
         from wama.composer.utils.model_choice import label_of
         return label_of(self.model)
@@ -336,10 +332,10 @@ class ComposerGeneration(DerivedCardMixin, KeptOutputsMixin, ProcessingTimeMixin
 
     @property
     def estimated_display(self) -> str:
-        s = self.estimated_seconds
-        if s < 60:
-            return f"~{s}s"
-        return f"~{s // 60}min{s % 60:02d}s" if s % 60 else f"~{s // 60}min"
+        """Le temps estimé en unités (« ~1 min 35 s ») — la brique commune (2026-11-19)."""
+        from wama.common.utils.durations import format_elapsed
+        said = format_elapsed(self.estimated_seconds)
+        return f"~{said}" if said else ''
 
 
 from wama.common.models import QueueOrderMixin, BatchMixin

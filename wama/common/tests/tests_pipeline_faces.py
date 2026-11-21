@@ -402,7 +402,8 @@ class ProcessFacesTest(_MediaRootMixin, TestCase):
         self.assertEqual(['Somewhere, the earth cracks.', 'Sky', 'falls'],
                          [s['text'] for s in face['segments']],
                          'a line ends at a full stop, or at a silence of more than 1.2 s')
-        self.assertEqual('00:00.000 - 00:01.900', face['segments'][0]['time_range'])
+        self.assertEqual('0:00.000 - 0:01.900', face['segments'][0]['time_range'],
+                         'the common clock to the millisecond (2026-11-19)')
         self.assertIn('Somewhere, the earth cracks.', face['content'], 'the text Copy takes')
         self.assertEqual(14, len(words_segments([{'word': 'w', 'start': i, 'end': i + .5}
                                                  for i in range(20)])[0]['text'].split()),

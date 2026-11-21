@@ -379,9 +379,8 @@ def combine_descriptions(frame_descriptions: list, audio_summary: str,
     parts = []
 
     # Video info
-    mins = int(duration // 60)
-    secs = int(duration % 60)
-    duration_str = f"{mins}:{secs:02d}"
+    from wama.common.utils.durations import format_clock    # l'horloge commune (2026-11-19)
+    duration_str = format_clock(duration)
 
     if output_style == 'scientific':
         parts.append(f"Video Analysis Report\n{'='*50}\n")

@@ -121,11 +121,10 @@ def reference_name(corpus: str, split: str, recording_id: str) -> str:
 
 
 def srt_time(seconds: float) -> str:
-    ms = int(round(max(seconds, 0.0) * 1000))
-    h, ms = divmod(ms, 3_600_000)
-    m, ms = divmod(ms, 60_000)
-    s, ms = divmod(ms, 1000)
-    return f'{h:02d}:{m:02d}:{s:02d},{ms:03d}'
+    """L'horodatage SRT commun (`durations.srt_timestamp`, 2026-11-19) : la brique a repris CETTE
+    écriture à l'identique — les références SRT de la médiathèque en dépendent à l'octet."""
+    from wama.common.utils.durations import srt_timestamp
+    return srt_timestamp(seconds)
 
 
 def merged_srt(tracks: dict) -> str:

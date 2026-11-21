@@ -296,10 +296,11 @@
       started = Date.now();
       if (recordLabel) recordLabel.textContent = 'Arrêter';
       if (recordBtn) recordBtn.classList.replace('btn-outline-info', 'btn-danger');
-      if (recordTimer) { recordTimer.hidden = false; recordTimer.textContent = '0 s'; }
+      if (recordTimer) { recordTimer.hidden = false; recordTimer.textContent = window.WamaDurations.clock(0); }
       tick = setInterval(function () {
         var s = Math.floor((Date.now() - started) / 1000);
-        if (recordTimer) recordTimer.textContent = s + ' s';
+        // Le chronomètre en horloge commune (« 1:35 », 2026-11-19 — « 95 s » écrit ici).
+        if (recordTimer) recordTimer.textContent = window.WamaDurations.clock(s);
         if (s >= MAX_RECORD_SECONDS && recording && recording.state() === 'recording') recording.stop();
       }, 250);
     }

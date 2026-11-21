@@ -298,14 +298,6 @@ class VoiceSynthesis(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
             return duration
         return 0.0
 
-    def format_duration(self, seconds):
-        """Formate une durée en secondes vers mm:ss."""
-        if not seconds or seconds <= 0:
-            return '0:00'
-        minutes = int(seconds // 60)
-        secs = int(seconds % 60)
-        return f"{minutes}:{secs:02d}"
-
     def update_metadata(self, save=True):
         """Met à jour les métadonnées (word count, durée estimée). `save=False` : les pose sans
         écrire (l'appelant sauve l'élément entier — réglages de lot posés puis sauvés)."""
@@ -316,7 +308,9 @@ class VoiceSynthesis(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
             # Estimer la durée
             estimated_duration = self.estimate_duration()
             self.duration_seconds = estimated_duration
-            self.duration_display = self.format_duration(estimated_duration)
+            # L'horloge commune (2026-11-19 : une copie locale, sans les heures, vivait ici).
+            from wama.common.utils.durations import format_clock
+            self.duration_display = format_clock(estimated_duration)
 
             if save:
                 self.save(update_fields=['word_count', 'duration_seconds', 'duration_display'])

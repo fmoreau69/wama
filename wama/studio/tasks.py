@@ -49,6 +49,7 @@ from celery import shared_task
 from wama.common.models import (JOB_AWAITING_RESOURCES, JOB_FAILURE, JOB_RUNNING, JOB_SUCCESS,
                                 normalize_job_status)
 from wama.common.utils.console_utils import push_console_line
+from wama.common.utils.durations import format_elapsed
 from wama.studio.services.entries import CARD_TYPE, received_value, unfold
 
 POLL_INTERVAL_S = 3
@@ -205,7 +206,7 @@ def _run_app_function(spec, params: dict, save_state, deadline_s: float, inputs:
     deadline = time.time() + deadline_s
     while not async_result.ready():
         if time.time() > deadline:
-            raise ValueError(f"{spec.key} : délai dépassé ({int(deadline_s) // 60} min).")
+            raise ValueError(f"{spec.key} : délai dépassé ({format_elapsed(deadline_s)}).")
         time.sleep(POLL_INTERVAL_S)
     if async_result.failed():
         raise ValueError(f"{spec.key} : échec — {async_result.result}")
@@ -274,7 +275,7 @@ def _run_app_process(pipeline, process, spec, params: dict, user, save_state, de
     deadline = time.time() + deadline_s
     while not async_result.ready():
         if time.time() > deadline:
-            raise ValueError(f"{spec.key} : délai dépassé ({int(deadline_s) // 60} min).")
+            raise ValueError(f"{spec.key} : délai dépassé ({format_elapsed(deadline_s)}).")
         time.sleep(POLL_INTERVAL_S)
     if async_result.failed():
         raise ValueError(f"{spec.key} : échec — {async_result.result}")
@@ -638,7 +639,7 @@ def _execute_run(run, task_id, notify=True):
                 if state == JOB_FAILURE:
                     raise ValueError(f"Nœud {app} : échec — {st.get('error') or 'sans détail'}")
                 if time.time() > deadline:
-                    raise ValueError(f"Nœud {app} : délai dépassé ({NODE_TIMEOUT_S // 60} min).")
+                    raise ValueError(f"Nœud {app} : délai dépassé ({format_elapsed(NODE_TIMEOUT_S)}).")
 
         run.status = JOB_SUCCESS
         run.processing_seconds = time.time() - t0

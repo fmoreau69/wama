@@ -3462,6 +3462,18 @@ MECHANISMS = (
               "à la naissance d'un élément (`user_settings.input_proposals`) et par la card "
               "(`common:api_media_probe`, fichier désigné OU téléversé ; `WamaApp.inputProposals`)",
               'wama/common/utils/media_probe.py', 'docs/construction/suivi/ROADMAP.md §17ter'),
+    Mechanism('durations', 'Durées lisibles',
+              "UNE écriture d'une durée, deux jumelles qui rendent le même texte : l'HORLOGE « 1:35 », "
+              "« 1:02:30 » (une durée de média, une position ; dixième ou milliseconde en option), "
+              "les UNITÉS « 1 min 05 s » (un temps de traitement, une attente) et l'horodatage SRT "
+              "(arrondi à la milliseconde, la forme qui a produit les références de la médiathèque). "
+              "La valeur est TRONQUÉE, comme le lecteur. Né le 2026-11-19 (demande de Fabien) : une "
+              "dizaine de réécritures (la plupart sans les heures), deux jumelles qui n'arrondissaient "
+              "pas pareil, une seconde famille sans brique — toutes portées ; `MediaDurationMixin` donne "
+              "`duration_display` à un élément qui porte `duration`. Garde : `tests_display_format` "
+              "(jumelles côte à côte, SRT à l'octet, aucune durée écrite à la main)",
+              'wama/common/utils/durations.py', 'docs/construction/ui/INSPECTOR_DETAIL_FIELDS.md',
+              annexes=('wama/common/static/common/js/wama-durations.js',)),
     Mechanism('content_language', "Langue d'un contenu (écrit, parlé)",
               "La langue d'un TEXTE (`langid`, balises de section retirées, verdict peu sûr = "
               "inconnue — les paroles du composer, 2026-10-05) et celle d'un AUDIO (Whisper sur "

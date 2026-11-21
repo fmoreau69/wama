@@ -288,7 +288,7 @@ def format_display(value, display_format: str) -> Optional[str]:
     ou la valeur illisible — l'appelant garde alors son affichage d'avant."""
     try:
         if display_format == 'duration':
-            from wama.common.utils.media_probe import format_duration
+            from wama.common.utils.durations import format_duration
             return format_duration(float(value)) or None
         if display_format == 'size':
             return _format_size(value)

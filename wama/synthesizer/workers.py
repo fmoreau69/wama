@@ -381,7 +381,8 @@ def _update_audio_properties(synthesis):
 
         synthesis.properties = " • ".join(props_parts)
         synthesis.duration_seconds = duration
-        synthesis.duration_display = synthesis.format_duration(duration)
+        from wama.common.utils.durations import format_clock
+        synthesis.duration_display = format_clock(duration)
         synthesis.save(update_fields=['properties', 'duration_seconds', 'duration_display'])
 
     except Exception as e:

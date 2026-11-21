@@ -377,6 +377,7 @@
     <script src="{% static_v 'common/js/media-preview.js' %}"></script>
     <script src="{% static_v 'common/js/wama-evaluation.js' %}"></script>  {# WamaEvaluation global : la face « Évaluation » de la visionneuse (mesure contre la référence) — lue par media-preview.js à l'affichage #}
     <script src="{% static_v 'common/js/wama-preview-overlay.js' %}"></script>  {# WamaPreviewOverlay global : détections dessinées sur l'image que montre un aperçu — AVANT l'inspecteur #}
+    <script src="{% static_v 'common/js/wama-durations.js' %}"></script>  {# WamaDurations global : les DURÉES lisibles (horloge, unités), jumelle de `common/utils/durations.py` — AVANT l'axe, le lecteur, l'ETA et WamaApp, qui l'appellent (2026-11-19) #}
     <script src="{% static_v 'common/js/wama-axis.js' %}"></script>  {# WamaAxis global : l'axe de temps, la SEULE horloge — l'aperçu y pose ses vidéos (2026-11-05), une surface n'en recharge pas (`surface_views.page_scripts`) #}
     <script src="{% static_v 'common/js/wama-reverse-audio.js' %}"></script>  {# WamaReverseAudio global : le son À REBOURS d'un média que l'axe fait reculer (J), décodé une fois — le lecteur audio commun et le mixage le déclarent (2026-11-18) #}
     <script src="{% static_v 'common/js/wama-shuttle.js' %}"></script>  {# WamaShuttle global : J/K/L, le shuttle du magnéto — celui de la visionneuse et des surfaces #}

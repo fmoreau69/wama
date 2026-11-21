@@ -319,20 +319,9 @@ class ImageGeneration(ProcessingTimeMixin, NativeOutputsMixin, PromptScoped, Sco
     def __str__(self):
         return f"Image #{self.id} - {self.prompt[:50]}"
 
-    @property
-    def duration_display(self):
-        """Durée de traitement — ALIAS de `processing_display` (ProcessingTimeMixin).
-
-        L'implémentation maison calculait `completed_at - created_at`, c.-à-d. le temps écoulé
-        depuis la CRÉATION, file d'attente comprise : une génération en attente 20 min puis
-        calculée en 2 min affichait 22 min. Le mixin persiste la durée RÉELLE, celle que le
-        worker mesure déjà et passe au learner ETA (`record_run`) — le réel en regard de la
-        prédiction, cf. CARD_DESIGN §10.6.
-
-        Alias conservé : consommé par l'admin, le template de card et la vue `progress`.
-        """
-        return self.processing_display
-        return None
+    # `duration_display` — un ALIAS du temps de traitement (`processing_display`) — RETIRÉ le
+    # 2026-11-19 : le volet le lisait comme la « Durée » de l'ENTRÉE (`detail_registry`). Ses
+    # lecteurs (admin, card, vue `progress`) lisent `processing_display`.
 
     @property
     def is_video_generation(self):

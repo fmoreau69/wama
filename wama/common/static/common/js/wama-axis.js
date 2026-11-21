@@ -121,13 +121,10 @@
 
     function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
-    /** `m:ss` (`h:mm:ss` au-delà d'une heure), `.d` en option. */
+    /** `m:ss` (`h:mm:ss` au-delà d'une heure), `.d` en option — l'horloge commune
+     *  (`WamaDurations.clock`, 2026-11-19 : elle était réécrite ici). */
     function formatTime(seconds, tenths) {
-        var t = Math.max(0, Number(seconds) || 0);
-        var whole = Math.floor(t);
-        var h = Math.floor(whole / 3600), m = Math.floor((whole % 3600) / 60), s = whole % 60;
-        var out = (h ? h + ':' + String(m).padStart(2, '0') : String(m)) + ':' + String(s).padStart(2, '0');
-        return tenths ? out + '.' + Math.floor((t - whole) * 10) : out;
+        return global.WamaDurations.clock(Number(seconds) || 0, 's', tenths ? 1 : 0);
     }
 
     /** `1:23.4`, `1:23,4`, `83.4`, `1:02:03` → secondes ; null si illisible. */

@@ -8,10 +8,10 @@ from .models import ImageGeneration
 
 @admin.register(ImageGeneration)
 class ImageGenerationAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'prompt_preview', 'model', 'status', 'progress', 'created_at', 'duration_display')
+    list_display = ('id', 'user', 'prompt_preview', 'model', 'status', 'progress', 'created_at', 'processing_display')
     list_filter = ('status', 'model', 'created_at')
     search_fields = ('prompt', 'user__username')
-    readonly_fields = ('created_at', 'updated_at', 'completed_at', 'duration_display')
+    readonly_fields = ('created_at', 'updated_at', 'completed_at', 'processing_display')
 
     fieldsets = (
         ('User', {
@@ -33,7 +33,7 @@ class ImageGenerationAdmin(admin.ModelAdmin):
             'fields': ('status', 'progress', 'error_message')
         }),
         ('Timestamps', {
-            'fields': ('created_at', 'updated_at', 'completed_at', 'duration_display')
+            'fields': ('created_at', 'updated_at', 'completed_at', 'processing_display')
         }),
     )
 

@@ -28,9 +28,10 @@
 
     /* ── Utilitaires ─────────────────────────────────────────────────── */
 
+    /** L'horloge commune (`WamaDurations.clock`, 2026-11-19) : les heures au-delà de 59:59 — la
+     *  copie locale d'ici écrivait « 62:00 ». */
     function formatTime(s) {
-        s = Math.floor(s || 0);
-        return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+        return global.WamaDurations.clock(Number(s) || 0);
     }
 
     function getContainer(playerId) {

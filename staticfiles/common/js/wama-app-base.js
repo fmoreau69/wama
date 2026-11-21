@@ -1500,14 +1500,11 @@
   /** Durée LISIBLE : « 0:45 », « 3:30 », « 1:02:30 » — le format de WAMA (cards, lecteur audio,
    *  jumeau Python `media_probe.format_duration`). `from` dit l'unité de la valeur reçue
    *  ('s' par défaut, 'ms', 'min'). Ajouté à côté de `formatSize` le 2026-10-04 (Fabien). */
-  const DURATION_FACTORS = { ms: 0.001, s: 1, min: 60, h: 3600 };
+  //  Depuis le 2026-11-19 : la brique commune `WamaDurations` (`wama-durations.js`, jumelle de
+  //  `common/utils/durations.py`) — la valeur est TRONQUÉE comme partout (elle était arrondie ici :
+  //  95,6 s se lisait « 1:36 » au navigateur, « 1:35 » au serveur). « — » quand elle est inconnue.
   function formatDuration(value, from) {
-    const n = Number(value) * (DURATION_FACTORS[String(from || 's')] || 1);
-    if (value == null || value === '' || !isFinite(n) || n <= 0) return '—';
-    const total = Math.round(n);
-    const h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60), s = total % 60;
-    const pad = function (x) { return String(x).padStart(2, '0'); };
-    return h ? h + ':' + pad(m) + ':' + pad(s) : m + ':' + pad(s);
+    return window.WamaDurations.duration(value, from) || '—';
   }
 
   /** DURÉE (secondes) du fichier d'un input — Promise<number|null>. Téléversé : lue par le
@@ -1583,7 +1580,7 @@
         // durée — la même règle que le gabarit `_card_processes.html`.
         // Une étape SANS OBJET (`state` 'na', 2026-11-07) le reste dite, comme au gabarit.
         note.textContent = row.lost ? 'sortie perdue'
-          : (row.status === 'SUCCESS' && row.duration_s) ? Math.round(row.duration_s) + ' s'
+          : (row.status === 'SUCCESS' && row.duration_text) ? row.duration_text   // écrite par le serveur (2026-11-19)
           : (PROCESS_NOTES[row.status] || (row.state === 'na' ? 'sans objet' : ''));
         note.classList.toggle('text-warning', !!row.lost);
         note.classList.toggle('text-body-secondary', !row.lost);
