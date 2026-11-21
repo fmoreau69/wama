@@ -199,7 +199,7 @@ class EveryModelKeepsItsIngestDeclarationTest(_Rendered):
     the element of a domain with its own routes included (2026-11-19 : `enhancer_01` lost the audio
     ingest, and a URL pasted on its audio card was dropped as « URL non prise en charge »)."""
 
-    def test_the_generated_models_declare_every_ingest_of_the_source(self):
+    def test_the_generated_models_carry_every_ingest_of_the_source(self):
         from django.apps import apps
         from wama.common.manifests.codegen.models_gen import render_models
         wrong, seen = {}, 0
