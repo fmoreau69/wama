@@ -40,7 +40,7 @@
   "description": "Sépare l'audio du morceau repris en pistes — voix, batterie, basse, guitare, piano, autres, selon le modèle de la tâche `audio-source-separation` (Demucs v4) — et range chaque piste dans une card du lot de celle-ci, avec ses réglages : une partition écrite sur un instrument seul est plus juste que sur le mélange. Optionnelle ; les cards des pistes ne se lancent pas d'elles-mêmes.",
   "key": "composer.separate",
   "manifest_kind": "function",
-  "name": "Composer — pistes séparées de l'entrée",
+  "name": "Composer — séparation des pistes de l'entrée",
   "owner": null,
   "projects": [],
   "schema_version": "1.0",

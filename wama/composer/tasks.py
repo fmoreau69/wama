@@ -336,7 +336,7 @@ def cover_audio(gen, process: str, model_key=None):
             and any(PIPELINE.takes_place(PIPELINE.spec(key), gen, model_key)
                     for key in PIPELINE.switch_upstreams(spec))):
         raise RuntimeError("Le cover reprend la refusion, mais elle n'a pas été rendue : lancer "
-                           "« Pistes séparées » puis « Refusion des pistes ».")
+                           f"« {step_label('separate')} » puis « {step_label('remix')} ».")
     return (os.path.join(settings.MEDIA_ROOT, gen.melody_reference.name)
             if gen.melody_reference else None)
 
@@ -443,7 +443,7 @@ def _separate(gen, ctx):
     from wama.common.utils.model_capabilities import catalog_capabilities
     requested = (instrument_keys(getattr(gen, 'separation_stems', '') or '') or None
                  if catalog_capabilities(separator_key).get('stems_by_query') else None)
-    ctx.console(f"[Composer] Pistes séparées : {separator_key} — {os.path.basename(audio_abs)}"
+    ctx.console(f"[Composer] {step_label('separate')} : {separator_key} — {os.path.basename(audio_abs)}"
                 + (f" ({', '.join(requested)})" if requested else ''))
     backend = backend_class()
     work = tempfile.mkdtemp(prefix='wama_stems_')
@@ -488,7 +488,7 @@ def _separate(gen, ctx):
         'fields': {'stems_index': index_rel},
         'output_ref': index_rel,
         'label': f'{len(parts)} pistes',
-        'console_success': f"✓ Pistes séparées : {labels} — {len(cards)} card(s) dans le lot",
+        'console_success': f"✓ {step_label('separate')} : {labels} — {len(cards)} card(s) dans le lot",
         'models': [separator_key],
         'eta': separate_eta_key_size(gen),
     }
@@ -581,6 +581,21 @@ def stem_tracks(gen):
                        for s in files]}
 
 
+def step_label(key: str) -> str:
+    """Le libellé DÉCLARÉ d'une étape du pipeline (`ProcessSpec.label`) — ce que les messages
+    nomment, jamais recopié (2026-11-19 : « Pistes séparées » devenue « Séparation des pistes »)."""
+    from .function_specs import PIPELINE
+    spec = PIPELINE.spec(key)
+    return (spec.label or spec.key) if spec else key
+
+
+#: Ce que la refusion dit quand elle ne changerait rien (2026-11-19, décision de Fabien : « une
+#: refusion sans piste retirée » est refusée en le disant, comme depuis une sélection) — UNE phrase
+#: pour les deux chemins.
+REMIX_UNCHANGED = ("la refusion rendrait le morceau d'origine — retirer une piste ou changer son "
+                   "niveau d'abord.")
+
+
 def remix_from_selection(gen, roles) -> dict:
     """La refusion depuis une SÉLECTION de pistes (`ProcessSpec.from_selection`, 2026-11-16, demande
     de Fabien : sélectionner les pistes à refusionner, clic droit) : les pistes CHOISIES restent, les
@@ -589,14 +604,14 @@ def remix_from_selection(gen, roles) -> dict:
     from wama.common.utils.midi_score import instrument_label
     stems = [s['stem'] for s in stem_files(gen)]
     if not stems:
-        raise ValueError("Rien à refusionner : lancer d'abord « Pistes séparées ».")
+        raise ValueError(f"Rien à refusionner : lancer d'abord « {step_label('separate')} ».")
     odd = [role for role in roles if role not in stems]
     if odd:
         raise ValueError(f"Pas une piste séparée : {', '.join(odd)} — choisir parmi "
                          f"{', '.join(instrument_label(s) for s in stems)}.")
     if set(stems) <= set(roles):
         # Rien à retirer : ce serait le morceau d'origine — et un réglage vide ne s'écrit pas.
-        raise ValueError("Toutes les pistes sont choisies : la refusion rendrait le morceau d'origine.")
+        raise ValueError("Toutes les pistes sont choisies : " + REMIX_UNCHANGED)
     # Les choisies restent TELLES QUELLES : les niveaux d'un mixage d'avant ne s'y appliquent plus.
     return {'remix_stems': True, 'remix_levels': None,
             'remix_without': ', '.join(instrument_label(s) for s in stems if s not in roles)}
@@ -615,27 +630,31 @@ def _remix(gen, ctx):
     from wama.common.utils.stem_mix import mix, write_wav
 
     if not gen.melody_reference or not gen.stems_index:
-        raise RuntimeError("Rien à refusionner : lancer d'abord « Pistes séparées ».")
+        raise RuntimeError(f"Rien à refusionner : lancer d'abord « {step_label('separate')} ».")
     stems = {s['stem']: os.path.join(settings.MEDIA_ROOT, s['path']) for s in stem_files(gen)}
     gains = remix_gains(stems, getattr(gen, 'remix_without', ''), getattr(gen, 'remix_levels', None))
+    if all(gain == 1.0 for gain in gains.values()):
+        # Rien retiré, aucun niveau changé : le fichier serait l'original (2026-11-19) — refusé,
+        # comme depuis une sélection de toutes les pistes, au lieu d'écrire une copie.
+        raise RuntimeError("Rien à retirer : " + REMIX_UNCHANGED)
     removed = [key for key, gain in gains.items() if gain == 0.0]
     leveled = [f"{instrument_label(k)} à {round(g * 100)} %" for k, g in gains.items()
                if g not in (0.0, 1.0)]
     said = '; '.join(([f"sans {', '.join(instrument_label(k) for k in removed)}"] if removed else [])
                      + ([', '.join(leveled)] if leveled else []))
-    ctx.console("[Composer] Refusion : " + (said or "toutes les pistes (le morceau d'origine)"))
+    ctx.console("[Composer] Refusion : " + said)
     ctx.progress(10)
     samples, rate = mix(os.path.join(settings.MEDIA_ROOT, gen.melody_reference.name), stems, gains)
     ctx.progress(80)
     nature = 'remix' + ''.join(f'-{k.replace(" ", "_")}' for k in removed) + ('-mix' if leveled else '')
     rel, abs_path = ctx.output_place('.wav', nature=nature, model='stem_mix')
     write_wav(abs_path, samples, rate)
-    label = said or 'complète'
+    label = said
     return {
         'fields': {'remix_audio': rel},
         'output_ref': rel,
         'label': f'Refusion {label}',
-        'console_success': f"✓ Refusion {label} — onglet « Refusion des pistes » de l'aperçu",
+        'console_success': f"✓ Refusion {label} — onglet « {step_label('remix')} » de l'aperçu",
         'models': [],
         'eta': remix_eta_key_size(gen),
     }

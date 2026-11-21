@@ -84,7 +84,7 @@
           "degree": "optional",
           "eta": "composer.tasks:separate_eta",
           "gpu": true,
-          "label": "Pistes séparées",
+          "label": "Séparation des pistes",
           "outputs": [
             "stems_index"
           ],

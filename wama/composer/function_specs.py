@@ -181,7 +181,7 @@ register(FunctionSpec(
     outputs=[PortSpec('score', 'score', description="La partition, une partie par instrument.")]))
 
 register(FunctionSpec(
-    key='composer.separate', name="Composer — pistes séparées de l'entrée",
+    key='composer.separate', name="Composer — séparation des pistes de l'entrée",
     description="Sépare l'audio du morceau repris en pistes — voix, batterie, basse, guitare, piano, "
                 "autres, selon le modèle de la tâche `audio-source-separation` (Demucs v4) — et "
                 "range chaque piste dans une card du lot de celle-ci, avec ses réglages : une "
@@ -339,7 +339,8 @@ PIPELINE = register_app_pipeline(_APP, (
     # en décide. Ce qu'elle produit, ce sont des CARDS (une par piste, dans le lot de celle-ci,
     # `common/utils/derived_cards.py`) ; sa sortie déclarée est leur index (`stems_index`), qui
     # date sa ligne. Rien de la card ne la lit : aucun aval à périmer.
-    ProcessSpec('separate', label='Pistes séparées', watched=('melody_reference', 'source_url'),
+    # Libellé « Séparation des pistes » (2026-11-19, Fabien : cohérent avec « Refusion des pistes »).
+    ProcessSpec('separate', label='Séparation des pistes', watched=('melody_reference', 'source_url'),
                 degree=OPTIONAL, toggle='separate_stems', gpu=True, share=1, needs=MAKES_MUSIC,
                 applies=_separate_applies, available=_separate_available,
                 outputs=('stems_index',), eta='composer.tasks:separate_eta'),

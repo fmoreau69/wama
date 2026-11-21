@@ -433,6 +433,17 @@ class StemSeparationTest(_InputProcessCase):
         self.assertEqual({'vocals', 'drums'}, set(self._stems(gen)),
                          'the stems are kept, and no card is added for the remix')
         self.assertIn('/composer/output/', gen.remix_audio.name, 'an OUTPUT of the card')
+        # 2026-11-19, Fabien : a remix that removes nothing and levels nothing would write a COPY
+        # of the original — refused, saying so, like a selection of every stem ; the remix done
+        # before stays.
+        kept = gen.remix_audio.name
+        ComposerGeneration.objects.filter(pk=gen.pk).update(status='RUNNING', remix_without='',
+                                                            remix_levels=None)
+        gen = self._run(ComposerGeneration.objects.get(pk=gen.pk), process='remix')
+        self.assertNotEqual(JOB_SUCCESS, self._states(gen)['remix'])
+        self.assertIn("rendrait le morceau d'origine", process_runs.line(gen, 'remix').error_message,
+                      'said on the line of the step')
+        self.assertEqual(kept, ComposerGeneration.objects.get(pk=gen.pk).remix_audio.name)
         # It is READ in the viewer : the tab of its step (`preview_utils._process_faces`, derived
         # from `ProcessSpec.outputs`), serving the remix — never measured on a real card before.
         from django.urls import reverse

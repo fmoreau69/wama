@@ -152,7 +152,7 @@ PARAMS = [
     # PISTES SÉPARÉES (2026-11-12, demande de Fabien) : la case du process optionnel `separate` —
     # l'audio repris → une piste par source (voix, batterie, basse…), chacune devenant une card du
     # lot de celle-ci, à transcrire seule. Ne périme qu'elle-même.
-    Param(name="separate_stems", type="toggle", label="Pistes séparées",
+    Param(name="separate_stems", type="toggle", label="Séparation des pistes",
           icon="fa-layer-group",
           help="Sépare l'audio repris en pistes (voix, batterie, basse, guitare, piano, autres) : "
                "chaque piste devient une card du lot de celle-ci, avec ses propres réglages — par "
@@ -163,7 +163,7 @@ PARAMS = [
           contexts=PANEL_ITEM_BATCH, stales=("separate",)),
     # Le MODÈLE des pistes séparées : le patron de `parts_model` (options du CATALOGUE bornées par
     # la TÂCHE, « auto » en tête). Le nombre de pistes est une capacité du modèle (`stems`).
-    Param(name="separation_model", type="select", label="Modèle des pistes séparées",
+    Param(name="separation_model", type="select", label="Modèle de séparation des pistes",
           icon="fa-layer-group",
           options_source="catalog",
           options_query={"task": SEPARATION_TASK},

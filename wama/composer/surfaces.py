@@ -135,8 +135,8 @@ register_surface(Surface(
            BrickSlot('mixer', 'stem_mixer', 0, 11, 1, 9, {
                'role': 'audio', 'tracks': 'stems', 'levels': 'remix_levels',
                'without': 'remix_without', 'process': 'remix',
-               'empty': "Pas de pistes séparées : cocher « Pistes séparées » dans les réglages "
-                        "de la card, puis la lancer."}, zone='panel',
+               'empty': "Pas de pistes séparées : cocher « Séparation des pistes » dans les "
+                        "réglages de la card, puis la lancer."}, zone='panel',
                      # Aussi dans l'onglet « Pistes séparées » de l'aperçu (2026-11-19, décision de
                      # Fabien : l'aperçu en écriture là où c'est justifié) : on y mixe et l'on y
                      # lance la refusion sans ouvrir la page.
