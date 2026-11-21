@@ -759,6 +759,16 @@ utiliser un **split button dropdown Bootstrap** — un bouton principal (format 
 + une flèche qui déroule les formats alternatifs.
 **Ne pas ajouter un bouton séparé par format.**
 
+> ✅ **2026-11-19 — les SORTIES DES ÉTAPES s'ajoutent au menu** (Fabien : « avec tous les médias que
+> porte la card, comment gère-t-on le bouton de téléchargement ? » — il ne donnait que le rendu du
+> cover). Le ⬇ d'une card lit son élément dans le contexte (`elem`) et ajoute, sous « Sorties des
+> étapes », chaque fichier que les étapes de son pipeline ont écrit (`ProcessSpec.outputs`,
+> `export_formats.step_outputs` ; un fichier de données JSON n'est pas offert). La vue commune le
+> sert par `?output=<champ>`, seulement un champ que le pipeline déclare comme sortie et que le disque
+> porte (`item_views.make_item_views` → `download`). Aucune ligne de gabarit d'app : toute app à
+> pipeline en profite. Une barre de file (`queue`, `split=False`) n'en reçoit pas. Garde :
+> `tests_downloads.TheCardOffersTheOutputsOfItsStepsTest` (deux contre-épreuves rouges).
+
 > ✅ **DEPUIS LE 2026-08-23 : NE PLUS RECOPIER LE MARKUP CI-DESSOUS.** Il est rendu par la brique
 > commune `common/_download_button.html`, et la card n'écrit qu'une ligne :
 >

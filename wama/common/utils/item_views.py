@@ -560,6 +560,16 @@ def make_item_views(*, work_model, app_id: str, task=None, task_for=None,
         from wama.common.utils.scoping import visible_or_404
         from wama.common.utils.batch_common import link_row_of
         item = visible_or_404(work_model, get_user(request), pk=pk)        # LECTURE
+        # Une SORTIE D'ÉTAPE (`?output=<champ>`, 2026-11-19 — le menu ⬇ de la card) : seulement un
+        # champ que le pipeline de l'élément déclare comme sortie et que le disque porte
+        # (`export_formats.step_outputs`) — jamais un champ que l'adresse nommerait.
+        wanted = request.GET.get('output') or ''
+        if wanted:
+            from wama.common.utils.export_formats import step_outputs
+            found = next((o for o in step_outputs(item) if o['field'] == wanted), None)
+            if found is None:
+                return JsonResponse({'error': "Cette sortie n'existe pas pour cet élément"}, status=404)
+            return FileResponse(open(found['path'], 'rb'), as_attachment=True, filename=found['name'])
         # Sa ligne de lot, comme un élément lu par `batch_elements` : le nom déclaré d'une entrée
         # peut s'y lire (synthesizer, composer : `output_filename` de la ligne).
         item.batch_link = link_row_of(item)

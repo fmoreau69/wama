@@ -284,19 +284,25 @@ def settings_from_schema(instance, schema, *, skip=(), carrier=None):
     les alias). `carrier` : dict porteur des valeurs (JSON d'options) ; une valeur absente du
     porteur se lit sur le champ DÉDIÉ du modèle (les paramètres de tête vivent hors du JSON —
     repli du 2026-08-13, converter). `0` compris : une valeur nulle est un réglage non posé.
-    Accepte un schéma en dicts (`schema_to_dicts`) comme en `Param`."""
+    Accepte un schéma en dicts (`schema_to_dicts`) comme en `Param`.
+
+    La valeur est MONTRÉE comme sur la card (`card_chips.display_value`, 2026-11-19, décision de
+    Fabien : « un alignement parfait » des chips de la card et de la section INFOS) — le libellé de
+    l'option choisie, une durée en horloge, un nombre avec son unité ; une case cochée reste `True`
+    (le volet écrit « Oui » en regard de son libellé)."""
+    from wama.common.utils.card_chips import display_value
     out = {}
     excluded = set(skip) | set(RENDERED_BY_BACKBONE)
     for p in schema:
-        read = p.get if isinstance(p, dict) else (lambda key, _p=p: getattr(_p, key, None))
-        name, label = read('name'), read('label')
+        field = p if isinstance(p, dict) else p.to_dict()
+        name, label = field.get('name'), field.get('label')
         if not name or not label or name in excluded:
             continue
         value = carrier.get(name) if carrier is not None else None
         if value in (None, '', False, 0):
             value = getattr(instance, name, None)
         if value not in (None, '', False, 0):
-            out[label] = value
+            out[label] = value if value is True else display_value(field, value, instance)
     return out
 
 

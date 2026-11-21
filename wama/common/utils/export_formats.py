@@ -323,6 +323,47 @@ def _own_formats(app_name: str, items) -> list:
     return found
 
 
+def step_outputs(item) -> list:
+    """Les FICHIERS que les étapes du pipeline de l'élément ont écrits (`ProcessSpec.outputs`) et
+    que le disque porte — `[{field, label, name, path}]` dans l'ordre du graphe ; `label` est celui
+    de l'étape. Offerts au ⬇ de la card à côté de son résultat (2026-11-19, décision de Fabien :
+    « avec tous les médias que porte la card, comment gère-t-on le bouton de téléchargement ? » —
+    il ne donnait que le rendu du cover). Un fichier de DONNÉES (un index JSON) n'est pas offert :
+    c'est une écriture interne de l'étape. `[]` sans pipeline."""
+    import os
+    from pathlib import Path
+    from django.conf import settings
+    from wama.common.services.process_pipeline import pipeline_of
+    try:
+        pipeline = pipeline_of(item)
+    except Exception:
+        return []
+    out = []
+    for spec in (pipeline.ordered() if pipeline is not None else ()):
+        for field in spec.outputs:
+            name = getattr(getattr(item, field, None), 'name', '') or ''
+            if not name or name.lower().endswith('.json'):
+                continue
+            path = Path(settings.MEDIA_ROOT) / name
+            if path.is_file():
+                out.append({'field': field, 'label': spec.label or spec.key,
+                            'name': os.path.basename(name), 'path': path})
+    return out
+
+
+def step_output_entries(item, url: str) -> list:
+    """Les entrées du menu ⬇ d'une card pour ses sorties d'étapes (`step_outputs`) : l'adresse de
+    téléchargement de l'élément avec `?output=<champ>`, que la vue commune sert
+    (`item_views.make_item_views` → `download`)."""
+    join = '&' if '?' in (url or '') else '?'
+    entries_ = [{'value': f"output:{o['field']}", 'label': f"{o['label']} — {o['name']}",
+                 'icon': 'fas fa-file-arrow-down', 'url': f"{url}{join}output={o['field']}"}
+                for o in step_outputs(item)] if url else []
+    if entries_:
+        entries_[0] = {**entries_[0], 'separator': True, 'heading': str(_('Sorties des étapes'))}
+    return entries_
+
+
 def result_pages(item) -> list:
     """Les fichiers résultats DÉCLARÉS de `item` (`send_to.result_paths`, la lecture du ZIP et
     d'« Envoyer vers ») quand ce sont TOUS des pages — images ou PDF —, sinon []."""

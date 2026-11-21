@@ -23,7 +23,7 @@ from pathlib import Path
 
 from django.conf import settings
 from django.template import Context, Template
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 from django.utils.http import content_disposition_header
 
 
@@ -204,6 +204,62 @@ class WhatAnItemCannotRenderIsDeclaredTest(SimpleTestCase):
     def test_no_card_writes_the_rule_by_hand_any_more(self):
         card = Path(settings.BASE_DIR, 'wama', 'reader', 'templates', 'reader', '_item_card.html')
         self.assertNotIn("'txt,md,pdf,docx'", card.read_text(encoding='utf-8'))
+
+
+class TheCardOffersTheOutputsOfItsStepsTest(TestCase):
+    """2026-11-19 (Fabien : « avec tous les médias que porte la card, comment on gère le bouton de
+    téléchargement ? Actuellement, le seul téléchargement possible est le rendu d'un cover ») : the
+    ⬇ of a card also offers the FILES its steps wrote (`ProcessSpec.outputs`, `export_formats.
+    step_outputs`), for every app with a pipeline — read from the card's element in the context,
+    nothing written in its template. A data file (an index) is not offered ; the common download
+    view serves a step output, and nothing the address would name otherwise."""
+
+    def setUp(self):
+        import shutil
+        import tempfile
+        from django.contrib.auth import get_user_model
+        from django.test import override_settings
+        self.media = tempfile.mkdtemp()
+        override = override_settings(MEDIA_ROOT=self.media)
+        override.enable()
+        self.addCleanup(override.disable)
+        self.addCleanup(shutil.rmtree, self.media, True)
+        self.user = get_user_model().objects.create_user('downloads_steps', password='x')
+        # The portal of the apps lets in a role that opens the composer (a test of a view goes
+        # THROUGH the gate, never around it).
+        from django.contrib.auth.models import Group
+        from wama.accounts.permissions import DEFAULT_APP_ACCESS, GROUP_PREFIX
+        for role in (DEFAULT_APP_ACCESS.get('composer') or {}).get('roles', []):
+            self.user.groups.add(Group.objects.get_or_create(name=f'{GROUP_PREFIX}{role}')[0])
+
+    def _card(self):
+        from wama.composer.models import ComposerGeneration
+        for rel, data in (('users/x/composer/output/remix_1.wav', b'RIFF'),
+                          ('users/x/composer/output/stems_1.json', b'{}')):
+            path = Path(self.media) / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(data)
+        return ComposerGeneration.objects.create(
+            user=self.user, prompt='p', remix_audio='users/x/composer/output/remix_1.wav',
+            stems_index='users/x/composer/output/stems_1.json')
+
+    def test_the_menu_offers_the_remix_and_the_view_serves_it(self):
+        from django.urls import reverse
+        gen = self._card()
+        url = reverse('composer:download', args=[gen.pk])
+        html = Template("{% load wama_actions %}{% download_button 'composer' u False %}").render(
+            Context({'u': url, 'elem': gen}))
+        self.assertIn(f'{url}?output=remix_audio', html, 'the step output, read from the context')
+        self.assertIn('Refusion des pistes', html, 'named by its step')
+        self.assertNotIn('output=stems_index', html, 'a data file is not offered')
+        self.assertNotIn('disabled', html.split('dropdown-menu')[0], 'something to download')
+        self.client.force_login(self.user)
+        served = self.client.get(url, {'output': 'remix_audio'})
+        self.assertEqual(200, served.status_code)
+        self.assertEqual(b'RIFF', b''.join(served.streaming_content))
+        for field in ('stems_index', 'prompt', 'user'):
+            with self.subTest(field=field):
+                self.assertEqual(404, self.client.get(url, {'output': field}).status_code)
 
 
 class PasDeDropdownReconstruitEnJSTests(SimpleTestCase):

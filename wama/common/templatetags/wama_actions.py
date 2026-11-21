@@ -25,9 +25,10 @@ def lot_combined(app, url, batch_info):
     return {'menu': lot_menu(app, url, works, (batch_info or {}).get('success_count') == len(works))}
 
 
-@register.inclusion_tag('common/_download_button.html')
-def download_button(app, url, ready, available=None, title=None, empty_title=None, css_class=None,
-                    html_id=None, label=None, split=True, item=None, queue=False, formats=None):
+@register.inclusion_tag('common/_download_button.html', takes_context=True)
+def download_button(context, app, url, ready, available=None, title=None, empty_title=None,
+                    css_class=None, html_id=None, label=None, split=True, item=None, queue=False,
+                    formats=None):
     """Rend le bouton ⬇ de l'app `app` selon `WAMA_APP_CONVENTIONS §6.3`.
 
     `url`       : URL de téléchargement SANS query (`{% url 'app:download' o.id %}`).
@@ -65,14 +66,35 @@ def download_button(app, url, ready, available=None, title=None, empty_title=Non
     `formats` (2026-11-10) : les entrées OFFERTES quand ce ne sont pas celles que l'app déclare au
     téléchargement — le menu d'un lot (`lot_combined`), archive et fichier unique ensemble : le PDF
     des pages d'une app early-binding, qui ne déclare aucun format de téléchargement.
+
+    `context` (2026-11-19) : la card qui rend le bouton y tient son élément (`elem`) — les FICHIERS que
+    ses étapes ont écrits s'ajoutent au menu (`export_formats.step_output_entries`, décision de
+    Fabien : « avec tous les médias que porte la card, comment gère-t-on le bouton de
+    téléchargement ? »), pour toute app à pipeline, sans rien écrire dans son gabarit. Une barre de
+    file (`queue`, `split=False`) n'en reçoit pas.
     """
-    from wama.common.utils.export_formats import available_formats, entries, entries_for_app
+    from django.utils.translation import gettext as _t
+    from wama.common.utils.export_formats import (available_formats, entries, entries_for_app,
+                                                  step_output_entries)
     if available is None and item is not None:
         available = available_formats(app, item)
+    shown = entries(formats) if formats is not None else entries_for_app(app, available)
+    element = item if item is not None else context.get('elem')
+    steps = (step_output_entries(element, url)
+             if element is not None and split and not queue and formats is None else [])
+    if steps:
+        # Le premier format déclaré reste le geste du bouton ; sans format déclaré, le résultat
+        # lui-même (l'adresse nue), quand il existe ; sinon la première sortie d'étape.
+        result = [{'value': '', 'label': str(_t('Résultat')), 'icon': 'fas fa-download',
+                   'url': url}] if ready else []
+        head = shown if (shown and ready) else result
+        if not head:                            # rien au-dessus : pas de trait de séparation
+            steps = [{**steps[0], 'separator': False}] + steps[1:]
+        shown = head + steps
     return {
         'url': url,
-        'ready': bool(ready),
-        'formats': entries(formats) if formats is not None else entries_for_app(app, available),
+        'ready': bool(ready) or bool(steps),
+        'formats': shown,
         'title': title,
         'empty_title': empty_title,
         'css_class': css_class,

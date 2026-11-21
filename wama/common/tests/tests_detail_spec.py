@@ -316,13 +316,15 @@ class PortedAppsSayWhatTheirAdaptersSaidTest(SimpleTestCase):
         from wama.imager.params import IMAGE_PARAMS_JSON, VIDEO_PARAMS_JSON
         image_label = {p['name']: p['label'] for p in IMAGE_PARAMS_JSON}
         video_label = {p['name']: p['label'] for p in VIDEO_PARAMS_JSON}
-        self.assertEqual(3, image['extra'][image_label['num_images']])
+        # As the card shows it (`card_chips.display_value`, 2026-11-19) : the label of its option.
+        self.assertEqual('3', str(image['extra'][image_label['num_images']]))
         self.assertNotIn(video_label['video_fps'], image['extra'], 'an image shows no VIDEO setting')
         video = self._detail('imager', generation_mode='txt2vid', model='ltx', prompt='x',
                              output_video='i/v.mp4', num_images=3, video_fps=24)
         self.assertEqual(('video', 'video'), (video['source_type'], video['result_role']))
         self.assertIn('v.mp4', video['result_file'])
-        self.assertEqual(24, video['extra'][video_label['video_fps']], 'a video shows its VIDEO settings')
+        self.assertEqual('24', str(video['extra'][video_label['video_fps']]).split()[0],
+                         'a video shows its VIDEO settings')
         self.assertNotIn(image_label['num_images'], video['extra'])
 
     def test_the_audio_enhancer_reads_its_named_schema(self):
@@ -400,6 +402,29 @@ class AFactIsShownOnceTest(SimpleTestCase):
                   Param(name='output_format', type='select', label='Format')]
         self.assertEqual({'Débruitage': True},
                          settings_from_schema(_element(denoise=True, output_format='png'), schema))
+
+    def test_a_setting_reads_in_the_panel_as_on_the_card(self):
+        """2026-11-19 (Fabien : « régler les écarts entre les chips affichées sur la card et celles
+        qui vivent dans la section INFOS du volet […] un alignement parfait ») : ONE writing of a
+        setting's value (`card_chips.display_value`) — the label of the chosen option, a duration in
+        its declared format, a number with its unit. The card « 1:35 » and the panel « 95 » before.
+        Only a number WITHOUT unit differs on purpose : the chip names it, the panel shows its label
+        next to it."""
+        from types import SimpleNamespace
+        from wama.common.utils.card_chips import chips_for
+        from wama.common.utils.detail_registry import settings_from_schema
+        schema = [{'name': 'duration', 'label': 'Durée', 'type': 'range', 'unit': 's',
+                   'display_format': 'duration', 'chip': True},
+                  {'name': 'mode', 'label': 'Mode', 'type': 'select', 'chip': True,
+                   'choices': [('fast', 'Rapide'), ('slow', 'Lent')]},
+                  {'name': 'speed', 'label': 'Vitesse', 'type': 'number', 'unit': 'x', 'chip': True},
+                  {'name': 'steps', 'label': 'Étapes', 'type': 'number', 'chip': True}]
+        element = SimpleNamespace(duration=95, mode='fast', speed=1.5, steps=30)
+        panel = settings_from_schema(element, schema)
+        card = {chip['title']: chip['label'] for chip in chips_for(element, schema)}
+        self.assertEqual({'Durée': '1:35', 'Mode': 'Rapide', 'Vitesse': '1.5 x', 'Étapes': 30}, panel)
+        self.assertEqual({'Durée': '1:35', 'Mode': 'Rapide', 'Vitesse': '1.5 x', 'Étapes': 'Étapes 30'},
+                         card)
 
     def test_no_registered_detail_repeats_a_canonical_value_as_a_setting(self):
         """Both ways — spec and code adapter — on every registered app, with a witness element."""

@@ -338,10 +338,15 @@ cam_analyzer. L'imager perd son ALIAS `duration_display` du temps de traitement,
 comme la durée de l'entrée. Garde : `tests_display_format.OneWritingOfADurationTest` (jumelles côte à
 côte, troncature, SRT à l'octet, aucune durée écrite à la main hors de la brique — restes déclarés :
 aucun ; les jumelles de bac à sable suivent à leur régénération).
-⏳ **Reste — temps 2, l'alignement card ↔ volet** : la mise en forme d'une valeur de réglage vit DANS
-`card_chips.chips_for` (options, catalogue, voix, unités, `display_format`) ; la section INFOS
-(`detail_registry.settings_from_schema`, liste `extra`) montre les mêmes réglages BRUTS. À extraire en
-une fonction commune que les deux lisent. ⏳ Les textes de console (« 12.3s » des tâches) et la page
+✅ **Temps 2, l'alignement card ↔ volet — livré le même jour** : la mise en forme d'une valeur de
+réglage, qui vivait DANS `card_chips.chips_for`, en est sortie en une fonction commune,
+`card_chips.display_value` (libellé de l'option — plaques, catalogue, voix —, format déclaré, unité) ;
+les chips ET la liste « Réglages » de la section INFOS (`detail_registry.settings_from_schema`) la
+lisent. Seul écart VOULU : un nombre sans unité se préfixe de son libellé sur la card (« Étapes 30 »),
+le volet ayant déjà le libellé en regard. Garde : `tests_detail_spec.AFactIsShownOnceTest.
+test_a_setting_reads_in_the_panel_as_on_the_card` (contre-épreuve : valeurs brutes au volet → rouge).
+⏳ La liste `extra` d'une spec de détail (`register_app_detail_spec`) reste une seconde déclaration
+de CE QUI se montre (pas de sa forme) : à confronter aux champs `chip=True` du schéma, app par app. ⏳ Les textes de console (« 12.3s » des tâches) et la page
 d'administration des apps (`apps.html`, médiane en secondes) restent à porter.
 
 ---

@@ -164,66 +164,18 @@ def chips_for(instance, params_json, extra=None, values=None):
         # chip_label permet un libellé court : « Diarisation » plutôt que « Identifier les
         # locuteurs », qui tiendrait mal dans une piste. Le libellé complet reste au title.
         libelle = field.get('chip_label') or field.get('label') or name
-        display = value
         if value is True:
             # Une case cochée s'affiche par son NOM (le réglage est actif) ; décochée, elle ne
             # produit aucun chip (filtré plus haut) — une card ne liste pas ce qui est inactif.
             display = libelle
         else:
-            # choices Django = [(value, label), …] (schema_to_dicts) ; options = [{value,label}]
-            # (fallback) ; option_groups = [(groupe, [(v, l), …]), …] — l'enhancer ne déclare
-            # QUE par groupes : les ignorer rendait son format « non résolu » (audit 31/08).
-            _plates = list(field.get('choices') or []) + list(field.get('options') or [])
-            for _g in field.get('option_groups') or []:
-                _plates += list((_g[1] if isinstance(_g, (list, tuple)) else _g.get('options')) or [])
-            # Options tirées du CATALOGUE (`options_source: 'catalog'`, route F4b) : le schéma
-            # ne porte plus AUCUNE plaque — c'est tout l'intérêt du portage. Sans résolution
-            # ici, le chip retombait sur la valeur NUE et la card affichait la clé technique
-            # `synthesizer:coqui-xtts` au lieu de « Coqui XTTS v2 » (constat Fabien, cards
-            # 307/309/310). C'est exactement le geste que le commentaire ci-dessous prescrit
-            # depuis l'audit du 31/08 : RÉSOUDRE, jamais préfixer.
-            # Générique par construction : on n'interroge que ce que le SCHÉMA déclare
-            # (`options_query`), la brique ne connaît ni le TTS ni aucune app. Le résultat est
-            # mémoïsé par domaine — une file de 50 cards ne fait pas 50 requêtes.
-            # ⚠ JOINT SANS CONDITION depuis le 2026-09-08, comme les voix ci-dessous. La
-            # garde `not _plates` supposait qu'un champ porte SOIT des plaques statiques,
-            # SOIT le catalogue. Les portages F4b du jour (reader, enhancer) font les deux :
-            # les `choices` du modèle restent le REPLI rendu avant la réponse de la requête,
-            # et le catalogue est la liste servie. Avec la garde, un modèle installé APRÈS
-            # coup — le cas même que la route F4b existe pour rendre choisissable — se serait
-            # affiché en clé technique sur la card, jamais par son nom. Les plaques statiques
-            # gardent la PRIORITÉ (premier match) : aucun libellé existant ne change.
-            if field.get('options_source') == 'catalog':
-                _plates += _inventaire_catalogue(field.get('options_query') or {})
-            # Voix par utilisateur (`options_source: 'voices'`) : les valeurs `ua_` ne
-            # sont dans AUCUNE plaque statique — sans cette résolution le chip affichait
-            # l'identifiant brut. Joint APRÈS les plaques du champ (un preset statique garde
-            # son libellé d'origine) et sans condition `not _plates` : le champ voix PORTE
-            # des plaques statiques, elles sont juste incomplètes. Coût : une résolution par
-            # utilisateur et par 30 s (mémo), quelle que soit la taille de la file.
-            if field.get('options_source') == 'voices':
-                _plates += _inventaire_voix(getattr(instance, 'user', None))
-            for opt in _plates:
-                ov, ol = (opt if isinstance(opt, (list, tuple)) else (opt.get('value'), opt.get('label')))
-                if str(ov) == str(value):
-                    display = ol or value
-                    break
-            else:
-                if field.get('type') in ('number', 'range'):
-                    # SEUL cas légitimement préfixé/suffixé : « 85 » nu ne dit rien (constat
-                    # Fabien 31/08 — la card disait « 85 », l'inspecteur « Qualité 85 »).
-                    unit = field_unit(field)
-                    display = f"{value} {unit}" if unit else f"{libelle} {value}"
-                    # FORMAT DÉCLARÉ (`display_format`, 2026-10-04) : « 3:30 » plutôt que
-                    # « 210 s » — le même formateur que le curseur (jumeau Python).
-                    if field.get('display_format'):
-                        from wama.common.utils.param_schema import format_display
-                        display = format_display(value, field['display_format']) or display
-                # ⚠ Un select/text NON résolu reste NU : le préfixer produisait « Format de
-                # sortie mp4 » sur la SORTIE du converter et « Moteur de transcription
-                # faster-whisper-large-v3 » chez transcriber (régressions R1/R3 de l'audit
-                # 31/08). Le geste juste est de RÉSOUDRE (options_source côté vue), pas de
-                # préfixer — le libellé complet reste au title du chip.
+            display = display_value(field, value, instance)
+            if (display == value and field.get('type') in ('number', 'range')
+                    and not field_unit(field)):
+                # SEUL cas légitimement préfixé : « 85 » nu ne dit rien sur une card (constat de
+                # Fabien, 31/08 — la card disait « 85 », l'inspecteur « Qualité 85 ») ; le volet,
+                # lui, a le libellé en regard.
+                display = f"{libelle} {value}"
         chips.append({
             'label': str(display),
             'icon': field.get('icon') or '',
@@ -240,6 +192,69 @@ def chips_for(instance, params_json, extra=None, values=None):
             c.setdefault('section', 'settings')
         chips.extend(extra)
     return chips
+
+
+def display_value(field, value, instance=None):
+    """La valeur d'un réglage telle que WAMA la MONTRE — UNE écriture pour les chips de la card et
+    la section INFOS du volet (`detail_registry.settings_from_schema`, 2026-11-19, décision de
+    Fabien : « régler les écarts entre les chips de la card et celles de la section INFOS […] un
+    alignement parfait »). Le LIBELLÉ de l'option choisie (plaques du schéma, catalogue, voix de
+    l'utilisateur) ; un nombre dans son FORMAT déclaré (`display_format` : « 3:30 ») ou avec son
+    unité ; la valeur telle quelle sinon (jamais préfixée : c'est à l'appelant de nommer).
+    `field` : un réglage du schéma SÉRIALISÉ (`Param.to_dict`)."""
+    # choices Django = [(value, label), …] (schema_to_dicts) ; options = [{value,label}]
+    # (fallback) ; option_groups = [(groupe, [(v, l), …]), …] — l'enhancer ne déclare
+    # QUE par groupes : les ignorer rendait son format « non résolu » (audit 31/08).
+    _plates = list(field.get('choices') or []) + list(field.get('options') or [])
+    for _g in field.get('option_groups') or []:
+        _plates += list((_g[1] if isinstance(_g, (list, tuple)) else _g.get('options')) or [])
+    # Options tirées du CATALOGUE (`options_source: 'catalog'`, route F4b) : le schéma
+    # ne porte plus AUCUNE plaque — c'est tout l'intérêt du portage. Sans résolution
+    # ici, le chip retombait sur la valeur NUE et la card affichait la clé technique
+    # `synthesizer:coqui-xtts` au lieu de « Coqui XTTS v2 » (constat Fabien, cards
+    # 307/309/310). C'est exactement le geste que le commentaire ci-dessous prescrit
+    # depuis l'audit du 31/08 : RÉSOUDRE, jamais préfixer.
+    # Générique par construction : on n'interroge que ce que le SCHÉMA déclare
+    # (`options_query`), la brique ne connaît ni le TTS ni aucune app. Le résultat est
+    # mémoïsé par domaine — une file de 50 cards ne fait pas 50 requêtes.
+    # ⚠ JOINT SANS CONDITION depuis le 2026-09-08, comme les voix ci-dessous. La
+    # garde `not _plates` supposait qu'un champ porte SOIT des plaques statiques,
+    # SOIT le catalogue. Les portages F4b du jour (reader, enhancer) font les deux :
+    # les `choices` du modèle restent le REPLI rendu avant la réponse de la requête,
+    # et le catalogue est la liste servie. Avec la garde, un modèle installé APRÈS
+    # coup — le cas même que la route F4b existe pour rendre choisissable — se serait
+    # affiché en clé technique sur la card, jamais par son nom. Les plaques statiques
+    # gardent la PRIORITÉ (premier match) : aucun libellé existant ne change.
+    if field.get('options_source') == 'catalog':
+        _plates += _inventaire_catalogue(field.get('options_query') or {})
+    # Voix par utilisateur (`options_source: 'voices'`) : les valeurs `ua_` ne
+    # sont dans AUCUNE plaque statique — sans cette résolution le chip affichait
+    # l'identifiant brut. Joint APRÈS les plaques du champ (un preset statique garde
+    # son libellé d'origine) et sans condition `not _plates` : le champ voix PORTE
+    # des plaques statiques, elles sont juste incomplètes. Coût : une résolution par
+    # utilisateur et par 30 s (mémo), quelle que soit la taille de la file.
+    if field.get('options_source') == 'voices':
+        _plates += _inventaire_voix(getattr(instance, 'user', None))
+    for opt in _plates:
+        ov, ol = (opt if isinstance(opt, (list, tuple)) else (opt.get('value'), opt.get('label')))
+        if str(ov) == str(value):
+            return ol or value
+    if field.get('type') in ('number', 'range'):
+        # FORMAT DÉCLARÉ (`display_format`, 2026-10-04) : « 3:30 » plutôt que « 210 s » — le
+        # même formateur que le curseur (jumeau Python) ; sinon l'unité.
+        if field.get('display_format'):
+            from wama.common.utils.param_schema import format_display
+            formatted = format_display(value, field['display_format'])
+            if formatted:
+                return formatted
+        unit = field_unit(field)
+        if unit:
+            return f"{value} {unit}"
+    # ⚠ Un select/text NON résolu reste NU : le préfixer produisait « Format de sortie mp4 » sur
+    # la SORTIE du converter et « Moteur de transcription faster-whisper-large-v3 » chez
+    # transcriber (régressions R1/R3 de l'audit 31/08). Le geste juste est de RÉSOUDRE
+    # (options_source côté vue), pas de préfixer — le libellé complet reste au title du chip.
+    return value
 
 
 def input_props_for(instance, file_field='input_file', name=''):

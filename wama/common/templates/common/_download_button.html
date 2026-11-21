@@ -85,7 +85,7 @@ pas en profiter pour le changer.
   </a>
 {% else %}
   <div class="btn-group btn-group-sm">
-    <a{% if id %} id="{{ id }}"{% endif %} href="{{ url }}{{ join }}format={{ formats.0.value }}"
+    <a{% if id %} id="{{ id }}"{% endif %} href="{% if formats.0.url %}{{ formats.0.url }}{% else %}{{ url }}{{ join }}format={{ formats.0.value }}{% endif %}"
        class="btn {{ css_class|default:'btn-outline-info' }} download-btn"
        title="{{ title|default:_('Télécharger') }}">
       <i class="fas fa-download"></i>{% if label %} <span class="wama-btn-label">{{ label }}</span>{% endif %}
@@ -96,10 +96,13 @@ pas en profiter pour le changer.
       <span class="visually-hidden">{% trans "Autres formats" %}</span>
     </button>
     <ul class="dropdown-menu dropdown-menu-end">
+      {% comment %}Comme le menu seul : une entrée peut porter son adresse (`url` — une sortie
+      d'étape, `?output=`, 2026-11-19) et un titre de section (`heading`).{% endcomment %}
       {% for f in formats %}
         {% if f.separator %}<li><hr class="dropdown-divider"></li>{% endif %}
+        {% if f.heading %}<li><h6 class="dropdown-header">{{ f.heading }}</h6></li>{% endif %}
         <li>
-          <a class="dropdown-item" href="{{ url }}{{ join }}format={{ f.value }}">
+          <a class="dropdown-item" href="{% if f.url %}{{ f.url }}{% else %}{{ url }}{{ join }}format={{ f.value }}{% endif %}">
             <i class="{{ f.icon }} me-2"></i>{{ f.label }}
           </a>
         </li>
