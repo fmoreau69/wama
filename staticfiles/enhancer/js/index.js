@@ -298,25 +298,9 @@ document.addEventListener('DOMContentLoaded', function () {
   // (Barre globale + ETA : brique commune wama-global-progress.js. La copie locale, neutralisée
   // par un `return` et pourtant rappelée toutes les 2 s, est retirée le 2026-10-13.)
 
-  // === Import par URL : le FORMALISME COMMUN (2026-09-08) ===
-  // Même reste de portage que l'anonymizer : ce JS postait `media_url` à la vue d'upload
-  // (téléchargement À L'IMPORT, bouton bloqué le temps du transfert — d'où le skip nocturne
-  // « l'app RÉSOUT l'URL à l'import »). Désormais comme les autres apps : l'URL = un lot d'une
-  // ligne, `batch_create` la stocke en `source_url` (`WAMA_INGEST` sur `Enhancement`) et
-  // `ensure_local_input` la télécharge AU LANCEMENT. `initUrlImport` (commun) porte champ,
-  // bouton, touche Entrée, spinner, vidage et erreurs.
-  function initUrlUpload() {
-    if (!window.WamaApp || !WamaApp.initUrlImport) return;
-    WamaApp.initUrlImport({
-      inputId: 'enhancerUrlInput',
-      buttonId: 'enhancerUrlSubmit',
-      onEmpty: function () { WamaApp.toast('Veuillez entrer une URL de média.', 'warning'); },
-      onSubmit: function (url) {
-        if (!window._batchImport) throw new Error("Import batch non initialisé");
-        return window._batchImport.ingestText(url + '\n', 'url.txt');
-      },
-    });
-  }
+  // (Import par URL : câblé par la card d'entrée commune depuis le 2026-11-23 — `wama-input-slots.js`,
+  // l'URL = un lot d'une ligne à la barre de SA card, l'image-vidéo comme l'audio ; `batch_create`
+  // la range en `source_url`, `WAMA_INGEST` de son modèle.)
 
   // « Réinitialiser » : les défauts du SCHÉMA du domaine affiché (brique commune applyDefaults,
   // comme le transcriber et le synthesizer), posés par l'applicateur de son inspecteur — il émet
@@ -340,7 +324,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Initialize
   initImport();
-  initUrlUpload();
   initExistingRows();
   bindRowActions(document);
 

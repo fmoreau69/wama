@@ -250,24 +250,8 @@ l'exclusivité inter-onglets fait taire SON PROPRE onglet ~2 ms après chaque pl
 <script src="{% static_v 'converter/js/converter.js' %}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    // ── Import par URL (carte d'entrée) : réutilise le FORMALISME BATCH commun.
-    // L'URL est traitée comme un batch d'1 ligne → même parseur (batch_parsers :
-    // URL/prompt/csv/séparateur) → même consolidation en card unité/batch. Aucune
-    // route serveur dédiée. initUrlImport (commun) gère input/bouton/Entrée/spinner ;
-    // ingestText (commun) enveloppe l'URL et la pousse dans le pipeline batch.
-    // Placé AVANT le garde WamaInspector pour ne pas être court-circuité.
-    if (window.WamaApp) {
-        WamaApp.initUrlImport({
-            inputId: 'converterUrl',
-            buttonId: 'converterUrlSubmit',
-            onSubmit: function (url) {
-                if (!window._converterBatchImport) {
-                    throw new Error("Import batch non initialisé");
-                }
-                return window._converterBatchImport.ingestText(url + '\n', 'url.txt');
-            },
-        });
-    }
+    // (Import par URL : câblé par la card d'entrée commune depuis le 2026-11-23 —
+    // `wama-input-slots.js`, l'URL = un lot d'une ligne à la barre de la card.)
 
     if (!window.WamaInspector || !WamaInspector.initFromSchema) return;
     var q = document.getElementById('converterQueue');

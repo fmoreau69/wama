@@ -1679,7 +1679,8 @@ MECHANISMS = (
               "2026-10-20 : `download_to_user`, l'URL d'une entrée qui n'est pas encore une card "
               "(card d'entrée du Studio) — mêmes primitives, déposée dans l'espace du compte "
               "comme un fichier du gestionnaire ; `declared_mode`, le mode que l'app destinataire "
-              "DÉCLARE dans son `WAMA_INGEST`",
+              "DÉCLARE dans son `WAMA_INGEST` ; `domain_ingest` / `port_url_source` (2026-11-23), "
+              "la déclaration du domaine d'une card et le port qui offre l'URL",
               'wama/common/utils/source_ingest.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/utils/url_ingest.py',)),
     # Garde de SORTIE, distincte de l'ingest : l'ingest sait CHERCHER, celle-ci dit OÙ il a le
@@ -2890,7 +2891,9 @@ MECHANISMS = (
               "médiathèque, lot, dossier, live + slot de référence typé (extra_zone) — "
               "auto-init. v4 : un onglet par PORT, ses tuiles dans un ordre CONSTANT sur tous les "
               "ports — Importer · Médiathèque · URL, du plus proche au plus distant (Fabien, "
-              "2026-10-01, `CARD_DESIGN §11.11 B`)",
+              "2026-10-01, `CARD_DESIGN §11.11 B`). L'URL du port principal se DÉRIVE de "
+              "`WAMA_INGEST` du modèle du domaine (`source_ingest.port_url_source`, 2026-11-23) ; "
+              "la card qui crée câble son bouton (`wama-input-slots.js`, un lot d'une ligne)",
               'wama/common/static/common/js/wama-new-item-card.js', 'docs/construction/ui/MODES_QUEUE_UX.md',
               annexes=('wama/common/templates/common/_new_item_card.html',
                        'wama/common/templates/common/_new_item_card_v4.html')),

@@ -103,24 +103,8 @@ document.addEventListener('DOMContentLoaded', function () {
   // initUpload / initDragDrop SUPPRIMÉS (2026-09-07) : sélecteur de fichiers, zone de dépôt
   // (clic, survol, drop récursif) et sélecteur de dossier sont câblés par WamaImport (initImport).
 
-  function initYoutube() {
-    // Import par URL : réutilise le FORMALISME BATCH commun (comme converter et
-    // describer). L'URL (YouTube/Vimeo…, lien direct audio/vidéo, ou chemin de
-    // fichier accessible au serveur) = un batch d'1 ligne → même parseur +
-    // consolidation. Le téléchargement (audio pour les plateformes média) se fait
-    // au démarrage de la tâche (common ensure_local_input). initUrlImport
-    // (commun) gère input/bouton/Entrée/spinner ; ingestText (commun) pousse dans
-    // le pipeline batch. Plus de champ 'youtube_url' ni d'endpoint dédié.
-    WamaApp.initUrlImport({
-      inputId: 'youtubeUrl',
-      buttonId: 'youtubeSubmitBtn',
-      onEmpty: function () { showToast('Veuillez entrer une URL', 'warning'); },
-      onSubmit: function (url) {
-        if (!window._batchImport) throw new Error("Import batch non initialisé");
-        return window._batchImport.ingestText(url + '\n', 'url.txt');
-      },
-    });
-  }
+  // (Import par URL : câblé par la card d'entrée commune depuis le 2026-11-23 —
+  // `wama-input-slots.js`, l'URL = un lot d'une ligne ; `initYoutube` est retiré.)
 
   // ======================================================================
   // Card rendering
@@ -702,7 +686,6 @@ document.addEventListener('DOMContentLoaded', function () {
   // own filling (`loadBackendsAsync` + its `/transcriber/backends/` endpoint) is gone.
 
   initImport();
-  initYoutube();
   initExistingCards();
   initSpeech();
   initBulkActions();

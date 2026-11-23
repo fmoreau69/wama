@@ -1171,7 +1171,8 @@
    *    ports:        [{inputId, field, urlField, urlInputId}] — fichier joint OU désigné
    *                  (`appendInput`) ; sans fichier, l'URL du port est postée sous `urlField`.
    *                  Le champ URL est `urlInputId`, sinon le `[data-port-url]` de l'onglet du
-   *                  port. Un port SANS `urlField` dont l'URL est remplie est REFUSÉ, avec le
+   *                  port ; à défaut d'`urlField`, le `data-port-url-field` que la card pose sur
+   *                  ce champ (la source de `WAMA_INGEST`). Un port SANS aucun des deux dont l'URL est remplie est REFUSÉ, avec le
    *                  motif : une URL ignorée en silence est le pire des cas ;
    *                  `'card'` (2026-10-05) : les ports LUS sur la card d'entrée v4 du bouton
    *                  (`[data-wama-ports]`), relus à chaque envoi — un onglet par port, chacun posté
@@ -1258,7 +1259,10 @@
         const url = urlOf(port);
         const value = url && url.value.trim();
         if (!value) return;
-        if (port.urlField) fd.append(port.urlField, value);
+        // Le champ qui GARDE l'URL : celui que l'app passe, sinon celui que la card DÉCLARE sur son
+        // champ (`data-port-url-field`, la source de `WAMA_INGEST`, 2026-11-23).
+        const keeps = port.urlField || (url.dataset && url.dataset.portUrlField);
+        if (keeps) fd.append(keeps, value);
         else refusal = refusal || ("Cette app ne télécharge pas encore depuis une URL : importez le "
                                    + "fichier ou prenez-le dans la médiathèque.");
       });

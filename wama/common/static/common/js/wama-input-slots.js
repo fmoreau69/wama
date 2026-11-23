@@ -298,9 +298,35 @@
         if (back) back.addEventListener('click', function () { showFace(pane, 'mods'); });
     }
 
+    /** URL du port principal d'une card qui CRÉE (2026-11-23) — l'URL est un lot d'UNE ligne,
+     *  remis à la brique de lot de CETTE card (`data-url-lot`, la base d'ids de sa barre), comme le
+     *  pane Lot : même parseur, même `batch_create`, qui range l'adresse dans la source que le
+     *  modèle déclare (`WAMA_INGEST`). `WamaApp.initUrlImport` porte champ, bouton, Entrée,
+     *  spinner, vidage et erreurs. Six apps et le générateur écrivaient ce câblage chacun. */
+    function wireUrl(card) {
+        var app = global.WamaApp;
+        if (!app || !app.initUrlImport) return;
+        card.querySelectorAll('[data-url-lot]').forEach(function (btn) {
+            if (!btn.id || !btn.dataset.urlInput) return;
+            var base = btn.dataset.urlLot || 'batch';
+            app.initUrlImport({
+                inputId: btn.dataset.urlInput,
+                buttonId: btn.id,
+                onEmpty: function () { if (app.toast) app.toast('Veuillez entrer une URL.', 'warning'); },
+                onSubmit: function (url) {
+                    var lots = global.WamaBatchImport && global.WamaBatchImport.instances;
+                    var batch = lots && lots[base];
+                    if (!batch || !batch.ingestText) throw new Error("L'import de lot n'est pas branché sur cette page.");
+                    return batch.ingestText(url + '\n', 'url.txt');
+                },
+            });
+        });
+    }
+
     function wire(card) {
         if (card.dataset.slotsWired === '1') return;
         card.dataset.slotsWired = '1';
+        wireUrl(card);
         card.querySelectorAll('[data-port-tab]').forEach(function (tab) {
             tab.addEventListener('click', function (e) {
                 e.stopPropagation();   // ne pas replier la card

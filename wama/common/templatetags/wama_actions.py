@@ -416,7 +416,9 @@ def input_slots(app, domain=None):
                     à la card et donc parfois fausse) ;
       - `folder`  : seulement si le port est `multi` — importer un dossier dans un slot qui
                     n'accepte qu'un fichier n'a aucun sens ;
-      - `url`     : sur tout port FICHIER (l'ingest distant est commun, `ensure_local_input`) ;
+      - `url`     : sur le port de travail PRINCIPAL quand le modèle du domaine déclare l'ingest
+                    distant à sa nature (`source_ingest.port_url_source`, 2026-11-23) — une
+                    référence garde son champ URL, lu à l'ajout (`[data-port-url]`) ;
       - `live`    : la CAPACITÉ d'app `has_live_input` (`app_registry.app_has_live_input`,
                     2026-09-28) — déclarée au catalogue, lue ici ; plus de littéral `show_live`
                     passé par la page.
@@ -473,6 +475,7 @@ def input_slots(app, domain=None):
 
     from wama.common.app_registry import entry_form, port_accept
     from wama.common.utils.app_modes import library_nature_for
+    from wama.common.utils.source_ingest import port_url_source
     slots = CardSlots()
     # La forme d'entrée se lit sur les ports de CETTE card, avec l'obligation de son domaine — celle
     # que les onglets affichent ; un port que l'union du domaine ne nomme pas garde la sienne.
@@ -542,6 +545,11 @@ def input_slots(app, domain=None):
             # lequel GUIDERA. Vide tant que le gabarit ne l'affiche pas : ajout additif.
             'description': textes.get(port.get('id'), '') or port.get('description', ''),
             'modalities': mods,
+            # L'import par URL du port PRINCIPAL suit la déclaration `WAMA_INGEST` du modèle de ce
+            # domaine (`source_ingest.port_url_source`, `WAMA_APP_CONVENTIONS §URL`) — plus le
+            # littéral `url_input_id` d'une page, que trois cards réelles ne passaient pas
+            # (2026-11-23). La valeur est le champ qui GARDE l'URL ('' : pas d'URL ici).
+            'url': port_url_source(app, domain, types) if primary else '',
         })
     from wama.common.app_registry import app_has_live_input
     if app_has_live_input(app):

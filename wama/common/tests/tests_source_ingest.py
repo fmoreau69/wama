@@ -279,6 +279,106 @@ class EveryIngestingModelIsWiredTest(SimpleTestCase):
                 self.assertIn('derive', model.WAMA_INGEST)
 
 
+class TheEntryCardFollowsTheIngestOfItsModelTest(TestCase):
+    """`WAMA_APP_CONVENTIONS §URL` : la card d'import URL suit la DÉCLARATION — `WAMA_INGEST` du
+    modèle du domaine de la card, à la nature de son port (`source_ingest.port_url_source`) —,
+    jamais un littéral de page (2026-11-23 : le reader et l'audio de l'enhancer ne l'offraient pas,
+    `synthesizer_01` l'offrait sur son port de TEXTE alors que son modèle télécharge une voix). Une
+    card qui CRÉE câble elle-même son bouton ; une card qui JOINT déclare où l'URL se garde."""
+
+    def _cards(self):
+        from django.conf import settings
+        from pathlib import Path
+        from wama.common.utils import app_modes
+        for app in sorted(p.name for p in (Path(settings.BASE_DIR) / 'wama').iterdir()
+                          if (p / 'templates' / p.name / 'index.html').exists()):
+            for dom in [d.get('id') for d in app_modes.get_domains(app)]:
+                yield app, dom
+
+    def test_a_mode_that_names_its_nature_offers_the_url_only_on_a_port_of_that_nature(self):
+        with mock.patch.object(source_ingest, 'domain_ingest',
+                               return_value={'source': 'source_url', 'mode': 'audio'}):
+            self.assertEqual('', source_ingest.port_url_source('x', None, ['document']))
+            self.assertEqual('source_url', source_ingest.port_url_source('x', None, ['audio']))
+        with mock.patch.object(source_ingest, 'domain_ingest',
+                               return_value={'source': 'remote', 'mode': 'smart'}):
+            self.assertEqual('remote', source_ingest.port_url_source('x', None, ['document']))
+        with mock.patch.object(source_ingest, 'domain_ingest', return_value=None):
+            self.assertEqual('', source_ingest.port_url_source('x', None, ['image']))
+
+    def test_the_card_of_a_domain_reads_the_model_of_that_domain(self):
+        from wama.enhancer.models import AudioEnhancement
+        self.assertIs(AudioEnhancement.WAMA_INGEST, source_ingest.domain_ingest('enhancer', 'audio'))
+
+    def test_every_rendered_card_offers_the_url_its_model_gives(self):
+        from django.template.loader import render_to_string
+        from wama.common.templatetags.wama_actions import input_slots
+        seen = 0
+        for app, dom in self._cards():
+            ports = input_slots(app, dom)
+            primary = next((p for p in ports if p.get('primary')), None)
+            if primary is None:
+                continue
+            seen += 1
+            html = render_to_string('common/_new_item_card_v4.html', {
+                'app_id': app, 'card_domain': dom, 'card_id': 'c', 'file_input_id': 'f',
+                'drop_zone_id': 'z', 'batch_bid': 'b'})
+            with self.subTest(app=app, domain=dom):
+                source = primary.get('url')
+                self.assertEqual(bool(source), 'id="c-url"' in html)
+                if source and ports.entry.get('drop_creates'):
+                    self.assertIn('data-url-lot="b" data-url-input="c-url"', html)
+                elif source:
+                    self.assertIn(f'data-port-url-field="{source}"', html)
+                    self.assertNotIn('data-url-lot', html)
+        self.assertGreater(seen, 10, 'aucune card mesurée : garde à blanc')
+
+    def test_no_page_wires_the_url_field_itself(self):
+        """La card câble son URL (`wama-input-slots.js`) : un câblage d'app en plus enverrait
+        l'URL DEUX fois. Six apps et le générateur l'écrivaient chacun."""
+        import re
+        from django.conf import settings
+        from pathlib import Path
+        call = re.compile(r'initUrlImport\s*\(')
+        root = Path(settings.BASE_DIR) / 'wama'
+        found = [str(p.relative_to(root)) for p in list(root.glob('*/static/**/*.js'))
+                 + list(root.glob('*/templates/**/*.html'))
+                 if not p.relative_to(root).parts[0] == 'common'
+                 and call.search(p.read_text(encoding='utf-8', errors='ignore'))]
+        self.assertEqual([], found)
+
+    def test_the_card_hands_the_url_to_the_batch_bar_it_names(self):
+        """V8 : le bouton porte la base de SA barre (`data-url-lot`) ; l'URL part en lot d'une ligne
+        à cette instance-là, une autre barre de la page n'est pas touchée."""
+        from django.conf import settings
+        from pathlib import Path
+        from py_mini_racer import MiniRacer
+        src = (Path(settings.BASE_DIR) / 'staticfiles/common/js/wama-input-slots.js').read_text(encoding='utf-8')
+        ctx = MiniRacer()
+        ctx.eval("""
+            var sent = [], cfgs = [];
+            var btn = {id: 'c-url-submit', dataset: {urlLot: 'audioBatch', urlInput: 'c-url'}};
+            var card = {dataset: {}, querySelectorAll: function (sel) {
+                return sel === '[data-url-lot]' ? [btn] : []; }};
+            var window = {
+              WamaApp: {initUrlImport: function (cfg) { cfgs.push(cfg); return {}; }, toast: function () {}},
+              WamaBatchImport: {instances: {
+                batch: {ingestText: function (t) { sent.push(['batch', t]); }},
+                audioBatch: {ingestText: function (t, n) { sent.push(['audioBatch', t, n]); }}}},
+            };
+            var document = {readyState: 'complete', querySelectorAll: function () { return [card]; },
+                            addEventListener: function () {}};
+        """)
+        ctx.eval(src)
+        import json
+        self.assertEqual(1, ctx.eval('cfgs.length'))
+        self.assertEqual(['c-url', 'c-url-submit'],
+                         json.loads(ctx.eval('JSON.stringify([cfgs[0].inputId, cfgs[0].buttonId])')))
+        ctx.eval("cfgs[0].onSubmit('https://example.org/a.wav')")
+        self.assertEqual([['audioBatch', 'https://example.org/a.wav\n', 'url.txt']],
+                         json.loads(ctx.eval('JSON.stringify(sent)')))
+
+
 class _UserCase(TestCase):
 
     @classmethod

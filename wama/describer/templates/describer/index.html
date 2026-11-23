@@ -172,22 +172,8 @@ ré-inclure : double BroadcastChannel → l'exclusivité audio fait taire son pr
 </script>
 <script src="{% static_v 'describer/js/index.js' %}"></script>
 <script>
-// Import URL depuis la card d'entrée : réutilise le FORMALISME BATCH commun.
-// L'URL = un batch d'1 ligne → même parseur + consolidation qu'un fichier batch
-// (batch_create crée la Description avec source_url, téléchargée dès la création
-// hors requête — source_ingest). initUrlImport (commun) gère input/bouton/Entrée/spinner ; ingestText
-// (commun) pousse l'URL dans le pipeline batch. Aucune route serveur dédiée.
-document.addEventListener('DOMContentLoaded', function () {
-    if (!window.WamaApp) return;
-    WamaApp.initUrlImport({
-        inputId: 'media_url',
-        buttonId: 'mediaUrlSubmit',
-        onSubmit: function (url) {
-            if (!window._batchImport) throw new Error("Import batch non initialisé");
-            return window._batchImport.ingestText(url + '\n', 'url.txt');
-        },
-    });
-});
+// (Import URL : câblé par la card d'entrée commune depuis le 2026-11-23 — `wama-input-slots.js`,
+// l'URL = un lot d'une ligne à la barre de la card ; `batch_create` pose `source_url`.)
 </script>
 <script>
 // Inspecteur contextuel commun : clic card/batch → bandeau « Réglages de l'élément #N » + valeurs de

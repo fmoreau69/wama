@@ -84,38 +84,10 @@ $(function () {
     console.error('[Anonymizer] WamaImport absent : wama-import.js non chargé par le gabarit');
   }
 
-  // Import par URL : le FORMALISME COMMUN, comme les 6 autres apps portées (08/09, Fabien :
-  // « l'import par URL n'est pas propre aux apps, c'est le portage qui n'était pas terminé »).
-  // L'URL = un lot d'UNE ligne → même parseur (`batch_parsers`) → `batch_create` la stocke en
-  // `source_url` (régime PARESSEUX, `WAMA_INGEST` sur `Media`) et `ensure_local_input` la
-  // télécharge AU LANCEMENT de la tâche. L'ancien `$.ajax` maison postait `media_url` à la vue
-  // d'upload, qui téléchargeait À L'IMPORT derrière une modale bloquante — la seule app du parc
-  // à le faire (`MEDIA_STORAGE_TIERING §8.3`). `initUrlImport` (commun) porte champ, bouton,
-  // touche Entrée, spinner, vidage et erreurs ; le format/qualité de sortie viennent du
+  // Import par URL : le FORMALISME COMMUN (08/09, Fabien : « l'import par URL n'est pas propre
+  // aux apps, c'est le portage qui n'était pas terminé ») — l'URL = un lot d'UNE ligne à la barre
+  // de SA card (image-vidéo `batch`, document `anonDocBatch`), `batch_create` la range en
+  // `source_url` (`WAMA_INGEST` sur `Media`). Câblé par la card d'entrée commune depuis le
+  // 2026-11-23 (`wama-input-slots.js`) ; le format et la qualité de sortie viennent du
   // `formDataBuilder` du lot (gabarit), comme pour un fichier de lot.
-  if (window.WamaApp && WamaApp.initUrlImport) {
-    WamaApp.initUrlImport({
-      inputId: 'anonUrlInput',
-      buttonId: 'anonUrlSubmit',
-      onEmpty: function () { WamaApp.toast("Veuillez entrer une URL de média.", 'warning'); },
-      onSubmit: function (url) {
-        if (!window._batchImport) throw new Error("Import batch non initialisé");
-        return window._batchImport.ingestText(url + '\n', 'url.txt');
-      },
-    });
-    // L'URL d'un document (2026-11-02) : le même formalisme, la nature du fichier rapatrié le range.
-    if (document.getElementById('anonDocUrlInput')) {
-      WamaApp.initUrlImport({
-        inputId: 'anonDocUrlInput',
-        buttonId: 'anonDocUrlSubmit',
-        onEmpty: function () { WamaApp.toast("Veuillez entrer l'URL d'un document.", 'warning'); },
-        // La barre de lot de SA card (`anonDocBatch`), celle que l'utilisateur voit dans l'onglet.
-        onSubmit: function (url) {
-          const batch = window._batchImportDocument || window._batchImport;
-          if (!batch) throw new Error("Import batch non initialisé");
-          return batch.ingestText(url + '\n', 'url.txt');
-        },
-      });
-    }
-  }
 });

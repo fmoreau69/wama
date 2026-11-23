@@ -495,28 +495,18 @@ def render_index(manifest: dict, element: tuple = None) -> tuple:
     # rien, ce que faisait `lot_bits` (2026-08-30 : `converter_01.batch_actions`, card mère aux
     # boutons inertes). Le générateur écrit la même ligne que les dix apps.
 
+    # La card d'import URL : la CARD la dérive de la déclaration depuis le 2026-11-23
+    # (`WAMA_INGEST` du modèle du domaine, à la nature du port — `source_ingest.port_takes_url`,
+    # `WAMA_APP_CONVENTIONS §URL`) et câble elle-même son bouton (`wama-input-slots.js`). Le
+    # générateur ne décide plus rien : il nomme seulement les ids, comme les pages réelles. Avant,
+    # il l'émettait sur la capacité `accepts_url` de l'APP — d'où une URL offerte sur le port de
+    # texte de `synthesizer_01`, dont le modèle télécharge une VOIX (refusée à la ligne de lot).
+    # Pas d'`url_submit_id` : la card qui CRÉE pose et câble son bouton ; une card qui JOINT n'en a
+    # pas (le champ se lit à l'ajout) — un id passé y rendrait un bouton que rien n'écoute.
     caps = body.get('capabilities') or {}
-    url_bits = url_js = ''
-    # La card d'import URL est GÉNÉRÉE par la capacité `accepts_url` (`WAMA_APP_CONVENTIONS` §URL :
-    # `WAMA_INGEST` sur le modèle + `ensure_local_input`, dix apps sur dix) — décision du 2026-07-23
-    # (trou #14). ⚠ Le 2026-11-19, une revérification l'a passée à `has_url_import` seul, sur la
-    # lecture des seules pages réelles (l'imager n'y offre pas l'import) : retiré le jour même, la
-    # règle écrite fait foi ; l'écart des pages réelles est consigné (`PROJECT_STATUS §PALIER 2026-11-19`).
-    if caps.get('accepts_url') or caps.get('has_url_import'):
-        url_bits = (f" show_url=True url_input_id='{PID}Url' url_submit_id='{PID}UrlSubmit'"
-                    " url_placeholder='https://… (page web, média distant)'")
-        # L'URL est routée vers le MÊME formalisme de lot (une URL = un lot d'une ligne) :
-        # c'est le choix déjà fait par l'app en place, et il évite une seconde route serveur.
-        url_js = f'''
-    // URL : même chemin que le fichier de lot (WamaApp.initUrlImport, brique commune).
-    if (window.WamaApp && WamaApp.initUrlImport) {{
-        WamaApp.initUrlImport({{
-            inputId:  '{PID}Url',
-            buttonId: '{PID}UrlSubmit',
-            onSubmit: function (u) {{ return {IMPORT_VAR}.ingestText(u + '\\n', 'url.txt'); }},
-        }});
-    }}
-'''
+    url_bits = (f" url_input_id='{PID}Url'"
+                " url_placeholder='https://… (page web, média distant)'")
+    url_js = ''
 
     # Slot de RÉFÉRENCE — DÉRIVÉ des ports `group='reference'` du manifeste (§S2bis.6 (b),
     # 2026-08-30). La card commune sait typer par slot depuis toujours (`reference_accept`,

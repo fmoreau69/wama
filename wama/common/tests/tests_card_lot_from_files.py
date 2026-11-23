@@ -287,6 +287,24 @@ class AddToQueueTest(SimpleTestCase):
         self.assertIn('work_audio', errors[0])
         self.assertIn('work_score', errors[0])
 
+    URL_OPTS = ", ports: [{inputId: 'work', field: 'work_audio', urlInputId: 'url'}]"
+
+    def test_the_url_goes_to_the_source_the_card_states_on_its_field(self):
+        """2026-11-23 : une card qui JOINT pose sur son champ URL la source de `WAMA_INGEST`
+        (`data-port-url-field`, gabarit v4) — l'app n'a plus à la redire en `urlField`."""
+        ctx = self._submit("el('url'); elements.url.value = 'https://example.org/a.wav';"
+                           "elements.url.dataset = {portUrlField: 'source_url'};", self.URL_OPTS)
+        calls = self._calls(ctx)
+        self.assertEqual(['/add/'], [c[0] for c in calls])
+        self.assertEqual('https://example.org/a.wav', dict(map(tuple, calls[0][1])).get('source_url'))
+
+    def test_a_url_with_nowhere_to_go_is_refused_and_said(self):
+        """Contre-épreuve : ni `urlField` ni source déclarée — rien ne part, le motif est dit."""
+        ctx = self._submit("el('url'); elements.url.value = 'https://example.org/a.wav';", self.URL_OPTS)
+        self.assertEqual([], self._calls(ctx))
+        errors = [m for level, m in json.loads(ctx.eval('JSON.stringify(toasts)')) if level == 'error']
+        self.assertEqual(1, len(errors))
+
     def test_a_single_file_is_still_one_element_without_a_lot(self):
         """Contre-épreuve : le geste ordinaire ne change pas — sa card s'insère, sans rechargement."""
         ctx = self._submit("elements.work.files = [{name: 'a.mp3'}];", self.LOT)

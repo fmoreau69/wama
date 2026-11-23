@@ -223,16 +223,29 @@ Studio rend dans un nœud (`compose_only`).{% endcomment %}
                             <span>Médiathèque</span>
                             <small>{% if p.library_prefer %}onglet : {{ p.library_prefer_label }}{% elif p.library_type_label %}filtrée : {{ p.library_type_label }}{% else %}tous types{% endif %}</small>
                         </div>
-                        {% if url_input_id %}
+                        {% comment %}URL — DÉRIVÉE de la déclaration (`p.url` : `WAMA_INGEST` du modèle du
+                        domaine, à la nature du port — `source_ingest.port_url_source`, 2026-11-23), plus
+                        d'un `url_input_id` passé par la page : trois cards réelles ne le passaient pas.
+                        Les ids passés restent honorés (le JS d'une app qui JOINT lit le sien) ; à défaut,
+                        `<card>-url`. Une card qui CRÉE a son bouton, câblé par la card elle-même
+                        (`wama-input-slots.js` : l'URL = un lot d'une ligne à la barre de CETTE card,
+                        `data-url-lot`) ; une card qui JOINT lit le champ à l'ajout (`[data-port-url]`,
+                        posté sous la source déclarée `data-port-url-field` — `WamaApp.addToQueue`).{% endcomment %}
+                        {% if p.url %}
+                        {% with uid=card_id|default:'newItemCard'|add:'-url' %}{% with sid=uid|add:'-submit' %}
+                        {% firstof url_input_id uid as url_field_id %}
                         <div class="wama-mod wama-mod-url" data-mod="url">
                             <div class="input-group input-group-sm">
                                 <span class="input-group-text bg-body border-secondary {{ url_icon_class|default:'text-info' }} px-2"><i class="{{ url_icon|default:'fas fa-link' }}"></i></span>
-                                <input type="text" class="form-control bg-body text-body-emphasis border-secondary"
-                                       id="{{ url_input_id }}" placeholder="{{ url_placeholder|default:'https://…' }}">
-                                {% if url_submit_id %}<button class="btn btn-danger" type="button" id="{{ url_submit_id }}" title="Importer depuis l'URL"><i class="fas fa-download"></i></button>{% endif %}
+                                <input type="text" class="form-control bg-body text-body-emphasis border-secondary"{% if not ports.entry.drop_creates or compose_only %} data-port-url data-port-url-field="{{ p.url }}"{% endif %}
+                                       id="{{ url_field_id }}" placeholder="{{ url_placeholder|default:'https://…' }}">
+                                {% if ports.entry.drop_creates and not compose_only %}<button class="btn btn-danger" type="button" id="{% firstof url_submit_id sid %}" title="Importer depuis l'URL"
+                                        data-url-lot="{{ batch_bid|default:'batch' }}" data-url-input="{{ url_field_id }}"><i class="fas fa-download"></i></button>
+                                {% elif url_submit_id %}<button class="btn btn-danger" type="button" id="{{ url_submit_id }}" title="Importer depuis l'URL"><i class="fas fa-download"></i></button>{% endif %}
                             </div>
-                            <small>{{ url_hint|default:'URL' }}</small>
+                            <small>{% firstof url_hint 'URL' %}</small>
                         </div>
+                        {% endwith %}{% endwith %}
                         {% endif %}
                     </div>
                 </div>

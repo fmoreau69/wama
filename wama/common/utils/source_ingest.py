@@ -113,6 +113,38 @@ def app_mode(app_id) -> str:
     return declared_mode((DetailRegistry.get(app_id) or {}).get('model'))
 
 
+#: La NATURE qu'une URL apporte, selon le mode déclaré — seul `audio` en nomme une (il tire l'audio
+#: d'une plateforme) ; `media` et `smart` prennent tout fichier, page comprise.
+MODE_NATURES = {'audio': ('audio',)}
+
+
+def domain_ingest(app_id, domain_id=None) -> dict | None:
+    """La déclaration `WAMA_INGEST` du modèle d'élément d'une CARD — celui de la surface de son
+    domaine (`app_modes.domain_surface` : l'audio de l'enhancer a son modèle), de l'app quand la
+    card n'en nomme pas. None si ce modèle ne télécharge aucune entrée distante."""
+    from wama.common.utils.app_modes import domain_surface
+    from wama.common.utils.detail_registry import DetailRegistry
+    surface = (domain_surface(app_id, domain_id) if domain_id else '') or app_id
+    model = (DetailRegistry.get(surface) or DetailRegistry.get(app_id) or {}).get('model')
+    return getattr(model, 'WAMA_INGEST', None) or None
+
+
+def port_url_source(app_id, domain_id, types) -> str:
+    """Le champ qui GARDE l'URL du port de travail d'une card ('' : ce port n'offre pas l'import par
+    URL) — `WAMA_APP_CONVENTIONS §URL` : la card d'import URL suit la DÉCLARATION (`WAMA_INGEST` du
+    modèle de son domaine, sa `source`), jamais un littéral de page. Il faut en plus que la nature
+    apportée par le mode soit celle du port : le synthesizer télécharge une VOIX (`mode: 'audio'`,
+    cible `voice_reference`), son port de travail prend un TEXTE — une URL posée là serait refusée
+    par la ligne de lot (`batch_parsers.line_file_inputs`)."""
+    spec = domain_ingest(app_id, domain_id)
+    if not spec:
+        return ''
+    natures = MODE_NATURES.get(spec.get('mode', 'media'))
+    if natures is not None and not set(natures) & set(types or ()):
+        return ''
+    return spec.get('source', 'source_url')
+
+
 def download_to_user(user, url, mode='media') -> str:
     """Télécharge `url` dans l'espace temporaire de `user` et rend son chemin (relatif à
     `MEDIA_ROOT`) — le chemin qu'une désignation reçoit ensuite. `mode` : celui que l'app

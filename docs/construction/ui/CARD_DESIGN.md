@@ -1661,6 +1661,10 @@ fusionnés en `import`).
 ⚠ Un choix de forme, fidèle à la décision ② : la modalité URL **est** son champ dans la tuile
 (visible d'un coup, aucune bascule pour saisir) ; la bascule de la preview sert aux fichiers
 attachés. C'est aussi ce qui garde le contrat des scénarios (`Page.fill('#…Url')` sans clic).
+✅ *2026-11-23* — la modalité URL du port de travail principal n'est plus un littéral de page
+(`url_input_id`) : elle se DÉRIVE de `WAMA_INGEST` du modèle du domaine de la card, à la nature du
+port (`source_ingest.port_url_source`, slot `url` d'`input_slots`), et la card qui crée câble son
+bouton elle-même (`wama-input-slots.js`, `data-url-lot`). Règle et cas : `WAMA_APP_CONVENTIONS §URL`.
 
 ⚠ `imager_01` n'a pas de gabarit généré (le codegen refuse ses vues : file à modèle de liaison,
 trou déclaré) — la v4 y est branchée **à la main dans la copie jetable** de la jumelle, ce qui
