@@ -195,22 +195,22 @@ def chips_for(instance, params_json, extra=None, values=None):
 
 
 def auto_choice_label(value) -> str:
-    """Le libellé d'un choix « auto » de modèle, '' pour toute autre valeur : « Automatique », et
-    pour l'« auto » d'un GROUPE la tâche qu'il borne, par son libellé du catalogue (`ModelTask`) —
-    « Automatique (Texte → musique) »."""
-    from wama.common.utils.auto_model import is_auto
+    """Le libellé d'un choix « auto » de modèle, '' pour toute autre valeur : « Automatique »
+    (`auto_model.AUTO_SHORT_LABEL`), et pour l'« auto » d'un GROUPE la tâche qu'il borne, par son
+    libellé du catalogue (`ModelTask`) — « Automatique (Texte → musique) »."""
+    from wama.common.utils.auto_model import AUTO_SHORT_LABEL, is_auto
     from wama.common.utils.model_keys import auto_task
     if not value or not is_auto(value):
         return ''
     task = auto_task(str(value))
     if not task:
-        return 'Automatique'
+        return AUTO_SHORT_LABEL
     try:
         from wama.model_manager.models import ModelTask
         task = dict(ModelTask.choices).get(task, task)
     except Exception:
         pass                           # catalogue illisible : la tâche par sa clé, jamais inventée
-    return f"Automatique ({task})"
+    return f"{AUTO_SHORT_LABEL} ({task})"
 
 
 def display_value(field, value, instance=None):

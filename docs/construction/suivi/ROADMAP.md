@@ -8484,5 +8484,9 @@ formats et qualités.
   l'aperçu écrit là où un emplacement de la page le déclare (`BrickSlot.face`, `ROUTE §F3b`) — le
   mixeur des pistes séparées du composer. ⏳ Mixage rapide depuis l'aperçu d'une partition, en
   potentiomètres ; d'autres apps dont l'édition tiendrait dans l'aperçu.
-- **32.6 Organiser la file au-delà d'un lot** ⏳ question ouverte → `MODES_QUEUE_UX §5quater`
-  (card source et ses cards dérivées, dossiers dans les files) ; soumise au concile le 2026-11-19.
+- **32.6 Organiser la file au-delà d'un lot** → `MODES_QUEUE_UX §5quater`. ✅ 2026-11-23 : la
+  FAMILLE d'une card (option B du concile du 19/11, décidée par Fabien) — une source seule reste
+  une card seule, ses cards dérivées vivent dans un lot à elles rangé SOUS elle, nommées par ce
+  qu'elles en sont ; la relation n'a pas de profondeur (film, séquences, plans). Dossiers dans les
+  files : rejetés. ⏳ Rendre le lot dérivé sous une source qui est la fille d'un vrai lot ; les
+  familles d'avant passent par `manage.py split_family_lots --apply`.

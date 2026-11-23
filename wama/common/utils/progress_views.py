@@ -250,6 +250,13 @@ def make_progress_views(*, work_model, app_id: str, get_user=request_user,
         lot = batch_of(item)
         if lot is not None:
             data['batch'] = {'id': lot.pk, 'total': lot.total}
+            # Ses cards DÉRIVÉES naissent dans LEUR lot quand elle est seule (`derived_cards.
+            # family_lot`, 2026-11-23) : le total de son lot ne bouge plus, c'est ce compte que la
+            # file compare à ce qu'elle montre sous la card. Dit pour une card seule uniquement —
+            # dans un vrai lot, ses pistes sont des filles du lot et le total ci-dessus les compte.
+            derived = getattr(item, 'derived_cards', None)
+            if derived is not None and lot.total == 1:
+                data['derived'] = derived.count()
         if extra is not None:
             data.update(extra(item) or {})
         return JsonResponse(data)

@@ -219,12 +219,22 @@ def place_copy(copy, original, *, batch_model, item_model=None, fk_name=None, it
         source.total = source.items.count()
         source.save(update_fields=['total'])
         return source
-    fields = {}
-    if batch_extra and source is not None:
-        fields = batch_extra(source) if callable(batch_extra) else dict(batch_extra)
-    lot = batch_model.objects.create(user=copy.user, total=1, **fields)
+    lot = open_lot(batch_model, copy.user, like=source, batch_extra=batch_extra)
     attach_to_batch(copy, lot, 0, **link)
     return lot
+
+
+def open_lot(batch_model, user, *, like=None, batch_extra=None, total=1):
+    """Ouvre un lot NEUF pour `user`, avec les champs de lot que l'app déclare (`batch_extra` de
+    `make_batch_views` : dict, ou callable(lot d'origine) -> dict — le domaine de l'imager, la
+    nature du converter), lus sur `like`, le lot d'où vient ce qu'on y range. Sans lot d'origine,
+    il naît des défauts de son modèle. UNE écriture (2026-11-23) pour la copie d'une card
+    (`place_copy`), le lot des cards dérivées (`derived_cards.derive_cards`) et la scission d'une
+    famille (`derived_cards.split_family`), qui l'écrivaient chacun."""
+    fields = {}
+    if batch_extra and like is not None:
+        fields = batch_extra(like) if callable(batch_extra) else dict(batch_extra)
+    return batch_model.objects.create(user=user, total=total, **fields)
 
 
 def load_in_import_order(model, ids, user):
@@ -505,7 +515,79 @@ def build_batches_list(user, *, batch_model, work_attr, items_related='items',
             row.update(extra(batch, items, works) or {})
         row.update(arrangement)
         result.append(row)
-    return attach_identities(result)
+    return nest_derived_lots(attach_identities(result))
+
+
+def nest_derived_lots(rows):
+    """Range sous sa card SOURCE le lot des cards qui en sont dérivées (2026-11-23, décision de
+    Fabien du 19/11 : « ses pistes s'affichent sous la card source ») — la FAMILLE : une card seule
+    et, dessous, le lot de ses pistes, avec les gestes d'un lot (`derived_cards.family_lot` dit où
+    naît ce lot). Une ligne dont TOUTES les cards dérivent d'une même card, elle-même montrée seule
+    (un lot d'un) dans ces lignes, quitte le niveau supérieur : elle est posée sur la ligne de sa
+    source (`item.derived_lots`, que `common/_queue_entry.html` rend sous la card) et porte
+    `derived_of`. Rend les lignes du niveau supérieur, dans leur ordre.
+
+    Tout le reste est inchangé : un lot dont la source n'est pas sur la page (retirée, non
+    partagée), ou dont la source est la fille d'un vrai lot, reste une entrée de file comme une
+    autre. La relation, elle, n'a pas de profondeur (`derived_from` pointe une card, qui peut
+    elle-même dériver d'une autre) : c'est l'affichage qui s'arrête ici à UN étage sous une card
+    seule — la borne est cette fonction, pas la donnée."""
+    hosts = {}
+    for row in rows:
+        # Loin de sa source, une card dérivée se nomme par ce qu'elle en est (`card_label_of`).
+        members = [getattr(it, 'elem', it) for it in row.get('items') or ()]
+        mates = {getattr(e, 'pk', None) for e in members}
+        for it, elem in zip(row.get('items') or (), members):
+            if getattr(elem, 'derived_from_id', None):
+                label = card_label_of(elem, link=it, lot_mates=mates)
+                if label:
+                    it.card_label = label
+        if row.get('obj') is None or getattr(row['obj'], 'total', None) != 1:
+            continue
+        for item in row.get('items') or ():
+            pk = getattr(getattr(item, 'elem', item), 'pk', None)
+            if pk is not None:
+                hosts[pk] = (row, item)
+    if not hosts:
+        return rows
+    top = []
+    for row in rows:
+        elems = [e for e in (getattr(it, 'elem', it) for it in row.get('items') or ())
+                 if e is not None]
+        sources = {getattr(e, 'derived_from_id', None) for e in elems}
+        host = hosts.get(next(iter(sources))) if len(sources) == 1 else None
+        if host is None or host[0] is row:
+            top.append(row)
+            continue
+        row['derived_of'] = next(iter(sources))
+        item = host[1]
+        item.derived_lots = getattr(item, 'derived_lots', []) + [row]
+    return top
+
+
+def card_label_of(element, link=None, lot_mates=None) -> str:
+    """Le NOM qu'une card porte dans la file — UNE règle pour la file (`nest_derived_lots`) et pour
+    la card redemandée au serveur (`item_views.make_card_view`) : le nom de sa ligne de lot
+    (`output_filename`, que seules certaines apps portent), SAUF pour une card dérivée rangée loin
+    de sa source — elle se nomme alors par ce qu'elle en est (`DerivedCardMixin.derived_label` :
+    « Piano »), sans redire le nom du morceau (2026-11-23, Fabien : « identifier les pistes par
+    instrument »). Dans le même lot que sa source (les familles nées avant cette date), elle garde
+    le nom de sa ligne : rien ne la rattache à l'écran à sa source. Son nom de FICHIER ne change
+    jamais. `link` : sa ligne quand on l'a déjà ; `lot_mates` : les clés des cards de son lot
+    quand on les a déjà — sinon les deux se lisent en base."""
+    label = getattr(element, 'derived_label', '') or ''
+    source_pk = getattr(element, 'derived_from_id', None)
+    if label and source_pk:
+        if lot_mates is None:
+            lot, source_lot = batch_of(element), batch_of(getattr(element, 'derived_from', None))
+            together = lot is not None and source_lot is not None and lot.pk == source_lot.pk
+        else:
+            together = source_pk in lot_mates
+        if not together:
+            return label
+    if link is None:
+        link = link_row_of(element)
+    return getattr(link, 'output_filename', '') or ''
 
 
 def attach_identities(rows):

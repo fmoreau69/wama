@@ -5033,8 +5033,10 @@ donné : tout consigner, avancer ce qui est certain, puis revenir à l'organisat
   dans le Composer ou une autre application, question ouverte (vision §6.4). Volet pédagogique
   (application « Teacher »), instruments 3D et méta-instrument, périphériques : vision §6.4, §6.5,
   §11.4.
-- ❓ **(2) Nom d'une card piste** — Fabien « pas sûr », à rediscuter : touche au fonctionnement du
-  lot → `MODES_QUEUE_UX §5quater` (organisation de la file, question ouverte).
+- ~~❓~~ ✅ **(2) Nom d'une card piste** — Fabien « pas sûr », à rediscuter : touche au fonctionnement du
+  lot → `MODES_QUEUE_UX §5quater`. *Tranché le 2026-11-19, livré le 2026-11-23 : rangée sous sa
+  source, une piste se nomme par son instrument (`batch_common.card_label_of`,
+  `ComposerGeneration.derived_label`) ; son nom de fichier ne change pas.*
 - ✅ **(3) Oui aux deux** — « auto » qui tire le même modèle ne périme pas ; un amont coûteux est
   demandé, jamais rejoué en silence → `ROUTE §10.6`, causes de péremption.
 - ✅ **(4) Garder les cards de pistes disparues, marquées orphelines** — à confronter à
@@ -5054,7 +5056,11 @@ donné : tout consigner, avancer ce qui est certain, puis revenir à l'organisat
   (`card_chips.chips_for`), la section détail du volet lit la liste `extra` de la spec de détail
   (`register_app_detail_spec`, `detail_registry.py:109` ; une entrée sans libellé prend déjà celui du
   schéma) — deux listes de champs à montrer, deux mises en forme d'une même valeur. Ampleur à
-  mesurer avant d'en faire un chantier, et à part.
+  mesurer avant d'en faire un chantier, et à part. *Soldé : la mise en forme le 2026-11-19
+  (`card_chips.display_value`), la LISTE le 2026-11-23 — le volet liste les réglages posés du
+  schéma pour toute app, et un modèle « auto » dit celui qui a été employé
+  (`INSPECTOR_DETAIL_FIELDS`, « Temps 3 »). Et l'originale n'est pas fondue dans la mère : elle
+  reste une card seule, ses pistes dans un lot rangé sous elle (`MODES_QUEUE_UX §5quater`).*
 
 **Suite** : validation des trois propositions par Fabien (dacvae et perception_models d'abord, leurs
 manifestes résolvent le `requires` de sam_audio), puis `install_library` (requises d'abord) ;

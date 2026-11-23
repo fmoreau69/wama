@@ -358,7 +358,7 @@ Une app DÉCLARE les process de sa card (`ProcessSpec` : amonts, réglages surve
 
 - **Domicile** : `wama/common/services/process_pipeline.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Pipeline DÉCLARÉ d'une app — la pièce du moteur commun qui dit « cette card porte PLUSIEURS process, dans cet ordre, et voici lesquels sont à (re)jouer ». Doc : `WAMA_APP_GENERATION_ROUTE.md §10.6` points 3.2, 4.3 à 4.5 (marche P3, palier B) et décision n°11.
-- **API publique** (17) :
+- **API publique** (19) :
   - `words_segments(words, gap: float=1.2, longest: int=14) -> list` — Des MOTS HORODATÉS (`[{word, start, end}]`, les paroles d'une chanson, un alignement) en
   - `segments_text(segments) -> str` — Des SEGMENTS de parole (`result_format='segments'` : `[{speaker, time_range, text}]`) en
   - `preload(items) -> None` — Lit en UNE requête les lignes d'exécution de tous ces éléments (même modèle) et les pose
@@ -371,6 +371,8 @@ Une app DÉCLARE les process de sa card (`ProcessSpec` : amonts, réglages surve
   - `process_of_function(function_key: str)` — `(pipeline, ProcessSpec)` de l'ÉTAPE de card qu'est la fonction `function_key` — le process
   - `pipeline_of(item) -> AppPipeline | None` — Le pipeline de CETTE card : celui que son app déclare, ÉTENDU de ce que la card lui ajoute
   - `inapplicable_settings(item, rows=None, pipeline=None) -> tuple` — Les réglages SANS OBJET pour cette card (2026-11-17, Fabien : « une card de piste séparée
+  - `unread_settings(item, pipeline=None) -> tuple` — Les réglages que RIEN ne lit sur cette card telle qu'elle est réglée : ceux que ne lisent
+  - `employed_models(item, setting: str, pipeline=None) -> list` — Les modèles EMPLOYÉS sous le réglage `setting` (le sélecteur de modèle de la card) : ceux
   - `app_pipeline(app: str) -> AppPipeline | None` — Le pipeline déclaré par l'app `app`, ou None — même lecture que `pipeline_of`, quand on
   - `card_view(item, model_key=DECLARED, preloaded: bool=False)` — Ce que la card et la vue de progression montrent du PIPELINE d'un élément (`§10.6` 5.1) :
   - `item_schema_choices(schema, item) -> list` — Le schéma servi pour UN élément, ses `options_from` RÉSOLUS (2026-11-19) : un réglage qui
@@ -2475,15 +2477,18 @@ Les vues `start`, `start_all` et `clear_all` d'une app — `make_item_views` (20
 
 ## File d'attente & lots
 
-### Cards dérivées (une card → N cards dans son lot)
+### Cards dérivées — la FAMILLE d'une card (une card → N cards sous elle)
 
-Les résultats d'un process deviennent des cards SŒURS dans le lot de la card source, qui DEVIENT le lot (2026-11-12, demande de Fabien : séparer l'audio d'une card du composer en pistes, chacune une card, pour transcrire un instrument seul). Copie des réglages sans les résultats (`duplicate_instance`), rattachement au lot (`attach_to_batch`), lien card → card (`DerivedCardMixin` : `derived_from`, `derived_role`, qui fait l'identité — une relance REMPLACE l'entrée des cards existantes), provenance du fichier (`input_provenance`, kind `app`). Une card dérivée ne se lance pas seule. 1ᵉʳ consommateur : le process `separate` du composer
+Les résultats d'un process deviennent des cards (2026-11-12, demande de Fabien : séparer l'audio d'une card du composer en pistes, chacune une card, pour transcrire un instrument seul). Depuis le 2026-11-23 (décision du 19/11) une source SEULE reste une card seule : ses cards dérivées vivent dans un lot à elles (`family_lot`), que la file range SOUS elle (`batch_common.nest_derived_lots`, `_queue_entry.html`) — un lot comme un autre, dont ▶, ⚙, réaligner, ZIP et étapes portent sur les seules dérivées ; nommées par ce qu'elles sont de leur source (`card_label_of`, `derived_label`). La relation n'a pas de profondeur (un film, ses séquences, leurs plans). Copie des réglages sans les résultats (`duplicate_instance`), lien card → card (`DerivedCardMixin` : `derived_from`, `derived_role`, qui fait l'identité — une relance REMPLACE l'entrée des cards existantes), provenance du fichier (`input_provenance`, kind `app`). Une card dérivée ne se lance pas seule. Les familles d'avant : `manage.py split_family_lots`. 1ᵉʳ consommateur : le process `separate` du composer
 
-- **Domicile** : `wama/common/utils/derived_cards.py` · **doc** : [wama/model_manager/PROSPECTION_PIPELINE.md](../../wama/model_manager/PROSPECTION_PIPELINE.md)
-- **Module** : CARDS DÉRIVÉES — les résultats d'une card deviennent des cards sœurs, dans SON lot.
-- **API publique** (2) :
+- **Domicile** : `wama/common/utils/derived_cards.py` · **doc** : [docs/construction/ui/MODES_QUEUE_UX.md](../construction/ui/MODES_QUEUE_UX.md)
+- **Module** : CARDS DÉRIVÉES — les résultats d'une card deviennent des cards, rangées sous elle.
+- **API publique** (5) :
   - `origin_of(card)` — La card d'ORIGINE d'une card dérivée — sa source, remontée jusqu'à celle qui n'en a pas ;
-  - `derive_cards(source, parts, *, field, reset_fields=None)` — Range dans le lot de `source` une card par `(rôle, fichier)` de `parts` — `fichier` relatif
+  - `family_lot(source, derived)` — Le lot qui reçoit une card dérivée NEUVE de `source` — `derived` : ses cards dérivées déjà
+  - `family_in_one_lot(lot, model)` — `(source, [cards dérivées])` quand `lot` est une famille rangée ENSEMBLE — une seule card
+  - `split_family(lot, model) -> int` — Donne LEUR lot aux cards dérivées d'une famille rangée ensemble (`family_in_one_lot`) : la
+  - `derive_cards(source, parts, *, field, reset_fields=None)` — Range une card par `(rôle, fichier)` de `parts` dans le lot des cards dérivées de `source`
 
 ### Dossier de travail jetable
 
@@ -2796,11 +2801,12 @@ Chips des cards GÉNÉRÉS du schéma params (chip=True), groupés par section v
 
 - **Domicile** : `wama/common/utils/card_chips.py` · **doc** : [docs/construction/ui/CARD_DESIGN.md §10.3](../construction/ui/CARD_DESIGN.md)
 - **Module** : WAMA Common — CHIPS méta des cards (CARD_DESIGN §10.3, pilote Reader 2026-07-06).
-- **API publique** (10) :
+- **API publique** (11) :
   - `catalog_name(model_key: str) -> str` — Le NOM lisible d'un modèle du catalogue (`AIModel.name`) — '' s'il n'y est pas. Mémoïsé
   - `catalog_names(model_keys) -> dict` — `{clé: nom}` de plusieurs modèles en UNE requête pour ceux que le mémo n'a pas — ce que lit
   - `field_unit(field) -> str` — L'UNITÉ d'un champ numérique : `unit` s'il est déclaré, sinon un `chip_label` COURT en
   - `chips_for(instance, params_json, extra=None, values=None)` — Construit la liste des chips d'une card depuis le schéma sérialisé (schema_to_dicts).
+  - `auto_choice_label(value) -> str` — Le libellé d'un choix « auto » de modèle, '' pour toute autre valeur : « Automatique »
   - `display_value(field, value, instance=None)` — La valeur d'un réglage telle que WAMA la MONTRE — UNE écriture pour les chips de la card et
   - `input_props_for(instance, file_field='input_file', name='')` — Sous-ligne « propriétés RÉELLES du média » de la section ENTRÉE (CARD_DESIGN §11).
   - `notice_chips(rows) -> list` — Les pastilles des REMARQUES qu'ont rendues les process d'une card sur leur résultat — une
@@ -2979,7 +2985,7 @@ Schéma canonique des infos d'item affichées au volet droit
 
 - **Domicile** : `wama/common/utils/detail_registry.py` · **doc** : [docs/construction/ui/INSPECTOR_DETAIL_FIELDS.md](../construction/ui/INSPECTOR_DETAIL_FIELDS.md)
 - **Module** : WAMA Common — Registre des DÉTAILS d'item pour l'inspecteur (miroir de preview_registry).
-- **API publique** (11) :
+- **API publique** (12) :
   - `props_icon_for(media_type: str) -> str`
   - `normalize_status(status: str) -> str` — Un statut d'app → le vocabulaire commun. Délègue au domicile (`common/models.py`).
   - `class DetailRegistry`
@@ -2989,6 +2995,7 @@ Schéma canonique des infos d'item affichées au volet droit
   - `spec_schema(instance, spec, app_name)` — Le schéma de réglages d'un ÉLÉMENT : celui que la spec choisit pour lui (`params_schema`,
   - `detail_from_spec(instance, spec, app_name)` — Adapter GÉNÉRIQUE : résout la spec déclarative contre l'instance puis délègue à
   - `settings_from_schema(instance, schema, *, skip=(), carrier=None)` — {libellé: valeur} des réglages POSÉS du schéma — la liste « Réglages » du volet, pour les
+  - `requested_and_employed(requested, model_keys) -> str` — « demandé → employé » : le choix tel qu'il se lit, puis les modèles retenus par leur nom du
   - `build_detail(instance, *, source_file=None, source_type=None, engine=None, engine_effective=None, result_file=None, result_files=None, result_role=None, result…` — Assemble le dict canonique d'un item (épine dorsale). Les valeurs vides sont OMISES
   - `unified_detail(request, app_name: str, pk: int)` — Endpoint commun : infos d'un item selon le schéma canonique (miroir de unified_preview).
 

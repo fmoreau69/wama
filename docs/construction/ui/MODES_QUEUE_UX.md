@@ -575,7 +575,7 @@ l'avatarizer) — toujours pas un domaine ni un mode.
   requises (entrées typées de la fonction ⊆ ∩ des catalogues des filles) — et le refus **dit
   quelle fille manque de quoi**, jamais un grisage muet.
 
-## 5quater. Organiser la file au-delà d'un lot — question OUVERTE (Fabien, 2026-11-19) ⏳
+## 5quater. Organiser la file au-delà d'un lot — la FAMILLE d'une card (question du 2026-11-19, décidée, livrée le 2026-11-23) ✅
 
 > Née des cards de pistes séparées du composer (`PROSPECTION_PIPELINE §Cohérence des cards de
 > pistes`) : la séparation enveloppe l'originale dans un lot (ligne 0) et y ajoute une card par
@@ -626,7 +626,65 @@ l'enveloppement) : B redéfinit quatre mécanismes pour une gêne visuelle. Deux
 quelle que soit l'option : les deux ▶ voisins doivent se DISTINGUER (icône, libellé « ▶ pistes » /
 « ▶ lot »), et l'affichage s'arrête à deux niveaux (une dérivée de dérivée se compte, ne s'imbrique
 pas). **Dossiers / chutiers (C) : rejetés à l'unanimité** — un besoin de rangement se traiterait en
-VUE de la file (filtre, onglet), pas en structure. ⏳ Décision de Fabien.
+VUE de la file (filtre, onglet), pas en structure. ~~⏳ Décision de Fabien.~~
+
+✅ **Décidé par Fabien le 2026-11-19, livré le 2026-11-23 — l'option B.** *« OK, la proposition me
+semble bien. Pour 1, ok, mais je pense qu'il faut garder la possibilité de relancer les sous-process
+depuis la card d'origine pour la génération des partitions par exemple. Dans le même temps, ça
+simplifie le nommage des pistes séparées pour les identifier par instrument. »*
+
+**Ce que l'audit demandé par le concile a répondu** (« ce qui suppose qu'une dérivée est toujours
+dans un lot ») : TOUTE card est dans un lot — une card seule est un lot d'un
+(`batch_common.auto_wrap_orphans`, appelé par chaque file), et l'entrée de file EST le lot
+(`_queue_entry.html`). Une piste hors lot aurait été enveloppée seule au premier affichage. Le point
+(1) tel qu'écrit (« ne plus envelopper ») ne suffisait donc pas : il fallait dire où vivent les
+pistes. Réponse : **dans un lot à elles**.
+
+- **La donnée** — `derived_cards.family_lot` : une card dérivée neuve va où sont ses sœurs ; sinon
+  dans le lot de sa source quand celle-ci est la fille d'un VRAI lot (d'autres cards qu'elle et les
+  siennes — l'utilisateur l'a composé, comme avant) ; sinon dans le lot des cards dérivées de cette
+  source, que la première ouvre. La source seule reste une card seule.
+- **L'affichage** — `batch_common.nest_derived_lots` (un seul lieu, les dix apps et les jumelles
+  passent par `build_batches_list`) : le lot dont toutes les cards dérivent d'une même card montrée
+  seule quitte le niveau supérieur et se rend SOUS elle, en retrait, replié
+  (`common/_queue_entry.html`, `.wama-derived`, dans l'enrobage de l'entrée : la famille se déplace
+  d'un bloc). C'est un lot comme un autre : sa card mère porte ▶, ⚙, ↓ réaligner, ZIP et les
+  « Étapes du lot » — **sur les pistes et sur elles seules**. Les points (3) et (4) du concile
+  n'ont donc demandé aucune ligne : le « ▶ pistes » est le ▶ de ce lot, distinct par sa place du ▶
+  de la card source, et la référence de réglages, « Réaligner » et le ZIP sont ceux de tout lot.
+  La card d'origine garde sa bande d'étapes et son ▶ (les partitions du morceau entier).
+- **Le nom** — `batch_common.card_label_of` : loin de sa source, une card dérivée se nomme par ce
+  qu'elle en est (`DerivedCardMixin.derived_label` ; le composer : « Piano », « Batterie ») ; son
+  nom de fichier ne change pas. La card redemandée au serveur lit la même règle.
+- **Le suivi** — la réponse de suivi d'une card seule dit combien de cards dérivent d'elle
+  (`derived`, `progress_views`) : la file s'y compare et se remet en forme quand des pistes naissent
+  (`queue-actions.js`, `ownCards` — les cards d'une entrée, sans celles du lot rangé dessous).
+- **Les familles d'avant** (la source et ses pistes dans un même lot) restent des lots tant que
+  `manage.py split_family_lots --apply` n'est pas passé : il déplace les lignes des pistes dans un
+  lot à elles, sans toucher un fichier (sans `--apply`, il compte).
+
+**La profondeur** (question de Fabien du 2026-11-23, « jusqu'où permettre la sous-imbrication » —
+un film, ses séquences, leurs plans) : la relation n'en a pas. `derived_from` pointe une card, qui
+peut dériver d'une autre, et chaque étage est « une card et le lot de ce qui en dérive » : le lot
+des plans d'une séquence se range sous la séquence, qui est elle-même une card du lot des séquences
+du film. `nest_derived_lots` le rend déjà à tout niveau sous une card montrée SEULE (garde
+`test_the_relation_has_no_depth`). ⏳ Reste la borne d'AFFICHAGE, en un lieu : une source qui est
+la fille d'un vrai lot de plusieurs cards n'a pas son lot dérivé rendu sous elle (ses pistes sont
+alors des filles du même lot, à plat) — le lever demande que les comptes d'un lot dans les scripts
+de la file passent tous par `ownCards`.
+
+**Ce qui n'est PAS un rapprochement** (Fabien, même jour, et d'accord) : le lot du Transcriber qui
+porte un audio et son verbatim, lancé sur N modèles. Ses filles sont des transcriptions COMPLÈTES
+du même fichier, des PAIRES qui se comparent ; aucune n'est une partie d'une autre. Une piste est
+une PARTIE de la card source. Deux relations, deux mécanismes : la variation est un LOT (ce que
+ses filles partagent — l'entrée, la référence — se lit sur le lot, §5ter) ; la composition est le
+lien `derived_from` (ce qui est partagé se lit sur la card source). Elles se croisent sans se
+confondre : le lot des pistes d'un morceau est un lot, donc on peut y lancer N modèles de partition.
+
+Gardes : `tests_queue_piece.FamilyOfACardTest` (rangement, ce qui n'est pas une famille, profondeur,
+rendu, nom) ; `tests_queue_delete_contract.APollSaysTheLotOfItsElementTest` (le compte `derived`, les
+cards d'une famille non comptées avec leur source — V8) et `FamiliesBornBeforeTest` ; composer,
+`tests_parts.StemSeparationTest`.
 
 ---
 

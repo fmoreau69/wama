@@ -205,7 +205,10 @@ def label_of(value) -> str:
     """Libellé lisible : la description de l'app, sinon le nom du catalogue, sinon la valeur."""
     key = normalize(value)
     if auto_task(key):
-        return 'Automatique — musique' if auto_task(key) == MUSIC_TASK else 'Automatique — ambiance'
+        # Le libellé COMMUN d'un « auto » de groupe (`card_chips.auto_choice_label`, 2026-11-23) :
+        # celui que la card et le volet écrivent — il était réécrit ici (« Automatique — musique »).
+        from wama.common.utils.card_chips import auto_choice_label
+        return auto_choice_label(key)
     described = config(key).get('description')
     if described:
         return described

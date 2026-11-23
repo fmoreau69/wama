@@ -362,8 +362,20 @@
     //   change ses compteurs.
     // Sans `batch` (vue qui ne dit pas le lot — une jumelle de bac à sable copiée avant le
     // 2026-09-15), seul le lot vidé part : on ne devine rien.
+    // Les cards PROPRES à une entrée de file (un lot, ou l'enrobage d'une card seule) : pas celles
+    // des lots DÉRIVÉS rangés dessous (`.wama-derived`, `_queue_entry.html`, 2026-11-23 — les pistes
+    // séparées d'un morceau sont un lot à elles, montré sous leur card source). Tout compte d'une
+    // entrée passe par ici : compter les pistes avec leur source ferait dire « le lot a changé »
+    // à chaque tour du suivi.
+    function ownCards(holder) {
+        return Array.prototype.filter.call(holder.querySelectorAll('.wama-card[data-id]'), function (c) {
+            const nested = c.closest ? c.closest('.wama-derived') : null;
+            return !nested || nested === holder || !holder.contains(nested);
+        });
+    }
+
     function applyBatchState(group, batch, removedId) {
-        const children = group.querySelectorAll('.wama-card[data-id]');
+        const children = ownCards(group);
         if (!children.length || (batch && batch.total === 0)) { group.remove(); return; }
         if (!batch) return;
         // Le DOM et le serveur ne comptent pas pareil (la file a changé ailleurs — autre onglet,
@@ -392,8 +404,15 @@
         const card = document.querySelector('.wama-card[data-id="' + data.id + '"]');
         const holder = card && (card.closest('.batch-group') || card.closest('.wama-queue-entry'));
         if (!holder) return;
-        if (holder.querySelectorAll('.wama-card[data-id]').length === batch.total) return;
-        const key = 'wama.queue.reshaped.' + data.id + '.' + batch.total;
+        // Les cards DÉRIVÉES de celle-ci, nées dans LEUR lot (`data.derived`, `progress_views` — dit
+        // seulement pour une card seule) : la page les montre sous elle, dans `.wama-derived`. Autant
+        // que le serveur en compte, ou la page est à refaire — la même règle, la même fois unique.
+        const block = holder.querySelector('.wama-derived[data-derived-of="' + data.id + '"]');
+        const derivedShown = block ? ownCards(block).length : 0;
+        const derivedOk = data.derived == null || data.derived === derivedShown;
+        if (ownCards(holder).length === batch.total && derivedOk) return;
+        const key = 'wama.queue.reshaped.' + data.id + '.' + batch.total
+                  + (data.derived == null ? '' : '.' + data.derived);
         try {
             if (sessionStorage.getItem(key)) return;
             sessionStorage.setItem(key, '1');

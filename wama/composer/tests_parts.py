@@ -330,8 +330,9 @@ class FullScoreTest(_InputProcessCase):
 class StemSeparationTest(_InputProcessCase):
     """The optional process `separate` (2026-11-12, Fabien : « découper l'audio en stems, que ça
     devienne un lot contenant les stems séparés ») : the INPUT audio → one stem per source, each
-    stem a card of the source's lot (`common/utils/derived_cards.py`) — the card BECOMES the lot,
-    the mix staying first."""
+    stem a card (`common/utils/derived_cards.py`). Since 2026-11-23 (Fabien, 19/11 : « un morceau
+    seul n'est plus mis d'office dans un lot ; ses pistes s'affichent sous la card source ») the
+    stems of a card standing alone live in THEIR OWN lot, the source staying a single card."""
 
     def _stems(self, gen):
         return {c.derived_role: c for c in ComposerGeneration.objects.filter(derived_from=gen)}
@@ -359,7 +360,7 @@ class StemSeparationTest(_InputProcessCase):
         self._run(separate_stems=True, melody_reference=self._cover(), separation_stems='Voix')
         self.assertIsNone(_Separator.calls[0]['stems'])
 
-    def test_the_input_becomes_a_lot_of_stem_cards(self):
+    def test_the_stems_of_a_card_alone_are_a_lot_of_their_own(self):
         from django.conf import settings
         from wama.common.utils.batch_common import batch_of
         cover = self._cover()
@@ -369,11 +370,11 @@ class StemSeparationTest(_InputProcessCase):
         self.assertEqual((1, 1), (_Separator.built, _Separator.unloaded), 'released at once')
         stems = self._stems(gen)
         self.assertEqual({'vocals', 'drums'}, set(stems))
-        lot = batch_of(gen)
-        self.assertEqual(3, lot.items.count(), 'the mix and its two stems')
-        self.assertEqual(3, lot.total)
-        rows = {link.generation_id: link.row_index for link in lot.items.all()}
-        self.assertEqual(0, rows[gen.pk], 'the mix stays first')
+        lot = batch_of(stems['vocals'])
+        self.assertEqual((2, 2), (lot.items.count(), lot.total), 'the two stems, and they alone')
+        home = batch_of(gen)
+        self.assertTrue(home is None or (home.pk != lot.pk and home.total == 1),
+                        'the source stays a card alone')
         names = {link.generation_id: link.output_filename for link in lot.items.all()}
         self.assertEqual(len(names), len(set(names.values())), 'each line named after its own input')
         for role, card in stems.items():
@@ -665,7 +666,7 @@ class StemSeparationTest(_InputProcessCase):
         from wama.common.utils.batch_common import batch_of
         # COUNTED, not read by role : a dict by role keeps one card per stem and would hide doubles.
         self.assertEqual(2, ComposerGeneration.objects.filter(derived_from=gen).count())
-        self.assertEqual(3, batch_of(gen).items.count())
+        self.assertEqual(2, batch_of(self._stems(gen)['vocals']).items.count(), 'their lot, unchanged')
         self.assertEqual(first, {role: card.pk for role, card in self._stems(gen).items()})
 
     def test_a_stem_card_is_not_split_again(self):

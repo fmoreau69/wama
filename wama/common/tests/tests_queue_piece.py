@@ -68,7 +68,7 @@ class QueueContextTest(SimpleTestCase):
 
     def test_a_missing_route_gives_an_empty_url_never_a_guess(self):
         self.assertEqual({'start_url': '', 'clear_url': '', 'download_url': '',
-                          'progress_url': '', 'progress_key': ''},
+                          'progress_url': '', 'progress_key': '', 'settings_url': ''},
                          {k: v for k, v in queue_context('no_such_app').items() if k != 'empty_icon'})
 
 
@@ -155,6 +155,104 @@ class QueuePieceRenderTest(SimpleTestCase):
         self.assertIn('batch-delete-btn', ghost)
         self.assertNotIn('data-batch-delete-url', ghost)
         self.assertNotIn('data-batch-zip', ghost)
+
+
+def _row(pk, *members):
+    """A queue row as `build_batches_list` gives it — `members` : (element id, id of the card it
+    derives from, or None)."""
+    items = [SimpleNamespace(elem=SimpleNamespace(id=e, pk=e, derived_from_id=source,
+                                                  derived_label=f'part {e}' if source else ''),
+                             output_filename=f'line_{e}.wav') for e, source in members]
+    return {'obj': SimpleNamespace(id=pk, pk=pk, is_unitary=len(items) == 1, total=len(items),
+                                   media_type='', created_at=None),
+            'items': items, 'success_count': 0, 'running_count': 0, 'failure_count': 0,
+            'has_success': False}
+
+
+class FamilyOfACardTest(SimpleTestCase):
+    """The FAMILY (2026-11-23 ; Fabien, 19/11 : « un morceau seul n'est plus mis d'office dans un
+    lot ; ses pistes s'affichent sous la card source »). The cards derived from a card standing
+    alone live in a lot of their own (`derived_cards.family_lot`) ; the queue shows that lot UNDER
+    its source card (`batch_common.nest_derived_lots`, `_queue_entry.html`) — a lot like any other,
+    so its gestures bear on the derived cards and on them alone."""
+
+    def test_the_lot_of_the_cards_derived_from_a_card_alone_goes_under_it(self):
+        from wama.common.utils.batch_common import nest_derived_lots
+        source, stems, other = _row(1, (5, None)), _row(2, (6, 5), (7, 5)), _row(3, (8, None), (9, None))
+        top = nest_derived_lots([stems, source, other])
+        self.assertEqual([source, other], top, 'the lot of the stems left the top level')
+        self.assertEqual(([stems], 5), (source['items'][0].derived_lots, stems['derived_of']))
+        # Away from its source a derived card is named by what it is of it (`card_label_of`,
+        # Fabien : « identifier les pistes par instrument ») ; in the lot of its source — the
+        # families born before — it keeps the name of its line. The file name never changes.
+        self.assertEqual(['part 6', 'part 7'], [it.card_label for it in stems['items']])
+        together = _row(4, (10, None), (11, 10))
+        nest_derived_lots([together])
+        self.assertEqual(['line_11.wav', 'line_11.wav'],
+                         [together['items'][1].card_label, together['items'][1].output_filename])
+        self.assertFalse(hasattr(together['items'][0], 'card_label'), 'a card that derives from nothing')
+
+    def test_what_is_not_a_family_stays_an_entry_like_any_other(self):
+        from wama.common.utils.batch_common import nest_derived_lots
+        # Its source is not on the page ; its cards derive from two sources ; its source is the
+        # daughter of a real lot (the stems then are daughters of that lot, or a lot of their own).
+        gone = [_row(2, (6, 5), (7, 5))]
+        mixed = [_row(1, (5, None)), _row(4, (10, None)), _row(2, (6, 5), (7, 10))]
+        in_a_lot = [_row(1, (5, None), (8, None)), _row(2, (6, 5))]
+        for rows in (gone, mixed, in_a_lot, [_row(1, (5, None))], []):
+            with self.subTest(rows=len(rows)):
+                self.assertEqual(rows, nest_derived_lots(list(rows)))
+        # A model without the link (no `derived_from_id`) is never read as a family.
+        plain = [_lot(7, 1), _lot(8, 2, 3)]
+        self.assertEqual(plain, nest_derived_lots(list(plain)))
+
+    def test_the_relation_has_no_depth(self):
+        """A card derived from a derived card (a shot of a sequence of a film) : each lot goes under
+        ITS source, whatever the level — the display is bounded here, never the data."""
+        from wama.common.utils.batch_common import nest_derived_lots
+        film, sequence, shots = _row(1, (5, None)), _row(2, (6, 5)), _row(3, (7, 6), (8, 6))
+        self.assertEqual([film], nest_derived_lots([film, sequence, shots]))
+        self.assertEqual([sequence], film['items'][0].derived_lots)
+        self.assertEqual([shots], sequence['items'][0].derived_lots)
+
+    def test_the_piece_renders_the_family_under_its_source_inside_its_entry(self):
+        from wama.common.utils.batch_common import nest_derived_lots
+        rows = nest_derived_lots([_row(1, (5, None)), _row(2, (6, 5), (7, 5)), _row(3, (8, None), (9, None))])
+        html = _render(app='reader', batches=rows)
+        entry = html[html.index('data-entry-batch-id="1"'):html.index('data-batch-id="3"')]
+        self.assertLess(entry.index('data-id="5"'), entry.index('class="wama-derived" data-derived-of="5"'),
+                        'under its source card')
+        family = entry[entry.index('class="wama-derived"'):]
+        self.assertIn('class="batch-group mb-2" data-batch-id="2"', family, 'a lot like any other')
+        self.assertIn(f'data-batch-delete-url="{reverse("reader:batch_delete", args=[2])}"', family)
+        for stem in (6, 7):
+            self.assertIn(f'data-id="{stem}"', family)
+        # The entry wrapper closes AFTER the family : it moves as one block with its source.
+        self.assertEqual(1, html.count('class="wama-derived"'))
+        self.assertNotIn('wama-derived', html[html.index('data-batch-id="3"'):], 'nothing under a plain lot')
+        self.assertNotIn('wama-derived', _render(app='reader', batches=[_row(1, (5, None))]))
+
+    def test_a_new_derived_card_goes_where_its_family_is(self):
+        from wama.common.utils import derived_cards
+        source = SimpleNamespace(pk=5)
+        sister, stranger = SimpleNamespace(pk=6), SimpleNamespace(pk=8)
+        own, home = SimpleNamespace(pk=2, total=1), SimpleNamespace(pk=1, total=2)
+
+        def lot(of, members=()):
+            return mock.patch.multiple('wama.common.utils.batch_common',
+                                       batch_of=lambda card: of.get(card.pk),
+                                       batch_elements=lambda lot, model: list(members))
+        with lot({6: own, 5: home}):
+            self.assertIs(own, derived_cards.family_lot(source, [sister]), 'where its sisters are')
+        with lot({}):
+            self.assertIsNone(derived_cards.family_lot(source, []), 'no lot yet : the first opens theirs')
+        with lot({5: SimpleNamespace(pk=1, total=1)}):
+            self.assertIsNone(derived_cards.family_lot(source, []), 'a card alone stays alone')
+        with lot({5: home}, [source, stranger]):
+            self.assertIs(home, derived_cards.family_lot(source, []), 'the daughter of a real lot : its lot')
+        with lot({5: home}, [source, sister]):
+            self.assertIsNone(derived_cards.family_lot(source, [sister]),
+                              'a lot holding only the source and its own derived cards is no real lot')
 
 
 class EveryQueueIsThePieceTest(SimpleTestCase):

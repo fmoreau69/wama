@@ -301,13 +301,16 @@ def make_card_view(*, work_model, template: str, decorate=None, get_user=request
     @require_GET
     def card_html(request, pk):
         from wama.common.utils.app_modes import element_domain_or_first
-        from wama.common.utils.batch_common import is_batch_child, link_row_of
+        from wama.common.utils.batch_common import card_label_of, is_batch_child
         from wama.common.utils.scoping import visible_or_404
         elem = visible_or_404(work_model, get_user(request), pk=pk)    # LECTURE
         if decorate is not None:
             decorate(elem)
         values = {'elem': elem, 'in_batch': is_batch_child(elem),
-                  'card_label': getattr(link_row_of(elem), 'output_filename', '') or '',
+                  # Le nom que la file lui donne (`card_label_of` : sa ligne, ou son rôle pour une
+                  # card dérivée rangée sous sa source) — la même règle, la card ne change pas de
+                  # nom en se rafraîchissant.
+                  'card_label': card_label_of(elem),
                   'domain': element_domain_or_first(elem)}
         return HttpResponse(render_to_string(template, values, request=request))
     return card_html

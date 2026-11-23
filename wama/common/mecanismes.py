@@ -2193,16 +2193,23 @@ MECHANISMS = (
               'wama/common/utils/queue_duplication.py', 'docs/construction/architecture/WAMA_APP_CONVENTIONS.md',
               annexes=('wama/common/services/released_files.py',
                        'wama/common/static/common/js/released-files.js')),
-    Mechanism('derived_cards', 'Cards dérivées (une card → N cards dans son lot)',
-              "Les résultats d'un process deviennent des cards SŒURS dans le lot de la card source, "
-              "qui DEVIENT le lot (2026-11-12, demande de Fabien : séparer l'audio d'une card du "
-              "composer en pistes, chacune une card, pour transcrire un instrument seul). Copie des "
-              "réglages sans les résultats (`duplicate_instance`), rattachement au lot "
-              "(`attach_to_batch`), lien card → card (`DerivedCardMixin` : `derived_from`, "
-              "`derived_role`, qui fait l'identité — une relance REMPLACE l'entrée des cards "
-              "existantes), provenance du fichier (`input_provenance`, kind `app`). Une card dérivée "
-              "ne se lance pas seule. 1ᵉʳ consommateur : le process `separate` du composer",
-              'wama/common/utils/derived_cards.py', 'wama/model_manager/PROSPECTION_PIPELINE.md'),
+    Mechanism('derived_cards', 'Cards dérivées — la FAMILLE d\'une card (une card → N cards sous elle)',
+              "Les résultats d'un process deviennent des cards (2026-11-12, demande de Fabien : "
+              "séparer l'audio d'une card du composer en pistes, chacune une card, pour transcrire "
+              "un instrument seul). Depuis le 2026-11-23 (décision du 19/11) une source SEULE reste "
+              "une card seule : ses cards dérivées vivent dans un lot à elles (`family_lot`), que "
+              "la file range SOUS elle (`batch_common.nest_derived_lots`, `_queue_entry.html`) — un "
+              "lot comme un autre, dont ▶, ⚙, réaligner, ZIP et étapes portent sur les seules "
+              "dérivées ; nommées par ce qu'elles sont de leur source (`card_label_of`, "
+              "`derived_label`). La relation n'a pas de profondeur (un film, ses séquences, leurs "
+              "plans). Copie des réglages sans les résultats (`duplicate_instance`), lien card → "
+              "card (`DerivedCardMixin` : `derived_from`, `derived_role`, qui fait l'identité — une "
+              "relance REMPLACE l'entrée des cards existantes), provenance du fichier "
+              "(`input_provenance`, kind `app`). Une card dérivée ne se lance pas seule. Les "
+              "familles d'avant : `manage.py split_family_lots`. 1ᵉʳ consommateur : le process "
+              "`separate` du composer",
+              'wama/common/utils/derived_cards.py', 'docs/construction/ui/MODES_QUEUE_UX.md',
+              annexes=('wama/common/management/commands/split_family_lots.py',)),
     Mechanism('batch', 'Import par lot',
               "Parsing des fichiers batch (txt/csv/pdf/docx) et cycle de vie du lot. Depuis le "
               "2026-10-20 : `parse_batch_lines` (les lignes normalisées, toutes familles) et "

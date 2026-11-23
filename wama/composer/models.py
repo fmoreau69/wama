@@ -287,6 +287,15 @@ class ComposerGeneration(MediaDurationMixin, DerivedCardMixin, KeptOutputsMixin,
         return os.path.splitext(os.path.basename(named))[0]
 
     @property
+    def derived_label(self) -> str:
+        """Une piste séparée se nomme par son INSTRUMENT (`DerivedCardMixin.derived_label`) — le
+        vocabulaire commun des instruments, celui du titre de ses partitions (`work_title`)."""
+        if not self.derived_role:
+            return ''
+        from wama.common.utils.midi_score import instrument_label
+        return instrument_label(self.derived_role) or self.derived_role
+
+    @property
     def work_title(self) -> str:
         """Le TITRE du morceau, celui qu'une partition de la card porte (2026-11-13, demande de
         Fabien : « la partition porte le numéro de la card, on aimerait le titre du morceau ») : le

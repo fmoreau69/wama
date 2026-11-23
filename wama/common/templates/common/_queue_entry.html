@@ -87,9 +87,21 @@ l'enhancer, que la dérivation `update_settings` manquait).{% endcomment %}
 {% firstof q.settings_url as settings_url %}
 {% if not batch_info.obj or batch_info.obj.is_unitary %}
   {% for item in batch_info.items %}{% if item.elem %}
-    {% with elem=item.elem card_label=item.output_filename in_batch=False %}
+    {% comment %}`item.card_label` : le nom d'une card DÉRIVÉE loin de sa source (« Piano »,
+    `batch_common.card_label_of`) ; le nom de sa ligne sinon. Par `firstof`, qui tolère l'absence :
+    la plupart des lignes de lot ne portent pas `output_filename`, et un argument de filtre
+    absent LÈVE.{% endcomment %}
+    {% firstof item.card_label item.output_filename as shown_label %}
+    {% with elem=item.elem card_label=shown_label in_batch=False %}
       <div class="wama-queue-entry" style="display:contents{% if batch_info.share_label %}; --wama-share-label:'{{ batch_info.share_label }}'{% endif %}"
-           data-entry-batch-id="{{ batch_info.obj.id }}"{% if card_url %} data-card-url="{{ card_url }}"{% endif %}{% if settings_url %} data-settings-url="{{ settings_url }}"{% endif %}{% if batch_info.received_from %} data-received-from="{{ batch_info.received_from }}" data-share-mode="{{ batch_info.share_mode|default:'read' }}"{% elif batch_info.share_label %} data-shared{% if batch_info.collaborators %} data-collaborators="{{ batch_info.collaborators }}"{% endif %}{% endif %}>{% include card_template %}</div>
+           data-entry-batch-id="{{ batch_info.obj.id }}"{% if card_url %} data-card-url="{{ card_url }}"{% endif %}{% if settings_url %} data-settings-url="{{ settings_url }}"{% endif %}{% if batch_info.received_from %} data-received-from="{{ batch_info.received_from }}" data-share-mode="{{ batch_info.share_mode|default:'read' }}"{% elif batch_info.share_label %} data-shared{% if batch_info.collaborators %} data-collaborators="{{ batch_info.collaborators }}"{% endif %}{% endif %}>{% include card_template %}{% comment %}
+      LA FAMILLE (2026-11-23, décision de Fabien du 19/11 : « ses pistes s'affichent sous la card source ») —
+      le lot des cards DÉRIVÉES de cette card (`batch_common.nest_derived_lots` : `item.derived_lots`), rendu
+      par CE gabarit, dessous et en retrait : un lot comme un autre (sa card mère porte ▶, ⚙, ZIP et les
+      étapes, sur les pistes seules), replié tant qu'on ne l'ouvre pas. DANS l'enrobage de l'entrée : elle
+      se déplace d'un bloc avec sa source ; `.wama-derived` dit aux briques que ces cards ne sont pas celles
+      de l'entrée (`queue-actions.js`, compte d'un lot). Le même liseré que les filles d'un lot.
+      {% endcomment %}{% for derived_lot in item.derived_lots %}<div class="wama-derived" data-derived-of="{{ item.elem.pk }}" style="border-left:2px solid var(--wama-accent); margin-left:0.75rem;">{% include 'common/_queue_entry.html' with batch_info=derived_lot %}</div>{% endfor %}</div>
     {% endwith %}
   {% endif %}{% endfor %}
 {% else %}
@@ -110,7 +122,8 @@ l'enhancer, que la dérivation `update_settings` manquait).{% endcomment %}
          data-wama-batch-key="{{ batch_key|default:app }}_{{ batch_info.obj.id }}"
          style="border-left:2px solid var(--wama-accent); margin-left:0.75rem;">
       {% for item in batch_info.items %}{% if item.elem %}
-        {% with elem=item.elem card_label=item.output_filename in_batch=True %}
+        {% firstof item.card_label item.output_filename as shown_label %}
+        {% with elem=item.elem card_label=shown_label in_batch=True %}
           {% include card_template %}
         {% endwith %}
       {% endif %}{% endfor %}

@@ -1175,6 +1175,49 @@ class EnrobageUnitaireJumeauTest(TestCase):
             self.assertIn(trace, corps)
 
 
+class FamiliesBornBeforeTest(TestCase):
+    """Until 2026-11-23 a card split into derived cards BECAME a lot : the source and its derived
+    cards were daughters of one lot. `derived_cards.split_family` (the command `split_family_lots`)
+    gives the derived cards a lot of their own — lines MOVED, nothing copied — the form new
+    families are born with. Every model that carries the link, both lot forms, no app named."""
+
+    def test_a_family_in_one_lot_is_split_and_a_composed_lot_is_left(self):
+        from django.apps import apps as django_apps
+        from wama.common.app_registry import APP_CATALOG
+        from wama.common.models import DerivedCardMixin
+        from wama.common.utils.batch_common import batch_of
+        from wama.common.utils.derived_cards import family_in_one_lot, split_family
+        carriers = [m for m in django_apps.get_models() if issubclass(m, DerivedCardMixin)
+                    and not (APP_CATALOG.get(m._meta.app_label) or {}).get('sandbox')]
+        self.assertTrue(carriers)
+        user = User.objects.create_user('family_before', password='x')
+        for model in carriers:
+            with self.subTest(model=model.__name__):
+                lot, (source, first, second) = _lot_de(model, user, 3)
+                model.objects.filter(pk__in=[first.pk, second.pk]).update(derived_from=source)
+                self.assertEqual(source.pk, family_in_one_lot(lot, model)[0].pk)
+                self.assertEqual(2, split_family(lot, model))
+                home, own = batch_of(model.objects.get(pk=source.pk)), batch_of(model.objects.get(pk=first.pk))
+                self.assertEqual((lot.pk, 1), (home.pk, home.items.count()), 'the source stays, alone')
+                self.assertEqual(1, type(lot).objects.get(pk=lot.pk).total)
+                self.assertNotEqual(lot.pk, own.pk)
+                self.assertEqual((2, 2, own.pk), (own.total, own.items.count(),
+                                                  batch_of(model.objects.get(pk=second.pk)).pk))
+                self.assertEqual(0, split_family(own, model), 'no source in it : nothing to split')
+                # Counter-proof : a lot the user composed — two sources, or a stranger — is left.
+                composed, (a, b, c) = _lot_de(model, user, 3)
+                model.objects.filter(pk=c.pk).update(derived_from=a)
+                self.assertEqual((None, []), family_in_one_lot(composed, model))
+                self.assertEqual((0, 3), (split_family(composed, model), composed.items.count()))
+
+    def test_the_command_counts_before_it_writes(self):
+        from io import StringIO
+        from django.core.management import call_command
+        out = StringIO()
+        call_command('split_family_lots', stdout=out)
+        self.assertIn("rien n'est changé", out.getvalue())
+
+
 class APollSaysTheLotOfItsElementTest(TestCase):
     """The other direction of the same contract (2026-11-13, relevé par Fabien : une card devenue
     lot par ses pistes séparées ne s'affichait en lot qu'après F5). A process may make cards BORN
@@ -1203,6 +1246,85 @@ class APollSaysTheLotOfItsElementTest(TestCase):
         request = RequestFactory().get('/x/')
         request.user = user
         self.assertNotIn('batch', json.loads(view(request, alone.pk).content), 'no lot, nothing said')
+
+    def test_a_card_alone_says_how_many_cards_derive_from_it(self):
+        """2026-11-23 : the cards derived from a card standing ALONE are born in a lot of their own
+        (`derived_cards.family_lot`) — the total of its lot no longer moves, so the progress says
+        their count (`derived`), which the queue brick compares with what it shows under the card.
+        Said for a card alone only : in a real lot its derived cards are daughters of that lot,
+        counted by `batch.total`. Every model that carries the link, no app named."""
+        from django.apps import apps as django_apps
+        from django.test import RequestFactory
+        from wama.common.app_registry import APP_CATALOG
+        from wama.common.models import DerivedCardMixin
+        from wama.common.utils.progress_views import make_progress_views
+        carriers = [m for m in django_apps.get_models() if issubclass(m, DerivedCardMixin)
+                    and not (APP_CATALOG.get(m._meta.app_label) or {}).get('sandbox')]
+        self.assertTrue(carriers, 'witness : a model whose cards can derive from one another')
+        user = User.objects.create_user('poll_family', password='x')
+        request = RequestFactory().get('/x/')
+        request.user = user
+        for model in carriers:
+            with self.subTest(model=model.__name__):
+                view = make_progress_views(work_model=model, app_id=model._meta.app_label,
+                                           get_user=lambda r: r.user)['progress']
+                _lot, (source,) = _lot_de(model, user, 1)
+                for role in ('a', 'b'):
+                    _instance(model, user, derived_from=source, derived_role=role)
+                data = json.loads(view(request, source.pk).content)
+                self.assertEqual((1, 2), (data['batch']['total'], data['derived']))
+                _real, members = _lot_de(model, user, 3)
+                self.assertNotIn('derived', json.loads(view(request, members[0].pk).content))
+        from wama.converter.models import ConversionJob
+        _lot, (job,) = _lot_de(ConversionJob, user, 1)
+        view = make_progress_views(work_model=ConversionJob, app_id='converter',
+                                   get_user=lambda r: r.user)['progress']
+        self.assertNotIn('derived', json.loads(view(request, job.pk).content),
+                         'a model without the link says nothing')
+
+    def test_the_cards_of_a_family_are_not_counted_with_their_source(self):
+        """The queue brick counts the cards of an ENTRY (`ownCards`) : the lot shown under a source
+        card (`.wama-derived`) is another lot. Counting its cards with the source would read every
+        answer as « the lot changed » and reload the page at each turn of the follower. And a
+        derived card born since the page was rendered (`derived`) reshapes it — once."""
+        try:
+            from py_mini_racer import MiniRacer
+        except ImportError:
+            self.skipTest('py_mini_racer absent de ce venv')
+        js = Path(__file__).parent.parent / 'static/common/js'
+        v8 = MiniRacer()
+        v8.eval("""
+            var reloads = 0, stored = {}, listeners = {};
+            var location = {reload: function () { reloads++; }, href: 'http://t/composer/'};
+            var sessionStorage = {getItem: function (k) { return stored[k] || null; },
+                                  setItem: function (k, v) { stored[k] = v; }};
+            var block = {stems: [], contains: function (n) { return n === block; },
+                         querySelectorAll: function () { return block.stems.slice(); }};
+            var entry = {querySelectorAll: function () { return [source].concat(block.stems); },
+                         querySelector: function (s) { return /wama-derived\\[data-derived-of="5"\\]/.test(s) ? block : null; },
+                         contains: function (n) { return n === block || n === entry; }};
+            var source = {dataset: {id: '5'}, closest: function (s) { return s === '.wama-queue-entry' ? entry : null; }};
+            function stem(id) {
+                var c = {dataset: {id: id}, closest: function (s) { return s === '.wama-derived' ? block : null; }};
+                block.stems.push(c);
+            }
+            stem('6'); stem('7');
+            var document = {cookie: '', addEventListener: function (t, f) { (listeners[t] = listeners[t] || []).push(f); },
+                            querySelector: function (s) { return /data-id="5"/.test(s) ? source : null; },
+                            querySelectorAll: function () { return []; }};
+            var window = {location: location};
+            function answer(derived) {
+                (listeners['wama:poll-data'] || []).forEach(function (f) {
+                    f({detail: {id: 5, sentAt: 10, data: {id: 5, batch: {id: 1, total: 1}, derived: derived}}}); });
+            }
+        """)
+        v8.eval((js / 'queue-actions.js').read_text(encoding='utf-8'))
+        v8.eval('answer(2); answer(2);')
+        self.assertEqual(0, v8.eval('reloads'), 'a lot of one and its two stems under it : all shown')
+        v8.eval('answer(3);')
+        self.assertEqual(1, v8.eval('reloads'), 'a stem born since : the page is rendered again')
+        v8.eval('answer(3); answer(3);')
+        self.assertEqual(1, v8.eval('reloads'), 'once per count')
 
     def test_the_event_the_poller_announces_is_the_one_the_queue_brick_reads(self):
         js = Path(__file__).parent.parent / 'static/common/js'

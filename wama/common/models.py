@@ -257,6 +257,15 @@ class DerivedCardMixin(models.Model):
     class Meta:
         abstract = True
 
+    @property
+    def derived_label(self) -> str:
+        """Ce qui NOMME cette card sous sa source — son rôle, lisible (2026-11-23, Fabien : « ça
+        simplifie le nommage des pistes séparées pour les identifier par instrument »). Rangée sous
+        la card dont elle dérive (`batch_common.nest_derived_lots`), elle n'a plus à redire le nom
+        du morceau : la file lit ce libellé. Le rôle tel quel ici ; l'app qui a un vocabulaire le
+        traduit (le composer : « Piano », « Batterie »). '' pour une card qui ne dérive de rien."""
+        return self.derived_role or ''
+
 
 class QueueOrderMixin(models.Model):
     """Position MANUELLE de l'entrée dans la file (CARD_DESIGN §3bis — manipulation directe).

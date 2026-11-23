@@ -35,6 +35,9 @@ AUTO = 'auto'
 #: Libellé de l'option « auto » servie en 1ʳᵉ position par le catalogue (décision
 #: Fabien, handoff 2026-09-01). Un seul domicile — l'endpoint et les tests le citent.
 AUTO_LABEL = 'Automatique — choisi au lancement'
+#: Le même choix, dit COURT : ce qu'on lit d'un réglage déjà posé (la puce d'une card, le volet —
+#: `card_chips.auto_choice_label`, 2026-11-23). Le début du libellé ci-dessus, jamais réécrit.
+AUTO_SHORT_LABEL = AUTO_LABEL.split(' — ')[0]
 
 #: Curseur de QUALITÉ — échelle CONTINUE 0-100 (décision Fabien 02/09 : « l'intention
 #: n'est pas un branchement, c'est un poids dans le score » — les 3 politiques discrètes
