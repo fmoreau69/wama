@@ -1868,7 +1868,7 @@ L'historique de l'assistant côté SERVEUR — remplace le localStorage web et l
 
 ### Ingest de source
 
-Télécharge une source distante vers le FileField, déclaré par WAMA_INGEST. ⭐ Depuis le 2026-10-13 (décision de Fabien) : DÈS LA CRÉATION, hors requête — récepteur `post_save` sur tout modèle à WAMA_INGEST → tâche `common.ingest_source` (file default) ; le lancement rattrape un échec et attend un téléchargement en cours (verrou partagé). `derive` (chemin pointé) DÉCLARÉ dans la spec ; une page web gardée en `.html` ; nature d'une URL AVANT téléchargement : `url_ingest.url_nature` (même table que la décision page/média). Depuis le 2026-10-20 : `download_to_user`, l'URL d'une entrée qui n'est pas encore une card (card d'entrée du Studio) — mêmes primitives, déposée dans l'espace du compte comme un fichier du gestionnaire ; `declared_mode`, le mode que l'app destinataire DÉCLARE dans son `WAMA_INGEST`
+Télécharge une source distante vers le FileField, déclaré par WAMA_INGEST. ⭐ Depuis le 2026-10-13 (décision de Fabien) : DÈS LA CRÉATION, hors requête — récepteur `post_save` sur tout modèle à WAMA_INGEST → tâche `common.ingest_source` (file default) ; le lancement rattrape un échec et attend un téléchargement en cours (verrou partagé). `derive` (chemin pointé) DÉCLARÉ dans la spec ; une page web gardée en `.html` ; nature d'une URL AVANT téléchargement : `url_ingest.url_nature` (même table que la décision page/média). Depuis le 2026-10-20 : `download_to_user`, l'URL d'une entrée qui n'est pas encore une card (card d'entrée du Studio) — mêmes primitives, déposée dans l'espace du compte comme un fichier du gestionnaire ; `declared_mode`, le mode que l'app destinataire DÉCLARE dans son `WAMA_INGEST` ; `domain_ingest` / `port_url_source` (2026-11-23), la déclaration du domaine d'une card et le port qui offre l'URL
 
 - **Domicile** : `wama/common/utils/source_ingest.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : source_ingest — Ingest média DÉCLARATIF et COMMUN (hors common/manifests/**).
@@ -1876,6 +1876,8 @@ Télécharge une source distante vers le FileField, déclaré par WAMA_INGEST. �
   - `is_remote(ref) -> bool` — Cette entrée est-elle une URL à télécharger (http, https) plutôt qu'un chemin ?
   - `declared_mode(model) -> str` — Le mode (`audio` | `smart` | `media`) qu'un modèle d'élément DÉCLARE pour son entrée
   - `app_mode(app_id) -> str` — Le mode d'une URL destinée à l'app `app_id` : celui que son modèle d'élément déclare
+  - `domain_ingest(app_id, domain_id=None) -> dict | None` — La déclaration `WAMA_INGEST` du modèle d'élément d'une CARD — celui de la surface de son
+  - `port_url_source(app_id, domain_id, types) -> str` — Le champ qui GARDE l'URL du port de travail d'une card ('' : ce port n'offre pas l'import par
   - `download_to_user(user, url, mode='media') -> str` — Télécharge `url` dans l'espace temporaire de `user` et rend son chemin (relatif à
   - `ensure_local_input(instance, *, console=None, derive=None)` — Si `instance` déclare `WAMA_INGEST` et a une URL dans son champ source mais
   - `ingest_state(instance)` — Ce que l'Entrée d'une card peut dire de sa SOURCE distante tant que le fichier manque :
@@ -2791,7 +2793,7 @@ Dimensionnement déclaratif des pistes de card — dépend de l'app, des actions
 
 ### Card « Nouvel élément »
 
-Card d'entrée dépliable commune — les 6 modalités du partial : dépôt, URL, médiathèque, lot, dossier, live + slot de référence typé (extra_zone) — auto-init. v4 : un onglet par PORT, ses tuiles dans un ordre CONSTANT sur tous les ports — Importer · Médiathèque · URL, du plus proche au plus distant (Fabien, 2026-10-01, `CARD_DESIGN §11.11 B`)
+Card d'entrée dépliable commune — les 6 modalités du partial : dépôt, URL, médiathèque, lot, dossier, live + slot de référence typé (extra_zone) — auto-init. v4 : un onglet par PORT, ses tuiles dans un ordre CONSTANT sur tous les ports — Importer · Médiathèque · URL, du plus proche au plus distant (Fabien, 2026-10-01, `CARD_DESIGN §11.11 B`). L'URL du port principal se DÉRIVE de `WAMA_INGEST` du modèle du domaine (`source_ingest.port_url_source`, 2026-11-23) ; la card qui crée câble son bouton (`wama-input-slots.js`, un lot d'une ligne)
 
 - **Domicile** : `wama/common/static/common/js/wama-new-item-card.js` · **doc** : [docs/construction/ui/MODES_QUEUE_UX.md](../construction/ui/MODES_QUEUE_UX.md)
 
