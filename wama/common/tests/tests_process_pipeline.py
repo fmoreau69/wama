@@ -941,6 +941,35 @@ class WhatTheCardShowsTest(TestCase):
         with_audio.processes = pipeline.card_rows(with_audio)
         self.assertNotIn('inapplicable', gear_data(with_audio, params))
 
+    def test_the_panel_reads_what_no_step_reads_and_the_models_the_steps_kept(self):
+        """2026-11-23 (Fabien : the panel lists every setting of the schema ; « auto:text-to-music
+        […] n'est pas le modèle mais la tâche. Il faut peut-être donner les 2 infos »).
+        `unread_settings` : the settings only steps that do NOT take place read — switched off or
+        without object —, wider than `inapplicable_settings` (a switched-off step keeps its settings
+        in the gear ; the panel does not show them). `employed_models` : the models the lines of
+        the steps reading a selector kept, in graph order, an « auto » line naming none."""
+        from wama.common.services.process_pipeline import employed_models, unread_settings
+        pipeline = AppPipeline('demo_pipeline', (
+            ProcessSpec('cover', label='Lecture du cover', degree='optional', toggle='wants_cover',
+                        watched=('cover_model', 'shared')),
+            ProcessSpec('plan', label='Partition', watched=('model',)),
+            ProcessSpec('render', label='Rendu', depends_on=('plan',), watched=('model', 'shared')),
+        ), label='Demo')
+        item = _Element(status=JOB_PENDING, wants_cover=False)
+        self.assertEqual(('cover_model', 'wants_cover'), unread_settings(item, pipeline=pipeline),
+                         '`shared` is still read by the render')
+        item.wants_cover = True
+        self.assertEqual((), unread_settings(item, pipeline=pipeline))
+        self.assertEqual([], employed_models(item, 'model', pipeline=pipeline), 'nothing ran yet')
+        for key, model in (('cover', 'lab:listener'), ('plan', 'auto'), ('render', 'lab:player')):
+            process_runs.start(item, key, model_key=model)
+            process_runs.succeed(item, key)
+        self.assertEqual(['lab:player'], employed_models(item, 'model', pipeline=pipeline),
+                         'an « auto » line names no model ; the cover does not read this selector')
+        self.assertEqual(['lab:listener'], employed_models(item, 'cover_model', pipeline=pipeline))
+        self.assertEqual(['lab:listener', 'lab:player'], employed_models(item, 'shared', pipeline=pipeline),
+                         'graph order')
+
     def test_a_switch_toward_steps_the_card_excludes_leaves_it_too(self):
         """2026-11-18, Fabien : « la refusion n'est à proposer que sur la card qui permet la
         refusion. Pas les cards de stems ». The switch that makes a step READ the output of its

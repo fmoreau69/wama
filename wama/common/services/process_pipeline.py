@@ -1848,6 +1848,49 @@ def inapplicable_settings(item, rows=None, pipeline=None) -> tuple:
     return tuple(dict.fromkeys(name for name in idle if name not in used or name in moot))
 
 
+def unread_settings(item, pipeline=None) -> tuple:
+    """Les réglages que RIEN ne lit sur cette card telle qu'elle est réglée : ceux que ne lisent
+    que des étapes qui n'ont pas lieu — coupées par leur case, ou sans objet (2026-11-23, le volet :
+    Fabien, « parfaitement aligné, universel, uniforme et schéma-driven »). La règle de la card
+    (« pas de puce pour un réglage d'un process éteint ») dite UNE fois, pour le volet qui liste
+    TOUS les réglages posés du schéma : le modèle de séparation d'une card qui ne sépare rien ne s'y
+    lit pas. Un réglage lu par une étape active, ou par aucune étape, reste. Plus large
+    qu'`inapplicable_settings`, qui RETIRE des réglages d'une ⚙ (une étape coupée y garde les
+    siens : on y revient) — ici on ne fait que ne pas les MONTRER. () sans pipeline."""
+    pipeline = pipeline or pipeline_of(item)
+    if pipeline is None:
+        return ()
+    model = pipeline.requested_model(item)
+    readers = {}
+    for spec in pipeline.specs:
+        active = pipeline.step_state(spec, item, model)[0] == 'active'
+        names = pipeline.step_settings(spec) + ((spec.toggle,) if spec.toggle else ())
+        for name in names:
+            readers[name] = readers.get(name, False) or active
+    return tuple(name for name, read in readers.items() if not read)
+
+
+def employed_models(item, setting: str, pipeline=None) -> list:
+    """Les modèles EMPLOYÉS sous le réglage `setting` (le sélecteur de modèle de la card) : ceux
+    des lignes des étapes qui le lisent (`watched_of`), dans l'ordre du graphe, sans doublon — ce
+    que la bande écrit à côté de chaque étape (`card_rows`, `model_name`), lu pour le volet
+    (2026-11-23, Fabien : « j'ai toujours auto:text-to-music, ce qui n'est pas le modèle mais la
+    tâche. Il faut peut-être donner les 2 infos »). Une ligne qui ne retient qu'« auto » ne nomme
+    aucun modèle. [] sans pipeline, ou avant le premier lancement."""
+    from wama.common.utils.auto_model import is_auto
+    pipeline = pipeline or pipeline_of(item)
+    if pipeline is None or not getattr(item, 'pk', None):
+        return []
+    rows = pipeline.rows(item)
+    out = []
+    for spec in pipeline.ordered():
+        row = rows.get(spec.key)
+        if (row is not None and row.model_key and not is_auto(row.model_key)
+                and setting in pipeline.watched_of(spec) and row.model_key not in out):
+            out.append(row.model_key)
+    return out
+
+
 def app_pipeline(app: str) -> AppPipeline | None:
     """Le pipeline déclaré par l'app `app`, ou None — même lecture que `pipeline_of`, quand on
     n'a qu'un NOM d'app (la page de base, qui range les réglages par process, 2026-10-26). Lire

@@ -194,6 +194,25 @@ def chips_for(instance, params_json, extra=None, values=None):
     return chips
 
 
+def auto_choice_label(value) -> str:
+    """Le libellé d'un choix « auto » de modèle, '' pour toute autre valeur : « Automatique », et
+    pour l'« auto » d'un GROUPE la tâche qu'il borne, par son libellé du catalogue (`ModelTask`) —
+    « Automatique (Texte → musique) »."""
+    from wama.common.utils.auto_model import is_auto
+    from wama.common.utils.model_keys import auto_task
+    if not value or not is_auto(value):
+        return ''
+    task = auto_task(str(value))
+    if not task:
+        return 'Automatique'
+    try:
+        from wama.model_manager.models import ModelTask
+        task = dict(ModelTask.choices).get(task, task)
+    except Exception:
+        pass                           # catalogue illisible : la tâche par sa clé, jamais inventée
+    return f"Automatique ({task})"
+
+
 def display_value(field, value, instance=None):
     """La valeur d'un réglage telle que WAMA la MONTRE — UNE écriture pour les chips de la card et
     la section INFOS du volet (`detail_registry.settings_from_schema`, 2026-11-19, décision de
@@ -227,6 +246,14 @@ def display_value(field, value, instance=None):
     # gardent la PRIORITÉ (premier match) : aucun libellé existant ne change.
     if field.get('options_source') == 'catalog':
         _plates += _inventaire_catalogue(field.get('options_query') or {})
+        # « auto » n'est pas au catalogue : c'est l'option que le SELECT ajoute en tête
+        # (`options_auto`), et l'« auto » d'un groupe porte sa TÂCHE (`auto:text-to-music`). Sans
+        # cette résolution la card et le volet écrivaient la valeur technique (2026-11-23, Fabien :
+        # « auto:text-to-music, ce qui n'est pas le modèle mais la tâche »). Après les plaques :
+        # un « auto » que le schéma libelle lui-même garde son libellé.
+        _auto = auto_choice_label(value)
+        if _auto:
+            _plates.append((value, _auto))
     # Voix par utilisateur (`options_source: 'voices'`) : les valeurs `ua_` ne
     # sont dans AUCUNE plaque statique — sans cette résolution le chip affichait
     # l'identifiant brut. Joint APRÈS les plaques du champ (un preset statique garde
@@ -239,6 +266,12 @@ def display_value(field, value, instance=None):
         ov, ol = (opt if isinstance(opt, (list, tuple)) else (opt.get('value'), opt.get('label')))
         if str(ov) == str(value):
             return ol or value
+    # Une valeur COMPOSÉE se lit en clair (2026-11-23) : une liste par ses éléments, une table par
+    # ses couples (« Voix 0.5, Basse 1.2 », les niveaux d'un mixage) — jamais `['a']` ni `{…}`.
+    if isinstance(value, dict):
+        return ', '.join(f"{k} {v}" for k, v in value.items())
+    if isinstance(value, (list, tuple)):
+        return ', '.join(str(v) for v in value if v not in (None, ''))
     if field.get('type') in ('number', 'range'):
         # FORMAT DÉCLARÉ (`display_format`, 2026-10-04) : « 3:30 » plutôt que « 210 s » — le
         # même formateur que le curseur (jumeau Python) ; sinon l'unité.

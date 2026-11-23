@@ -66,9 +66,9 @@ class ReaderConfig(AppConfig):
             'content_title': 'read_title',
             # Le numéro de page lu : les pages d'un lot se rangent par lui (`order_by_read_pages`).
             'content_page': 'read_page',
+            # Les FAITS hors schéma seulement (2026-11-23) : le mode et la langue sont des réglages
+            # du schéma, que le volet liste tous, pour toute app (`detail_from_spec`).
             'extra': [
-                {'label': 'Mode de lecture', 'field': 'mode', 'display': True},
-                {'label': 'Langue', 'field': 'language'},
                 {'label': 'Pages', 'field': 'page_count'},
                 {'label': 'Titre lu', 'field': 'read_title'},
                 {'label': 'Page lue', 'field': 'score_page'},

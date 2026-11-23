@@ -802,15 +802,6 @@
         "engine_effective": "used_backend",
         "extra": [
           {
-            "display": true,
-            "field": "mode",
-            "label": "Mode de lecture"
-          },
-          {
-            "field": "language",
-            "label": "Langue"
-          },
-          {
             "field": "page_count",
             "label": "Pages"
           },

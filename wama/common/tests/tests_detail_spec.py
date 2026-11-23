@@ -102,7 +102,9 @@ class NamedSchemaTest(SimpleTestCase):
         with mock.patch('wama.common.utils.param_schema.declared_param_schemas', return_value=self.DECLARED), \
              mock.patch('wama.common.utils.param_schema.schema_for_app',
                         return_value=self.DECLARED['schemas']['MAIN_PARAMS_JSON']):
-            return detail_from_spec(element, dict(spec, extra_from_params=True), 'witness').get('extra') or {}
+            # No `extra_from_params` : the settings of the schema are listed for EVERY spec since
+            # 2026-11-23 (the key only names a JSON carrier now).
+            return detail_from_spec(element, spec, 'witness').get('extra') or {}
 
     def test_without_a_name_the_main_schema_is_read(self):
         self.assertEqual({'Main A': 'x'}, self._extra(_element(a='x', fps=24), {}))
@@ -148,6 +150,140 @@ class ExtraSettingsTest(SimpleTestCase):
     def test_a_false_or_empty_setting_is_not_shown(self):
         entries = [{'label': 'A', 'field': 'a'}, {'label': 'B', 'field': 'b'}]
         self.assertEqual({}, self._extra(_element(a=False, b=''), entries))
+
+    def test_the_schema_is_listed_whole_and_a_named_entry_is_not_repeated(self):
+        """2026-11-23 (Fabien : « parfaitement aligné, universel, uniforme et schéma-driven ») :
+        the panel lists every SET setting of the schema for every spec — four apps still wrote
+        three or four of them by hand. What `extra` names itself is said once, its way."""
+        schema = [{'name': 'kind', 'label': 'Schema label'}, {'name': 'speed', 'label': 'Vitesse'},
+                  {'name': 'unset', 'label': 'Jamais posé'}]
+        element = _element(kind='x', speed=2, unset='')
+        self.assertEqual({'Vitesse': 2, 'Schema label': 'x'}, self._extra(element, [], schema))
+        self.assertEqual({'Type': 'x', 'Vitesse': 2},
+                         self._extra(element, [{'label': 'Type', 'field': 'kind'}], schema))
+
+    def test_no_registered_spec_lists_by_hand_a_setting_of_its_schema(self):
+        """The contract on the DECLARATIONS : an `extra` entry is a fact OUTSIDE the schema (a type,
+        a page count) — a schema setting listed there would be a second list to keep in step."""
+        from wama.common.utils.param_schema import schema_for_app
+        for app, _model, spec in _declared_specs():
+            names = {p.get('name') for p in (schema_for_app(app) or [])}
+            by_hand = sorted(e.get('field') for e in (spec.get('extra') or []) if e.get('field') in names)
+            with self.subTest(app=app):
+                self.assertEqual([], by_hand)
+                self.assertIsNot(False, spec.get('extra_from_params', True),
+                                 'no spec opts out of the settings of its schema')
+
+
+class RequestedAndEmployedModelTest(SimpleTestCase):
+    """2026-11-23 (Fabien : « j'ai toujours auto:text-to-music, ce qui n'est pas le modèle mais la
+    tâche. Il faut peut-être donner les 2 infos ») : the model ASKED reads as on the card, the model
+    EMPLOYED is the one the step lines kept — for the engine and for every model selector."""
+
+    SCHEMA = [{'name': 'model', 'label': 'Modèle', 'type': 'select', 'options_source': 'catalog',
+               'options_auto': 'group'},
+              {'name': 'parts_model', 'label': 'Modèle des partitions', 'type': 'select',
+               'options_source': 'catalog', 'options_auto': True},
+              {'name': 'idle_model', 'label': 'Modèle au repos', 'type': 'select',
+               'options_source': 'catalog', 'options_auto': True}]
+    NAMES = {'lab:ace': 'ACE-Step', 'lab:mu': 'MuScriptor'}
+
+    def _detail(self, element, employed=None, unread=()):
+        used = employed or {}
+        with mock.patch('wama.common.utils.param_schema.schema_for_app', return_value=self.SCHEMA), \
+             mock.patch('wama.common.utils.card_chips._inventaire_catalogue',
+                        return_value=[('lab:ace', 'ACE-Step')]), \
+             mock.patch('wama.common.utils.card_chips.catalog_name', side_effect=lambda k: self.NAMES.get(k, '')), \
+             mock.patch('wama.common.services.process_pipeline.unread_settings', return_value=tuple(unread)), \
+             mock.patch('wama.common.services.process_pipeline.employed_models',
+                        side_effect=lambda item, name, pipeline=None: list(used.get(name, ()))):
+            return detail_from_spec(element, {'engine': 'model'}, 'witness')
+
+    def test_an_auto_reads_as_a_choice_and_names_its_task(self):
+        from wama.common.utils.card_chips import auto_choice_label, display_value
+        self.assertEqual(('Automatique', '', ''),
+                         (auto_choice_label('auto'), auto_choice_label('lab:ace'), auto_choice_label('')))
+        from wama.model_manager.models import ModelTask
+        task = ModelTask.choices[0]
+        self.assertEqual(f'Automatique ({task[1]})', auto_choice_label(f'auto:{task[0]}'),
+                         'the task by its catalogue label')
+        self.assertEqual('Automatique (unknown-task)', auto_choice_label('auto:unknown-task'))
+        with mock.patch('wama.common.utils.card_chips._inventaire_catalogue', return_value=[]):
+            self.assertEqual('Automatique', display_value(self.SCHEMA[1], 'auto'))
+            own = dict(self.SCHEMA[1], choices=[('auto', 'Auto (meilleur disponible)')])
+            self.assertEqual('Auto (meilleur disponible)', display_value(own, 'auto'),
+                             'an « auto » the schema labels itself keeps its label')
+            self.assertEqual(3, display_value({'name': 'n', 'type': 'number'}, 3),
+                             'counter-proof : nothing else is touched')
+
+    def test_the_engine_says_what_was_asked_and_what_was_employed(self):
+        element = _element(pk=7, model='auto', parts_model='auto', idle_model='')
+        detail = self._detail(element, employed={'model': ['lab:mu', 'lab:ace'], 'parts_model': ['lab:mu']})
+        self.assertEqual(('auto', 'Automatique', 'lab:ace', 'MuScriptor, ACE-Step'),
+                         (detail['engine'], detail['engine_label'], detail['engine_effective'],
+                          detail['engine_effective_label']),
+                         'the keys keep the VALUES (the last step made the output), the labels read')
+        self.assertEqual({'Modèle des partitions': 'Automatique → MuScriptor'}, detail['extra'])
+
+    def test_nothing_employed_yet_says_only_what_is_asked(self):
+        detail = self._detail(_element(pk=7, model='auto', parts_model='auto'))
+        self.assertNotIn('engine_effective', detail)
+        self.assertEqual({'Modèle des partitions': 'Automatique'}, detail['extra'])
+        named = self._detail(_element(pk=7, model='lab:ace', parts_model='lab:mu'),
+                             employed={'model': ['lab:ace'], 'parts_model': ['lab:mu']})
+        self.assertEqual(('lab:ace', 'ACE-Step', None, {'Modèle des partitions': 'lab:mu'}),
+                         (named['engine'], named['engine_label'], named.get('engine_effective'),
+                          named['extra']), 'a named model that was employed is said once')
+
+    def test_a_model_no_step_reads_is_not_said(self):
+        """A cover one only draws scores from : its music model served nothing — neither the
+        engine line nor the settings of the steps that do not take place."""
+        detail = self._detail(_element(pk=7, model='auto', parts_model='lab:mu', idle_model='auto'),
+                              unread=('model', 'idle_model'))
+        self.assertNotIn('engine', detail)
+        self.assertEqual({'Modèle des partitions': 'lab:mu'}, detail['extra'])
+
+    def test_the_panel_writes_both_in_one_reading(self):
+        from wama.common.utils.detail_registry import EMPLOYED_ARROW, requested_and_employed
+        self.assertEqual('Auto', requested_and_employed('Auto', []))
+        source = INSPECTOR.read_text(encoding='utf-8')
+        self.assertIn(f"used ? asked + ' {EMPLOYED_ARROW} ' + used : asked", source,
+                      'the same arrow in the panel and in the settings')
+        self.assertIn("d.engine_label || d.engine", source)
+
+
+class ShownSettingsTest(SimpleTestCase):
+    """What the list of settings leaves out and how it writes a value (2026-11-23, measured on real
+    cards of ten apps : a quality slider under a named model, « [] », a whole prompt)."""
+
+    def _settings(self, element, schema, **kwargs):
+        from wama.common.utils.detail_registry import settings_from_schema
+        return settings_from_schema(element, schema, **kwargs)
+
+    def test_a_setting_its_condition_hides_is_not_listed(self):
+        schema = [{'name': 'model', 'label': 'Modèle'},
+                  {'name': 'intent', 'label': 'Rapide ↔ Qualité', 'show_if': {'field': 'model', 'in': ['auto']}},
+                  {'name': 'far', 'label': 'Ailleurs', 'show_if': {'field': 'not_in_this_schema'}}]
+        self.assertEqual({'Modèle': 'auto', 'Rapide ↔ Qualité': 50, 'Ailleurs': 1},
+                         self._settings(_element(model='auto', intent=50, far=1), schema))
+        self.assertEqual({'Modèle': 'named', 'Ailleurs': 1},
+                         self._settings(_element(model='named', intent=50, far=1), schema),
+                         'a condition on a field this schema does not carry hides nothing')
+
+    def test_a_compound_value_reads_plainly_and_an_empty_one_is_not_set(self):
+        schema = [{'name': 'classes', 'label': 'Classes'}, {'name': 'levels', 'label': 'Niveaux'}]
+        self.assertEqual({}, self._settings(_element(classes=[''], levels={}), schema))
+        self.assertEqual({'Classes': 'face, plate', 'Niveaux': 'Voix 0.5, Basse 1.2'},
+                         self._settings(_element(classes=['face', 'plate'],
+                                                 levels={'Voix': 0.5, 'Basse': 1.2}), schema))
+
+    def test_a_long_text_is_cut_and_a_long_option_label_is_not(self):
+        from wama.common.utils.detail_registry import LONG_TEXT
+        long = 'p' * (LONG_TEXT + 20)
+        schema = [{'name': 'prompt', 'label': 'Prompt', 'type': 'textarea'},
+                  {'name': 'mode', 'label': 'Mode', 'type': 'select', 'choices': [('m', long)]}]
+        self.assertEqual({'Prompt': 'p' * LONG_TEXT + '…', 'Mode': long},
+                         self._settings(_element(prompt=long, mode='m'), schema))
 
 
 def _declared_specs():
@@ -348,8 +484,15 @@ class PortedAppsSayWhatTheirAdaptersSaidTest(SimpleTestCase):
                          (detail['engine'], detail['engine_effective'], detail['result_text']))
         from wama.common.utils.param_schema import schema_for_app
         labels = {p['name']: p['label'] for p in schema_for_app('transcriber')}
+        # The settings of the schema, all of them (2026-11-23) — the four once listed by hand
+        # among them, the one left unset still absent.
+        extra = detail['extra']
         self.assertEqual({labels['enable_diarization']: True, labels['hotwords']: 'WAMA',
-                          labels['verify_coherence']: True}, detail['extra'])
+                          labels['verify_coherence']: True},
+                         {k: v for k, v in extra.items()
+                          if k in (labels['enable_diarization'], labels['hotwords'],
+                                   labels['verify_coherence'], labels['generate_summary'])})
+        self.assertEqual(set(), set(extra) - set(labels.values()), 'only settings of the schema')
 
 
 HAS_V8 = __import__('importlib').util.find_spec('py_mini_racer') is not None

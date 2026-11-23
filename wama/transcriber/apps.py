@@ -187,6 +187,6 @@ class TranscriberConfig(AppConfig):
             'engine': 'backend',
             'engine_effective': 'used_backend',
             'result_text': 'text',
-            'extra': [{'field': 'enable_diarization'}, {'field': 'generate_summary'},
-                      {'field': 'hotwords'}, {'field': 'verify_coherence'}],
+            # Plus d'`extra` (2026-11-23) : les réglages du volet sont ceux du SCHÉMA, tous, pour
+            # toute app (`detail_from_spec`) — la liste de quatre écrite ici en taisait les autres.
         })

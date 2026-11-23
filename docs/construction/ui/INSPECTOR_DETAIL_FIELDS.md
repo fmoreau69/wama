@@ -32,7 +32,8 @@
 | `source_duration_display` | Durée | `fa-clock` | Entrée | duration_inMinSec |
 | `source_properties` | Propriétés | *adaptative* (voir ci-dessous) | Entrée | — |
 | `engine` | Moteur / Modèle | `fa-microchip` | Réglages | backend / model / tts_model / ai_model |
-| `engine_effective` | Moteur effectif | `fa-shield-alt` | Réglages | used_backend |
+| `engine_effective` | *(à la suite du moteur : « demandé → employé » ; seul, « Employé »)* | `fa-shield-alt` | Réglages | used_backend ; sinon le modèle des lignes d'étapes (`employed_models`, 2026-11-23) |
+| `engine_label` · `engine_effective_label` | *(pas de chip : ce qui se LIT pour les deux clés ci-dessus)* | — | Réglages | ajoutées 2026-11-23, cf. « Temps 3 » plus bas |
 | `result_file` | Résultat | `fa-download` | Sortie | audio_output / output_file / output_video |
 | `output_format` | Format | `fa-file-export` | Sortie | — |
 | `output_quality` | Qualité | `fa-sliders` | Sortie | quality_preset |
@@ -102,7 +103,7 @@ par chemin+mtime : une sonde par fichier, pas par clic). Zéro travail par app.
   | `extra` | `{'field', 'label'?, 'display'?}` | un réglage ; `display` = `get_<f>_display()` | reader |
   | `extra` | `'max_chars': n` *(2026-10-03)* | texte TRONQUÉ (`…`) | composer (prompt) |
   | `extra` | entrée SANS `label` *(2026-10-03)* | le libellé est celui du SCHÉMA (`params.py`) — principe 2 ci-dessus, enfin tenu par le code | transcriber |
-  | — | `extra_from_params: True \| 'champ JSON'` | tous les réglages posés du schéma principal | converter, enhancer |
+  | — | `extra_from_params: 'champ JSON'` | le PORTEUR des valeurs. ⚠ Depuis le 2026-11-23 les réglages posés du schéma sont listés pour TOUTE spec, sans le demander (`True` n'ajoute plus rien) ; `extra` ne porte que les faits hors schéma | converter (`options`) |
   | — | `aliases` | alias canoniques | converter |
   | ~~—~~ | ~~`result_tabs`~~ | ~~onglets de résultat texte (R18)~~ — **retiré du vocabulaire le 2026-10-13** (`REMOVAL_LEDGER R127`) : le describer (R125) puis le transcriber (R126) l'avaient quitté, leurs facettes sont les faces de la visionneuse commune ; une spec qui le déclarerait encore rougit `tests_detail_spec` | — |
   | valeur | `['a', 'b']` sur une LISTE *(2026-10-05)* | dans « premier champ non vide », un champ qui porte une collection rend son PREMIER élément | imager (la vidéo, sinon la 1ʳᵉ image) |
@@ -345,9 +346,47 @@ les chips ET la liste « Réglages » de la section INFOS (`detail_registry.sett
 lisent. Seul écart VOULU : un nombre sans unité se préfixe de son libellé sur la card (« Étapes 30 »),
 le volet ayant déjà le libellé en regard. Garde : `tests_detail_spec.AFactIsShownOnceTest.
 test_a_setting_reads_in_the_panel_as_on_the_card` (contre-épreuve : valeurs brutes au volet → rouge).
-⏳ La liste `extra` d'une spec de détail (`register_app_detail_spec`) reste une seconde déclaration
-de CE QUI se montre (pas de sa forme) : à confronter aux champs `chip=True` du schéma, app par app. ⏳ Les textes de console (« 12.3s » des tâches) et la page
+~~⏳ La liste `extra` d'une spec de détail (`register_app_detail_spec`) reste une seconde déclaration
+de CE QUI se montre (pas de sa forme) : à confronter aux champs `chip=True` du schéma, app par app.~~
+*(soldé le 2026-11-23, temps 3 ci-dessous)* ⏳ Les textes de console (« 12.3s » des tâches) et la page
 d'administration des apps (`apps.html`, médiane en secondes) restent à porter.
+
+✅ **Temps 3, la LISTE elle-même et le modèle employé — 2026-11-23.** Fabien, après essai : *« le
+volet droit était plus complet. Tu as bien gardé la source la plus complète des 2 ? C'est
+parfaitement aligné, universel, uniforme et schéma-driven ? De mon côté, je ne vois pas de différence
+avec avant […] j'ai toujours auto:text-to-music, ce qui n'est pas le modèle mais la tâche. Il faut
+peut-être donner les 2 infos »*. Mesuré avant d'écrire (les deux dernières cards de chaque app, en
+lecture seule) : le temps 2 n'avait aligné que la FORME d'une valeur, et seulement pour les sept
+surfaces dont la spec demandait `extra_from_params` ; **quatre apps listaient encore leurs réglages
+à la main** — composer (type, prompt), transcriber (quatre cases), describer (trois), reader (deux) —
+donc rien n'y avait changé. Le volet affichait par ailleurs la clé technique du modèle, le curseur
+« Rapide ↔ Qualité » d'un modèle désigné, « Ce qu'on floute : [] », un texte à dire en entier.
+
+- **Une source, pour toute app** : la liste « Réglages » est celle des réglages POSÉS du SCHÉMA
+  (`detail_from_spec`, sans que la spec le demande). La card en montre le sous-ensemble `chip=True`,
+  le volet le tout : la source la plus complète est gardée, c'est celle du schéma. `extra` ne porte
+  plus que les faits HORS schéma (le type d'une génération, un nombre de pages) ; ce qu'il nomme
+  n'est pas répété. Les quatre listes à la main sont retirées.
+- **Ce qui ne s'y lit pas** : un réglage que sa condition masque dans la ⚙ (`show_if`, même
+  vocabulaire, `param_schema._show_if_met`) ; un réglage que ne lisent que des étapes qui n'ont pas
+  lieu — coupées ou sans objet (`process_pipeline.unread_settings`, la règle de la card « pas de puce
+  pour un réglage d'un process éteint ») ; une valeur composée vide. Un texte long se coupe à 60
+  caractères (`LONG_TEXT`, ce que deux specs écrivaient à la main) ; une liste et une table se lisent
+  en clair.
+- **Demandé → employé** : `engine` et `engine_effective` gardent la VALEUR (la médiathèque en fait
+  une étiquette) ; `engine_label` et `engine_effective_label` portent ce qui se lit. Un « auto » se
+  lit « Automatique », celui d'un groupe avec sa tâche — « Automatique (Texte → musique) »
+  (`card_chips.auto_choice_label`, donc sur la card aussi). Le modèle EMPLOYÉ, quand la spec ne nomme
+  aucun champ pour lui, est celui des lignes des étapes qui lisent le sélecteur
+  (`process_pipeline.employed_models` — ce que la bande écrit à côté de chaque étape). Le volet écrit
+  les deux en une lecture, « Automatique (Texte → musique) → ACE-Step 1.5 », et de même pour tout
+  autre sélecteur de modèle laissé à « Automatique » (« Automatique → MuScriptor large »). Un modèle
+  qu'aucune étape ne lit sur la card (un cover dont on ne tire que les partitions) ne s'y dit pas.
+
+Gardes, dans les modules existants : `tests_detail_spec` (`ExtraSettingsTest` — la liste entière, une
+entrée nommée non répétée, aucune spec ne liste à la main un réglage de son schéma ;
+`RequestedAndEmployedModelTest` ; `ShownSettingsTest`) et `tests_process_pipeline`
+(`test_the_panel_reads_what_no_step_reads_and_the_models_the_steps_kept`).
 
 ---
 

@@ -935,22 +935,6 @@
     "inspector": {
       "detail_registered": true,
       "detail_spec": {
-        "extra": [
-          {
-            "display": true,
-            "field": "output_style",
-            "label": "Format de sortie"
-          },
-          {
-            "display": true,
-            "field": "output_language",
-            "label": "Langue de sortie"
-          },
-          {
-            "field": "max_length",
-            "label": "Longueur max"
-          }
-        ],
         "result_file": "result_file",
         "result_text": "result_text",
         "source_file": "input_file",

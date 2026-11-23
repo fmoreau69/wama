@@ -49,11 +49,8 @@ class DescriberConfig(AppConfig):
             'source_type': 'detected_type',
             'result_file': 'result_file',
             'result_text': 'result_text',
-            'extra': [
-                {'label': 'Format de sortie', 'field': 'output_style', 'display': True},
-                {'label': 'Langue de sortie', 'field': 'output_language', 'display': True},
-                {'label': 'Longueur max', 'field': 'max_length'},
-            ],
+            # Plus d'`extra` (2026-11-23) : format, langue et longueur sont des réglages du SCHÉMA,
+            # que le volet liste tous, pour toute app (`detail_from_spec`), libellés compris.
             # Plus de `result_tabs` (retirés le 2026-10-13, R125) : la modale propre qui les
             # rendait n'est plus ouverte par rien. Description, Résumé et Cohérence sont les
             # FACES de la visionneuse commune, une par process (`function_specs.PIPELINE`).

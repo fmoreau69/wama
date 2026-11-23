@@ -63,8 +63,9 @@ class ComposerConfig(AppConfig):
                 'result_role': {'field': 'generation_type',
                                 'map': {'music': 'audio_music', 'sfx': 'audio_sfx'}},
                 'source_text': 'prompt',
-                'extra': [{'label': 'Type', 'field': 'generation_type', 'display': True},
-                          {'field': 'prompt', 'max_chars': 60}],
+                # Le seul fait HORS schéma (2026-11-23) : le type, dérivé du modèle. La consigne et
+                # tous les autres réglages viennent du schéma, pour toute app (`detail_from_spec`).
+                'extra': [{'label': 'Type', 'field': 'generation_type', 'display': True}],
             })
         except Exception:
             pass

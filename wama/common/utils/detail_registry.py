@@ -119,8 +119,10 @@ def register_app_detail_spec(app_name, model_class, spec):
        #     le `label` de `params.py` (source unique, `INSPECTOR_DETAIL_FIELDS` principe 2 :
        #     aucun libellé réécrit à la main). Un booléen vrai reste `True` dans la donnée ;
        #     c'est l'inspecteur qui l'affiche « Oui » (`wama-inspector.js`, toutes apps).
-       'extra_from_params': 'options' | True,   # labels du SCHÉMA (schema_for_app) ; str =
-                                                # champ JSON porteur, True = champs individuels
+       # Les réglages POSÉS du schéma sont listés pour TOUTE spec (2026-11-23) : `extra` ne porte
+       # que les faits hors schéma. La clé ne dit plus que le PORTEUR de leurs valeurs.
+       'extra_from_params': 'options',          # str = champ JSON porteur ; absent ou True =
+                                                # champs individuels du modèle
        # FORMES ajoutées le 2026-10-05 — les deux derniers adapters code (imager, audio de
        # l'enhancer) n'écrivaient rien d'autre :
        #   • SCHÉMA CHOISI PAR ÉLÉMENT — `params_schema` : une valeur de spec qui rend le nom
@@ -213,14 +215,12 @@ def detail_from_spec(instance, spec, app_name):
     def _val(key):
         return spec_value(instance, spec.get(key))
 
-    schema = None               # le schéma de l'élément (`spec_schema`), lu au premier besoin
+    schema = spec_schema(instance, spec, app_name)      # le schéma de l'élément
     extra = {}
     for entry in (spec.get('extra') or []):
         name = entry.get('field')
         label = entry.get('label')
         if not label:
-            if schema is None:
-                schema = spec_schema(instance, spec, app_name)
             label = next((p.get('label') for p in schema if p.get('name') == name), None) or name
         if entry.get('display'):
             fn = getattr(instance, f'get_{name}_display', None)
@@ -231,17 +231,56 @@ def detail_from_spec(instance, spec, app_name):
         if limit and isinstance(v, str) and len(v) > limit:
             v = v[:limit] + '…'
         extra[label] = v or None
-    src_params = spec.get('extra_from_params')
+    # LES RÉGLAGES DU SCHÉMA, pour TOUTE app (2026-11-23, Fabien : « parfaitement aligné, universel,
+    # uniforme et schéma-driven ») : la liste « Réglages » du volet est celle des réglages POSÉS du
+    # schéma — la source que lit la card, en entier. Avant, une spec devait le demander
+    # (`extra_from_params`) : quatre apps listaient encore leurs réglages à la main (composer,
+    # transcriber, describer, reader) et n'en montraient que trois ou quatre. `extra` ne porte plus
+    # que les faits HORS schéma (un type, un nombre de pages) ou une mise en forme voulue (un
+    # prompt coupé) ; `extra_from_params` ne dit plus que le PORTEUR des valeurs (un champ JSON).
+    # Ce que RIEN ne lit sur cette card (`unread_settings` : les réglages des étapes qui n'ont pas
+    # lieu) ne s'y lit pas — sur un élément enregistré seulement, ses étapes se jugent en base.
+    unread = set()
+    if getattr(instance, 'pk', None):
+        from wama.common.services.process_pipeline import unread_settings
+        unread = set(unread_settings(instance))
+    src_params = spec.get('extra_from_params', True)
     if src_params:
         carrier = (getattr(instance, src_params, None) or {}) if isinstance(src_params, str) \
             else None
-        # Déjà rendus sous leur clé canonique : les alias, et le champ que `engine` /
-        # `engine_effective` nomment (sinon « Moteur / Modèle » puis « Modèle TTS », deux fois).
+        # Déjà rendus : les alias et le champ que `engine` / `engine_effective` nomment (sinon
+        # « Moteur / Modèle » puis « Modèle TTS », deux fois), et ce qu'`extra` nomme lui-même.
         skip = set(spec.get('aliases') or {})
         skip |= {spec[k] for k in ('engine', 'engine_effective') if isinstance(spec.get(k), str)}
-        if schema is None:
-            schema = spec_schema(instance, spec, app_name)
-        extra.update(settings_from_schema(instance, schema, skip=skip, carrier=carrier))
+        skip |= {entry.get('field') for entry in (spec.get('extra') or [])}
+        extra.update(settings_from_schema(instance, schema, skip=skip | unread, carrier=carrier))
+
+    # LE MODÈLE : ce qui est DEMANDÉ, et ce qui a été EMPLOYÉ (2026-11-23, Fabien : « j'ai toujours
+    # auto:text-to-music, ce qui n'est pas le modèle mais la tâche. Il faut peut-être donner les 2
+    # infos »). Le demandé se LIT comme sur la card (le libellé de l'option : « Automatique (Texte
+    # → musique) », « Coqui XTTS v2 »). L'employé, quand la spec ne nomme aucun champ pour lui,
+    # est celui que retiennent les lignes des étapes qui lisent ce réglage (`employed_models`, ce
+    # que la bande écrit à côté de chaque étape). Les clés canoniques gardent la VALEUR (une clé de
+    # catalogue : le rangement en médiathèque en fait une étiquette) ; les `_label` sont pour l'œil.
+    # Un modèle qu'aucune étape ne lit sur cette card (un cover dont on ne tire que les partitions)
+    # ne s'y dit pas : il n'a servi à rien.
+    from wama.common.utils.card_chips import catalog_name, display_value
+    engine, effective = _val('engine'), _val('engine_effective')
+    engine_field = spec.get('engine') if isinstance(spec.get('engine'), str) else None
+    if engine_field in unread:
+        engine = effective = engine_field = None
+    declared = next((p for p in schema if p.get('name') == engine_field), None) if engine_field else None
+    labels = {}
+    if engine and declared:
+        labels['engine_label'] = display_value(declared, engine, instance)
+    if engine_field and not spec.get('engine_effective'):
+        from wama.common.services.process_pipeline import employed_models
+        employed = employed_models(instance, engine_field)
+        if employed:
+            effective = employed[-1]            # celui de la dernière étape : il a fait la sortie
+            labels['engine_effective_label'] = ', '.join(catalog_name(k) or k for k in employed)
+    elif effective and declared:
+        labels['engine_effective_label'] = display_value(declared, effective, instance)
 
     # COLLECTION de résultats (2026-10-05) : le champ qui porte la liste (imager : les N images
     # d'une génération, `output_images`). `result_file` reste le représentant ; `build_detail`
@@ -254,8 +293,8 @@ def detail_from_spec(instance, spec, app_name):
         instance,
         source_file=_val('source_file'),
         source_type=_val('source_type'),
-        engine=_val('engine'),
-        engine_effective=_val('engine_effective'),
+        engine=engine,
+        engine_effective=effective,
         result_file=_val('result_file'),
         result_files=files,
         result_role=_val('result_role'),
@@ -267,6 +306,11 @@ def detail_from_spec(instance, spec, app_name):
         v = getattr(instance, champ, None)
         if v:
             d[cle] = v
+    # Un libellé n'accompagne que la clé qu'il lit, et seulement s'il dit autre chose qu'elle.
+    for key, label in labels.items():
+        value = d.get(key[:-len('_label')])
+        if value and label and str(label) != str(value):
+            d[key] = str(label)
     return d
 
 
@@ -291,18 +335,94 @@ def settings_from_schema(instance, schema, *, skip=(), carrier=None):
     l'option choisie, une durée en horloge, un nombre avec son unité ; une case cochée reste `True`
     (le volet écrit « Oui » en regard de son libellé)."""
     from wama.common.utils.card_chips import display_value
+    from wama.common.utils.param_schema import _show_if_met
+
+    def read(name):
+        value = carrier.get(name) if carrier is not None else None
+        if value in (None, '', False, 0):
+            value = getattr(instance, name, None)
+        return value
+
+    class _Values:
+        """Les valeurs de l'élément, lues à la demande — ce que `show_if` interroge."""
+        @staticmethod
+        def get(name, default=None):
+            value = read(name)
+            return default if value is None else value
+
     out = {}
     excluded = set(skip) | set(RENDERED_BY_BACKBONE)
+    names = {(p if isinstance(p, dict) else p.to_dict()).get('name') for p in schema}
     for p in schema:
         field = p if isinstance(p, dict) else p.to_dict()
         name, label = field.get('name'), field.get('label')
         if not name or not label or name in excluded:
             continue
-        value = carrier.get(name) if carrier is not None else None
-        if value in (None, '', False, 0):
-            value = getattr(instance, name, None)
-        if value not in (None, '', False, 0):
-            out[label] = value if value is True else display_value(field, value, instance)
+        # Un réglage que sa CONDITION masque dans la ⚙ ne se lit pas ici non plus (2026-11-23 : le
+        # curseur « Rapide ↔ Qualité » d'un modèle désigné s'affichait, mesuré sur six apps). Une
+        # condition sur un champ que ce schéma ne porte pas ne masque rien — la règle de la ⚙.
+        cond = field.get('show_if')
+        if cond and _condition_fields(cond) <= names and not _show_if_met(cond, _Values):
+            continue
+        value = read(name)
+        if isinstance(value, (list, tuple)):
+            # Une valeur composée VIDE est un réglage non posé (« Ce qu'on floute : [] », « Mots-clés
+            # contextuels : [''] », mesurés).
+            value = [v for v in value if v not in (None, '')]
+        if value in (None, '', False, 0) or (isinstance(value, (list, dict)) and not value):
+            continue
+        if value is True:
+            out[label] = True
+            continue
+        shown = display_value(field, value, instance)
+        # Un modèle laissé à « Automatique » dit aussi celui qui a été EMPLOYÉ, dès qu'une étape
+        # l'a retenu (`requested_and_employed`) — la forme du modèle principal, pour tout
+        # sélecteur de modèle (partitions, paroles, séparation).
+        if field.get('options_source') == 'catalog' and getattr(instance, 'pk', None):
+            from wama.common.services.process_pipeline import employed_models
+            from wama.common.utils.auto_model import is_auto
+            if is_auto(value):
+                shown = requested_and_employed(shown, employed_models(instance, name))
+        # Un TEXTE long se coupe (une consigne, des paroles) : le volet résume, l'aperçu montre.
+        if (field.get('type') in ('text', 'textarea') and isinstance(shown, str)
+                and len(shown) > LONG_TEXT):
+            shown = shown[:LONG_TEXT] + '…'
+        out[label] = shown
+    return out
+
+
+def requested_and_employed(requested, model_keys) -> str:
+    """« demandé → employé » : le choix tel qu'il se lit, puis les modèles retenus par leur nom du
+    catalogue (« Automatique → MuScriptor Large »). Le demandé seul quand rien n'a encore tourné."""
+    from wama.common.utils.card_chips import catalog_name
+    names = ', '.join(catalog_name(key) or key for key in model_keys or ())
+    return f"{requested} {EMPLOYED_ARROW} {names}" if names else requested
+
+
+#: Ce qui sépare le demandé de l'employé — la même flèche que le volet pose entre « Moteur /
+#: Modèle » et le modèle employé (`wama-inspector.js`, garde `tests_detail_spec`).
+EMPLOYED_ARROW = '→'
+
+
+#: Longueur à laquelle un texte de réglage se coupe dans le volet (celle que les specs écrivaient
+#: à la main pour le prompt, `max_chars: 60`).
+LONG_TEXT = 60
+
+
+def _condition_fields(cond) -> set:
+    """Les champs qu'une condition `show_if` interroge (vocabulaire de `param_schema._show_if_met`)."""
+    if isinstance(cond, str):
+        return {cond}
+    if not isinstance(cond, dict):
+        return set()
+    out = set()
+    for key in ('any', 'all'):
+        for one in cond.get(key) or ():
+            out |= _condition_fields(one)
+    if 'not' in cond:
+        out |= _condition_fields(cond['not'])
+    if cond.get('field'):
+        out.add(cond['field'])
     return out
 
 

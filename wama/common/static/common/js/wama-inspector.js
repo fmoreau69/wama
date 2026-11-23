@@ -137,7 +137,9 @@
     created_at: { label: 'Créé le', icon: 'fa-calendar-alt' },
     source_duration_display: { label: 'Durée', icon: 'fa-clock' },
     engine: { label: 'Moteur / Modèle', icon: 'fa-microchip' },
-    engine_effective: { label: 'Moteur effectif', icon: 'fa-shield-alt' },
+    // « Employé » (2026-11-23) : le modèle qui a réellement tourné, à côté de celui qui est demandé
+    // — sous « Automatique », c'est le tirage (`detail_registry` : `employed_models`).
+    engine_effective: { label: 'Employé', icon: 'fa-shield-alt' },
     output_format: { label: 'Format', icon: 'fa-file-export' },
     output_quality: { label: 'Qualité', icon: 'fa-sliders' },
     processing_time_display: { label: 'Temps de traitement', icon: 'fa-stopwatch' },
@@ -204,9 +206,14 @@
 
     // ── RÉGLAGES : moteur(s) + extras déclarés par l'app ─────────────────────
     var regChips = [];
-    ['engine', 'engine_effective'].forEach(function (k) {
-      if (d[k]) regChips.push(_detailChip(DETAIL_META[k].icon, d[k], DETAIL_META[k].label));
-    });
+    // Le modèle DEMANDÉ puis le modèle EMPLOYÉ, en une lecture : « Automatique (Texte → musique)
+    // → ACE-Step 1.5 » (2026-11-23) — la forme de tout sélecteur de modèle laissé à « Automatique »
+    // (`detail_registry.requested_and_employed`). Le LIBELLÉ quand le serveur en donne un
+    // (`<clé>_label` : l'option telle que la card la montre, le nom au catalogue) ; la clé garde
+    // la valeur technique. Un employé sans demandé se lit seul.
+    var asked = d.engine_label || d.engine, used = d.engine_effective_label || d.engine_effective;
+    if (asked) regChips.push(_detailChip(DETAIL_META.engine.icon, used ? asked + ' → ' + used : asked, DETAIL_META.engine.label));
+    else if (used) regChips.push(_detailChip(DETAIL_META.engine_effective.icon, used, DETAIL_META.engine_effective.label));
     if (d.extra) Object.keys(d.extra).forEach(function (lbl) { regChips.push(_detailChip('fa-sliders', _settingValue(d.extra[lbl]), lbl)); });
     var secReg = _section('Réglages', _chipRow(regChips));
 
