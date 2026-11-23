@@ -166,6 +166,31 @@ class TheGeneratedUploadReceivesADesignationTest(_Rendered):
                 wrong[app] = body[:120]
         self.assertEqual({}, wrong)
 
+    def test_the_work_port_is_received_under_the_name_the_card_posts_it(self):
+        """The card posts each port under its PORT id (`addToQueue(ports: 'card')`, and the
+        assistant's tool for a born app, `designation_field(port['id'])`) ; the column is another
+        name (`work_audio` → `audio_input`). Read under the column, a file attached on the card never
+        arrived : « Rien à ajouter » on avatarizer_01 and synthesizer_01, measured on 2026-11-23."""
+        from wama.common.manifests.codegen.views_gen import _donnees, render_views
+        wrong, seen = {}, []
+        for app, manifest in self.manifests.items():
+            views, _ = render_views(manifest)
+            work_port = ((_donnees(manifest).get('entry') or {}).get('work_port') or '')
+            if views is None or not work_port:
+                continue
+            # The view of the card's « Ajouter » : its route name varies (`upload`, `create`), its
+            # refusal does not — the attach and mixed forms are the ones that say it.
+            for name, body in re.findall(r'\ndef (\w+)\(request\):(.*?)(?=\n(?:@|def |\w+ = ))',
+                                         views, re.S):
+                if 'Rien à ajouter' not in body:
+                    continue
+                seen.append(app)
+                first = re.search(r"received_inputs\(request, user, '\w+', field='(\w+)'\)", body)
+                if not first or first.group(1) != work_port:
+                    wrong[f'{app}.{name}'] = (work_port, first.group(1) if first else None)
+        self.assertTrue(seen, 'no generated « Ajouter » view of the attach or mixed form was rendered')
+        self.assertEqual({}, wrong)
+
 
 class ARouteNeverCallsAStubOfAGeneratedGestureTest(_Rendered):
     """A route whose name belongs to a gesture the generator WROTE (`urls_gen.ROUTE_ALIASES`, its

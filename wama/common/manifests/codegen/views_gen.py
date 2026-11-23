@@ -925,6 +925,12 @@ def upload(request):
         # était faite pour toute app, la définition seulement avec `p_field` — une app SANS champ
         # de consigne (translate_01 : on dépose un texte, pas une consigne) levait `NameError:
         # name '_poste' is not defined` à chaque ajout, en 500.
+        # Le port de TRAVAIL se reçoit sous le nom que la card lui donne (son id de port,
+        # `d['entry']['work_port']`), comme les ports secondaires ci-dessus ; sa COLONNE reste
+        # `input_field`. Lu sous la colonne, un fichier joint depuis la card n'arrivait jamais
+        # (`work_audio` posté, `audio_input` lu : « Rien à ajouter » sur avatarizer_01, mesuré le
+        # 2026-11-23 au balayage des jumelles, rouge depuis le 2026-10-26).
+        work_post = d['entry'].get('work_port') or d['input_field']
         att_reglages = up_reglages
         if p_field:
             att_reglages = (f"\n    _poste = request.POST.copy()\n    _poste.pop('{p_field}', None)"
@@ -938,7 +944,7 @@ def upload(request):
     user = _user(request)
     # Chaque port est posté sous SON nom (`addToQueue(ports: 'card')`) ; `file` reste le nom
     # d'une dépose (`WamaImport`), accepté en repli pour le port principal.
-    received = received_inputs(request, user, '{app}', field='{d['input_field']}')
+    received = received_inputs(request, user, '{app}', field='{work_post}')
     if not received and not received.refusal:
         received = received_inputs(request, user, '{app}', field='file')
     kwargs = {{'user': user}}
