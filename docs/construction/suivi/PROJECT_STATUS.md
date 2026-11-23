@@ -32150,3 +32150,49 @@ d'autres sessions) — à régénérer par elles.
 - jumelles (signalés à la session 73, propriétaire du générateur de glu) : `processing`/`batch_processing` en échec « process … non généré (marche B) » sur `anonymizer_01`, `converter_01`, `enhancer_01` ; clics expirés sur `reader_01` (`delete_from_batch`, `duplicate_delete`, `settings`) ; `imager_01.preview` sans face Entrée (colonnes source non déclarées) ; `composer_01` sans importeur pour « Envoyer vers… » ;
 - erreur jstree intermittente vue une fois, cause non établie ;
 - rouge préexistant d'autrui : `tests_poller_js.test_no_app_polls_with_a_local_interval` (`wama-processes.js`, `1b34ee2ab` du 14/11).
+
+## §PALIER — 2026-11-23, « VOLET = SCHÉMA, MODÈLE EMPLOYÉ ; FAMILLE D'UNE CARD (source + pistes) » — livré, revérifié — 🔚 relancer gunicorn + workers ; `split_family_lots --apply` (4 familles) ; lot dérivé sous une source DANS un vrai lot ; manifeste du composer
+
+> Retour de Fabien après essai des paliers du 19/11 : *« le volet droit était plus complet […]
+> parfaitement aligné, universel, uniforme et schéma-driven ? De mon côté, je ne vois pas de
+> différence […] j'ai toujours auto:text-to-music […] Il faut peut-être donner les 2 infos. Tu peux
+> poursuivre. »* Deux commits locaux, rien de poussé : `5824e5f14` (volet), `c6444d597` (famille).
+
+**Volet (`INSPECTOR_DETAIL_FIELDS`, « Temps 3 »).** Mesuré d'abord sur les cards réelles de dix
+apps : le palier du 19/11 n'avait aligné que la FORME d'une valeur, et quatre apps listaient encore
+leurs réglages à la main. Désormais la liste « Réglages » est celle des réglages posés du schéma
+pour toute spec (`detail_from_spec`) ; ne s'y lit pas ce que sa condition masque dans la ⚙ ni ce
+que ne lisent que des étapes qui n'ont pas lieu (`process_pipeline.unread_settings`) ; un « auto »
+se lit « Automatique (tâche) » et dit le modèle EMPLOYÉ (`employed_models`, les lignes d'étapes) —
+« demandé → employé », pour le modèle principal et tout sélecteur de modèle.
+
+**Famille (`MODES_QUEUE_UX §5quater`).** L'audit demandé par le concile : toute card est dans un
+lot. Les cards dérivées d'une source seule vivent donc dans un lot À ELLES (`derived_cards.
+family_lot`), que la file range sous la card source (`batch_common.nest_derived_lots`,
+`_queue_entry.html`) ; ses gestes de lot portent sur les pistes seules ; une piste s'y nomme par son
+instrument (`card_label_of`) ; la relation n'a pas de profondeur. Réponse consignée à la question de
+Fabien sur le lot du Transcriber (variation = lot, composition = `derived_from`) et sur la
+sous-imbrication (film, séquences, plans).
+
+**Vérifié** : 11 + 9 contre-épreuves en processus, toutes rouges ; 2029 tests (gardes transverses +
+11 apps), 3 rouges d'autres sessions (WriteModesTest ×2 du transcriber, code vendorisé d'ACE-Step) ;
+la vraie page /composer/ rendue sur la base réelle dans une transaction annulée (les six pistes de
+#1859 sous elle, nommées par instrument). `check_docs` : 0 cassée, 1 périmée qui n'est pas de ce
+palier (`ROUTE:741` cite `converter/index.html:374`, le gabarit n'a plus que 361 lignes).
+
+**Restes, nommés** :
+- 🔴 relancer gunicorn ET les workers (le suivi `derived`, la règle de rangement) ;
+- `manage.py split_family_lots --apply` : 4 familles d'avant (lots #1020, #904, #903, #880) —
+  compté, NON appliqué (écriture sur des cards réelles) ;
+- le lot dérivé n'est rendu sous sa source que si elle est montrée SEULE : sous une source fille
+  d'un vrai lot, ses pistes restent des filles du même lot, à plat — le lever demande que les
+  comptes d'un lot dans `wama-card-menu.js` / `wama-inspector.js` passent par `ownCards` ;
+- `manifests/apps/composer.json` non réexporté (l'export y perdrait 8 faits des surfaces de
+  partition, travail en cours d'une autre session) : il porte encore l'ancienne liste `extra` ;
+- les jumelles de bac à sable gardent l'ancienne spec de détail (elles marchent : une entrée
+  nommée n'est pas répétée) jusqu'à leur régénération ;
+- décisions du 19/11 approuvées, pas encore écrites : (3) un « auto » qui tire le même modèle ne
+  périme pas, un amont coûteux se demande ; (4) pistes disparues marquées orphelines ; (5)
+  partitions applicables par instrument, onglets de partition regroupés par nature ;
+- textes de console des tâches et médiane de la page d'administration des apps : durées encore en
+  secondes brutes ; bancs V8 de `tests_preview_navigation` à durcir (charger `wama-durations.js`).
