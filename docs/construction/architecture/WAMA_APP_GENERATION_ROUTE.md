@@ -738,7 +738,7 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       file, la card d'entrée, l'inspecteur, la visionneuse. ⚠ **La FILE n'est pas encore un tout
       dans le code** : chaque app écrit la même composition à la main (barre de file, conteneur,
       boucle `_queue_entry`, état vide) *(constat corrigé le 2026-11-19 : la file est une pièce
-      commune depuis le 2026-10-20 — `common/_queue.html`, incluse `converter/index.html:374` ; la
+      commune depuis le 2026-10-20 — `common/_queue.html`, incluse `converter/index.html:358` ; la
       citation `:385-424` était devenue hors du fichier)* ; la card d'entrée, le
       volet et la visionneuse sont, eux, déjà des pièces uniques.
       ✅ **Décidé le même jour (Fabien)** : (1) une brique de PAGE déclare le GABARIT qui la monte
