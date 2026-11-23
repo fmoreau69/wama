@@ -32196,3 +32196,43 @@ palier (`ROUTE:741` cite `converter/index.html:374`, le gabarit n'a plus que 361
   partitions applicables par instrument, onglets de partition regroupés par nature ;
 - textes de console des tâches et médiane de la page d'administration des apps : durées encore en
   secondes brutes ; bancs V8 de `tests_preview_navigation` à durcir (charger `wama-durations.js`).
+
+## §PALIER — 2026-11-23 soir, « CARD URL DÉRIVÉE DE `WAMA_INGEST` ; JUMELLES REMESURÉES, PORT DE TRAVAIL REÇU SOUS SON NOM » — 🔚 relancer gunicorn + workers ; décision : où se déclare la COLONNE d'un port
+
+> Fabien : *« Pour 1, oui, il faut compléter l'alignement. C'est toi qui t'occupes de l'alignement
+> des jumelles puis /reverif »* ; *« on ne suppose pas, on ne devine pas »*. Commits locaux, rien de
+> poussé : `cb6a7d6` (card URL), `082b1f8` (port de travail), `7f3cd7b4c` (renvoi ROUTE),
+> `5762bae52` (mécanismes générés, mes lignes seules).
+
+**Card URL** (`WAMA_APP_CONVENTIONS` ligne URL) : le champ URL du port principal se dérive de
+`WAMA_INGEST` du modèle du DOMAINE de la card (`source_ingest.port_url_source`, nature exigée par le
+mode : `MODE_NATURES`) ; la card qui crée câble elle-même son import (un lot d'une ligne,
+`wama-input-slots.js`) ; cinq câblages recopiés dans les apps retirés. Mesuré : `url_import` OK sur
+les 8 surfaces réelles et les 7 jumelles qui créent ; les cards qui attachent le postent à l'ajout.
+
+**Jumelles, mesure complète** (serveur jetable, 397 scénarios : 300 OK, 28 échecs, 69 skips). Chaque
+rouge attribué par lecture et par l'historique de tous les rapports (`logs/nightly_tests`) : AUCUN
+n'est né de la régénération du jour (tous antérieurs, 26/10 → 15/11), et leurs pendants réels passent
+(rejeu par paires, 7/8).
+- 14 = la glu non générée (« process … non généré (marche B) », message exact) : anonymizer_01,
+  converter_01, describer_01, enhancer_01, synthesizer_01 — UN item de route ; transcriber_01 (vues
+  revenues au témoin, trou `surfaces.py` documenté) et reader_01 (« worker arrêté ») à part ;
+- 5 = la vue « Ajouter » générée lisait le port de travail sous sa COLONNE quand la card (et l'outil
+  d'assistant d'une app née) le poste sous son id de port → ✅ corrigé au générateur (`082b1f8`),
+  garde `tests_codegen_agreement…test_the_work_port_is_received_under_the_name_the_card_posts_it`
+  (contre-épreuve rouge), six jumelles régénérées : `translator_01.send_to` / `tree_drop` (×2
+  domaines) passent, le lot audio d'`avatarizer_01` crée ses éléments ;
+- restent, une même cause NON DÉCLARÉE — la colonne d'un port : la consigne d'`avatarizer_01` et de
+  `synthesizer_01` va dans `text_content` chez les apps réelles (écrit dans leur JS seul) ; la
+  colonne d'entrée de l'imager est extraite comme « premier FileField » (`builtin/app.py:769-771`)
+  = `prompt_file`, quand `work_image` est `reference_image` (d'où `imager_01.preview` sans face
+  Entrée) ; `writer_01` (née d'un manifeste) ne déclare pas son entrée à l'aperçu. La liaison port →
+  colonne n'existe que dans trois `_LINE_FIELDS` de vues réelles : **décision de Fabien** (où la
+  déclarer) ;
+- `reader_01.delete_from_batch` : 🗑 non cliquable dans le groupe (« entrée=False »), le reader réel
+  passe ; card et file identiques à la lecture — à regarder sur la page servie ;
+- `transcriber_01.settings` (404 sur `progress/206/`) : passé au rejeu, état transitoire.
+
+**Vérifié** : 177 tests des modules touchés ; contre-épreuves rouges (nature, gabarit, câblage,
+champ ; port de travail) ; `check_docs` : la périmée de `ROUTE:741` recalée (mon retrait) ;
+`doc_facts` régénéré, mes lignes seules commitées.
