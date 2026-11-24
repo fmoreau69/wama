@@ -3061,9 +3061,14 @@ Fabien. Mesuré d'abord :
    `_arrival` refuse une liste sur un port à un fichier pour TOUTE app (la voix de référence du
    synthesizer comme les références du Writer), avant l'outil ; deux ports chargés chacun de
    plusieurs fichiers sont refusés sur la card comme par l'outil (`CARD_DESIGN §11.11 G`). Le
-   contrôle propre au créateur d'une app née ne vaut plus que pour une consigne en liste. Reste, déclaré :
-   `add_to_audio_enhancer` hors du Studio (port `work_audio` de l'enhancer encore non lu,
-   `UNWIRED_PORTS_BUDGET`). Gardes : `tests_arrival_consolidation.ArrivalThroughTheAssistantTest`,
+   contrôle propre au créateur d'une app née ne vaut plus que pour une consigne en liste.
+   ~~Reste, déclaré : `add_to_audio_enhancer` hors du Studio~~ — **faux cadrage, relevé par Fabien
+   le 2026-11-21** : ce n'est pas un écart déclaré, c'est un RESTE DE PORTAGE (`ROUTE §11 #42` ⑥,
+   « l'assistant (`audio_enhancer` en dur) ») — l'ajout d'une app est UN outil, `add_to_enhancer`,
+   le domaine lu à la nature du fichier comme l'import (③, `arrival_domain`). Le portage relève de
+   la table commune des entrées (`INPUT_MODEL_MATCHING §6.13`), en cours dans une autre session ;
+   ce qu'il touche est consigné à `PROJECT_STATUS §PALIER 2026-11-24, « LES CRÉATEURS DE
+   L'ASSISTANT »`. Gardes : `tests_arrival_consolidation.ArrivalThroughTheAssistantTest`,
    `ArrivalArgumentsAreDeclaredTest`, `tests_card_lot_from_files`, `tests_score_input`,
    `tests_born_app_tools` (une consigne en liste).
 

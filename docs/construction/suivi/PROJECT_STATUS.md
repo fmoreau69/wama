@@ -32451,3 +32451,30 @@ file ne filtre que par statut ; D21 dite « close » en `§13.19` et « reste à
   situation à cheval sur deux fichiers, concaténation des passations d'un lot ;
 - restes de la marche 1 inchangés (jumelles, sections et paroles du Composer, piste parente dans
   un `.wdat`) ; 🔴 relancer gunicorn + workers reste dû.
+
+## §PALIER 2026-11-24, « LES CRÉATEURS DE L'ASSISTANT : le double créateur de l'enhancer est un reste de portage, confié à la table des entrées » — commit local, non poussé — 🔚 portage d'`add_to_audio_enhancer` dans `add_to_enhancer`, par la session de la table commune des entrées (`INPUT_MODEL_MATCHING §6.13`, transcript « Portage apps et codegen jumelles »)
+
+Relevé par Fabien (« la fonction est add_to ; ça me semble être un reste de portage ; relis bien la
+route de génération »). Confronté : l'enhancer a DEUX créateurs d'assistant, `add_to_enhancer`
+(`tool_api.py:492`) et `add_to_audio_enhancer` (`:601`) — c'est le point ⑥ de `ROUTE §11 #42`
+(« l'assistant (`audio_enhancer` en dur) »), soldé le 2026-11-12 pour la seule garde (`surface_app`,
+`f1ea710ff`). Mes notes le présentaient comme un écart déclaré : faux cadrage, corrigé dans
+`WAMA_LLM` point 7. La cible est déjà écrite pour l'import (③, `filemanager/views.py:1472-1549`) :
+un ajout par app, le domaine lu à la nature du fichier (`arrival_domain`), la naissance du domaine.
+
+Fabien signale le même jour qu'une autre session bâtit la table universelle des capacités d'import :
+le portage lui revient. Ce qu'il touche, mesuré :
+1. le suivi lit la famille d'un élément créé au NOM de l'outil (`items_of_step` → `tool_family`,
+   `tool_api.py:6794`) — une création doit rendre sa SURFACE, comme le lancement d'un lot
+   (`batch_of_step`, l. 6802) ; `relay_next_step` et `relay_quality_intent` lisent la même famille ;
+2. les fichiers arrivés ensemble (`_add_arrived_together`) se rangent sur `TRIAD_SPECS[app]['model']` :
+   les ranger par surface (audio + image dans un appel = deux lots) ;
+3. `tool_param_schema` (l. 147) lit le schéma de la surface : un créateur unique annonce l'union des
+   schémas de ses domaines, chacun appliqué à son domaine ;
+4. le nœud du Studio : `work_audio` de l'enhancer (`UNWIRED_PORTS_BUDGET`) devient lu, sa ligne se retire ;
+5. le retrait de l'outil de l'API v1 et du MCP (`REMOVAL_LEDGER`) — `start_audio_enhancer` et
+   `get_audio_enhancer_status` restent, un élément s'identifiant par sa surface ;
+6. la docstring d'`arrival_arguments` (l. 7151) reprend le faux cadrage : à corriger avec le portage.
+Mes lectures d'arrivée (`generic_runner.work_arguments` / `single_file_arguments`, `tool_api._arrival`)
+passent par `port_argument_name`, que la table réécrit sur `port_fields` : compatibles, gardes vertes
+sur l'arbre du jour (153 tests, plus 24 V8).
