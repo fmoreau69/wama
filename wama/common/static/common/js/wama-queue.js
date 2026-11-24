@@ -33,13 +33,25 @@
                 if (toggleEl) toggleEl.setAttribute('aria-expanded', 'true');
             }
 
-            // Sauvegarder à chaque changement d'état
-            collapseEl.addEventListener('show.bs.collapse', function () {
-                localStorage.setItem(key, 'open');
+            // Sauvegarder à chaque changement d'état — le SIEN : l'événement d'un lot rangé dedans
+            // (les cards dérivées d'une de ses filles, `.wama-derived`) remonte jusqu'ici.
+            collapseEl.addEventListener('show.bs.collapse', function (e) {
+                if (e.target === collapseEl) localStorage.setItem(key, 'open');
             });
-            collapseEl.addEventListener('hide.bs.collapse', function () {
-                localStorage.setItem(key, 'closed');
+            collapseEl.addEventListener('hide.bs.collapse', function (e) {
+                if (e.target === collapseEl) localStorage.setItem(key, 'closed');
             });
+        });
+    }
+
+    // Les piles qu'OUVRIR `opened` doit refermer : les autres piles ouvertes, SAUF celles de sa
+    // lignée — le lot qui la contient, et ceux qu'elle contient (2026-11-24 : le lot des cards
+    // dérivées d'une fille se range sous elle, DANS le lot ; l'ouvrir ne referme pas son parent).
+    // Pure : `all` et `opened` n'ont besoin que de `contains` et de `classList.contains`.
+    function pilesToClose(all, opened) {
+        return all.filter(function (other) {
+            return other !== opened && other.classList.contains('show')
+                && !other.contains(opened) && !opened.contains(other);
         });
     }
 
@@ -51,13 +63,12 @@
         const all = Array.prototype.slice.call(document.querySelectorAll('.collapse[data-wama-batch-key]'));
         if (all.length < 2 || !window.bootstrap || !bootstrap.Collapse) return;
         all.forEach(function (collapseEl) {
-            collapseEl.addEventListener('show.bs.collapse', function () {
-                all.forEach(function (other) {
-                    if (other !== collapseEl && other.classList.contains('show')) {
-                        const inst = bootstrap.Collapse.getInstance(other)
-                            || new bootstrap.Collapse(other, { toggle: false });
-                        inst.hide();
-                    }
+            collapseEl.addEventListener('show.bs.collapse', function (e) {
+                if (e.target !== collapseEl) return;    // l'ouverture d'un lot rangé dedans
+                pilesToClose(all, collapseEl).forEach(function (other) {
+                    const inst = bootstrap.Collapse.getInstance(other)
+                        || new bootstrap.Collapse(other, { toggle: false });
+                    inst.hide();
                 });
             });
         });
@@ -502,6 +513,7 @@
     window.WamaQueue.clearCards = clearCards;
     window.WamaQueue.openCard = openCard;
     window.WamaQueue.markFocus = markFocus;
+    window.WamaQueue.pilesToClose = pilesToClose;
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);

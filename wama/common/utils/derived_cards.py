@@ -74,20 +74,20 @@ def family_lot(source, derived):
     elles seules, sans une ligne de plus. Dans l'ordre :
       1. où sont déjà ses sœurs — une famille garde UNE place (y compris les familles nées avant
          cette décision, rangées avec leur source) ;
-      2. le lot de la source quand elle est la fille d'un VRAI lot (d'autres cards qu'elle et les
-         siennes) : l'utilisateur a composé ce lot, ses pistes l'y rejoignent, comme avant ;
-      3. sinon leur propre lot — None tant qu'il n'existe pas."""
-    from wama.common.utils.batch_common import batch_elements, batch_of
+      2. sinon leur propre lot — None tant qu'il n'existe pas.
+
+    Que la source soit seule ou la fille d'un lot composé par l'utilisateur ne change plus rien
+    (2026-11-24) : ses pistes ont leur lot, rangé sous ELLE dans le lot (`nest_derived_lots` range
+    sous toute card montrée). Jusque-là elles rejoignaient le lot de leur source, à plat parmi ses
+    autres filles — et les gestes de ce lot (▶, ZIP, compte) portaient sur des cards que
+    l'utilisateur n'y avait pas mises. C'est la même règle à toute profondeur : une card dérivée
+    qui a ses propres dérivées les porte de la même façon."""
+    from wama.common.utils.batch_common import batch_of
     for card in derived:
         lot = batch_of(card)
         if lot is not None:
             return lot
-    home = batch_of(source)
-    if home is None or getattr(home, 'total', 1) <= 1:
-        return None
-    own = {source.pk} | {card.pk for card in derived}
-    others = [e for e in batch_elements(home, type(source)) if e.pk not in own]
-    return home if others else None
+    return None
 
 
 def family_in_one_lot(lot, model):

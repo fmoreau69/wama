@@ -1247,12 +1247,13 @@ class APollSaysTheLotOfItsElementTest(TestCase):
         request.user = user
         self.assertNotIn('batch', json.loads(view(request, alone.pk).content), 'no lot, nothing said')
 
-    def test_a_card_alone_says_how_many_cards_derive_from_it(self):
-        """2026-11-23 : the cards derived from a card standing ALONE are born in a lot of their own
+    def test_a_card_says_how_many_cards_derive_from_it_outside_its_lot(self):
+        """2026-11-23 : the cards derived from a card are born in a lot of their own
         (`derived_cards.family_lot`) — the total of its lot no longer moves, so the progress says
         their count (`derived`), which the queue brick compares with what it shows under the card.
-        Said for a card alone only : in a real lot its derived cards are daughters of that lot,
-        counted by `batch.total`. Every model that carries the link, no app named."""
+        Alone or the daughter of a lot (2026-11-24) ; a derived card kept in the lot of its source
+        (a family born before) is already counted by `batch.total`, never twice. Every model that
+        carries the link, no app named."""
         from django.apps import apps as django_apps
         from django.test import RequestFactory
         from wama.common.app_registry import APP_CATALOG
@@ -1274,7 +1275,12 @@ class APollSaysTheLotOfItsElementTest(TestCase):
                 data = json.loads(view(request, source.pk).content)
                 self.assertEqual((1, 2), (data['batch']['total'], data['derived']))
                 _real, members = _lot_de(model, user, 3)
-                self.assertNotIn('derived', json.loads(view(request, members[0].pk).content))
+                self.assertEqual(0, json.loads(view(request, members[2].pk).content)['derived'])
+                type(members[1]).objects.filter(pk=members[1].pk).update(derived_from=members[0])
+                _instance(model, user, derived_from=members[0], derived_role='c')
+                data = json.loads(view(request, members[0].pk).content)
+                self.assertEqual((3, 1), (data['batch']['total'], data['derived']),
+                                 'the one kept in its lot is in the total, the other under the card')
         from wama.converter.models import ConversionJob
         _lot, (job,) = _lot_de(ConversionJob, user, 1)
         view = make_progress_views(work_model=ConversionJob, app_id='converter',
@@ -1325,6 +1331,72 @@ class APollSaysTheLotOfItsElementTest(TestCase):
         self.assertEqual(1, v8.eval('reloads'), 'a stem born since : the page is rendered again')
         v8.eval('answer(3); answer(3);')
         self.assertEqual(1, v8.eval('reloads'), 'once per count')
+
+    def test_a_lot_reads_its_own_daughters_and_opening_a_lot_keeps_its_lineage_open(self):
+        """2026-11-24 — the lot of the cards derived from a DAUGHTER is shown under her, inside the
+        lot. Whatever acts on « the daughters of a lot » reads them through ONE reader
+        (`WamaQueueActions.ownCards`) that leaves the cards of the lots shown below ; and opening a
+        lot never folds the lot that holds it (`WamaQueue.pilesToClose`)."""
+        try:
+            from py_mini_racer import MiniRacer
+        except ImportError:
+            self.skipTest('py_mini_racer absent de ce venv')
+        js = Path(__file__).parent.parent / 'static/common/js'
+        v8 = MiniRacer()
+        v8.eval("""
+            var asked = [];
+            var document = {cookie: '', readyState: 'loading', addEventListener: function () {},
+                            querySelector: function () { return null; },
+                            querySelectorAll: function () { return []; }};
+            var window = {location: {href: 'http://t/'}};
+            function node(name) {
+                var n = {name: name, inside: [], shown: true,
+                         classList: {contains: function (c) { return c === 'show' && n.shown; }},
+                         contains: function (o) { return o === n || n.inside.indexOf(o) !== -1; }};
+                return n;
+            }
+            // A lot : two daughters ; under the first, the lot of its two derived cards.
+            var group = node('group'), below = node('below');
+            group.inside.push(below);
+            function card(id, block) {
+                return {dataset: {id: id}, closest: function (s) { return s === '.wama-derived' ? block : null; }};
+            }
+            var all = [card('1', null), card('11', below), card('12', below), card('2', null)];
+            group.querySelectorAll = function (s) { asked.push(s); return all.slice(); };
+            below.querySelectorAll = function () { return [all[1], all[2]]; };
+        """)
+        v8.eval((js / 'queue-actions.js').read_text(encoding='utf-8'))
+        ids = "function (c) { return c.dataset.id; }"
+        self.assertEqual(['1', '2'], list(v8.eval(f"window.WamaQueueActions.ownCards(group).map({ids})")))
+        self.assertEqual(['11', '12'], list(v8.eval(f"window.WamaQueueActions.ownCards(below).map({ids})")))
+        v8.eval("window.WamaQueueActions.ownCards(group, '.job-card[data-id]')")
+        self.assertEqual('.job-card[data-id]', v8.eval("asked[asked.length - 1]"), 'the selector asked')
+        v8.eval((js / 'wama-queue.js').read_text(encoding='utf-8'))
+        v8.eval("""
+            var outer = node('outer'), nested = node('nested'), other = node('other');
+            outer.inside.push(nested);
+            function closed(opened) {
+                return window.WamaQueue.pilesToClose([outer, nested, other], opened)
+                    .map(function (n) { return n.name; });
+            }
+        """)
+        self.assertEqual(['other'], list(v8.eval('closed(nested)')), 'the lot that holds it stays open')
+        self.assertEqual(['other'], list(v8.eval('closed(outer)')), 'and the lots it holds')
+        self.assertEqual(['outer', 'nested'], list(v8.eval('closed(other)')), 'another pile folds both')
+        v8.eval('other.shown = false;')
+        self.assertEqual([], list(v8.eval('closed(nested)')), 'a folded pile is left alone')
+        # Every reader of the daughters of a lot goes through it — none reads the cards below.
+        for name, reads in (('queue-actions.js', 2), ('wama-card-menu.js', 1),
+                            ('wama-inspector.js', 2), ('wama-queue-dnd.js', 1)):
+            source = (js / name).read_text(encoding='utf-8')
+            with self.subTest(brick=name):
+                self.assertGreaterEqual(len(re.findall(r'\bownCards\((?!holder)', source)), reads)
+                self.assertEqual([], re.findall(
+                    r"(?:group|groupEl|collapse)\.querySelectorAll\([^)]*data-id", source))
+                self.assertNotIn("$$('.wama-card[data-id]', card.closest('.batch-group')", source)
+        queue = (js / 'wama-queue.js').read_text(encoding='utf-8')
+        self.assertEqual(3, queue.count('e.target'),
+                         'the event of a lot shown below rises to the lot that holds it : not its own')
 
     def test_the_event_the_poller_announces_is_the_one_the_queue_brick_reads(self):
         js = Path(__file__).parent.parent / 'static/common/js'

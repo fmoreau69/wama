@@ -608,11 +608,17 @@
                 if (outsiders.length) return succeed(outsiders.length + " élément(s) ajouté(s) au lot");
                 applyToDom(target, carriedCards);
                 if (!urls.reorder) return;
-                const order = Array.prototype.slice
-                    .call(collapse.querySelectorAll('.wama-card[data-id]'))
+                // Les filles du lot, sans les cards des lots rangés sous elles (`ownCards`).
+                const order = window.WamaQueueActions.ownCards(group)
                     .map(function (c) { return c.dataset.id; });
+                // Une fille qui porte un lot rangé sous elle (`.wama-derived`) : le geste a déplacé
+                // la card, pas ce lot — seul le rendu du serveur les remet ensemble.
+                const nested = !!collapse.querySelector('.wama-derived');
                 return post(urls.reorder, { batch_id: bid, order: order.join(',') })
-                    .then(function (d) { if (d && d.reordered === false) fail("ordre refusé"); });
+                    .then(function (d) {
+                        if (d && d.reordered === false) return fail("ordre refusé");
+                        if (nested) location.reload();
+                    });
             });
         }
 

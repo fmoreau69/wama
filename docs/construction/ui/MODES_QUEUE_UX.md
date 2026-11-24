@@ -641,9 +641,9 @@ dans un lot ») : TOUTE card est dans un lot — une card seule est un lot d'un
 pistes. Réponse : **dans un lot à elles**.
 
 - **La donnée** — `derived_cards.family_lot` : une card dérivée neuve va où sont ses sœurs ; sinon
-  dans le lot de sa source quand celle-ci est la fille d'un VRAI lot (d'autres cards qu'elle et les
-  siennes — l'utilisateur l'a composé, comme avant) ; sinon dans le lot des cards dérivées de cette
-  source, que la première ouvre. La source seule reste une card seule.
+  dans le lot des cards dérivées de cette source, que la première ouvre. La source seule reste une
+  card seule. *(Jusqu'au 2026-11-24, une source fille d'un VRAI lot y accueillait ses pistes à
+  plat ; elles ont désormais leur lot dans tous les cas — « La profondeur », plus bas.)*
 - **L'affichage** — `batch_common.nest_derived_lots` (un seul lieu, les dix apps et les jumelles
   passent par `build_batches_list`) : le lot dont toutes les cards dérivent d'une même card montrée
   seule quitte le niveau supérieur et se rend SOUS elle, en retrait, replié
@@ -656,8 +656,8 @@ pistes. Réponse : **dans un lot à elles**.
 - **Le nom** — `batch_common.card_label_of` : loin de sa source, une card dérivée se nomme par ce
   qu'elle en est (`DerivedCardMixin.derived_label` ; le composer : « Piano », « Batterie ») ; son
   nom de fichier ne change pas. La card redemandée au serveur lit la même règle.
-- **Le suivi** — la réponse de suivi d'une card seule dit combien de cards dérivent d'elle
-  (`derived`, `progress_views`) : la file s'y compare et se remet en forme quand des pistes naissent
+- **Le suivi** — la réponse de suivi d'une card dit combien de cards dérivent d'elle hors de son
+  lot (`derived`, `progress_views`) : la file s'y compare et se remet en forme quand des pistes naissent
   (`queue-actions.js`, `ownCards` — les cards d'une entrée, sans celles du lot rangé dessous).
 - **Les familles d'avant** (la source et ses pistes dans un même lot) restent des lots tant que
   `manage.py split_family_lots --apply` n'est pas passé : il déplace les lignes des pistes dans un
@@ -667,11 +667,27 @@ pistes. Réponse : **dans un lot à elles**.
 un film, ses séquences, leurs plans) : la relation n'en a pas. `derived_from` pointe une card, qui
 peut dériver d'une autre, et chaque étage est « une card et le lot de ce qui en dérive » : le lot
 des plans d'une séquence se range sous la séquence, qui est elle-même une card du lot des séquences
-du film. `nest_derived_lots` le rend déjà à tout niveau sous une card montrée SEULE (garde
-`test_the_relation_has_no_depth`). ⏳ Reste la borne d'AFFICHAGE, en un lieu : une source qui est
-la fille d'un vrai lot de plusieurs cards n'a pas son lot dérivé rendu sous elle (ses pistes sont
-alors des filles du même lot, à plat) — le lever demande que les comptes d'un lot dans les scripts
-de la file passent tous par `ownCards`.
+du film. ✅ **Rendu à toute profondeur depuis le 2026-11-24** : le lot des dérivées se range sous
+sa source, qu'elle soit seule, la fille d'un lot, ou elle-même une card dérivée
+(`nest_derived_lots` ; `_queue_entry.html` le rend aussi sous une fille ; gardes
+`test_the_relation_has_no_depth`, `test_a_daughter_of_a_lot_carries_the_lot_of_its_derived_cards`).
+Ce qui l'a permis :
+- les dérivées d'une fille de lot naissent dans LEUR lot (`family_lot`) — à plat dans le lot de leur
+  source, les gestes de ce lot (▶, ZIP, compte) portaient sur des cards que l'utilisateur n'y avait
+  pas mises ;
+- tout ce qui lit « les filles d'un lot » dans les scripts passe par UN lecteur,
+  `WamaQueueActions.ownCards(lot, sélecteur)`, qui laisse les cards des lots rangés dessous :
+  compteurs de la card mère, « Programmer le lot », réglages communs et rafraîchissement du volet,
+  ordre après un glisser ;
+- ouvrir un lot rangé ne referme pas le lot qui le contient, et ne lui fait pas retenir un état
+  qui n'est pas le sien (`WamaQueue.pilesToClose`, `wama-queue.js`) ;
+- une boucle de dérivation (donnée abîmée) laisse ses lignes au niveau supérieur ;
+- le suivi d'une card dit ses dérivées HORS de son lot (`derived`), seule ou fille d'un lot.
+Les gestes d'un lot ne portent PAS sur les lots rangés sous ses filles : chacun a les siens.
+⏳ Non vérifié au navigateur : le glisser-déposer d'une fille qui porte un lot rangé (la page se
+recharge après le geste) et le repli imbriqué à l'écran. ⏳ Au-delà de deux étages, l'affichage en
+retrait devra céder à « entrer dans une card » — décision D9 de `ROUTE §10.7`, qui porte toute la
+réflexion sur le temps et l'imbrication (film, séquences, plans, pistes de marques, fragment).
 
 **Ce qui n'est PAS un rapprochement** (Fabien, même jour, et d'accord) : le lot du Transcriber qui
 porte un audio et son verbatim, lancé sur N modèles. Ses filles sont des transcriptions COMPLÈTES

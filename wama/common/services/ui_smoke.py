@@ -4750,6 +4750,8 @@ def register_batch_actions_scenarios():
 # que devient le lot (`batch_common.batch_state`) et `queue-actions.js` met la file à jour sans
 # rechargement de la page (un rechargement ramenait l'utilisateur en haut de la file).
 # Aucun test Python ne voit un rechargement ni un lot resté à l'écran : c'est ici qu'ils se mesurent.
+# Les cards du lot se lisent par le lecteur de la file (`WamaQueueActions.ownCards`, 2026-11-24) :
+# celles d'un lot rangé sous une de ses filles (`.wama-derived`) ne sont pas les siennes.
 
 _ETAT_DU_LOT_JS = """(args) => { const bid = args[0], restant = args[1];
     const groupe = (document.querySelector('.tab-pane[data-domain].active') || document).querySelector('.batch-group[data-batch-id="' + bid + '"]');
@@ -4761,7 +4763,7 @@ _ETAT_DU_LOT_JS = """(args) => { const bid = args[0], restant = args[1];
             fille: !!(card && card.classList.contains('wcv3--batch-child')),
             plus: !!(card && card.querySelector('.wama-cm-plus')),
             plusAilleurs: (document.querySelector('.tab-pane[data-domain].active') || document).querySelectorAll('.wama-card[data-id] .wama-cm-plus').length,
-            cartes: groupe ? Array.from(groupe.querySelectorAll('.wama-card[data-id]')).map(c => c.dataset.id) : [],
+            cartes: groupe ? window.WamaQueueActions.ownCards(groupe).map(c => c.dataset.id) : [],
             total: tete ? tete.dataset.batchTotal : null,
             libelle: libelle ? libelle.textContent.trim() : null,
             y: Math.round(window.scrollY),

@@ -522,16 +522,20 @@ def nest_derived_lots(rows):
     """Range sous sa card SOURCE le lot des cards qui en sont dérivées (2026-11-23, décision de
     Fabien du 19/11 : « ses pistes s'affichent sous la card source ») — la FAMILLE : une card seule
     et, dessous, le lot de ses pistes, avec les gestes d'un lot (`derived_cards.family_lot` dit où
-    naît ce lot). Une ligne dont TOUTES les cards dérivent d'une même card, elle-même montrée seule
-    (un lot d'un) dans ces lignes, quitte le niveau supérieur : elle est posée sur la ligne de sa
-    source (`item.derived_lots`, que `common/_queue_entry.html` rend sous la card) et porte
-    `derived_of`. Rend les lignes du niveau supérieur, dans leur ordre.
+    naît ce lot). Une ligne dont TOUTES les cards dérivent d'une même card, elle-même montrée dans
+    ces lignes, quitte le niveau supérieur : elle est posée sur la ligne de sa source
+    (`item.derived_lots`, que `common/_queue_entry.html` rend sous la card) et porte `derived_of`.
+    Rend les lignes du niveau supérieur, dans leur ordre.
 
-    Tout le reste est inchangé : un lot dont la source n'est pas sur la page (retirée, non
-    partagée), ou dont la source est la fille d'un vrai lot, reste une entrée de file comme une
-    autre. La relation, elle, n'a pas de profondeur (`derived_from` pointe une card, qui peut
-    elle-même dériver d'une autre) : c'est l'affichage qui s'arrête ici à UN étage sous une card
-    seule — la borne est cette fonction, pas la donnée."""
+    À TOUTE PROFONDEUR (2026-11-24) : la source peut être seule, la fille d'un lot, ou elle-même
+    une card d'un lot dérivé (les plans d'une séquence, sous une séquence rangée sous son film) —
+    la relation n'a pas de profondeur (`derived_from` pointe une card, qui peut dériver d'une
+    autre), l'affichage non plus. Jusque-là seule une card montrée SEULE portait ses dérivées.
+
+    Reste au niveau supérieur, comme une entrée de file ordinaire : un lot dont la source n'est
+    pas sur la page (retirée, non partagée), un lot de cards venues de sources différentes, et
+    toute ligne prise dans une BOUCLE de dérivation (une donnée abîmée ne fait pas disparaître
+    des cards)."""
     hosts = {}
     for row in rows:
         # Loin de sa source, une card dérivée se nomme par ce qu'elle en est (`card_label_of`).
@@ -542,25 +546,33 @@ def nest_derived_lots(rows):
                 label = card_label_of(elem, link=it, lot_mates=mates)
                 if label:
                     it.card_label = label
-        if row.get('obj') is None or getattr(row['obj'], 'total', None) != 1:
+        if row.get('obj') is None:
             continue
         for item in row.get('items') or ():
             pk = getattr(getattr(item, 'elem', item), 'pk', None)
             if pk is not None:
                 hosts[pk] = (row, item)
-    if not hosts:
-        return rows
-    top = []
+    # Où chaque ligne SERAIT rangée : la ligne et la card de sa source unique, si elle est montrée.
+    above = {}
     for row in rows:
         elems = [e for e in (getattr(it, 'elem', it) for it in row.get('items') or ())
                  if e is not None]
         sources = {getattr(e, 'derived_from_id', None) for e in elems}
         host = hosts.get(next(iter(sources))) if len(sources) == 1 else None
-        if host is None or host[0] is row:
+        if host is not None and host[0] is not row:
+            above[id(row)] = (host, next(iter(sources)))
+    top = []
+    for row in rows:
+        # Remonter la lignée : elle doit finir sur une ligne du niveau supérieur, jamais revenir.
+        seen, cursor = {id(row)}, above.get(id(row))
+        while cursor is not None and id(cursor[0][0]) not in seen:
+            seen.add(id(cursor[0][0]))
+            cursor = above.get(id(cursor[0][0]))
+        if id(row) not in above or cursor is not None:
             top.append(row)
             continue
-        row['derived_of'] = next(iter(sources))
-        item = host[1]
+        (_, item), source = above[id(row)]
+        row['derived_of'] = source
         item.derived_lots = getattr(item, 'derived_lots', []) + [row]
     return top
 

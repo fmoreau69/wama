@@ -1122,7 +1122,8 @@
           const url = group.getAttribute('data-card-url');
           if (!(app && app.fetchCard && url)) return ok;
           const sel = (cfg.cardSelector || '.wama-card[data-id]');
-          return Promise.all(Array.prototype.map.call(group.querySelectorAll(sel), function (card) {
+          // Ses filles, sans les cards des lots rangés sous elles (`queue-actions.js::ownCards`).
+          return Promise.all(global.WamaQueueActions.ownCards(group, sel).map(function (card) {
             return app.fetchCard(url, card.dataset.id).then(function (fresh) {
               if (fresh && card.isConnected) card.replaceWith(fresh);
             });
@@ -1217,8 +1218,11 @@
     // ⚠ Sélecteur STRICT (racines de card, mère exclue) : un `[data-id]` nu attrapait aussi
     // les BOUTONS d'action des filles — leur gearValues rend {}, et {} en intersection
     // annule TOUT (mesuré le 02/09 : modale de lot toujours vide malgré des filles unanimes).
+    // … et les filles du LOT seulement : pas les cards d'un lot rangé sous l'une d'elles
+    // (`queue-actions.js::ownCards`), qui ont leurs propres réglages communs.
     const cards = groupEl
-      ? groupEl.querySelectorAll('.wama-card[data-id]:not(.is-batch), .job-card[data-id]:not(.is-batch)')
+      ? global.WamaQueueActions.ownCards(
+          groupEl, '.wama-card[data-id]:not(.is-batch), .job-card[data-id]:not(.is-batch)')
       : [];
     let commun = null;
     cards.forEach(function (card) {

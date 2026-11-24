@@ -126,6 +126,11 @@ l'enhancer, que la dérivation `update_settings` manquait).{% endcomment %}
         {% with elem=item.elem card_label=shown_label in_batch=True %}
           {% include card_template %}
         {% endwith %}
+        {% comment %}La famille d'une FILLE (2026-11-24) : le lot de ses cards dérivées, rangé sous elle
+        DANS le lot — la même règle qu'au-dessus pour une card seule, à toute profondeur (les plans
+        d'une séquence, sous une séquence rangée sous son film). Hors du `with` : le lot rangé ne
+        reçoit ni la card ni le nom de cette fille.{% endcomment %}
+        {% for derived_lot in item.derived_lots %}<div class="wama-derived" data-derived-of="{{ item.elem.pk }}" style="border-left:2px solid var(--wama-accent); margin-left:0.75rem;">{% include 'common/_queue_entry.html' with batch_info=derived_lot %}</div>{% endfor %}
       {% endif %}{% endfor %}
     </div>
   </div>

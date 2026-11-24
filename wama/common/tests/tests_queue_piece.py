@@ -194,12 +194,14 @@ class FamilyOfACardTest(SimpleTestCase):
 
     def test_what_is_not_a_family_stays_an_entry_like_any_other(self):
         from wama.common.utils.batch_common import nest_derived_lots
-        # Its source is not on the page ; its cards derive from two sources ; its source is the
-        # daughter of a real lot (the stems then are daughters of that lot, or a lot of their own).
+        # Its source is not on the page ; its cards derive from two sources ; a family kept in
+        # the lot of its source (born before) ; two lots that derive from each other (damaged
+        # data never makes cards vanish).
         gone = [_row(2, (6, 5), (7, 5))]
         mixed = [_row(1, (5, None)), _row(4, (10, None)), _row(2, (6, 5), (7, 10))]
-        in_a_lot = [_row(1, (5, None), (8, None)), _row(2, (6, 5))]
-        for rows in (gone, mixed, in_a_lot, [_row(1, (5, None))], []):
+        together = [_row(1, (5, None), (6, 5))]
+        loop = [_row(1, (5, 6)), _row(2, (6, 5))]
+        for rows in (gone, mixed, together, loop, [_row(1, (5, None))], []):
             with self.subTest(rows=len(rows)):
                 self.assertEqual(rows, nest_derived_lots(list(rows)))
         # A model without the link (no `derived_from_id`) is never read as a family.
@@ -214,6 +216,33 @@ class FamilyOfACardTest(SimpleTestCase):
         self.assertEqual([film], nest_derived_lots([film, sequence, shots]))
         self.assertEqual([sequence], film['items'][0].derived_lots)
         self.assertEqual([shots], sequence['items'][0].derived_lots)
+
+    def test_a_daughter_of_a_lot_carries_the_lot_of_its_derived_cards(self):
+        """2026-11-24 — the source may be the daughter of a lot (a piece among others ; a sequence
+        among the sequences of a film) : the lot of its derived cards goes under IT, inside the
+        lot, and the lot counts its own daughters only."""
+        from wama.common.utils.batch_common import nest_derived_lots
+        film = _row(1, (5, None))
+        sequences = _row(2, (6, 5), (7, 5))
+        shots_a, shots_b = _row(3, (8, 6), (9, 6)), _row(4, (10, 7))
+        top = nest_derived_lots([shots_b, film, shots_a, sequences])
+        self.assertEqual([film], top)
+        self.assertEqual([sequences], film['items'][0].derived_lots)
+        self.assertEqual(([shots_a], [shots_b]),
+                         tuple(it.derived_lots for it in sequences['items']))
+        html = _render(app='reader', batches=top)
+        lot = html[html.index('data-batch-id="2"'):]
+        first, second = lot.index('data-derived-of="6"'), lot.index('data-derived-of="7"')
+        self.assertLess(lot.index('data-id="6"'), first, 'under the daughter it derives from')
+        self.assertLess(first, lot.index('data-id="7"'), 'and before the next daughter')
+        self.assertIn('data-batch-id="3"', lot[first:second], 'a lot like any other')
+        self.assertIn('data-entry-batch-id="4"', lot[second:], 'a lot of one is a card alone')
+        self.assertEqual(3, html.count('class="wama-derived"'))
+        # A plain lot beside : one of its daughters has derived cards, the other does not.
+        pieces, stems = _row(1, (5, None), (8, None)), _row(2, (6, 5))
+        self.assertEqual([pieces], nest_derived_lots([pieces, stems]))
+        self.assertEqual([stems], pieces['items'][0].derived_lots)
+        self.assertFalse(hasattr(pieces['items'][1], 'derived_lots'))
 
     def test_the_piece_renders_the_family_under_its_source_inside_its_entry(self):
         from wama.common.utils.batch_common import nest_derived_lots
@@ -249,10 +278,11 @@ class FamilyOfACardTest(SimpleTestCase):
         with lot({5: SimpleNamespace(pk=1, total=1)}):
             self.assertIsNone(derived_cards.family_lot(source, []), 'a card alone stays alone')
         with lot({5: home}, [source, stranger]):
-            self.assertIs(home, derived_cards.family_lot(source, []), 'the daughter of a real lot : its lot')
-        with lot({5: home}, [source, sister]):
-            self.assertIsNone(derived_cards.family_lot(source, [sister]),
-                              'a lot holding only the source and its own derived cards is no real lot')
+            self.assertIsNone(derived_cards.family_lot(source, []),
+                              'the daughter of a lot : its derived cards get a lot of their own too')
+        with lot({6: home, 5: home}, [source, sister]):
+            self.assertIs(home, derived_cards.family_lot(source, [sister]),
+                          'a family born in the lot of its source keeps its place')
 
 
 class EveryQueueIsThePieceTest(SimpleTestCase):

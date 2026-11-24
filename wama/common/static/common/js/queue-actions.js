@@ -367,8 +367,8 @@
     // séparées d'un morceau sont un lot à elles, montré sous leur card source). Tout compte d'une
     // entrée passe par ici : compter les pistes avec leur source ferait dire « le lot a changé »
     // à chaque tour du suivi.
-    function ownCards(holder) {
-        return Array.prototype.filter.call(holder.querySelectorAll('.wama-card[data-id]'), function (c) {
+    function ownCards(holder, selector) {
+        return Array.prototype.filter.call(holder.querySelectorAll(selector || '.wama-card[data-id]'), function (c) {
             const nested = c.closest ? c.closest('.wama-derived') : null;
             return !nested || nested === holder || !holder.contains(nested);
         });
@@ -404,8 +404,8 @@
         const card = document.querySelector('.wama-card[data-id="' + data.id + '"]');
         const holder = card && (card.closest('.batch-group') || card.closest('.wama-queue-entry'));
         if (!holder) return;
-        // Les cards DÉRIVÉES de celle-ci, nées dans LEUR lot (`data.derived`, `progress_views` — dit
-        // seulement pour une card seule) : la page les montre sous elle, dans `.wama-derived`. Autant
+        // Les cards DÉRIVÉES de celle-ci, nées dans LEUR lot (`data.derived`, `progress_views`) : la
+        // page les montre sous elle, dans `.wama-derived` — card seule ou fille d'un lot. Autant
         // que le serveur en compte, ou la page est à refaire — la même règle, la même fois unique.
         const block = holder.querySelector('.wama-derived[data-derived-of="' + data.id + '"]');
         const derivedShown = block ? ownCards(block).length : 0;
@@ -882,7 +882,7 @@
     function syncBatchFromCards(group) {
         const header = group.querySelector('.batch-group-header');
         if (!header) return;
-        const cards = group.querySelectorAll('.wama-card[data-id]');
+        const cards = ownCards(group);      // ses filles, sans les cards des lots rangés sous elles
         const total = parseInt(header.dataset.batchTotal || '0', 10);
         if (!cards.length || cards.length !== total) return;
         let success = 0, running = 0, failure = 0;
@@ -983,6 +983,10 @@
 
     window.WamaQueueActions = { onSettings: onSettings, onDeleted: onDeleted,
                                 applyBatchState: applyBatchState,
+                                // Les cards d'une entrée SANS celles des lots rangés dessous : ce
+                                // que lisent le menu d'un lot et le volet (`wama-card-menu.js`,
+                                // `wama-inspector.js`) pour agir sur les filles d'un lot.
+                                ownCards: ownCards,
                                 // Une card qui QUITTE la file sans être supprimée (« Transférer
                                 // à… », 2026-10-01) : même séquence que la suppression — elle
                                 // part, son lot dit ce qu'il devient, sans rechargement.

@@ -854,7 +854,8 @@
         // sélection multiple, ou le LOT — dont on programme chacun des éléments.
         if (d.scheduleUrl && d.scheduleTool && global.WamaSchedule) {
             var toSchedule = estLot
-                ? $$('.wama-card[data-id]', card.closest('.batch-group') || card)
+                // Les filles du lot, sans les cards des lots rangés sous elles (`ownCards`).
+                ? global.WamaQueueActions.ownCards(card.closest('.batch-group') || card)
                       .filter(function (c) { return c !== card; })
                 : cibles.filter(function (c) { return c.dataset.id; });
             if (toSchedule.length) {
