@@ -138,6 +138,16 @@ appartient au *jeu de données* ou à la *session*.
 > (2026-11-24) : les flux d'événements et de segments d'un fichier chargé se lisent comme des
 > pistes par le lecteur commun (`wama_data/frames.referential_tracks`, `read_referential_tracks`),
 > sous les noms des autres mondes.
+> ⏳ Seconde révision du 2026-11-24 (`§10.7.13`, propositions à trancher, ce document relu en
+> entier pour l'écrire) — ce qu'elle dit du monde Data, sans rien changer aux règles d'ici : un
+> traitement par segment reste une étape de la card et des COLONNES de la table de segments (§6.7,
+> §11.9), jamais une card par segment ; cliquer un segment de la ligne de temps d'une card pose une
+> « plage active » qui borne ses aperçus (les trois niveaux de §11.8 ⑤, rendus par l'Explorer) sans
+> rien créer ni écrire ; le lot reste plat et il est un ENVOI (§11.8 ②), les regroupements par
+> participant, groupe ou scénario étant des vues sur les axes du §13 ; la card mère résume ses
+> filles restantes après filtrage ; rien n'entre en base WAMA (⑩.2). Le concile y relève trois
+> préalables DÉJÀ ouverts ici : le participant non modélisé (§11.6), la situation à cheval sur
+> deux fichiers (§13.14), la concaténation des passations d'un lot (⑩.3).
 
 ---
 

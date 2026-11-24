@@ -9125,6 +9125,157 @@ lecture seule sur la card — piste principale déclarée, survol, clic, clic dr
 Transcriber et le cam_analyzer qui déclarent déjà leurs pistes ; ③ les gestes déclarés par piste et
 la page d'édition des segments rendue commune (la brique des segments lit les noms communs), le
 masque en piste dérivée ; ④ le placement des flux et les emplois (pointages) ; ⑤ le film.
+⚠ Ordre REVU en 10.7.13 (maquettes d'abord, couleurs avec la zone temporelle).
+
+#### 10.7.13 RÉVISION 2 du 2026-11-24 — la SÉLECTION qui contextualise, le monde Data, les couleurs du temps, la card de lot (⏳ propositions, concile consulté, rien de tranché)
+
+> 📜 **Fabien**, après la révision de 10.7.12 (« globalement d'accord ») : *« J'aimerais être sûr que
+> ce qu'on construit ne sera pas bloquant [pour le monde Data] […] un lot pourra porter une
+> expérimentation, les cards filles seraient les bases `.trip` ou `.wdat` […] Si on clique sur un
+> segment de la timeline affichée sous la preview, la preview affiche les données correspondant à
+> cette zone temporelle […] ce fonctionnement de timeline avec segments serait universel dans tout
+> WAMA et permettrait de contextualiser certains affichages […] la sélection d'un segment devrait
+> mettre le focus sur la ou les cards filles correspondantes […] dans le monde Data, un segment qui
+> porte des traitements ne devrait-il pas devenir une card fille ? C'est une réflexion, pas une
+> affirmation […] est-ce que la preview contextualisée est une manière d'éviter de créer des cards
+> filles ? […] un système de tri/filtrage/recherche complètement dynamique. La card mère porterait
+> les infos des cards sélectionnées ou restantes […] un code couleur commun à tout ce qui est
+> temporel, s'il est consistant partout […] Il faut y aller pas à pas, du plus sûr au moins sûr, en
+> s'aidant de maquettes. »*
+
+**Ce qui a été relu avant de proposer.** `WAMA_DATA_WORLD.md` EN ENTIER (5188 lignes, quatre
+lectures par tranches, les passages porteurs relus à la ligne) et le code de l'interface.
+
+| fait | source |
+|---|---|
+| hiérarchie du monde Data : projet → expérimentation (manifeste `dataset`) → participant (une méta) → passation (UN `.wdat` = UNE card) → événements et situations (des tables DANS le fichier) | `WAMA_DATA_WORLD §11.6` ; `§11.8` (« un `.wdat` est une card ») |
+| la file est CURATÉE : on connecte un dossier dans l'explorateur, on trie par AXES du plan d'expérience, on ENVOIE — chaque envoi crée un lot ; le tri par axes est « un group-by sur un axe […] rien à inventer, un câblage » | `§11.8 ②`, l.3169-3183 |
+| « une SEULE brique de filtre pour les deux mondes » (facettes simples côté Médias, facettes d'axes côté Data) — ⚠ dit « ✅ déjà relié » en `§13.9` (l.4067-4068) et « non câblée » en `§compat 6` ; mesuré : la file ne filtre que par statut (`common/utils/queue_view.py`) | ⏳ câblage |
+| l'aperçu d'un `.wdat` a TROIS niveaux déjà décidés : coup d'œil dans la card (mini-tableur, mini-courbes), aperçu développé (tables feuilletables), page Explorer dédiée | `§11.8 ⑤`, l.3214-3218 |
+| l'indicateur par segment est LIVRÉ et il s'écrit en COLONNES de la table de segments (« une ligne = un participant × un événement × une fenêtre, avec tous ses indicateurs ») ; un sous-segment est une opération ensembliste (`within`) | `§6.7`, `§11.9` (`calc_per_segment`), `§9ter` |
+| calculer sur une portion ≠ calculer puis masquer (bords d'une fenêtre glissante) : « le contexte doit être tracé sur la colonne » | `§9quater.4`, l.1675-1686 |
+| rien du monde Data n'entre en base WAMA ; un process n'écrit que dans le `.wdat` de travail de sa card ; « on persiste la déclaration, pas les valeurs » ; « regarder ne crée rien » ; « sélectionner des lignes EST une segmentation » | `§11.8 ⑩.2`, l.3285 ; `§11.2` ; `§compat` |
+| le découpage d'ACQUISITION (la frontière d'un fichier) n'est pas le découpage d'ANALYSE : une situation peut être à cheval sur deux fichiers, ce que le Segmenter ne sait pas lire ; le participant n'est « pas modélisé » ; concaténer les passations d'un lot est une opération de LOT, ouverte | `§13.14`, l.4242-4255 ; `§11.6` ; `§11.8 ⑩.3` |
+| ⚠ le mot « axe » a DEUX sens : l'axe de lecture (le temps, `wama-axis.js`) et l'axe du plan d'expérience (« pas un axe temporel, pas un axe de graphe ») | `§13.0` |
+| l'axe de lecture ne porte PAS de plage : son état est (instant, durée, lecture, vitesse) | `common/js/wama-axis.js:49` |
+| la lecture d'un flux sait déjà se borner à une fenêtre début / fin ; le monde Data n'a encore aucune interface | `wama_data/frames.py:143,187` ; `wama_data/view.py` |
+| couleurs existantes, trois familles aux teintes DIFFÉRENTES : sévérité d'un segment de transcription (3 niveaux + inconnu) ; proximité du cam_analyzer (5 paliers), temps avant collision (3) ; états d'une card (6) | `common/js/wama-segments.js:21,67-73` ; `cam_analyzer/js/index.js:2939-2944` ; `common/css/wama-theme.css:88-100` |
+| la card de lot n'a PAS d'aperçu ; sa barre est UN pourcentage (réussies / total), sans les en-cours ni les échecs | `common/_batch_card.html:141` |
+
+**⑦ Segment ou card fille dans le monde Data — la réponse à la question de Fabien : NON par défaut,
+et le critère ① s'affûte.** Une card est ce qui produit un média ou un signal AVEC son cycle de vie
+(un réglage, un état dans la file, une relance). Un traitement qui produit des VALEURS par segment
+est UNE étape de la card, appliquée à toute la piste, et ses résultats sont des colonnes de la
+table de segments — ce qui est livré, et c'est la forme que la statistique attend : une table
+longue, une ligne par participant × scénario × segment, concaténée sur les cards du lot. Un
+sous-segment est une autre piste (sa piste parente déclarée), jamais une card. Mille situations sur
+soixante passations ne font jamais soixante mille cards. L'exception reste celle de ① : exporter
+l'extrait, relancer un modèle dessus — une card dérivée qui POINTE vers le segment. L'aperçu
+contextualisé (⑧) est bien ce qui dispense des cards filles : on regarde un segment sans rien créer.
+
+**⑧ La plage active — cliquer un segment contextualise l'aperçu, partout.** Cliquer un segment de
+la zone temporelle d'une card pose une PLAGE ACTIVE (début, fin, piste et segment d'origine) ;
+recliquer ou Échap la lève. Tout ce que montre cette card s'y restreint : les données de la plage,
+le texte du segment de transcription, le plan ou la séquence d'un film, les indicateurs du segment,
+et ses cards dérivées dont le pointage recouvre la plage sont mises en avant (pas filtrées). C'est
+un état d'AFFICHAGE : rien n'est enregistré, rien n'est calculé. Précision retenue du concile : la
+plage appartient à LA card (ou au lot à axe commun) qui l'a posée, elle se voit rattachée à elle, et
+elle ne se propage ni à l'horloge ni aux autres cards de la file — c'est une focalisation, pas un
+filtre de la file.
+
+**⑨ De regarder à CALCULER : un geste explicite.** Vouloir un calcul « seulement sur cette plage »
+fait de la plage un segment NOMMÉ (une segmentation déclarée) et du calcul une étape du pipeline de
+la card, tracée avec son contexte. Jamais par glissement : sinon les cards par segment reviennent
+par la porte du calcul.
+
+**⑩ Deux sélections complémentaires, un CONTEXTE.** La sélection de CARDS (tri, filtre, recherche
+par facettes déclarées : statut, app, modèle côté Médias ; axes du plan côté Data — la brique
+unique déjà prévue) vaut pour la page ; la sélection d'une PLAGE vaut pour une card. Chaque vue
+(aperçu, onglets, volet, résumé de la card mère, statistiques) est une fonction de ce contexte, et
+les vues ne se parlent pas entre elles — la règle de l'horloge, étendue.
+
+**⑪ Le lot du monde Data reste PLAT, et il est un ENVOI.** L'expérimentation est la déclaration (le
+manifeste, le dossier connecté) ; le lot est ce qu'on en envoie dans la file — tout, ou une
+sélection —, et il garde le lien vers son expérimentation et le filtre qui l'a fait. Grouper par
+participant, groupe ou scénario est une VUE (un regroupement dynamique sur les axes déclarés),
+jamais des lots imbriqués. Deux imbrications à ne plus confondre : la COMPOSITION (une card dérivée
+de sa source — structurelle, enregistrée, 10.7.9) et le CLASSEMENT (les axes du plan — dynamique,
+jamais enregistré comme une imbrication ; un même fichier appartient à autant de regroupements
+qu'il y a d'axes).
+
+**⑫ L'aperçu de la passation, par onglets — les trois niveaux déjà décidés, rendus par l'Explorer.**
+Tables, aperçu d'une table, graphe : ce sont les vues de l'Explorer, bornées par la plage active.
+« Calculs » : les étapes de la card et, pour le segment actif, la ligne de ses indicateurs.
+« Statistiques » : l'agrégat des tables de segments des cards du contexte — au niveau du lot —,
+rafraîchi quand une étape finit. Ce sont des VUES de tables du `.wdat`, pas des objets de plus.
+
+**⑬ La card mère résume le contexte — et sa barre dit l'avancement.** La card de lot affiche
+l'agrégat de ses filles RESTANTES après filtrage. Son aperçu, discret et repliable, ne recopie
+jamais ceux des filles ; il dépend de l'agencement déclaré du lot : filles en PARALLÈLE sur un même
+axe (N transcriptions d'un audio, les pistes d'un morceau) → une rangée par fille sur une ligne de
+temps commune ; en SÉRIE (les plans d'une séquence) → bout à bout, largeur = durée ; INDÉPENDANTES
+(les passations) → pas de ligne de temps, un résumé (effectifs par axe, par état). Sa barre de
+progression devient segmentée : une case par fille, à la couleur de son état, les échecs en tête ;
+au-delà d'une vingtaine de filles, une barre empilée par proportions d'état, le détail au survol.
+La barre dit l'AVANCEMENT (cases égales, couleurs d'état, un libellé « 12/15 ») ; la ligne de temps
+dit le CONTENU (largeur = durée, couleurs de sens) : jamais les mêmes couleurs.
+
+**⑭ Un vocabulaire de couleurs commun aux zones temporelles — remplace ⑥ de 10.7.12.** Défini une
+fois, choisi par DÉCLARATION de la piste (« colorer par tel attribut, selon telle échelle ») :
+ÉTAT (les six couleurs, réservées à l'avancement) ; SÉVÉRITÉ, ordinale, trois niveaux plus inconnu
+(confiance, cohérence, risque — celle de la page d'édition du Transcriber) ; INTENSITÉ, continue,
+du vert au rouge (la ligne de proximité du cam_analyzer) ; CATÉGORIE (locuteur, type, passage).
+Deux marques constantes : masqué (hachuré), sélectionné (contour). Jamais la couleur seule : un
+pictogramme ou un motif double chaque niveau, la valeur se lit au survol, et tout reste lisible en
+niveaux de gris. Les teintes divergentes d'aujourd'hui s'unifient. À étudier (concile) : une marque
+« validé par un humain », une échelle pour une grandeur numérique sans seuil.
+
+**⑮ La base.** Segments, indicateurs et statistiques du monde Data vivent dans le `.wdat`, jamais
+dans la base de WAMA (règle existante, inchangée). La base de WAMA porte les cards, les lots, le
+lien de composition — une card dérivée → sa source ET sa plage sur l'axe de la source : c'est ce
+pointage qui rend ⑧ possible —, les marques du monde Médias et les déclarations de pistes. Un
+formalisme, un lecteur, deux rangements (10.7.11 inchangé, sauf l'ordre : voir T7).
+
+**L'avis du concile** (troisième consultation, 282 s, cinq avis lus un à un ; ⚠ un avis s'appuie
+sur la « promotion » d'un segment en card, retirée en 10.7.12, et un autre cite une source absente
+du dossier — écartés sur ces points ; le décideur attribue mal certains points, la lecture est
+faite sur les avis) :
+
+| point du concile | lecture |
+|---|---|
+| unanime : des colonnes, pas une card par segment ; le critère opérationnel « y a-t-il un réglage, un état de file, une relance ? » | ✅ repris en ⑦ |
+| la plage active ne va PAS sur l'horloge commune (deux avis, et le décideur) ; deux autres la veulent à la page, projetée sur chaque card | ✅ repris en ⑧ : à la card qui la pose ; une projection d'une card à l'autre n'a de sens que sur un axe commun (lot en parallèle ou en série) |
+| le lot est l'ENVOI, l'expérimentation la déclaration ; le regroupement est une vue, pas une structure ; le lot rappelle d'où il vient | ✅ repris en ⑪ |
+| aperçu de lot : utile s'il est minimal et agrégé ; aucune ligne de temps pour des filles indépendantes | ✅ repris en ⑬ |
+| barre segmentée : bonne jusqu'à quinze à cinquante filles, puis proportions par état ; échecs en tête ; cases égales contre largeurs en durée | ✅ repris en ⑬ |
+| couleurs : ne pas fusionner sévérité et intensité ; jamais la couleur seule ; manquent une marque de certitude ou de validation humaine (trois avis) et une échelle numérique sans seuil | ✅ repris en ⑭, les deux manques notés à étudier |
+| statistiques : modéliser le PARTICIPANT (unanime) ; tracer l'origine de chaque ligne pour une situation à cheval sur deux fichiers ; porter les effectifs avec les agrégats (plan déséquilibré) ; dire si un segment masqué est ignoré ou manquant ; garantir la clé de la table longue | ⏳ T5 — trois de ces points sont déjà ouverts dans `WAMA_DATA_WORLD` |
+| les couleurs AVANT ou AVEC la zone temporelle (trois avis) | ✅ repris dans l'ordre ci-dessous |
+| première maquette : la passation du monde Data pour deux avis (le plus risqué), le Transcriber pour deux autres (il existe, les données sont réelles) | ⏳ T6 |
+| décider la FORME du lien de composition avant d'écrire les vues (trois avis) | ⏳ T7 |
+| mesurer, pas supposer : le clic sur un segment avec deux cents segments, le filtrage de soixante passations × mille situations | ✅ à éprouver par les maquettes et la marche ② |
+| provocation : supprimer la card du monde Data | ⚠ non retenu : la card y porte le pipeline, l'état et la relance (`WAMA_DATA_WORLD §11.8`) |
+
+**Ce qui reste à trancher par Fabien** (E1 à E5 de 10.7.12 restent posées) :
+
+| # | question | position proposée |
+|---|---|---|
+| T1 | monde Data : un traitement par segment est-il une card fille ? | non — une étape de la card, des colonnes sur la table de segments ; une card dérivée seulement s'il y a réglage, état et relance propres (⑦) |
+| T2 | à qui appartient la plage active ? | à la card (ou au lot à axe commun) qui la pose ; jamais un filtre de la file (⑧) ; calculer dessus = un geste explicite (⑨) |
+| T3 | le lot du monde Data | plat ; un envoi (toute l'expérimentation ou une sélection) lié à son expérimentation ; regroupements = vues sur les axes (⑪) |
+| T4 | la card de lot : aperçu et barre segmentée | oui, minimal et repliable ; barre par cases d'état puis proportions (⑬) — à juger sur maquette |
+| T5 | ce que la statistique exige | modéliser le participant dans le manifeste de l'expérimentation et décider la concaténation des passations AVANT la card du Data Analyzer |
+| T6 | les maquettes, et la première | quatre cas réels (Transcriber, cam_analyzer, passation et lot du monde Data, film) ; le Transcriber d'abord (réel), la passation aussitôt après (le plus risqué) |
+| T7 | le lien de composition (10.7.11) : quand ? | sa FORME (source, plage sur l'axe de la source, rôle, rang) décidée avec les maquettes ; la table posée quand une vue la lit |
+| T8 | les couleurs du temps | quatre échelles déclarées par piste, jamais la couleur seule (⑭) |
+
+**Les marches, réordonnées du plus sûr au moins sûr** : ⓪ les MAQUETTES sur cas réels (aucun code
+touché) ; ① ✅ le lecteur de marques ; ② la zone temporelle en lecture seule sur la card
+(Transcriber, cam_analyzer) AVEC le vocabulaire de couleurs et la plage active ; ③ la barre de lot
+par états et la card mère qui résume ses filles filtrées (facettes existantes) ; ④ le monde Data —
+la card de passation, ses aperçus et onglets, les facettes d'axes, les onglets calculs et
+statistiques : l'entrée du Data Analyzer ; ⑤ les gestes déclarés par piste et la page d'édition
+commune ; ⑥ le lien de composition en base, les pointages, les emplois, le film.
 
 ---
 
