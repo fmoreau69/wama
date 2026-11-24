@@ -541,8 +541,8 @@ def _render_element(manifest: dict, surface: str = '', prefix: str = '',
     # `ROUTE §10.6` couche 2, point 4.6 : « le champ du port au manifeste, puis la liste du générateur
     # dérivée de lui ») : le ⧉ d'une jumelle vidait l'avatar, la voix ou la partition de référence
     # que l'utilisateur avait donnés, rangés dans un champ au nom hérité.
-    ports_entree |= set((((manifest.get('body') or {}).get('inspector') or {}).get('port_fields')
-                         or {}).get(d['item'], {}).values())
+    port_field_names = set((((manifest.get('body') or {}).get('inspector') or {}).get('port_fields')
+                            or {}).get(d['item'], {}).values())
     # Ce que les PROCESS déclarent écrire, la brique de duplication le vide elle-même — et
     # seulement s'ils l'ont écrit (`AppPipeline.produced_fields`, 2026-10-21) : la liste n'en
     # garde que le reste, comme les vues des apps réelles (2026-10-22, garde
@@ -553,7 +553,8 @@ def _render_element(manifest: dict, surface: str = '', prefix: str = '',
     derives = {f for spec in (process_specs(_declared) if _declared else ())
                for f in spec['outputs']}
     champs_sortie = [n for n in champs_fichiers
-                     if n != d['input_field'] and n not in ports_entree and n not in derives]
+                     if n != d['input_field'] and n not in ports_entree
+                     and n not in port_field_names and n not in derives]
     # Nom de fichier pour les propriétés d'ENTRÉE de la card (input_props_for) : le champ
     # nom déclaré, sinon le nom du FileField lui-même.
     nom_pour_props = (f"getattr(item, '{d['name_field']}', '') or ''" if d['name_field']
