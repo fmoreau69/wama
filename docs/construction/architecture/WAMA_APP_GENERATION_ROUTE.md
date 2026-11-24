@@ -9276,6 +9276,88 @@ par états et la card mère qui résume ses filles filtrées (facettes existante
 la card de passation, ses aperçus et onglets, les facettes d'axes, les onglets calculs et
 statistiques : l'entrée du Data Analyzer ; ⑤ les gestes déclarés par piste et la page d'édition
 commune ; ⑥ le lien de composition en base, les pointages, les emplois, le film.
+⚠ Ordre REVU en 10.7.14 : la construction fonctionnelle d'abord, les maquettes juste avant l'interface.
+
+#### 10.7.14 DÉCISIONS du 2026-11-24 (suite) — T1 à T8 validées, E1 à E4 tranchées, la COUPE virtuelle, et l'ordre : le fonctionnel d'abord
+
+> 📜 **Fabien** : *« Ok pour T1 à T8, mais ne vaut-il pas mieux parfaire la construction avant de
+> commencer les maquettes et l'UI/UX ? […] Pour T2 : c'est la contextualisation par segment
+> temporel sélectionné. Il faut pouvoir désélectionner pour revenir à la ligne de temps complète
+> […] la card doit garder sa ligne complète pour y revenir facilement et une ligne segmentée.
+> Ajouter une nouvelle ligne de sous-segments resterait un geste utilisateur dédié […]
+> Actuellement, on n'a pas la possibilité de découper ou redimensionner des médias dans WAMA. Ce
+> qu'on est en train de construire pourrait le permettre nativement dans chaque application, y
+> compris le Converter […] La vidéo serait virtuellement découpée. Exporter la vidéo découpée dans
+> le Converter permettrait de récupérer la vidéo réagencée […] On pourrait aussi prévoir une découpe
+> automatique des segments de plans par simple analyse des coupes. »*
+
+| # | décision | état |
+|---|---|---|
+| T1 à T8 (10.7.13) | validées telles que proposées | ✅ Fabien, 2026-11-24 |
+| T2, précision | la plage active est « la contextualisation par segment sélectionné » ; on DÉSÉLECTIONNE pour revenir à la ligne complète | ✅ |
+| E1 | la zone temporelle d'une card = sa LIGNE COMPLÈTE (toujours là : toute la durée, y cliquer lève la plage active) + UNE ligne segmentée (la piste principale que l'app déclare) ; toute autre ligne se déplie par un geste DÉDIÉ de l'utilisateur | ✅ position de Fabien — c'est bien de cela qu'il s'agissait (une « rangée » = une piste, pas un empilement de segments) |
+| E2 | un ZOOM sur la zone temporelle de la card, pour plonger dans la ligne de temps et atteindre un segment trop petit — la ligne complète sert alors de repère de la fenêtre zoomée | ✅ Fabien (remplace « pas de zoom dans la file ») |
+| E3 | hors page d'édition : regarder, se placer, déclencher, masquer | ✅ Fabien |
+| E4 | monde Data : un geste produit une piste DÉRIVÉE, la piste mesurée intacte, chaque geste tracé | ✅ Fabien — précisé en ⑰ |
+| E5 | un plan employé deux fois avec des traitements différents | ⏳ explicité à Fabien, à trancher |
+
+**⑯ Ce qu'est une ligne de la zone temporelle.** Soit une PISTE de marques (les tours de parole,
+les séquences), soit les PLACEMENTS des cards filles sur l'axe de leur mère (les plans d'un film).
+Les deux se dessinent pareil — un segment à sa place et à sa durée — et se cliquent pareil : la
+plage active se pose ; si le segment est le placement d'une card fille, cette fille reçoit le
+focus. La ligne complète n'est pas une piste : c'est l'axe lui-même (durée, tête de lecture,
+fenêtre du zoom).
+
+**⑰ Scinder n'est pas sous-segmenter — E4 n'empile rien.** SCINDER coupe un segment en deux au MÊME
+niveau, sur la même ligne. Les gestes faits sur une piste mesurée s'accumulent dans UNE piste
+dérivée — la piste source et la LISTE ordonnée des gestes (« on persiste la déclaration, pas les
+valeurs ») —, et cette dérivée REMPLACE sa source à l'affichage, sur la même ligne, avec une
+marque « retouchée » et le retour à l'original : le nombre de lignes ne bouge pas. Créer un niveau
+en dessous (des sous-segments, piste fille d'une piste parente) est AUTRE CHOSE : un geste dédié
+(un raccourci du type Ctrl+clic, à fixer avec l'interface), et la ligne créée reste repliée par
+défaut (E1).
+
+**⑱ La COUPE virtuelle — découper, raccourcir, réagencer un média dans toute app, sans toucher au
+fichier (⏳ proposition).** Mesuré : WAMA ne sait pas découper un média aujourd'hui (aucun réglage
+de bornes dans `wama/converter/*.py` : motifs `trim|start_time|-ss|clip_start|cut_`, zéro
+résultat) ; la brique de ligne de temps sait déjà zoomer, montrer un repère d'ensemble et retoucher
+des bornes (`transcriber/surfaces.py:82-84`, `media_timeline` : `zoom`, `minimap`,
+`boundaries: 'retime'`). L'idée de Fabien est le modèle déjà posé, employé jusqu'au bout : la coupe
+est une piste dérivée de segments GARDÉS, MASQUÉS ou AJOUTÉS (et réordonnés, là où la piste le
+permet) sur l'axe de la source — ② (« une source, des pointages ») et ⑤ (masquer par ses bornes).
+- La coupe appartient à l'EMPLOI du fichier par une card (l'entrée de la card), pas au fichier :
+  deux cards peuvent couper différemment la même source.
+- L'aperçu LIT à travers la coupe (il saute ce qui est masqué) ; c'est le montage simple, dans
+  l'aperçu.
+- Chaque app TRAITE son entrée telle que coupée : une étape COMMUNE matérialise la coupe avant le
+  traitement (une fois, au commun, jamais par app) ; le Converter, dont c'est le métier, exporte
+  le média réagencé. Dans le monde Data c'est déjà la règle (« calculer sur la restriction »).
+- Le fichier source n'est jamais modifié ; retirer la coupe rend le média entier.
+⚠ Dépend d'une décision ouverte : où s'écrit l'emploi d'un fichier par une card — la table commune
+des ENTRÉES proposée en `INPUT_MODEL_MATCHING §6.13` en est le lieu naturel (une entrée = un
+fichier + sa coupe), même convention d'adresse que le lien de composition (10.7.11).
+
+**⑲ Les plans détectés automatiquement (⏳).** Un PRODUCTEUR de segments du monde Médias : l'analyse
+des changements de plan d'une vidéo remplit une piste « plans », sur laquelle on masque, on garde,
+on réordonne. Comme tout producteur, il reste propre à son monde et passe par la route (une
+fonction déclarée ; la librairie, s'il en faut une, par la route d'installation).
+
+**L'ordre, revu à la demande de Fabien — le fonctionnel d'abord.** Les questions restées ouvertes
+après 10.7.13 étaient des questions de MODÈLE (ce qu'est une ligne, dérivée ou niveau en dessous,
+qui porte la coupe) : elles se règlent par la construction et ses tests, pas par des images. Les
+maquettes viennent juste AVANT la première marche d'interface, par le skill de design, en artefacts,
+dessinées sur des marques réelles que le fonctionnel saura alors rendre.
+
+| marche | contenu | dépend de |
+|---|---|---|
+| ①bis | la DÉCLARATION d'une piste dit tout ce que l'écran et les gestes auront à savoir : piste principale (E1), échelle de couleur et attribut coloré (T8), gestes permis, édition dérivée ou en place (E3, E4) — Transcriber, cam_analyzer, pistes d'un `.wdat` ; registre et facette du manifeste | rien — tout est décidé |
+| ①ter | la PISTE DÉRIVÉE : une source + une liste de gestes (scinder, fusionner, masquer, étiqueter, ajouter ; déplacer et réordonner là où c'est permis), rejouée par le lecteur commun ; la « ligne effective » (ce qui reste après les masques) | ①bis |
+| ①quater | la lecture d'une piste bornée à une plage (la plage active côté serveur) ; l'outil de l'assistant qui rend les marques d'une card | ①bis |
+| ②fonc | la COUPE portée par une entrée, sa matérialisation commune avant traitement, l'export du Converter (⑱) | la décision sur la table des entrées |
+| ③fonc | le producteur automatique de plans (⑲) | ①bis |
+| ④fonc | le résumé d'un lot sur ses cards filtrées, les facettes déclarées (T3, T4) | — |
+| ⑤fonc | les préalables du monde Data (T5 : participant, assemblage d'un lot) | décisions du monde Data |
+| puis | les maquettes ; la zone temporelle ; la barre de lot ; le Data Analyzer ; la page d'édition commune ; le film | le fonctionnel ci-dessus |
 
 ---
 
