@@ -4728,9 +4728,12 @@ Detector et l'annotation du monde Data le reprennent sans copie.
   découpage gardée là où elle l'était (`tests_sam3_concepts`).
 
 **Restes nommés (2026-11-24)** : ⏳ A.5 et la décision (2) ; ⏳ la forme structurée à attributs
-avec B ; ⏳ régénérer la jumelle `anonymizer_01` (ses champs de port, `TWINS_AWAITING_PROJECTION`
-de `tests_port_fields`, laissé par la session du portage à celle de l'anonymizer) APRÈS le commit
-des champs neufs du modèle `Media` — une régénération avant les copierait non commités ;
+avec B ; ✅ jumelle `anonymizer_01` régénérée (`app_sandbox substitute anonymizer_01 apps`, ses
+champs de port, `TWINS_AWAITING_PROJECTION` vidé) après le commit des champs neufs de `Media` ;
+⏳ ses tests PROPRES échouent à l'import — `tasks.py`/`views.py` générés le 23/11 sans les fonctions
+que les tests copiés de la source appellent (`detect_media`, `new_media_settings`, `process_media`,
+`check_sam3_installed`…, mesuré `manage.py test wama.anonymizer_01`) : reste du générateur
+(`tasks_gen`/`views_gen`), antérieur à ce chantier, hors de la suite complète ;
 ⏳ `WamaDetections.labelChoices` propose « face » quand la
 surface ne donne rien (`wama-detections.js`, le défaut de l'anonymizer écrit dans une brique
 commune) — à tirer de la déclaration de l'app quand le Detector la reprendra ; ⏳ LocateAnything :
