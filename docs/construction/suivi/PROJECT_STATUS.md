@@ -32398,3 +32398,20 @@ contre-épreuves rouges sur 15 ; un conteneur `.wdat` écrit puis rouvert rend l
 - l'index des pistes d'un essai en base (`ROUTE §10.7.11`) ; un outil de l'assistant qui rende les
   marques d'une card (à livrer avec la zone temporelle, premier geste qui les montre) ;
 - 🔴 relancer gunicorn + workers reste dû.
+
+## §PALIER — 2026-11-24, revérification « la valeur d'un port » — 🔚 décision de Fabien : la table commune des entrées
+
+- ✅ db5b61c27 : la seconde revérification a trouvé que le lecteur `port_fields` avait été posé À
+  CÔTÉ de `_LINE_FIELDS` / `COVER_FIELDS` (la même donnée deux fois). Retirés : les lignes de lot
+  lisent le lecteur (`batch_parsers.line_file_inputs`), `COVER_PORTS` ne garde que le libellé d'un
+  refus. 340 tests ; contre-épreuve rouge ; HEAD vérifié en worktree (un rouge de
+  `tests_score_input`, code identique à l'arbre et étranger au palier, vert sur l'arbre : artefact).
+- ⏳ Une septième copie trouvée, non portée : `studio/services/generic_runner.port_argument_name`
+  (la consigne de l'avatarizer par `source_text`) — APRÈS la projection aux jumelles, sinon la
+  consigne d'`avatarizer_01` redeviendrait non lue. Les arguments des outils portent déjà le nom
+  des ports (mesuré).
+- 🔚 restent, dans l'ordre : projeter `WAMA_PORT_FIELDS` aux jumelles (extracteur → manifeste →
+  `models_gen`, régénération des dix jumelles, `TWINS_AWAITING_PROJECTION` vidé) ; porter
+  `port_argument_name`, la spec du volet, l'aperçu, l'extracteur, les littéraux de JS (à remesurer) ;
+  consigne de l'anonymizer en `ports_carried_elsewhere` ; `prompt_file` de l'imager ; décision sur
+  la table commune des entrées (`INPUT_MODEL_MATCHING §6.13`) ; 🔴 relancer gunicorn + workers.
