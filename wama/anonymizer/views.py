@@ -516,8 +516,12 @@ def _apply_media_settings(media, data):
             is_valid, error = validate_sam3_prompt(prompt)
             if not is_valid:
                 raise ValueError(f'Invalid SAM3 prompt: {error}')
-        media.sam3_prompt = prompt or None
-        touched.append('sam3_prompt')
+        # Le champ à DEUX ÉTATS (2026-11-24, la règle commune `apply_prompt_state`) : le texte
+        # affiché va dans ce qui a été COMPRIS quand c'est lui qui était montré ; sinon dans la
+        # description tapée, et ce qui avait été compris d'elle, périmé, est vidé.
+        from wama.common.utils.app_metadata import apply_prompt_state
+        touched += apply_prompt_state(media, 'sam3_prompt', prompt or None,
+                                      data.pop('sam3_prompt_state', None))
     if 'model_to_use' in data:
         # Clé de catalogue, ou « auto » / vide = choix automatique au lancement ; un identifiant
         # d'avant est normalisé par `Media.save` (route F4b ⑤).
@@ -908,6 +912,18 @@ def reset_user_settings(request):
 # Modern Modal-Based Settings Endpoints
 # ========================================
 
+def _description_plan(media) -> list:
+    """`tasks.description_plan`, sans jamais faire échouer l'ouverture de la modale."""
+    import logging
+    try:
+        from .tasks import description_plan
+        return description_plan(media)
+    except Exception:
+        logging.getLogger(__name__).exception("[anonymizer] plan de la description #%s illisible",
+                                              media.pk)
+        return []
+
+
 def get_media_settings(request, media_id):
     """Valeurs COURANTES d'un média pour la modale paramètres — SCHÉMA-DRIVEN.
 
@@ -941,6 +957,9 @@ def get_media_settings(request, media_id):
             from .utils.yolo_utils import catalogue_key_for, get_all_class_choices
             values['model_to_use'] = catalogue_key_for(media.model_to_use) or 'auto'
             values['sam3_prompt'] = media.sam3_prompt or ''
+            # Ce que le système a COMPRIS de la description (le champ à deux états la montre), et
+            # qui cherchera chaque concept (2026-11-24, `tasks.description_plan`).
+            values['sam3_prompt_processed'] = getattr(media, 'sam3_prompt_processed', '') or ''
             media_classes = media.classes2blur or []
             classes2blur_list = [
                 {'value': code, 'label': label, 'checked': code in media_classes}
@@ -955,6 +974,7 @@ def get_media_settings(request, media_id):
             'groups': GROUPS_JSON if domain_schema_name('anonymizer', domain) == 'PARAMS_JSON' else [],
             'values': values,
             'classes2blur': classes2blur_list,
+            'understood': _description_plan(media),
         })
 
     except Http404:

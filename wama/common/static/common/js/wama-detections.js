@@ -205,19 +205,25 @@
 
     /** Les CLASSES qu'une zone ajoutée ou un objet désigné peut porter (2026-11-19, Fabien :
      *  « rajouter une classe à la main afin de cliquer sur l'objet ») : celles que la page reçoit
-     *  de sa surface (`context.classes` — les classes demandées), celles que le DOCUMENT porte (les
-     *  libellés trouvés : le nom d'une classe comme le concept d'une description), celles des
-     *  corrections déjà faites. Dans l'ordre, sans doublon ; `face` quand il n'y a rien. */
+     *  de sa surface (`context.classes` — les classes demandées et celles trouvées, sous leur nom
+     *  COMMUN, que le serveur connaît : `License_Plate` et `license plate` n'en font qu'une,
+     *  2026-11-24), puis celles des corrections déjà faites. Une surface qui ne fournit pas de
+     *  liste laisse lire les libellés du document tels quels. Dans l'ordre, sans doublon ;
+     *  `face` quand il n'y a rien. */
     function labelChoices(ctx) {
         var out = [];
         function keep(label) {
             label = String(label || '').trim();
             if (label && out.indexOf(label) < 0) out.push(label);
         }
-        ((ctx.context() || {}).classes || []).forEach(keep);
-        ((ctx.reads().detections || {}).frames || []).forEach(function (f) {
-            (f.d || []).forEach(function (d) { keep(d.label); });
-        });
+        var given = (ctx.context() || {}).classes;
+        if (given) {
+            given.forEach(keep);
+        } else {
+            ((ctx.reads().detections || {}).frames || []).forEach(function (f) {
+                (f.d || []).forEach(function (d) { keep(d.label); });
+            });
+        }
         ((ctx.value() || {}).added || []).forEach(function (a) { keep(a.label); });
         if (!out.length) keep('face');
         return out;

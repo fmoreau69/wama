@@ -16,7 +16,7 @@ from unittest import mock
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
-from django.test import Client, TestCase
+from django.test import Client, SimpleTestCase, TestCase
 from django.urls import reverse
 
 from wama.common.utils.media_paths import in_user_home, readable_by
@@ -123,6 +123,102 @@ class ScriptInjectionTest(TestCase):
         self.assertNotIn('${asset.license}', library)
         self.assertIn("esc(a.label) + '</span>'", studio)
         self.assertNotIn("+ a.label + '</span>'", studio)
+
+
+def _concept_targets():
+    """(app, field, element model) of every DECLARED concept prompt whose element keeps what was
+    understood (`<field>_processed`) — read from `PROMPT_TARGETS`, no app named."""
+    from wama.common.utils.app_metadata import PROCESSED_SUFFIX, PROMPT_TARGETS
+    from wama.common.utils.preview_registry import PreviewRegistry
+    out = []
+    for app, targets in PROMPT_TARGETS.items():
+        model = PreviewRegistry.get_model(app)
+        for tgt in targets:
+            field = tgt.get('field')
+            if tgt.get('kind') == 'concept' and model is not None \
+                    and hasattr(model, f'{field}{PROCESSED_SUFFIX}'):
+                out.append((app, field, model))
+    return out
+
+
+class UnderstoodPromptTest(TestCase):
+    """2026-11-24 (decision of Fabien : « what the system understood must be shown to the user ») —
+    a CONCEPT prompt is understood, not enriched : the ✨ button runs the launch pipeline for it,
+    what a launch understood is kept beside the typed text, and typing again drops it."""
+
+    def test_the_fleet_is_measured(self):
+        self.assertTrue(_concept_targets(), 'no declared concept prompt keeps what it understood')
+
+    def test_the_button_understands_a_concept_prompt_by_its_declaration(self):
+        from wama.common.utils import app_metadata
+        for app, field, _model in _concept_targets():
+            with self.subTest(app=app), \
+                    mock.patch.object(app_metadata, 'process_prompt_for',
+                                      return_value={'prompt': 'human face, logo'}) as pipeline, \
+                    mock.patch('wama.common.utils.prompt_enrichment.enrich_on_demand') as enrich:
+                self.assertEqual('human face, logo',
+                                 app_metadata.enrich_prompt_value(app, field, 'les visages'))
+                enrich.assert_not_called()
+                self.assertIs(True, pipeline.call_args.kwargs['enrich'])
+            with mock.patch.object(app_metadata, 'process_prompt_for',
+                                   return_value={'prompt': 'les visages'}), \
+                    self.assertRaises(RuntimeError):
+                app_metadata.enrich_prompt_value(app, field, 'les visages')
+
+    def test_what_a_launch_understood_is_kept_and_typing_again_drops_it(self):
+        from django.contrib.auth.models import User as Account
+        from wama.common.tests.tests_queue_delete_contract import _instance
+        from wama.common.utils.app_metadata import apply_prompt_state, keep_processed_prompt
+        owner = Account.objects.create_user('wama_understood')
+        for app, field, model in _concept_targets():
+            with self.subTest(app=app):
+                item = _instance(model, owner)
+                setattr(item, field, 'les visages')
+                self.assertFalse(keep_processed_prompt(item, field, {'prompt': 'les visages',
+                                                                     'original': 'les visages'}),
+                                 'nothing changed : nothing kept')
+                self.assertTrue(keep_processed_prompt(item, field, {
+                    'prompt': 'human face', 'original': 'les visages', 'translated': True}))
+                item.refresh_from_db()
+                self.assertEqual('human face', getattr(item, f'{field}_processed'))
+                self.assertTrue(item.prompt_trace[field]['translated'])
+                touched = apply_prompt_state(item, field, 'les visages et les logos', 'user')
+                self.assertEqual('', getattr(item, f'{field}_processed'),
+                                 'the typed text changed : what was understood of the old one goes')
+                self.assertIn(f'{field}_processed', touched)
+
+
+class TheModalsPostTheDisplayedFaceTest(SimpleTestCase):
+    """The imager's modal posted the ORIGINAL under the `processed` state, which
+    `apply_prompt_state` writes into `<field>_processed` : saving an enriched card replaced the
+    enriched text by the typed one (2026-08-05 → 2026-10-04). Nothing says so at run time. Since
+    2026-11-24 the common modal cycle posts every two-state prompt — its DISPLAYED text with the
+    other fields, its state read at the controller — and no app does it by hand any more (the
+    imager's and the composer's copies were removed ; moved from `composer/tests_prompt_harness`)."""
+
+    COMMON = 'common/js/wama-params.js'
+
+    def test_the_common_cycle_posts_the_state_of_every_two_state_prompt(self):
+        import re
+        root = Path(settings.BASE_DIR)
+        for served in (root / 'wama' / 'common' / 'static' / self.COMMON,
+                       root / 'staticfiles' / self.COMMON):
+            with self.subTest(file=served.name, served='staticfiles' in served.parts):
+                src = served.read_text(encoding='utf-8')
+                self.assertIn("textarea[data-prompt-state][name]", src)
+                self.assertTrue(re.search(r"fd\.set\(t\.name \+ '_state', ctrl \? ctrl\.snapshot\(\)"
+                                          r"\.state", src), 'the state is read at the controller')
+
+    def test_no_app_posts_a_prompt_state_by_hand(self):
+        import re
+        hand = re.compile(r"fd\.(?:set|append)\('\w*_state'|fd\.(?:set|append)\('\w+',[^;]*\.original\b")
+        found = []
+        for script in (Path(settings.BASE_DIR) / 'wama').glob('*/static/**/*.js'):
+            if 'common' in script.relative_to(Path(settings.BASE_DIR) / 'wama').parts[:1]:
+                continue
+            if hand.search(script.read_text(encoding='utf-8', errors='replace')):
+                found.append(str(script.relative_to(settings.BASE_DIR)))
+        self.assertEqual([], found, 'a modal posts its prompt state by hand : the common cycle does')
 
 
 class VisitorTriggersNoLlmTest(TestCase):

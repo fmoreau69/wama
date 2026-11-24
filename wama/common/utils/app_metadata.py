@@ -250,7 +250,20 @@ def enrich_prompt_value(app, field, value, **kwargs):
     l'ingestion passent ici — mêmes règles que la pipeline du lancement. Lève `RuntimeError`
     comme `enrich_on_demand`."""
     from .prompt_enrichment import enrich_on_demand
-    caption, lyrics = _spared_lyrics(_target(app, field), value)
+    tgt = _target(app, field)
+    if tgt and tgt.get('kind') == 'concept':
+        # Une cible de CONCEPTS (2026-11-24 : la description de l'anonymizer) se COMPREND, elle ne
+        # s'étoffe pas : la même pipeline qu'au lancement (traduction en anglais, puis concepts
+        # par le skill déclaré — `prompt_pipeline`, Hook A bis), jamais l'enrichissement génératif,
+        # qui refuse un résultat plus court et rendait « indisponible ».
+        res = process_prompt_for(app, field, value, user=kwargs.get('user'), enrich=True,
+                                 full=True)
+        understood = str(res.get('prompt') or '').strip()
+        if not understood or understood == str(value or '').strip():
+            raise RuntimeError("Rien n'a pu être compris de cette description (LLM injoignable "
+                               "ou réponse vide).")
+        return understood
+    caption, lyrics = _spared_lyrics(tgt, value)
     if not lyrics:
         return enrich_on_demand(value, app=app, **kwargs)
     if not str(caption or '').strip():
@@ -429,6 +442,33 @@ def effective_prompt(instance, field):
     if processed and str(processed).strip():
         return processed
     return getattr(instance, field, None)
+
+
+def keep_processed_prompt(instance, field, result, source='launch') -> bool:
+    """Garde ce que la pipeline a FAIT d'un prompt traité au LANCEMENT (`process_prompt_for(...,
+    full=True)`) : `<field>_processed` et l'entrée de `prompt_trace`, comme l'ingestion
+    (`enrich_instance_prompts`) — pour une cible que l'ingestion ne traite pas (un prompt de genre
+    `concept` : la description de l'anonymizer, 2026-11-24, décision de Fabien : « ce que le système
+    a compris doit être montré à l'utilisateur »). Le champ tapé n'est jamais touché ; rien n'est
+    gardé quand la pipeline n'a rien changé, ni sur un modèle qui ne porte pas `<field>_processed`.
+    Écrit par une mise à jour ciblée (une tâche ne réécrit pas le reste de la ligne)."""
+    pfield = f"{field}{PROCESSED_SUFFIX}"
+    if instance is None or not hasattr(instance, pfield) or not isinstance(result, dict):
+        return False
+    processed = str(result.get('prompt') or '').strip()
+    original = str(result.get('original') or getattr(instance, field, '') or '').strip()
+    if not processed or processed == original:
+        return False
+    trace = dict(getattr(instance, TRACE_FIELD, None) or {})
+    trace[field] = {'enriched': bool(result.get('enriched')),
+                    'translated': bool(result.get('translated')), 'source': source}
+    values = {pfield: processed}
+    if hasattr(instance, TRACE_FIELD):
+        values[TRACE_FIELD] = trace
+    type(instance).objects.filter(pk=instance.pk).update(**values)
+    for name, value in values.items():
+        setattr(instance, name, value)
+    return True
 
 
 def enrich_instance_prompts(app, instance, user=None, glossary=None, source='ingest'):

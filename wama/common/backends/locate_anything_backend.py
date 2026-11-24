@@ -178,19 +178,15 @@ class LocateAnythingBackend(FrameDetectionBackend):
     # ── Détecteur de l'anonymizer (`FrameDetectionBackend`) ──────────────────────────
     @staticmethod
     def concepts_of(prompt: str) -> list:
-        """Les CONCEPTS d'une description traitée (« face, license plate ») — une catégorie par
-        concept, dans l'ordre, sans doublon."""
-        out = []
-        for concept in (prompt or '').split(','):
-            concept = concept.strip()
-            if concept and concept not in out:
-                out.append(concept)
-        return out
+        """Les CONCEPTS d'une description traitée (« face, license plate ») — la règle commune
+        (`detection_base.prompt_concepts`), celle de SAM3 : une catégorie par concept."""
+        from wama.common.backends.detection_base import prompt_concepts
+        return prompt_concepts(prompt)
 
     def prepare(self, **kwargs) -> None:
         """La DEMANDE vient de la description de la card (`sam3_prompt`, traitée en concepts
         anglais par la pipeline de prompts) ; une description vide se dit avant tout chargement."""
-        self._prompt = kwargs.get('sam3_prompt') or kwargs.get('prompt') or ''
+        self._prompt = self.prompt_of(**kwargs)
         self._concepts = self.concepts_of(self._prompt)
         if not self._concepts:
             raise ValueError('LocateAnything : description vide — décrire ce qu’on cherche')

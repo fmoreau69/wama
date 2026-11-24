@@ -55,6 +55,21 @@
     host.dispatchEvent(new Event('change', { bubbles: true }));   // applique la condition
   }
 
+  // ── Ce que le système a COMPRIS de la description, et QUI cherchera chaque concept
+  // (`tasks.description_plan`, le routeur du lancement lu sans LLM, 2026-11-24). Rien tant que
+  // rien n'a été compris : le lancement ou ✨ le posent. ──
+  function appendUnderstood(field, plan) {
+    if (!plan || !plan.length) return;
+    const box = document.createElement('div');
+    box.className = 'small text-body-secondary mt-1 anon-understood';
+    box.innerHTML = '<i class="fas fa-route"></i> Compris : ' + plan.map(function (step) {
+      return '<b>' + esc(step.concept) + '</b> → ' +
+        (step.by && step.by.length ? esc(step.by.join(', ')) : '<span class="text-warning">aucun détecteur</span>');
+    }).join(' · ');
+    const anchor = field.parentNode.querySelector('.wama-prompt-enrich-original') || field;
+    anchor.insertAdjacentElement('afterend', box);
+  }
+
   // ── Pastille d'état SAM3 dans le titre du groupe « Mode de détection » — la MÊME que celle
   // du volet (`AnonSam3Badge`, right_panel.js) : mêmes états, même renvoi au profil. ──
   function appendSam3Badge(host) {
@@ -102,14 +117,19 @@
       decorate: function (host) {
         appendClassesSection(host, data.classes2blur);
         appendSam3Badge(host);
-        // Enrichissement ✨ du prompt SAM3 dans la modale (pipeline commune)
+        // La description à DEUX ÉTATS (pipeline commune) : ce que l'utilisateur a tapé, et ce que
+        // le système en a COMPRIS (`sam3_prompt_processed` — gardé au lancement ou posé par ✨),
+        // qui est ce qui part aux détecteurs ; son état est posté par la modale commune.
         const promptEl = host.querySelector('textarea[name="sam3_prompt"]');
         if (promptEl && window.WamaPromptEnrich) {
           promptEl.id = promptEl.id || 'msSam3Prompt' + id;
           WamaPromptEnrich.attach('#' + promptEl.id, {
-            app: 'anonymizer', domain: 'detection', csrf: cfg.csrfToken,
+            app: 'anonymizer', domain: 'detection', csrf: cfg.csrfToken, trigger: true,
+            stateLabel: 'Compris', triggerLabel: 'Comprendre la description',
             original: (data.values || {}).sam3_prompt || '',
+            processed: (data.values || {}).sam3_prompt_processed || '',
           });
+          appendUnderstood(promptEl, data.understood);
         }
       },
       collect: function (fd, host) {

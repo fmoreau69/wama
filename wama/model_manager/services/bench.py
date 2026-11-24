@@ -350,8 +350,7 @@ def _bench_recall(entry: AIModel, sample: str, *, conf: float = 0.25, record: bo
     # qui mesuraient aussi le chargement) ; le média copié en local par le chronomètre. Pas de
     # passe de chauffe : sur une vidéo elle doublerait le banc — la première image porte donc
     # l'initialisation du GPU, une part négligeable sur des centaines d'images.
-    detectors = DetectorSet([{'model_key': entry.model_key, 'path': entry.local_path,
-                              'name': entry.name, 'classes': [ref['class']]}])
+    detectors = DetectorSet([_bench_descriptor(entry, ref['class'])])
     clock = _SpeedClock(warm_up=False)
     try:
         doc = clock.detect(detectors, ref['media'], classes2blur=[ref['class']],
@@ -559,8 +558,7 @@ def _bench_boxes(entry: AIModel, sample: str, *, conf: float = 0.25, record: boo
 
     ref = read_boxes_reference(sample)
     entries = _sampled(ref['entries'], limit)
-    detectors = DetectorSet([{'model_key': entry.model_key, 'path': entry.local_path,
-                              'name': entry.name, 'classes': [ref['class']]}])
+    detectors = DetectorSet([_bench_descriptor(entry, ref['class'])])
     totals = {'truth': 0, 'tp': 0, 'fp': 0}
     buckets = {}
     clock = _SpeedClock()
@@ -622,8 +620,7 @@ def _bench_speed(entry: AIModel, sample: str, *, conf: float = 0.25, record: boo
 
     ref = read_boxes_reference(sample)
     entries = _sampled(ref['entries'], limit or SPEED_SAMPLE)
-    detectors = DetectorSet([{'model_key': entry.model_key, 'path': entry.local_path,
-                              'name': entry.name, 'classes': [ref['class']]}])
+    detectors = DetectorSet([_bench_descriptor(entry, ref['class'])])
     clock = _SpeedClock()
     try:
         for item in entries:
@@ -783,22 +780,44 @@ def _bench_upscale(entry: AIModel, sample: str, *, record: bool = False, limit: 
             'scale': scale, 'ms_per_frame': round(1000 * elapsed / count, 1) if count else None}
 
 
+#: Les tâches dont un détecteur peut entrer à un banc de rappel : à classes, et à VOCABULAIRE OUVERT
+#: (2026-11-24 — SAM3, LocateAnything : la classe de la référence leur est donnée en description).
+DETECTION_BENCH_TASKS = (ModelTask.DETECT.value, ModelTask.SEGMENT.value,
+                         ModelTask.ZERO_SHOT_OBJECT_DETECTION.value)
+
+
+def _class_candidates(cls: str) -> list:
+    """Détecteurs installés qui CHERCHENT `cls` : ceux qui la déclarent (alias compris), et ceux
+    qui lisent une description (`model_coverage.reads_prompt`) — le routeur de concepts confie à
+    ces derniers ce qu'aucun détecteur dédié ne couvre, il faut donc pouvoir les comparer
+    (`ROADMAP §17quater` A.3, 2026-11-24)."""
+    from wama.common.services.model_coverage import classes_couvertes, reads_prompt
+    return [m for t in DETECTION_BENCH_TASKS for m in models_for_task(t)
+            if classes_couvertes(m, [cls]) or reads_prompt(m)]
+
+
+def _bench_descriptor(entry: AIModel, cls: str) -> dict:
+    """Le descripteur d'UN modèle pour l'ensemble commun (`DetectorSet`) : sa classe, et pour un
+    modèle qui lit une description, cette classe EN description (`prompt`) — le chemin que prend
+    le routeur, donc ce qui floutera."""
+    from wama.common.services.model_coverage import reads_prompt
+    descriptor = {'model_key': entry.model_key, 'path': entry.local_path, 'name': entry.name,
+                  'classes': [cls]}
+    if reads_prompt(entry):
+        descriptor['prompt'] = cls
+    return descriptor
+
+
 def boxes_candidates(sample: str) -> list:
-    """Detecteurs installes qui couvrent la classe d'une reference « vraies boites »."""
+    """Detecteurs installes qui cherchent la classe d'une reference « vraies boites »."""
     import json
-    from wama.common.services.model_coverage import classes_couvertes
     with open(sample, encoding='utf-8') as f:
-        cls = json.load(f)['class']
-    return [m for t in (ModelTask.DETECT.value, ModelTask.SEGMENT.value)
-            for m in models_for_task(t) if classes_couvertes(m, [cls])]
+        return _class_candidates(json.load(f)['class'])
 
 
 def recall_candidates(sample: str) -> list:
-    """Les modeles a mesurer pour une reference : detecteurs installes qui couvrent sa classe."""
-    from wama.common.services.model_coverage import classes_couvertes
-    cls = read_recall_reference(sample)['class']
-    return [m for t in (ModelTask.DETECT.value, ModelTask.SEGMENT.value)
-            for m in models_for_task(t) if classes_couvertes(m, [cls])]
+    """Les modeles a mesurer pour une reference : detecteurs installes qui cherchent sa classe."""
+    return _class_candidates(read_recall_reference(sample)['class'])
 
 
 # Un protocole par FAMILLE de tache. Ajouter une tache = ajouter une entree ici, jamais une

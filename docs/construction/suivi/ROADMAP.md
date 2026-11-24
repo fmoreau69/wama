@@ -4588,6 +4588,9 @@ de Fabien)** :
   mode Description (tâche `zero-shot-object-detection` ouverte au menu), servi par l'ensemble
   commun ; la vidéo n'est plus grisée mais DÉCIMÉE (une image par seconde par défaut, réglage de
   card). ⏳ condition 2 : jamais tourné sur GPU (crashs hôte de juillet — essai sur feu vert). §17quater.
+  ✅ *2026-11-24 (feu vert de Fabien, alimentation changée)* : condition 2 levée — 150 images du banc
+  de visages tournées sans plantage, 9,4 Go de mémoire vidéo ; mais **29,6 s par image** mesurées sur
+  des foules (la génération s'allonge avec le nombre d'objets), loin des 1,5–7 s annoncés. §17quater.
 - **pose / classify / obb** : hors du menu de l'anonymizer (filtre par tâche, rien de supprimé) ;
   ils restent au catalogue pour le Detector — qui devra les chercher PAR TÂCHE, pas par app (leur
   `source` est encore `anonymizer`, héritage du rangement des poids).
@@ -4662,6 +4665,77 @@ remplacement : dans l'anonymizer quand la garantie reste « rien d'identifiable 
 synthétique), ou au Detector seul (§17bis) ? (4) la qualification — couleur et profondeur d'abord,
 relation et rang ensuite ? (5) LocateAnything sur GPU : feu vert pour un essai réel (risque de
 crash hôte mesuré en juillet sous WSL2) ?
+
+**Décisions de Fabien (2026-11-24)** : (1) **OUI** — la description par défaut, les classes en
+« Avancé » ; *« ce que le système a compris doit être montré à l'utilisateur et les réglages le
+refléter »*. (2) à EXPLICITER (sa question : des exemples comme ceux de SAM3, et/ou des mots-clés
+comme ceux de l'Imager ?). (3) à rediscuter quand le reste sera en place — ne bloque que E.
+(4) **OUI** — couleur et profondeur d'abord, relations ensuite. (5) **feu vert**, essai fait (§17bis).
+
+**Ordre du 2026-11-24** — 0 : vérifier le 19/11 en service ; A (socle) : A.1 noms unifiés, A.2 routeur
+par concept, A.3 barrière de régression, A.4 demande structurée, A.5 modale et volet ; B attributs
+(couleur, taille, profondeur, puis relations) ; C modes de rendu simples ; D suivi par SAM3 entre
+images-clés ; E suppression / remplacement. Le domaine reste celui du §17bis : tout ce qui suit est
+écrit au COMMUN (`detection_ensemble`, `detections`, `model_coverage`, `detection_base`) pour que le
+Detector et l'annotation du monde Data le reprennent sans copie.
+
+**Livré le 2026-11-24** :
+- **0** ✅ rejoué au navigateur sur le serveur servi (lecture seule, compte 1) : les trouvés par
+  libellé sur la bande, « Ce qu'on floute » dans la modale, les classes trouvées offertes à la page
+  d'édition. Un défaut relevé et corrigé : l'avis de la page d'édition d'une IMAGE (#1047, « copie en
+  préparation ») était effacé après la construction des briques — `wama-surface.js` ne pose plus
+  l'état par défaut que si l'état « Chargement… » est resté.
+- **A.1** ✅ un NOM COMMUN par objet : `model_coverage.canonical_class` (premier nom de chaque groupe
+  d'équivalences, `_ALIAS_CLASSES` ordonné) ; `detections.common_label` le lit pour `labels`,
+  `objects_by_label` et `without_labels` — « face » d'un modèle à classes et « human face » d'une
+  description sont UN libellé, et un nom déjà rangé sous l'ancienne graphie reste reconnu.
+  Les classes offertes à la page d'édition viennent du serveur (`surfaces._offered_classes`).
+- **A.2** ✅ `detection_ensemble.route_concepts` : chaque concept va au détecteur dédié qui le couvre
+  (la couverture de l'app, rappel mesuré et curseur compris), le reste au modèle qui lit une
+  description, qui ne reçoit QUE cette part (`prompt` du descripteur, lu par
+  `FrameDetectionBackend.prompt_of`) ; tous dans `DetectorSet` → un document. Les concepts d'une
+  description se découpent par UNE règle (`detection_base.prompt_concepts`, SAM3 et LocateAnything).
+  Branché derrière « auto » en mode Description (`anonymizer/tasks._routed_description`) ; un modèle
+  désigné garde son chemin. Le document porte le `plan` (concept → modèles).
+- **A.3** ✅ barrière sur de VRAIS fichiers (copies non enregistrées de #1436 et #1293/#1290, même
+  fichier) : Classes et Description routée trouvent EXACTEMENT les mêmes objets avec les mêmes modèles
+  (6 = 6, 1842 = 1842) ; l'ancien chemin SAM3 seul en trouvait 3 et 83. Banc WIDER FACE sur les
+  MÊMES 150 images (non enregistré — mesure partielle) : yolov9e rappel 0,798 / précision 0,80
+  (93 ms) ; SAM3 0,722 / 0,63 (241 ms) ; LocateAnything 0,50 / 0,77 (29,6 s ; 0,986 sur les grands
+  visages, 0,016 sur les minuscules). Le routage des visages vers le détecteur dédié est donc fondé
+  sur la mesure, et LocateAnything n'est pas un détecteur de visages.
+- **A.4** 🔄 ce que le système a COMPRIS est gardé et montré : `sam3_prompt_processed` + `prompt_trace`
+  (convention `<champ>_processed` de la pipeline de prompts, `app_metadata.keep_processed_prompt`),
+  l'état à deux temps de `WamaPromptEnrich` (« Comprendre la description » / « Compris ») et, sous le
+  champ, « Compris : concept → modèles » (`tasks.description_plan`, lecture pure). La forme
+  structurée À ATTRIBUTS (`of`, `color`, `plane`…) n'est PAS écrite : elle ne sert qu'à B, et un
+  concept seul n'en a pas besoin — elle arrivera avec B.
+- **A.5** 🔄 le libellé du champ devient « Ce qu'il faut anonymiser ». ⏳ La description par défaut
+  attend (2) : passer le défaut d'une card neuve en Description sans cible par défaut ferait flouter
+  RIEN (une description vide ; `wama-modes.js:131` retient le premier mode quand aucun n'est rangé).
+- Alignement demandé par la session du portage : la consigne de l'anonymizer est un port PORTÉ PAR UN
+  RÉGLAGE (`app_registry`, `ports_carried_elsewhere: {'prompt': 'réglage sam3_prompt'}`), retirée des
+  écarts de `tests_port_fields` — pour la jumelle `anonymizer_01` aussi : son entrée de catalogue est
+  une COPIE de celle de sa source (`sandbox.py`, `copy.deepcopy(app_catalog[src])`), mesuré
+  (`app_ports_carried_elsewhere('anonymizer_01')` rend le réglage). `GAPS` est vide.
+- Les `static/` des jumelles `composer_01`, `imager_01`, `anonymizer_01` resynchronisés par la route
+  (`app_sandbox substitute <jumelle> static`) : ils portaient encore l'envoi à la main du 23/11.
+- Le banc de rappel (`bench.py`) mesure aussi les modèles qui LISENT une description (la classe
+  demandée devient leur `prompt`, `_bench_descriptor`), par le même ensemble que celui qui floute.
+- Revérification (même jour) : l'état d'un prompt à deux états est posté par le cycle COMMUN de la
+  modale (`WamaParams`, lu au contrôleur) — les copies de l'imager et du composer sont retirées, la
+  garde ramenée au commun (`tests_shared_reads.TheModalsPostTheDisplayedFaceTest`) ; la règle de
+  découpage gardée là où elle l'était (`tests_sam3_concepts`).
+
+**Restes nommés (2026-11-24)** : ⏳ A.5 et la décision (2) ; ⏳ la forme structurée à attributs
+avec B ; ⏳ régénérer la jumelle `anonymizer_01` (ses champs de port, `TWINS_AWAITING_PROJECTION`
+de `tests_port_fields`, laissé par la session du portage à celle de l'anonymizer) APRÈS le commit
+des champs neufs du modèle `Media` — une régénération avant les copierait non commités ;
+⏳ `WamaDetections.labelChoices` propose « face » quand la
+surface ne donne rien (`wama-detections.js`, le défaut de l'anonymizer écrit dans une brique
+commune) — à tirer de la déclaration de l'app quand le Detector la reprendra ; ⏳ LocateAnything :
+29,6 s par image sur une foule — réservé aux concepts qu'aucun détecteur dédié ne couvre, et la
+vidéo attend D (suivi par SAM3 entre images-clés).
 
 ### 17ter. Reconstruction 2D→3D + chaîne objets 3D (consigné 2026-08-18 — NON ouvert)
 

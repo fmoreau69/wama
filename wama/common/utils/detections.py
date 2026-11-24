@@ -251,14 +251,25 @@ def count(doc: dict) -> int:
     return sum(len(f.get('d') or []) for f in doc.get('frames') or [])
 
 
+def common_label(label: str) -> str:
+    """Le nom COMMUN d'un libellé de détection (`model_coverage.canonical_class`) : le nom de
+    classe d'un modèle (`License_Plate`) et le concept d'une description (`license plate`)
+    désignent le même objet, et une card n'en montre qu'un (2026-11-24). Vide reste vide."""
+    if not label:
+        return ''
+    from wama.common.services.model_coverage import canonical_class
+    return canonical_class(label)
+
+
 def labels(doc: dict) -> list:
-    """Les LIBELLÉS que porte le document, dans l'ordre où ils apparaissent — ce qu'un détecteur
-    a réellement trouvé : le nom de classe pour un modèle à classes fixes, le concept du prompt
-    pour un modèle qui lit une description (SAM3, LocateAnything). Un libellé vide n'en est pas un."""
+    """Les LIBELLÉS que porte le document, sous leur nom COMMUN (`common_label`), dans l'ordre où
+    ils apparaissent — ce qu'un détecteur a réellement trouvé : le nom de classe pour un modèle à
+    classes fixes, le concept du prompt pour un modèle qui lit une description (SAM3,
+    LocateAnything). Un libellé vide n'en est pas un."""
     seen = []
     for frame in doc.get('frames') or []:
         for det in frame.get('d') or []:
-            label = det.get('label') or ''
+            label = common_label(det.get('label') or '')
             if label and label not in seen:
                 seen.append(label)
     return seen
@@ -267,15 +278,16 @@ def labels(doc: dict) -> list:
 def without_labels(doc: dict, skip) -> dict:
     """Le document SANS les détections dont le libellé est dans `skip` — une copie, l'original
     intact (2026-11-19 : « ce qu'on floute », choisi parmi ce qui a été détecté, sans redétecter).
-    Comparaison au libellé exact : `skip` vient des libellés du document lui-même (`labels`).
-    `skip` vide : le document tel quel."""
-    skip = {str(s) for s in (skip or ()) if s}
+    Comparaison au nom COMMUN (`common_label`, 2026-11-24) : décocher `license plate` laisse net
+    le `License_Plate` d'un modèle à classes comme celui d'une description ; un nom gardé avant
+    cette date (`human face`) vaut toujours. `skip` vide : le document tel quel."""
+    skip = {common_label(str(s)) for s in (skip or ()) if s}
     if not skip:
         return doc
     out = dict(doc)
     out['frames'] = []
     for frame in doc.get('frames') or []:
-        kept = [d for d in frame.get('d') or [] if (d.get('label') or '') not in skip]
+        kept = [d for d in frame.get('d') or [] if common_label(d.get('label') or '') not in skip]
         if kept:
             out['frames'].append({**frame, 'd': kept})
     return out
@@ -300,7 +312,7 @@ def objects_by_label(doc: dict, *, window: int = None) -> dict:
         starts = (det for index in frames for det in frames[index])
     found = {}
     for det in starts:
-        label = det.get('label') or ''
+        label = common_label(det.get('label') or '')
         if label:
             found[label] = found.get(label, 0) + 1
     return found

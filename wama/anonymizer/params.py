@@ -83,11 +83,19 @@ PARAMS = derive_from_model(
             # s'en dérive (function_specs.py n'y garde que les champs hors schéma).
             stales=("detect",),
         ),
+        # La DESCRIPTION (2026-11-24) : ce qu'il faut anonymiser, en langage naturel, dans la
+        # langue de l'utilisateur. Le système la COMPREND (concepts anglais, `sam3_prompt_processed`,
+        # montrés dans le champ à deux états) et CHOISIT qui cherche chaque concept — un détecteur
+        # dédié quand un modèle installé le couvre, sinon un modèle qui lit une description
+        # (`tasks._routed_description`). Le libellé disait « Prompt SAM3 » : SAM3 n'en est plus
+        # le seul lecteur.
         "sam3_prompt": dict(
-            type="textarea", label="Prompt SAM3", icon="fa-comment-dots",
+            type="textarea", label="Ce qu'il faut anonymiser", icon="fa-comment-dots",
             dom_id={"panel": "user_setting_sam3_prompt"}, group="description",
             show_if={"field": "target_mode", "equals": "description"},
-            help='Ex. « blur all faces and license plates ».', stales=("detect",),
+            help="Décrivez-le avec vos mots — ex. « les visages et les plaques, les logos ». "
+                 "Le système le comprend, puis choisit le modèle qui cherche chaque chose.",
+            stales=("detect",),
         ),
         # Menu de modèle tiré du CATALOGUE (2026-09-27) : les tâches qui localisent ce qu'on
         # floute (pose, classification et boîtes orientées n'y ont pas de sens), bornées par le

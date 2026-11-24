@@ -197,16 +197,9 @@
                 _wireSettingsPrompt(host, card);
                 _wireSettingsMatching();
             },
-            collect: function (fd, host) {
-                // Prompt à DEUX ÉTATS : le texte affiché + son état — `apply_prompt_state` (vue)
-                // l'écrit dans `prompt` (le sien) ou `prompt_processed` (l'enrichi).
-                const p = host.querySelector('#settingsPrompt');
-                const ctrl = p && window.WamaPromptEnrich && WamaPromptEnrich.get(p);
-                if (ctrl) {
-                    fd.set('prompt', p.value);
-                    fd.set('prompt_state', ctrl.snapshot().state);
-                }
-            },
+            // Prompt à DEUX ÉTATS : le texte affiché et son état (`prompt_state`) sont postés par
+            // le cycle commun (`WamaParams.settingsModal`, 2026-11-24) — `apply_prompt_state` (vue)
+            // l'écrit dans `prompt` (le sien) ou `prompt_processed` (l'enrichi).
             errorOf: function (resp) { return resp && resp.success ? null : ((resp && resp.error) || 'inconnue'); },
             onSaved: function (gid, restart) {
                 // « Enregistrer et relancer » : le ▶ commun, comme les autres apps. Sinon la card

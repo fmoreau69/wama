@@ -214,7 +214,8 @@ class PromptModelTest(TestCase):
                                      sam3_prompt='logo, street sign')
         with mock.patch('wama.common.backends.manager.backend_for_key', return_value=object), \
                 mock.patch('wama.common.utils.app_metadata.process_prompt_for',
-                           side_effect=lambda app, field, text, **kw: text), \
+                           side_effect=lambda app, field, text, **kw: (
+                               {'prompt': text, 'original': text} if kw.get('full') else text)), \
                 mock.patch.object(tasks, 'needs_parallel_detection',
                                   return_value={'parallel': False, 'models': []}), \
                 mock.patch.object(tasks, '_console'):
@@ -228,9 +229,80 @@ class PromptModelTest(TestCase):
         self.assertEqual([self.LOCATE], used)
 
     def test_a_classes_model_left_over_lets_sam3_run(self):
-        kwargs, used = self._kwargs(YOLO_KEY)
-        self.assertTrue(kwargs['use_sam3'])
+        """A model left over from the classes mode reads no description : the card is read as
+        « auto » (2026-11-24 : the concept router), SAM3 looking for what nothing else covers."""
+        from wama.anonymizer import tasks
+        with mock.patch.object(tasks, 'check_sam3_installed', return_value=True), \
+                mock.patch.object(tasks, 'validate_sam3_prompt', return_value=(True, '')):
+            kwargs, used = self._kwargs(YOLO_KEY)
+        self.assertEqual([tasks.SAM3_KEY], used)
+        self.assertEqual('logo, street sign', kwargs['models'][0]['prompt'])
         self.assertNotIn(self.LOCATE, [m.get('model_key') for m in kwargs.get('models') or []])
+
+    def test_under_auto_each_concept_goes_to_who_covers_it_and_what_was_understood_is_kept(self):
+        """2026-11-24 (A.2, decision 1) : under « auto » a described face goes to the face
+        detectors the coverage picks — measured recall, slider, as in the classes mode —, the
+        rest to SAM3 alone ; what the pipeline understood is KEPT on the media (shown in its
+        two-state field), and the next launch reuses it without a second LLM pass."""
+        from wama.anonymizer import tasks
+        media = Media.objects.create(user=self.user, file='anonymizer/x/input/sample.png',
+                                     model_to_use='auto', target_mode='description',
+                                     sam3_prompt='les visages et les logos')
+        cover = {'parallel': False, 'unsupported_classes': ['logo'], 'models': [
+            {'id': 'yolo:face.pt', 'path': '/w/face.pt', 'name': 'face', 'classes': ['human face'],
+             'model_key': YOLO_KEY}]}
+        understood = {'prompt': 'human face, logo', 'original': 'les visages et les logos',
+                      'enriched': True, 'translated': True}
+        with mock.patch('wama.common.utils.app_metadata.process_prompt_for',
+                        return_value=understood) as pipeline, \
+                mock.patch.object(tasks, 'needs_parallel_detection', return_value=cover), \
+                mock.patch.object(tasks, 'check_sam3_installed', return_value=True), \
+                mock.patch.object(tasks, 'validate_sam3_prompt', return_value=(True, '')), \
+                mock.patch.object(tasks, '_console'):
+            kwargs, used = tasks._detection_kwargs(media, self.user)
+            media.refresh_from_db()
+            again = tasks._detection_kwargs(media, self.user)
+        self.assertEqual([YOLO_KEY, tasks.SAM3_KEY], used)
+        self.assertFalse(kwargs['use_sam3'], 'SAM3 runs inside the ensemble, for its part only')
+        self.assertEqual('logo', kwargs['models'][1]['prompt'])
+        self.assertEqual([('human face', [YOLO_KEY]), ('logo', [tasks.SAM3_KEY])],
+                         [(s['concept'], s['by']) for s in kwargs['plan']])
+        self.assertEqual('human face, logo', media.sam3_prompt_processed)
+        self.assertEqual('les visages et les logos', media.sam3_prompt, 'the typed text is kept')
+        self.assertIs(False, pipeline.call_args_list[1].kwargs['enrich'],
+                      'understood once : the next launch does not ask the LLM again')
+        self.assertEqual(used, again[1])
+        # What the modal shows under the field (« Compris : concept → modèles ») : the SAME router,
+        # read without the LLM, the catalogue names in place of the keys.
+        with mock.patch.object(tasks, 'needs_parallel_detection', return_value=cover), \
+                mock.patch.object(tasks, 'check_sam3_installed', return_value=True), \
+                mock.patch('wama.common.utils.app_metadata.process_prompt_for') as no_llm:
+            shown = tasks.description_plan(media)
+        no_llm.assert_not_called()
+        self.assertEqual([('human face', [YOLO_KEY]), ('logo', [tasks.SAM3_KEY])],
+                         [(s['concept'], s['by']) for s in shown])
+        media.target_mode = 'classes'
+        self.assertEqual([], tasks.description_plan(media), 'nothing to show in the classes mode')
+
+
+class OfferedClassesTest(SimpleTestCase):
+    """2026-11-24 (A.1) — the classes the edit page offers for an added zone : the ASKED ones in the
+    classes mode only (in the description mode « face » came from the list's default), then the
+    FOUND ones, all under their common name (`License_Plate` and `license plate` were two offers)."""
+
+    def test_asked_then_found_under_one_name_and_nothing_asked_in_the_prompt_mode(self):
+        from types import SimpleNamespace
+        from wama.anonymizer import surfaces
+        found = ['license plate', 'face', 'logo']      # `detections.labels` : common names already
+        with mock.patch.object(surfaces, '_found_labels', return_value=['logo']):
+            by_classes = surfaces._offered_classes(SimpleNamespace(
+                target_mode='classes', classes2blur=['face', 'License_Plate', 'false']))
+        with mock.patch.object(surfaces, '_found_labels', return_value=found):
+            by_prompt = surfaces._offered_classes(SimpleNamespace(
+                target_mode='description', classes2blur=['face']))
+        self.assertEqual(['face', 'license plate', 'logo'], by_classes,
+                         'asked under their common name, then found ; a saved « false » dropped')
+        self.assertEqual(found, by_prompt, 'the default classes of the list are not asked')
 
 
 class ModelKeysMigrationTest(SimpleTestCase):

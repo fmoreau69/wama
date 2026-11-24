@@ -162,3 +162,29 @@ class DetectorSetTest(SimpleTestCase):
         self.assertEqual(1, yolo.call_count)
         self.assertEqual(1, yolo.return_value.load_model.call_count)
         self.assertEqual(5, yolo.return_value.detect.call_count)
+
+
+class OpenVocabularyCandidatesTest(SimpleTestCase):
+    """2026-11-24 (`ROADMAP §17quater` A.3) : the concept router gives what no dedicated detector
+    covers to a model that READS a description — so a recall bench measures those too, the class
+    of the reference given to them as their description (the path the router takes)."""
+
+    def _model(self, key, task, classes=(), inputs=('work_file',)):
+        from types import SimpleNamespace
+        return SimpleNamespace(model_key=key, name=key, local_path='', capabilities={
+            'task': task, 'classes': list(classes), 'inputs_required': list(inputs)})
+
+    def test_a_model_that_reads_a_description_is_a_candidate_and_gets_the_class_as_prompt(self):
+        from wama.model_manager.services import bench
+        face = self._model('a:face', 'detect', ['face'])
+        coco = self._model('a:coco', 'detect', ['car'])
+        sam3 = self._model('a:sam3', 'segment', inputs=('work_file', 'prompt'))
+        locate = self._model('h:locate', 'zero-shot-object-detection', inputs=('work_file', 'prompt'))
+        by_task = {'detect': [face, coco], 'segment': [sam3],
+                   'zero-shot-object-detection': [locate]}
+        with mock.patch.object(bench, 'models_for_task', side_effect=lambda t: by_task.get(t, [])):
+            self.assertEqual(['a:face', 'a:sam3', 'h:locate'],
+                             [m.model_key for m in bench._class_candidates('face')])
+        self.assertEqual('face', bench._bench_descriptor(sam3, 'face')['prompt'])
+        self.assertNotIn('prompt', bench._bench_descriptor(face, 'face'),
+                         'a class detector keeps its classes, no description')

@@ -21,7 +21,24 @@ c'est ce motif, pas le rattachement des classes concrètes une par une, qui fait
 `__init_subclass__` enveloppe les `load`/`unload` définis à N'IMPORTE QUELLE profondeur.
 """
 
+import re
+
 from wama.common.backends.base import BaseModelBackend
+
+
+def prompt_concepts(text: str) -> list:
+    """Une description traitée découpée en CONCEPTS — un groupe nominal chacun, dans l'ordre,
+    sans doublon. LA règle de découpe (virgules, points-virgules, retours à la ligne, « and » /
+    « et » tolérés : ce que les modèles écrivent spontanément), écrite pour SAM3 le 2026-09-23
+    (`SAM3Processor.concepts`, mesure en tête) et commune depuis le 2026-11-24 : LocateAnything
+    et le routeur de concepts (`detection_ensemble.route_concepts`) découpent pareil."""
+    parts = re.split(r'\s*[,;\n]\s*|\s+and\s+|\s+et\s+', text or '')
+    out = []
+    for part in parts:
+        concept = part.strip().strip('.')
+        if concept and concept not in out:
+            out.append(concept)
+    return out
 
 
 class DetectionBackend(BaseModelBackend):
@@ -136,6 +153,15 @@ class FrameDetectionBackend(DetectionBackend):
     def requested_classes(self, **kwargs) -> list:
         """Les classes gardées (vide = tout ce que le détecteur rend) : celles de la card."""
         return list(kwargs.get('classes2blur') or [])
+
+    @staticmethod
+    def prompt_of(**kwargs) -> str:
+        """La DESCRIPTION qu'un détecteur qui lit un prompt doit chercher : `prompt`, la part que
+        l'ensemble lui CONFIE (`detection_ensemble.route_concepts` : les concepts qu'aucun
+        détecteur dédié ne couvre, 2026-11-24), sinon la description de la card (`sam3_prompt`,
+        traitée en concepts anglais)."""
+        given = kwargs.get('prompt')
+        return given if given is not None else (kwargs.get('sam3_prompt') or '')
 
     def output_tag(self) -> str:
         """Le suffixe du fichier produit (`compose_output_name`)."""

@@ -306,8 +306,8 @@ class SAM3Processor(FrameDetectionBackend):
         segmenté à part et les masques réunis. C'est déjà la forme du cam_analyzer, dont les
         prompts SAM3 sont une liste itérée un par un.
         """
-        parts = re.split(r'\s*[,;\n]\s*|\s+and\s+|\s+et\s+', self.text_prompt or '')
-        return [p.strip().strip('.') for p in parts if p and p.strip().strip('.')]
+        from wama.common.backends.detection_base import prompt_concepts
+        return prompt_concepts(self.text_prompt)
 
     def _segment(self, pil_image):
         """Masques de TOUS les concepts du prompt sur une image — un appel SAM3 par concept.
@@ -334,8 +334,12 @@ class SAM3Processor(FrameDetectionBackend):
     # que RT-DETR, EgoBlur… ne la recopient pas. Ne restent que ce qui est propre à SAM3.
 
     def prepare(self, **kwargs) -> None:
-        """Le prompt de la card (`sam3_prompt`), puis le modèle image."""
-        self.text_prompt = kwargs.get('sam3_prompt', self.text_prompt)
+        """Le prompt (`prompt_of` : la part que l'ensemble lui confie, sinon `sam3_prompt`), puis
+        le modèle image."""
+        # Un prompt REÇU, même vide, prime : l'instance sert d'un appel à l'autre, et un vide ne
+        # doit jamais reprendre la demande précédente (il se refuse, ci-dessous).
+        if 'prompt' in kwargs or 'sam3_prompt' in kwargs:
+            self.text_prompt = self.prompt_of(**kwargs)
         if not self.text_prompt or not self.text_prompt.strip():
             raise ValueError("SAM3 requires a text prompt. Please provide 'sam3_prompt' parameter.")
         self.input_path = kwargs.get('media_path', self.input_path)

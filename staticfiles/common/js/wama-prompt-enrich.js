@@ -107,13 +107,16 @@
             // n'avait aucun moyen d'enrichir à la demande : le bouton ✨ était écrit dans l'imager).
             this.bar.innerHTML = this.cfg.trigger
                 ? '<a href="#" data-act="redo" class="text-info" title="Le texte original est '
-                  + 'conservé">&#10024; Traduire et enrichir le prompt</a>'
+                  + 'conservé">&#10024; ' + esc(this.cfg.triggerLabel || 'Traduire et enrichir le prompt')
+                  + '</a>'
                 : '';
             this.panel.style.display = 'none';
             return;
         }
+        // `stateLabel` (2026-11-24) : ce que le traitement EST pour cette cible — « Compris » pour
+        // une description qu'un détecteur lit, « Enrichi » par défaut.
         this.bar.innerHTML =
-            '<span class="text-warning">&#10024; Enrichi</span>'
+            '<span class="text-warning">&#10024; ' + esc(this.cfg.stateLabel || 'Enrichi') + '</span>'
             + ' <span class="text-body-secondary">&middot;</span>'
             + ' <a href="#" data-act="show" class="text-info">voir mon prompt</a>'
             + ' <span class="text-body-secondary">&middot;</span>'
@@ -169,6 +172,9 @@
             headers: {'Content-Type': 'application/json', 'X-CSRFToken': this.cfg.csrf},
             body: JSON.stringify({
                 prompt: this.original, app: this.cfg.app,
+                // Le CHAMP (2026-11-24) : sa déclaration (`PROMPT_TARGETS`) dit comment le traiter —
+                // une cible de concepts se comprend, elle ne s'enrichit pas. Défaut serveur : `prompt`.
+                field: this.cfg.field || this.field.name || '',
                 domain: this.cfg.domain, keywords: kws,
                 target_model: sel ? sel.value : ''
             })

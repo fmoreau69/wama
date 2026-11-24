@@ -662,11 +662,11 @@ class CorrectionsTest(SimpleTestCase):
         seven are two objects — the links of the interpolation, a one-second gap crossed by
         default ; an image counts its detections."""
         doc = self._two_objects()
-        self.assertEqual({'face': 1, 'plate': 1}, dets.objects_by_label(doc))
-        self.assertEqual({'face': 2, 'plate': 1}, dets.objects_by_label(doc, window=0),
+        self.assertEqual({'face': 1, 'license plate': 1}, dets.objects_by_label(doc))
+        self.assertEqual({'face': 2, 'license plate': 1}, dets.objects_by_label(doc, window=0),
                          'a gap that is not crossed opens a second object')
         self.assertEqual({'face': 2}, dets.objects_by_label(self._doc()))
-        self.assertEqual(['face', 'plate'], dets.labels(doc))
+        self.assertEqual(['face', 'license plate'], dets.labels(doc))
 
     def test_skipped_labels_leave_the_other_objects_and_the_document_whole(self):
         """« Ce qu'on floute » : the unchecked labels stay clear, every other detection is kept,
@@ -678,6 +678,22 @@ class CorrectionsTest(SimpleTestCase):
         self.assertEqual({'face', 'plate'}, {d['label'] for f in doc['frames'] for d in f['d']})
         self.assertIs(doc, dets.without_labels(doc, []), 'nothing skipped : the document itself')
         self.assertEqual([], dets.without_labels(doc, ['face', 'plate'])['frames'])
+
+    def test_a_class_name_and_a_prompt_concept_are_one_label(self):
+        """2026-11-24 (A.1) : measured the same day, one app showed `face` (classes) and `human
+        face` (description) ; a plate detector writes `License_Plate`, SAM3 `license plate`. The
+        card counts, offers and skips them under ONE name — and a name kept before still works."""
+        doc = dets.new_document(media='image', width=100, height=100)
+        dets.add(doc, 0, [dets.detection(box=[1, 1, 20, 20], label='human face'),
+                          dets.detection(box=[30, 30, 50, 50], label='face'),
+                          dets.detection(box=[60, 60, 90, 70], label='License_Plate'),
+                          dets.detection(box=[60, 75, 90, 85], label='license plate'),
+                          dets.detection(box=[5, 80, 25, 95], label='logo')])
+        self.assertEqual({'face': 2, 'license plate': 2, 'logo': 1}, dets.objects_by_label(doc))
+        self.assertEqual(['face', 'license plate', 'logo'], dets.labels(doc))
+        kept = dets.without_labels(doc, ['plate', 'human face'])
+        self.assertEqual(['logo'], [d['label'] for f in kept['frames'] for d in f['d']])
+        self.assertEqual('logo', dets.common_label('Logo'), 'a name with no alias is only normalised')
 
 
 class AgreementTest(SimpleTestCase):

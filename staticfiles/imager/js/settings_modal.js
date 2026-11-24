@@ -158,20 +158,11 @@
                         if (!video) appendResolutionZone(host, d);
                     },
                     collect: function (fd, host) {
-                        // Prompt à deux états : poster le texte AFFICHÉ + son état — c'est
-                        // `apply_prompt_state` qui choisit le champ (`processed` → l'enrichi).
-                        // ⚠ Posté jusqu'au 2026-10-04 : l'ORIGINAL sous l'état `processed`, que la
-                        // vue écrivait dans `prompt_processed` — enregistrer la modale d'une card
-                        // enrichie remplaçait l'enrichi par le texte tapé.
-                        const p = host.querySelector('textarea[name="prompt"]');
-                        if (p && window.WamaPromptEnrich) {
-                            const ctrl = WamaPromptEnrich.get(p);
-                            if (ctrl) {
-                                const snap = ctrl.snapshot();
-                                fd.set('prompt', p.value);
-                                fd.set('prompt_state', snap.state);
-                            }
-                        }
+                        // Prompt à deux états : le texte AFFICHÉ (lu avec les autres champs) et son
+                        // état (`prompt_state`) sont postés par le cycle commun
+                        // (`WamaParams.settingsModal`, 2026-11-24) ; `apply_prompt_state` choisit
+                        // le champ. ⚠ Posté jusqu'au 2026-10-04 : l'ORIGINAL sous l'état
+                        // `processed` — enregistrer une card enrichie remplaçait l'enrichi.
                         // Résolution (hors schéma) : champs cachés de la zone d'app.
                         host.querySelectorAll('input[type="hidden"][name]').forEach(function (i) {
                             fd.set(i.name, i.value);

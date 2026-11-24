@@ -245,25 +245,8 @@ class TheModalWritesTheRightFaceTest(TestCase):
         self.assertEqual('', self.gen.prompt_processed)
 
 
-class TheModalsPostTheDisplayedFaceTest(SimpleTestCase):
-    """The imager's modal posted the ORIGINAL under the `processed` state, which
-    `apply_prompt_state` writes into `prompt_processed`: saving an enriched card replaced the
-    enriched text by the typed one (2026-08-05 → 2026-10-04). Nothing says so at run time — the
-    card simply leaves with the user's raw prompt. The modals post the DISPLAYED text."""
-
-    MODALS = ('wama/imager/static/imager/js/settings_modal.js',
-              'wama/composer/static/composer/js/index.js')
-
-    def test_the_prompt_posted_with_its_state_is_the_displayed_text(self):
-        import re
-        for path in self.MODALS:
-            for served in (path, 'staticfiles/' + path.split('/static/', 1)[1]):
-                with self.subTest(file=served):
-                    src = (Path(settings.BASE_DIR) / served).read_text(encoding='utf-8')
-                    posted = re.findall(r"fd\.set\('prompt',\s*([^;]+)\);", src)
-                    self.assertTrue(posted, 'the modal no longer posts the prompt')
-                    self.assertEqual([], [p for p in posted if 'original' in p])
-                    self.assertIn("fd.set('prompt_state'", src)
+# `TheModalsPostTheDisplayedFaceTest` lives at the common since 2026-11-24
+# (`common/tests/tests_shared_reads`) : the common modal cycle posts every two-state prompt.
 
 
 @skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')
@@ -272,10 +255,19 @@ class TheBrickOffersItsTriggerWhenAskedTest(SimpleTestCase):
     def _bar(self, cfg):
         from py_mini_racer import MiniRacer
         v8 = MiniRacer()
+        # `textContent` escapes into `innerHTML`, as in a browser : the brick's `esc()` reads it
+        # (2026-11-24, the trigger's label became a declared value).
         v8.eval("""
-            function el() { return {style: {}, dataset: {}, innerHTML: '', textContent: '',
-                                    addEventListener: function () {},
-                                    insertAdjacentElement: function () {}}; }
+            function el() {
+                var o = {style: {}, dataset: {}, _html: '', _text: '',
+                         addEventListener: function () {}, insertAdjacentElement: function () {}};
+                Object.defineProperty(o, 'innerHTML', {get: function () { return this._html; },
+                                                       set: function (v) { this._html = v; }});
+                Object.defineProperty(o, 'textContent', {
+                    get: function () { return this._text; },
+                    set: function (v) { this._text = String(v); this._html = String(v)
+                        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }});
+                return o; }
             var window = {}; var document = {createElement: function () { return el(); }};
             var field = el(); field.value = 'électro rock'; field.tagName = 'TEXTAREA';
         """)
@@ -285,6 +277,11 @@ class TheBrickOffersItsTriggerWhenAskedTest(SimpleTestCase):
 
     def test_with_trigger_the_card_can_ask_for_an_enrichment(self):
         self.assertIn('Traduire et enrichir', self._bar({'app': 'composer', 'trigger': True}))
+
+    def test_a_declared_trigger_label_is_shown_escaped(self):
+        bar = self._bar({'app': 'anonymizer', 'trigger': True, 'triggerLabel': 'Comprendre <b>'})
+        self.assertIn('Comprendre &lt;b&gt;', bar)
+        self.assertNotIn('Traduire et enrichir', bar)
 
     def test_without_it_nothing_changes_for_the_apps_that_have_their_own_button(self):
         self.assertEqual('', self._bar({'app': 'imager'}))

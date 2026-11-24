@@ -136,7 +136,7 @@ class FrameDetectionLoopTest(SimpleTestCase):
         self.assertEqual(2, doc['decimation'])
         filled = dets.by_frame(doc, interpolate=False, max_gap=0)
         self.assertEqual([0, 1, 2, 3, 4], sorted(i for i, found in filled.items() if found))
-        self.assertEqual({'plate': 1}, dets.objects_by_label(doc, window=0),
+        self.assertEqual({'license plate': 1}, dets.objects_by_label(doc, window=0),
                          'the skipped frames never split an object')
         type(detector).ANALYSIS_RATE = 5.0                    # 10 fps : one frame in two
         self.assertEqual(2, detector.decimation_for(fps=10, detection_decimation=0))
@@ -177,6 +177,60 @@ class CombinedDetectorsRoutingTest(SimpleTestCase):
         door.assert_called_once_with('anonymizer:egoblur-lp-gen1', None)
         self.assertEqual(['plate'], other.detect.call_args.kwargs['classes2blur'])
         self.assertEqual([0, 1], [f['i'] for f in doc['frames']])
+
+
+class RouteConceptsTest(SimpleTestCase):
+    """2026-11-24 (`ROADMAP §17quater` A.2) — the CONCEPTS of a description go to the dedicated
+    detector the caller's coverage finds, the rest to the model that reads a description, which
+    receives only that part ; the plan says who looks for each concept. Held with a stub coverage :
+    the router decides nothing the coverage does not say."""
+
+    @staticmethod
+    def _cover(wanted):
+        known = {'face': 'anonymizer:yolo:faces.pt', 'human face': 'anonymizer:yolo:faces.pt'}
+        models = [{'model_key': known[w], 'classes': [w]} for w in wanted if w in known]
+        return {'models': models, 'unsupported_classes': [w for w in wanted if w not in known]}
+
+    def test_a_covered_concept_goes_to_its_detector_and_the_rest_to_the_open_model(self):
+        from wama.common.services.detection_ensemble import route_concepts
+        route = route_concepts(['human face', 'logo', 'street sign', 'logo'], cover=self._cover,
+                               open_model_key='anonymizer:sam3')
+        self.assertEqual(['anonymizer:yolo:faces.pt', 'anonymizer:sam3'],
+                         [m['model_key'] for m in route['models']])
+        self.assertEqual('logo, street sign', route['models'][1]['prompt'],
+                         'the open model gets only what no dedicated detector covers')
+        self.assertEqual([('human face', ['anonymizer:yolo:faces.pt']), ('logo', ['anonymizer:sam3']),
+                          ('street sign', ['anonymizer:sam3'])],
+                         [(s['concept'], s['by']) for s in route['plan']])
+        self.assertEqual([], route['unrouted'])
+
+    def test_without_an_open_model_what_nobody_looks_for_is_named(self):
+        from wama.common.services.detection_ensemble import route_concepts
+        route = route_concepts(['face', 'logo'], cover=self._cover)
+        self.assertEqual(['anonymizer:yolo:faces.pt'], [m['model_key'] for m in route['models']])
+        self.assertEqual(['logo'], route['unrouted'])
+        self.assertEqual([], [s['by'] for s in route['plan'] if s['concept'] == 'logo'][0])
+        self.assertEqual({'models': [], 'plan': [], 'unrouted': []},
+                         route_concepts([], cover=self._cover))
+
+    def test_the_open_model_of_a_detector_set_receives_its_own_part(self):
+        from wama.common.services import detection_ensemble
+        sam3 = mock.Mock()
+        sam3.detect.return_value = _doc('sam3', ['sam3'], {})
+        with mock.patch.object(detection_ensemble, 'engine_of', return_value='sam3'), \
+                mock.patch('wama.common.backends.manager.backend_instance_for_key',
+                           return_value=sam3):
+            detection_ensemble.detect_with_models(
+                [{'model_key': 'anonymizer:sam3', 'classes': None, 'prompt': 'logo'}],
+                media_path='/in/clip.mp4', sam3_prompt='human face, logo')
+        self.assertEqual('logo', sam3.detect.call_args.kwargs['prompt'])
+
+    def test_a_detector_reads_the_part_it_is_given_before_the_card_prompt(self):
+        from wama.common.backends.detection_base import FrameDetectionBackend
+        self.assertEqual('logo', FrameDetectionBackend.prompt_of(prompt='logo', sam3_prompt='face'))
+        self.assertEqual('face', FrameDetectionBackend.prompt_of(sam3_prompt='face'))
+        self.assertEqual('', FrameDetectionBackend.prompt_of(prompt='', sam3_prompt='face'),
+                         'an EMPTY given part stays empty : it never falls back to the card')
 
 
 class CombinedDetectorsCoverageTest(TestCase):

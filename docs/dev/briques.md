@@ -505,8 +505,8 @@ Mesures comparables par TÂCHE sur un échantillon (latence, sorties, saturation
   - `match_boxes(found, truth, ignore, iou: float=0.5) -> dict` — Comptes d'UNE image : `found` = [(box, conf)], `truth`/`ignore` = [box]. Les doublons de
   - `read_image_reference(sample: str) -> dict` — Une référence « dossier d'images nettes » : `images` (dossier, relatif au fichier de
   - `lpips_folder() -> Path`
-  - `boxes_candidates(sample: str) -> list` — Detecteurs installes qui couvrent la classe d'une reference « vraies boites ».
-  - `recall_candidates(sample: str) -> list` — Les modeles a mesurer pour une reference : detecteurs installes qui couvrent sa classe.
+  - `boxes_candidates(sample: str) -> list` — Detecteurs installes qui cherchent la classe d'une reference « vraies boites ».
+  - `recall_candidates(sample: str) -> list` — Les modeles a mesurer pour une reference : detecteurs installes qui cherchent sa classe.
   - `available_tasks() -> list` — Taches pour lesquelles un protocole existe — les autres restent a ecrire.
   - `run_bench(task: str, sample: str, *, models: Optional[list]=None, **options) -> list` — Passe chaque modele de `tache` sur `echantillon` et rend des mesures comparables.
 
@@ -599,9 +599,11 @@ Choisit un ENSEMBLE de modèles couvrant des classes (couverture ou spécialisat
 
 - **Domicile** : `wama/common/services/model_coverage.py`
 - **Module** : Couverture multi-modèles : quelle COMBINAISON de modèles couvre un ensemble de classes.
-- **API publique** (9) :
+- **API publique** (11) :
   - `normaliser_classe(nom: str) -> str` — 'License_Plate' → 'license plate' · 'FACE' → 'face'.
   - `formes_equivalentes(nom: str) -> set` — Toutes les écritures normalisées équivalentes à `nom` (lui-même si aucun alias connu).
+  - `canonical_class(name: str) -> str` — Le nom COMMUN d'une classe, quelle que soit son écriture : celui de son groupe d'alias
+  - `reads_prompt(m) -> bool` — Le modèle LIT-IL une description (`inputs_required` porte `prompt` : SAM3, LocateAnything) ?
   - `classes_couvertes(m, voulues) -> set` — Accès PUBLIC à l'appariement d'alias : sous-ensemble de `voulues` (vocabulaire de
   - `size_of_name(name: str) -> str` — Accès PUBLIC à la lecture de taille (chantier C, 2026-09-20) : un appelant qui affiche ou
   - `size_for_intent(intent) -> str` — Curseur 0-100 → taille préférée ('n' ≤ 20, 's' ≤ 40, 'm' ≤ 60, 'l' ≤ 80, sinon 'x').
@@ -641,9 +643,10 @@ L'UNION des documents `detections` de plusieurs détecteurs, quelle que soit leu
 
 - **Domicile** : `wama/common/services/detection_ensemble.py` · **doc** : [docs/construction/ia/WAMA_QUALITE.md](../construction/ia/WAMA_QUALITE.md)
 - **Module** : Détection par un ENSEMBLE de modèles — l'union de leurs documents `detections` (2026-10-10).
-- **API publique** (3) :
+- **API publique** (4) :
   - `engine_of(model_key: str) -> str` — Le moteur DÉCLARÉ au catalogue — la lecture commune (`backends.manager.engine_of`).
   - `class DetectorSet` — Les détecteurs d'un ensemble, CHARGÉS UNE FOIS puis appliqués média par média
+  - `route_concepts(concepts, *, cover, open_model_key: str='') -> dict` — Le ROUTEUR de concepts (2026-11-24, `ROADMAP §17quater` A.2, décision de Fabien : « ce sont
   - `detect_with_models(models, *, user=None, source_dir=None, destination_dir=None, **kwargs) -> dict` — Le document `detections` de l'ENSEMBLE `models` sur UN média — `DetectorSet` à usage
 
 ### Exploitation — relancer, contrôler, depuis WAMA
@@ -2151,7 +2154,7 @@ Les objets détectés d'un média, frame par frame (boîte, contour en polygones
 
 - **Domicile** : `wama/common/utils/detections.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Les DÉTECTIONS d'un média, sur disque — le type de donnée commun `detections` (`common/catalog/data_types.DataType.DETECTIONS` : objets détectés par frame — frame, bbox, classe, piste).
-- **API publique** (26) :
+- **API publique** (27) :
   - `new_document(*, media: str, width: int, height: int, fps: float=0.0, frame_count: int=1, engine: str='', models=(), classes=(), prompt: str='') -> dict` — Un document vide, prêt à recevoir ses frames (`add`).
   - `detection(*, box, label: str='', conf: float=1.0, track=None, polygons=None) -> dict` — Une détection au format du document : entiers pour les pixels, confiance arrondie.
   - `text_span(*, start: int, end: int, label: str, conf: float=1.0, sources=()) -> dict` — Une détection dans un TEXTE (2026-10-28, ROADMAP §16.4bis) : le passage `[start, end[` en
@@ -2164,7 +2167,8 @@ Les objets détectés d'un média, frame par frame (boîte, contour en polygones
   - `read(path: str) -> dict` — Lit un document ; lève `ValueError` si ce n'en est pas un.
   - `decimation_of(doc: dict) -> int` — Le PAS d'analyse du document : une image analysée sur N (1 : toutes) — ce que le
   - `count(doc: dict) -> int` — Le nombre de détections du document (toutes frames).
-  - `labels(doc: dict) -> list` — Les LIBELLÉS que porte le document, dans l'ordre où ils apparaissent — ce qu'un détecteur
+  - `common_label(label: str) -> str` — Le nom COMMUN d'un libellé de détection (`model_coverage.canonical_class`) : le nom de
+  - `labels(doc: dict) -> list` — Les LIBELLÉS que porte le document, sous leur nom COMMUN (`common_label`), dans l'ordre où
   - `without_labels(doc: dict, skip) -> dict` — Le document SANS les détections dont le libellé est dans `skip` — une copie, l'original
   - `objects_by_label(doc: dict, *, window: int=None) -> dict` — {libellé: nombre d'OBJETS} — ce que la card dit avoir trouvé (2026-11-19, Fabien : « voir
   - `mask_to_polygons(mask, epsilon: float=1.0, min_area: float=4.0) -> list` — Contours d'un masque (H×W, 0-1 ou 0-255) en polygones entiers, simplifiés à `epsilon`

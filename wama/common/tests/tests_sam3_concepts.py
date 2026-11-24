@@ -61,3 +61,17 @@ class Sam3ConceptSplitTest(SimpleTestCase):
 
     def test_a_single_concept_stays_whole(self):
         self.assertEqual(['human face'], _concepts('human face'))
+
+    def test_every_model_that_reads_a_prompt_cuts_it_by_the_same_rule(self):
+        """2026-11-24 (`ROADMAP §17quater` A.2) : la règle vit UNE fois
+        (`detection_base.prompt_concepts`) — SAM3, LocateAnything et le routeur de concepts la
+        lisent ; deux découpages feraient router un concept que le détecteur ne cherche pas.
+        Un concept répété ne s'interroge qu'une fois."""
+        from wama.common.backends.detection_base import prompt_concepts
+        from wama.common.backends.locate_anything_backend import LocateAnythingBackend
+        self.assertEqual(['face', 'license plate', 'logo'],
+                         prompt_concepts('face, license plate and logo.\nface'))
+        for text in ('face, license plate and logo.\nface', 'visage et plaque', '', None, ' ,; '):
+            with self.subTest(text=text):
+                self.assertEqual(prompt_concepts(text), _concepts(text))
+                self.assertEqual(prompt_concepts(text), LocateAnythingBackend.concepts_of(text))

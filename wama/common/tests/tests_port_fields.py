@@ -19,11 +19,10 @@ from django.conf import settings
 from django.test import SimpleTestCase, TestCase
 
 #: (app, port) whose value no field keeps, with the reason — a list that can only shrink.
-GAPS = {
-    ('anonymizer', 'prompt'): "the instruction is a SETTING (`sam3_prompt`, `entry_form`) : "
-                              "to be listed in `ports_carried_elsewhere`",
-    ('anonymizer_01', 'prompt'): 'same as its source',
-}
+#: Emptied 2026-11-24 : the anonymizer's instruction is carried by its setting
+#: (`ports_carried_elsewhere`), and a twin's catalogue entry is a copy of its source's
+#: (`sandbox.py`, `copy.deepcopy(app_catalog[src])`), so `anonymizer_01` carries it too.
+GAPS = {}
 #: Twins whose `ready()` does not register the listing yet : it is projected by the extractor
 #: (`inspector.port_fields`) and replayed by `apps_gen` in the twin's generated `apps.py` — every
 #: twin's `apps.py` is generated, half of their `models.py` are copies (measured 2026-11-24). Can

@@ -54,9 +54,13 @@ def _classes_du_modele(m) -> set:
 # `anonymizer/utils/model_selector.py::CLASS_ALIASES`, où elle rendait déjà ce service ; elle
 # monte ici pour que TOUT appelant de la couverture en bénéficie. Écrite en forme NORMALISÉE
 # (espaces, minuscules), sinon la comparaison la manque.
+#: Chaque groupe commence par son nom CANONIQUE (`canonical_class`) — celui qu'une card montre et
+#: qu'une sélection compare. `human face` (2026-11-24) : le concept qu'écrit la pipeline de prompts
+#: pour une description (skill `anonymizer-detection`) ; mesuré le même jour, une même app
+#: montrait `face` (mode Classes, card #1436) et `human face` (mode Description, #1293).
 _ALIAS_CLASSES = (
-    {'plate', 'license plate', 'licenseplate', 'number plate'},
-    {'face', 'faces'},
+    ('license plate', 'plate', 'licenseplate', 'number plate', 'license plates'),
+    ('face', 'faces', 'human face', 'human faces'),
 )
 
 
@@ -75,6 +79,27 @@ def formes_equivalentes(nom: str) -> set:
         if n in groupe:
             return set(groupe)
     return {n}
+
+
+def canonical_class(name: str) -> str:
+    """Le nom COMMUN d'une classe, quelle que soit son écriture : celui de son groupe d'alias
+    (`License_Plate`, `plate` → `license plate` ; `human face` → `face`), sinon sa forme
+    normalisée. Ce que montre une card (ce qui a été trouvé) et ce que compare une sélection
+    (« ce qu'on floute ») — un modèle à classes et un modèle à description y parlent pareil."""
+    n = normaliser_classe(name)
+    for group in _ALIAS_CLASSES:
+        if n in group:
+            return group[0]
+    return n
+
+
+def reads_prompt(m) -> bool:
+    """Le modèle LIT-IL une description (`inputs_required` porte `prompt` : SAM3, LocateAnything) ?
+    Un tel modèle cherche n'importe quelle classe NOMMÉE — ce que la couverture ne sait pas dire
+    d'après des classes déclarées. La règle que lisent le routeur de concepts
+    (`detection_ensemble.route_concepts`) et les bancs de rappel (leurs candidats)."""
+    caps = getattr(m, 'capabilities', None) or {}
+    return 'prompt' in (caps.get('inputs_required') or [])
 
 
 #: Nom historique conservé pour les appels internes de ce module.

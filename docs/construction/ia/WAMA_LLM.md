@@ -54,7 +54,7 @@ et la méta-app.
 |-----|-------|------|-------|
 | imager | `prompt` | generative | `enrich=True` |
 | imager | `negative_prompt` | generative | pas d'enrich |
-| anonymizer | `sam3_prompt` | concept | `when={'field': 'target_mode', 'equals': 'description'}` (le mode de l'élément, 2026-09-27) |
+| anonymizer | `sam3_prompt` | concept | `when={'field': 'target_mode', 'equals': 'description'}` (le mode de l'élément, 2026-09-27). **Depuis le 2026-11-24, ce qui a été COMPRIS est gardé et montré** (décision de Fabien) : `sam3_prompt_processed` + `prompt_trace`, posés au lancement (`app_metadata.keep_processed_prompt`) ou par le bouton (`enrich_prompt_value` : une cible `concept` passe par la pipeline du lancement, jamais par l'enrichissement génératif) ; le champ à deux états commun (`WamaPromptEnrich`, libellé « Compris »), son état posté par le cycle commun de la modale (`WamaParams`, copies de l'imager et du composer retirées) ; concepts routés vers leurs détecteurs (`ROADMAP §17quater` A.2) |
 | cam_analyzer | `sam3_markings_prompts` | concept | `when='sam3_markings_enabled'` (corrigé le 2026-09-27 : `use_sam3` n'existe pas sur la session), `domain='transport'`, `list_item_field='prompt'` (liste `{label,prompt}`) |
 | composer | `prompt` | generative | `default_model_type='music'` (MusicGen EN), `model='composer.ComposerGeneration'` et `lyrics=True` (2026-10-04 : paroles balisées jamais traduites ni enrichies) |
 | assistant | `message` | intent | `model_id=` dynamique (modèle Ollama résolu) |

@@ -2749,6 +2749,15 @@
       Object.keys(vals).forEach(function (k) { fd.append(k, vals[k]); });
       if (cfg.idField) fd.append(cfg.idField, cfg.id);
       if (cfg.csrf) fd.append('csrfmiddlewaretoken', cfg.csrf);
+      // Un prompt à DEUX ÉTATS (`WamaPromptEnrich`, le mien / le traité) poste son état sous
+      // `<nom>_state` : le serveur choisit le champ qu'il écrit (`app_metadata.apply_prompt_state`).
+      // Commun depuis le 2026-11-24 — l'imager et le composer le postaient à la main dans leur
+      // `collect` (`prompt_state`, même nom), copies retirées. L'état se lit au CONTRÔLEUR
+      // (`snapshot`) : l'attribut n'est posé qu'au rendu, pas à la frappe.
+      host.querySelectorAll('textarea[data-prompt-state][name]').forEach(function (t) {
+        const ctrl = global.WamaPromptEnrich && WamaPromptEnrich.get(t);
+        fd.set(t.name + '_state', ctrl ? ctrl.snapshot().state : t.dataset.promptState);
+      });
       if (typeof cfg.collect === 'function') cfg.collect(fd, host, data, restart);
 
       const send = (global.WamaApp && WamaApp.csrfFetch)

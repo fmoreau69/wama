@@ -227,6 +227,69 @@ def _serves_mode(model_key: str, media) -> bool:
     return matches_inputs(model, rule.get('available_inputs'), consumes=rule.get('consumes'))
 
 
+def _routed_description(prompt, precision_level, user):
+    """« auto » en mode DESCRIPTION (2026-11-24, `ROADMAP §17quater` A.2) : le ROUTEUR commun
+    (`detection_ensemble.route_concepts`). Un concept qu'un détecteur DÉDIÉ installé couvre
+    (« face », « license plate ») va à la couverture de l'app — rappel mesuré, curseur, ensemble
+    par classe, comme en mode Classes ; le reste à SAM3, qui ne reçoit que cette part. Rend
+    `{'models', 'plan'}`, ou None quand la description ne porte aucun concept (le chemin d'avant
+    le dit). Ce que personne ne cherchera est DIT ; rien ne l'est en silence."""
+    from wama.common.backends.detection_base import prompt_concepts
+    from wama.common.services.detection_ensemble import route_concepts
+    concepts = prompt_concepts(prompt)
+    if not concepts:
+        return None
+    open_key = SAM3_KEY if check_sam3_installed() else ''
+    route = route_concepts(concepts, open_model_key=open_key,
+                           cover=lambda wanted: needs_parallel_detection(wanted, precision_level))
+    sam3_part = next((m for m in route['models'] if m.get('model_key') == SAM3_KEY), None)
+    if sam3_part is not None:
+        valid, error = validate_sam3_prompt(sam3_part['prompt'])
+        if not valid:
+            route['models'].remove(sam3_part)
+            route['unrouted'] = prompt_concepts(sam3_part['prompt'])
+            _console(user.id, f"SAM3 ne peut pas chercher « {sam3_part['prompt']} » : {error}",
+                     'warning')
+    for step in route['plan']:
+        _console(user.id, f"Description — « {step['concept']} » : "
+                          f"{', '.join(step['by']) or 'aucun détecteur'}")
+    if route['unrouted']:
+        _console(user.id, "Aucun détecteur ne cherchera : " + ', '.join(route['unrouted'])
+                 + (" — SAM3 n'est pas installé." if not open_key else ""), 'warning')
+    if not route['models']:
+        raise ValueError("Aucun détecteur ne sait chercher : " + ', '.join(concepts)
+                         + " — installez SAM3 ou un détecteur qui les porte.")
+    return route
+
+
+def description_plan(media) -> list:
+    """Ce que le système a COMPRIS de la description d'un média, et QUI cherchera chaque concept —
+    `[{'concept', 'by': [noms de modèles]}]`, ou `[]` tant que rien n'a été compris (aucun texte
+    traité gardé : le lancement ou ✨ le poseront). Le MÊME routeur que le lancement
+    (`_routed_description` → `route_concepts`), lu sans LLM ni console : la modale et la page le
+    montrent (2026-11-24, décision de Fabien : « les réglages le reflètent »). Sous un modèle
+    désigné, c'est lui qui cherche tout."""
+    from wama.common.backends.detection_base import prompt_concepts
+    from wama.common.services.detection_ensemble import route_concepts
+    from wama.common.utils import card_chips
+    from .utils.yolo_utils import catalogue_key_for
+    if media.target_mode != 'description':
+        return []
+    concepts = prompt_concepts(getattr(media, 'sam3_prompt_processed', '') or '')
+    if not concepts:
+        return []
+    designated = catalogue_key_for(media.model_to_use)
+    if designated:
+        plan = [{'concept': c, 'by': [designated]} for c in concepts]
+    else:
+        plan = route_concepts(
+            concepts, open_model_key=SAM3_KEY if check_sam3_installed() else '',
+            cover=lambda wanted: needs_parallel_detection(wanted, media.precision_level))['plan']
+    names = card_chips.catalog_names([k for step in plan for k in step['by']])
+    return [{'concept': step['concept'], 'by': [names.get(k) or k for k in step['by']]}
+            for step in plan]
+
+
 def _detection_kwargs(media, user, ensure_model=None):
     """Ce que le détecteur reçoit, et les modèles qu'il emploiera (clés de catalogue) : choix du
     ou des modèles par la couverture des classes demandées, ou SAM3 pour une description.
@@ -245,10 +308,21 @@ def _detection_kwargs(media, user, ensure_model=None):
     # SAM3 = concepts EN → pipeline commune (§16.6) ; KIND déclaré dans app_metadata.
     # Bug d'origine : « Floute les visages » (FR) → 0 masque. process_prompt_for est fail-safe.
     if use_sam3 and sam3_prompt and sam3_prompt.strip():
-        from wama.common.utils.app_metadata import process_prompt_for
-        sam3_prompt = process_prompt_for('anonymizer', 'sam3_prompt', sam3_prompt,
-                                         instance=media, user=user,
-                                         console=lambda m: _console(user.id, f"[SAM3] {m}"))
+        # La route de l'imager (`effective_prompt`) : ce qui a déjà été compris (gardé au dernier
+        # lancement, posé par ✨, édité par l'utilisateur) part tel quel, sans seconde passe LLM ;
+        # sinon la pipeline le comprend ICI, et ce qu'elle a compris est GARDÉ pour être montré
+        # (`keep_processed_prompt`, 2026-11-24).
+        from wama.common.utils.app_metadata import (effective_prompt, keep_processed_prompt,
+                                                    process_prompt_for)
+        already = bool((getattr(media, 'sam3_prompt_processed', '') or '').strip())
+        understood = process_prompt_for('anonymizer', 'sam3_prompt',
+                                        effective_prompt(media, 'sam3_prompt'),
+                                        instance=media, user=user, full=True,
+                                        enrich=False if already else None,
+                                        console=lambda m: _console(user.id, f"[SAM3] {m}"))
+        sam3_prompt = understood.get('prompt') or sam3_prompt
+        if not already:
+            keep_processed_prompt(media, 'sam3_prompt', understood)
 
     _console(user.id, f"[DEBUG] SAM3 settings: use_sam3={use_sam3}, prompt='{sam3_prompt[:30] if sam3_prompt else ''}'")
 
@@ -303,6 +377,13 @@ def _detection_kwargs(media, user, ensure_model=None):
                              'classes': None}]
         _console(user.id, f"Description : {designated} — « {sam3_prompt or ''} »")
         return kwargs, [designated]
+    if use_sam3 and not designated:
+        routed = _routed_description(sam3_prompt, precision_level, user)
+        if routed is not None:
+            kwargs['use_sam3'] = False
+            kwargs['models'] = routed['models']
+            kwargs['plan'] = routed['plan']
+            return kwargs, [m['model_key'] for m in routed['models'] if m.get('model_key')]
     user_specified_key = '' if use_sam3 else designated
     if user_specified_key:
         # Le select liste par TÂCHE (route F4b ⑤, 2026-10-07) : un modèle de détection d'une
@@ -542,6 +623,10 @@ def _detect(media, ctx):
     finally:
         if frames is not None:
             frames.close()
+    # Ce que le routeur a COMPRIS de la description — concept par concept, qui l'a cherché — gardé
+    # avec ce qui a été trouvé : la page et la card le relisent (`route_concepts`, 2026-11-24).
+    if kwargs.get('plan'):
+        doc['plan'] = kwargs['plan']
 
     rel, target = ctx.output_place('.json', nature='detections', source_name=kwargs['media_path'],
                                    model=doc.get('tag') or doc.get('engine') or 'yolo')

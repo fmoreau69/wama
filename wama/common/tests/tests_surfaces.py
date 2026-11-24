@@ -416,6 +416,22 @@ class CorrectionsParityTest(SimpleTestCase):
         self.assertEqual([{'i': 0, 'box': [10, 10, 30, 30]}], value['removed'])
         self.assertEqual([{'i': 0, 'box': [12, 12, 32, 32], 'label': 'face'}], value['added'])
 
+    def test_the_offered_classes_come_from_the_server_then_the_corrections(self):
+        """2026-11-24 (A.1) : the classes a zone can take are the surface's `context.classes`, read
+        on the server under their common name (`License_Plate` and `license plate` were two
+        offers) ; the document's own labels only when the surface gives none."""
+        from py_mini_racer import MiniRacer
+        engine = MiniRacer()
+        engine.eval('var window = {};' + _js('common/js/wama-detections.js'))
+        call = ('JSON.stringify(window.WamaDetections.labelChoices({context: function () { return %s; },'
+                ' reads: function () { return {detections: %s}; },'
+                ' value: function () { return {added: [{label: "logo"}, {label: "plate"}]}; }}))')
+        doc = json.dumps({'frames': [{'i': 0, 'd': [{'label': 'License_Plate'}]}]})
+        self.assertEqual(['license plate', 'face', 'logo', 'plate'],
+                         json.loads(engine.eval(call % ('{classes: ["license plate", "face"]}', doc))))
+        self.assertEqual(['License_Plate', 'logo', 'plate'],
+                         json.loads(engine.eval(call % ('{}', doc))))
+
 
 @override_settings(MEDIA_ROOT=tempfile.mkdtemp())
 class ReviewSurfaceViewsTest(TestCase):

@@ -52,12 +52,27 @@ def validate_corrections(value) -> dict:
 TRACKING_ROUTES = {'track_cursor': 'track_cursor', 'track_results': 'track_results'}
 
 
-def _requested_classes(media) -> list:
-    """Les classes DEMANDÉES que la page propose pour une zone ajoutée — en mode Classes seulement :
-    en mode Description, ce que la description a trouvé est dans le document, que la page lit
-    (`WamaDetections.labelChoices`) ; « face » ne s'y proposait que parce que la liste des classes
-    gardait son défaut. Assainies : une ancienne sauvegarde a laissé 'false' dans des listes."""
-    return sane_classes(media.classes2blur) if media.target_mode == 'classes' else []
+def _offered_classes(media) -> list:
+    """Les classes que la page propose pour une zone ajoutée (`WamaDetections.labelChoices`) :
+    les DEMANDÉES — en mode Classes seulement ; en mode Description « face » ne s'y proposait que
+    parce que la liste gardait son défaut — puis celles que la détection a TROUVÉES, toutes sous
+    leur nom COMMUN (2026-11-24 : `License_Plate` et `license plate` étaient deux propositions).
+    Assainies : une ancienne sauvegarde a laissé 'false' dans des listes de classes."""
+    from wama.common.utils import detections
+    out = []
+    asked = sane_classes(media.classes2blur) if media.target_mode == 'classes' else []
+    for label in [detections.common_label(c) for c in asked] + _found_labels(media):
+        if label and label not in out:
+            out.append(label)
+    return out
+
+
+def _found_labels(media) -> list:
+    """Les libellés trouvés, lus sur la sortie déclarée de la détection — la même lecture que
+    « ce qu'on floute » (`AppPipeline.output_property`)."""
+    from wama.common.services.process_pipeline import pipeline_of
+    pipeline = pipeline_of(media)
+    return pipeline.output_property(media, 'detections', 'labels') if pipeline else []
 
 
 def _review_available(media) -> tuple:
@@ -82,7 +97,7 @@ register_surface(Surface(
     reruns='blur', available=_review_available,
     routes=TRACKING_ROUTES,
     only={'media_type': 'image'},
-    context={'classes': _requested_classes},
+    context={'classes': _offered_classes},
     # L'élément témoin des vignettes du catalogue des briques (nocturne) : une image et ses
     # détections ; `media_type` et `file_ext` sont ce que l'import de l'app poserait.
     witness={'file': '.png', 'detections_file': 'detections', 'media_type': 'image',
@@ -113,7 +128,7 @@ register_surface(Surface(
     only={'media_type': 'video'},
     # `chain_gap` : le trou qu'un objet franchit d'une détection à la suivante quand un geste vaut
     # pour toute la séquence — le réglage d'interpolation de la card, celui que lit le floutage.
-    context={'classes': _requested_classes, 'chain_gap': 'max_interpolation_frames'},
+    context={'classes': _offered_classes, 'chain_gap': 'max_interpolation_frames'},
     # Le témoin des vignettes : la mire du harnais et ses détections, image par image.
     witness={'file': '.mp4', 'detections_file': 'detections', 'media_type': 'video',
              'file_ext': '.mp4'}))

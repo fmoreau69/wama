@@ -1363,6 +1363,12 @@ APP_CATALOG = {
         'has_url_import': True,
         'has_youtube': True,
         'output_types': ('image', 'video', 'document'),
+        # La CONSIGNE (ce qu'il faut anonymiser, décrit en texte — le port `prompt` que les modèles
+        # à description déclarent) est portée par un RÉGLAGE, `sam3_prompt`, au volet, à la modale
+        # et à l'inspecteur : la card d'entrée de l'anonymizer DÉPOSE, elle ne demande pas de
+        # consigne (`CARD_DESIGN §11.11` « dépôt » ; relevé de la session de portage, 2026-11-24,
+        # `tests_port_fields.GAPS`). Le port reste au Studio.
+        'ports_carried_elsewhere': {'prompt': 'réglage sam3_prompt'},
         'conventions': _conv(
             settings_modal_item=True,  # ⚠ modale hand-built (settings_modal.js innerHTML l.287) ;
                                        # params.py existe mais ORPHELIN (aucun consommateur WamaParams)

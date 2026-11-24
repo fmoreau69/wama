@@ -162,6 +162,15 @@ class Media(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
         verbose_name='SAM3 Text Prompt',
         help_text='Text prompt for SAM3 segmentation (e.g., "blur all faces and license plates")'
     )
+    # CE QUE LE SYSTÈME A COMPRIS de la description (2026-11-24, décision de Fabien : « ce que le
+    # système a compris doit être montré à l'utilisateur et les réglages le refléter ») — la
+    # convention commune des prompts traités (`app_metadata.PROCESSED_SUFFIX`, `effective_prompt`,
+    # le champ à deux états `WamaPromptEnrich`) : `sam3_prompt` reste ce que l'utilisateur a tapé,
+    # jamais écrasé ; ceci est ce qui part aux détecteurs (les concepts anglais), gardé au
+    # lancement (`keep_processed_prompt`) ou posé par ✨, éditable, annulable. `db_default` : le
+    # code d'avant le rechargement crée des médias sans ces champs.
+    sam3_prompt_processed = models.TextField(blank=True, default='', db_default='')
+    prompt_trace = models.JSONField(blank=True, default=dict, db_default={})
 
     model_to_use = models.CharField(
         max_length=255,
