@@ -32516,3 +32516,30 @@ interface ne lit encore ces déclarations.
   `INPUT_MODEL_MATCHING §6.13`), dont dépend la coupe ;
 - marches suivantes (`§10.7.14`) : 1ter la piste dérivée (une source + une liste de gestes), 1quater
   la lecture bornée à une plage et l'outil de l'assistant ; 🔴 relancer gunicorn + workers reste dû.
+
+## §PALIER — 2026-11-24 soir, « LA DÉCLARATION D'UN PORT ATTEINT LES JUMELLES ; STUDIO, ASSISTANT ET GÉNÉRATEUR LISENT LE LECTEUR » — 🔚 rejouer les gestes UI des jumelles (après le banc GPU)
+
+- ✅ c54199007 : `register_port_fields` au `ready()` des dix apps (la déclaration posée le matin sur
+  les modèles n'atteignait pas six jumelles, dont le `models.py` est une copie figée — mesuré au
+  registre du bac à sable) ; extraite (`inspector.port_fields`), rejouée par `apps_gen`, contrôlée
+  par `source_safety`. Neuf jumelles régénérées (`apps`), plus `views+templates` d'imager_01,
+  synthesizer_01, composer_01, avatarizer_01 ; `makemigrations` : No changes detected.
+- ✅ Copies portées au lecteur : `port_argument_name` et `graph_flow._app_carriers` (115
+  comparaisons avant/après, 0 différence) ; champ d'entrée d'une jumelle = champ du port de travail
+  (imager_01 : `prompt_file` → `reference_image`) ; ⧉ d'une jumelle ne vide plus l'image, la voix,
+  la partition ni l'avatar donnés (`ROUTE §10.6` couche 2, point 4.6) ; `apps_gen` rejoue un aperçu
+  sans fichier (composer_01 pointait `input_file`, colonne absente).
+- ✅ Non-régression : 2212 tests lancés (card v4 : ports et appariement, capacités, modalités,
+  langues, voix ; Studio entier ; générateur ; apps ; jumelles). Hors jumelles, aucun rouge de ce
+  palier : la langue des identifiants (+1 nom de test) et le composer (`tests_prompt_harness`)
+  viennent de travaux en cours ailleurs ; l'exemption `('anonymizer_01', 'prompt')` de
+  `tests_port_fields` est fermée dans l'ARBRE par le changement non commité de la session de
+  l'anonymizer (`ports_carried_elsewhere`) — à retirer avec son commit. Jumelles : leurs tests copiés
+  visent des internes de l'app réelle (imports de fonctions de tâches, gabarits écrits à la main) ;
+  synthesizer_01, composer_01, avatarizer_01 : les MÊMES 106 rouges avant et après régénération.
+- 🔚 restent : rejouer les gestes nocturnes des jumelles (aperçu d'imager_01, ajout,
+  `tree_drop`) — reportés, un banc GPU d'une autre session tournait ; les littéraux de JS de trois
+  pages réelles (avatarizer, imager, synthesizer postent sous le nom de la colonne) : un portage au
+  navigateur ; `translator_01` range son fichier de travail deux fois ; `prompt_file` de l'imager
+  (champ mort d'un ancien fichier de lot) : retrait à décider ; `anonymizer_01` : à régénérer par la
+  session de l'anonymizer ; la table commune des entrées (`INPUT_MODEL_MATCHING §6.13`) : décision.
