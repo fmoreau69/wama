@@ -32415,3 +32415,39 @@ contre-épreuves rouges sur 15 ; un conteneur `.wdat` écrit puis rouvert rend l
   `port_argument_name`, la spec du volet, l'aperçu, l'extracteur, les littéraux de JS (à remesurer) ;
   consigne de l'anonymizer en `ports_carried_elsewhere` ; `prompt_file` de l'imager ; décision sur
   la table commune des entrées (`INPUT_MODEL_MATCHING §6.13`) ; 🔴 relancer gunicorn + workers.
+
+## §PALIER — 2026-11-24 (révision 2), « TEMPS ET IMBRICATION : la sélection qui contextualise, le monde Data, les couleurs du temps, la card de lot » — docs seules, commité `c3eace03d`, non poussé — 🔚 T1 à T8 et E1 à E5 de Fabien (`ROUTE §10.7.13`, `§10.7.12`) ; maquettes sur cas réels (marche ⓪)
+
+**Ce qui est consigné** (demande de Fabien : réviser le plan du plus sûr au moins sûr, s'appuyer
+sur la documentation du monde Data, renvoyer au concile).
+- `ROUTE §10.7.13` : ses ajouts confrontés à `WAMA_DATA_WORLD.md` relu EN ENTIER (quatre lectures
+  par tranches, passages porteurs relus à la ligne) et au code de l'interface. Propositions ⑦ à ⑮,
+  rien de tranché : un traitement par segment reste une étape de la card et des colonnes de la
+  table de segments (jamais une card par segment) ; cliquer un segment pose une PLAGE ACTIVE qui
+  borne les aperçus de SA card sans rien créer ; calculer dessus est un geste explicite ; deux
+  sélections (cards de la page, plage d'une card) font le contexte de chaque vue ; le lot du monde
+  Data est plat et il est un ENVOI, les regroupements par axes sont des vues ; la card mère résume
+  ses filles filtrées et sa barre, par cases d'état, dit l'avancement ; quatre échelles de couleur
+  déclarées par piste, jamais la couleur seule ; rien du monde Data en base WAMA.
+- Le concile (troisième consultation, 282 s, cinq avis lus un à un) : unanime sur les colonnes, sur
+  le lot plat et sur le participant à modéliser ; partagé sur la plage active (à la card ou à la
+  page) et sur la première maquette (Transcriber ou passation du monde Data).
+- `WAMA_CONCEPTS.md` (plage active, contexte, composition / classement, échelle de couleur, les
+  deux sens du mot axe) ; `WAMA_DATA_WORLD §2` (renvoi, sans changer ses règles).
+
+**Vérifié.** `check_docs` : aucune référence cassée (1 périmée, pas d'ici) ; tests du catalogue de
+docs et des balises de faits verts (50). **Non vérifié** : aucune ligne de code n'a changé, rien à
+rejouer ; les ordres de grandeur d'interface (clic sur un segment avec deux cents segments, filtrage
+de soixante passations × mille situations) ne sont pas mesurés — c'est l'objet des maquettes.
+
+**Écarts de doc relevés, non corrigés** (à trancher avec le monde Data) : la brique de filtre unique
+est dite « ✅ déjà relié » en `WAMA_DATA_WORLD §13.9` et « non câblée » en `§compat 6` — mesuré : la
+file ne filtre que par statut ; D21 dite « close » en `§13.19` et « reste à ratifier » en `§10`.
+
+**Restes, nommés** :
+- T1 à T8 et E1 à E5 à trancher par Fabien ; marche ⓪ = les maquettes (Transcriber, cam_analyzer,
+  passation et lot du monde Data, film) — aucune marche d'interface avant elles ;
+- préalables du monde Data relevés par le concile, déjà ouverts : participant non modélisé,
+  situation à cheval sur deux fichiers, concaténation des passations d'un lot ;
+- restes de la marche 1 inchangés (jumelles, sections et paroles du Composer, piste parente dans
+  un `.wdat`) ; 🔴 relancer gunicorn + workers reste dû.
