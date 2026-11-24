@@ -32478,3 +32478,41 @@ le portage lui revient. Ce qu'il touche, mesuré :
 Mes lectures d'arrivée (`generic_runner.work_arguments` / `single_file_arguments`, `tool_api._arrival`)
 passent par `port_argument_name`, que la table réécrit sur `port_fields` : compatibles, gardes vertes
 sur l'arbre du jour (153 tests, plus 24 V8).
+
+## §PALIER — 2026-11-24 (suite), « MARQUES TEMPORELLES : décisions de Fabien, et la marche 1bis — une piste déclare ce que l'écran et les gestes ont à savoir » — commité `079ba1b4f` (décisions) et `bf4658b81` (code), non poussé — 🔚 E5 et la coupe portée par une entrée (décisions de Fabien) ; marches 1ter et 1quater ; jumelle du Transcriber
+
+**Décidé par Fabien** (`ROUTE §10.7.14`) : T1 à T8 validées ; E1 = la ligne complète de la card +
+UNE ligne segmentée (la piste principale déclarée), toute autre ligne dépliée par un geste dédié ;
+E2 = un zoom sur la zone temporelle de la card ; E3 et E4 validées ; l'ordre : **le fonctionnel
+d'abord**, les maquettes juste avant la première marche d'interface (par le skill de design, en
+artefacts). E5 explicitée, non tranchée. Idées de Fabien consignées en propositions : la COUPE
+virtuelle d'un média (découper, raccourcir, réagencer sans toucher au fichier, dans toute app,
+export par le Converter — ⑱), les plans détectés automatiquement (⑲), extraire un segment en card
+et recomposer des cards dans l'ordre de la file (⑳).
+
+**Livré — marche 1bis** (`bf4658b81`). `common/catalog/marks.py` : une piste dit sa piste
+principale (`main`), ce qui colore ses marques (`color_by`, `scale`, `steps` : catégorie, sévérité,
+intensité), ses gestes (`gestures`) et où ils vont (`edits` : une piste dérivée, ou elle-même) —
+contrôlé à l'enregistrement, écrit dans la facette `inspector.tracks`, rejoué par le générateur, dit
+par le registre `tracks`. Transcriber : ligne segmentée = les phrases (retailler, scinder,
+fusionner), tours colorés par locuteur. cam_analyzer : ligne segmentée = les situations, conflits
+colorés par sévérité. Monde Data : une marque mesurée ne se déplace, ne se retaille ni ne se
+supprime, ses gestes vont dans une piste dérivée.
+
+**Vérifié.** 1145 tests du périmètre ; 21 contre-épreuves rouges sur 21 (une garde du monde Data
+était aveugle — un événement « scindable » passait —, corrigée puis vue rouge). **Rouge qui n'est
+pas d'ici** : le budget d'identifiants, dépassé de 1 par `ports_entree` dans
+`common/manifests/codegen/views_gen.py` (travail en cours d'une autre session ; mesuré fichier par
+fichier, aucun identifiant français dans ce palier). **Non vérifié** : la suite large ; aucune
+interface ne lit encore ces déclarations.
+
+**Restes, nommés** :
+- la sévérité d'une phrase du Transcriber se calcule encore dans le script
+  (`wama-segments.js:67-73`) : la déclarer demande que la source la rende — avec la zone temporelle ;
+- la piste principale d'un `.wdat` n'est pas dite (le fichier ne la range pas) ;
+- la jumelle du Transcriber rejoue l'ancienne déclaration : la garde « une piste principale par
+  modèle » saute les jumelles (`sandbox.twin_source`) tant qu'elles ne sont pas régénérées ;
+- décisions de Fabien : E5 ; où s'écrit l'emploi d'un fichier par une card (la table des entrées,
+  `INPUT_MODEL_MATCHING §6.13`), dont dépend la coupe ;
+- marches suivantes (`§10.7.14`) : 1ter la piste dérivée (une source + une liste de gestes), 1quater
+  la lecture bornée à une plage et l'outil de l'assistant ; 🔴 relancer gunicorn + workers reste dû.
