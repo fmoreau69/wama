@@ -1872,7 +1872,7 @@ Télécharge une source distante vers le FileField, déclaré par WAMA_INGEST. �
 
 - **Domicile** : `wama/common/utils/source_ingest.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : source_ingest — Ingest média DÉCLARATIF et COMMUN (hors common/manifests/**).
-- **API publique** (9) :
+- **API publique** (11) :
   - `is_remote(ref) -> bool` — Cette entrée est-elle une URL à télécharger (http, https) plutôt qu'un chemin ?
   - `declared_mode(model) -> str` — Le mode (`audio` | `smart` | `media`) qu'un modèle d'élément DÉCLARE pour son entrée
   - `app_mode(app_id) -> str` — Le mode d'une URL destinée à l'app `app_id` : celui que son modèle d'élément déclare
