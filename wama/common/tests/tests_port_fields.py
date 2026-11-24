@@ -88,15 +88,19 @@ class EveryPortOfACardHasItsFieldTest(SimpleTestCase):
         self.assertGreater(seen, 20, 'the ports of the catalogue are read')
         self.assertEqual([], missing, 'a port whose value no field keeps : list it on the element '
                                       'model (`WAMA_PORT_FIELDS`), or name the column after the port')
-        self.assertEqual(set(), TWINS_AWAITING_PROJECTION - unresolved_twins,
+        # Twins are not versioned (`.gitignore`, `wama/*_NN/`) : only a twin PRESENT is judged.
+        from wama.common.app_registry import APP_CATALOG
+        self.assertEqual(set(), (TWINS_AWAITING_PROJECTION & set(APP_CATALOG)) - unresolved_twins,
                          'these twins carry the listing now : remove them from the exemption')
 
     def test_an_exemption_is_still_needed(self):
         from wama.common.utils.port_fields import port_field
+        from wama.common.app_registry import APP_CATALOG
         needed = set()
         for app, _domain, model, ports, _carried in _CardPorts.rows():
             needed |= {(app, p['id']) for p in ports if not port_field(model, p['id'])}
-        self.assertEqual(set(), set(GAPS) - needed, 'these gaps are closed : remove them')
+        present = {gap for gap in GAPS if gap[0] in APP_CATALOG}   # a twin may be absent (not versioned)
+        self.assertEqual(set(), present - needed, 'these gaps are closed : remove them')
 
 
 class TheListingNamesRealFieldsTest(SimpleTestCase):
