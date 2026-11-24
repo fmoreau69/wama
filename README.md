@@ -364,6 +364,7 @@ by `python manage.py doc_facts` — do not edit it by hand; declare a document i
     - [Manifestes — flux et schéma](docs/construction/architecture/WAMA_MANIFEST_ARCHITECTURE.md) — Comment circulent les manifestes : extraction, composition, projection vers les registres.
     - [Audit de l'app de référence](docs/construction/architecture/TRANSCRIBER_REFERENCE_AUDIT.md) — Le Transcriber comme étalon : audit de conformité et checklist de fin d'app.
     - [Vérification](docs/construction/architecture/WAMA_VERIFICATION.md) — Comment on sait que ça marche : grille d'adoption contre grille fonctionnelle, catalogue des gestes, couverture.
+    - [Dictionnaire des concepts clés](docs/construction/architecture/WAMA_CONCEPTS.md) — Les mots de chaque demande — aligné, universel, uniforme, schéma-driven, card, lot, imbrication, axe, segment, piste… — en deux lignes, avec le domicile de leur définition.
   - **`ui/`** — Interface & file
     - [Formalisme de card](docs/construction/ui/CARD_DESIGN.md) — Anatomie des cards, trois densités, lots.
     - [File et modes applicatifs](docs/construction/ui/MODES_QUEUE_UX.md) — UX de la file d'attente et des modes d'app.

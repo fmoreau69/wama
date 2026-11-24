@@ -190,6 +190,16 @@ distinct, ROUTE §10.6) — le reste est du
 développement d'apps. C'est le meilleur signe que le découpage app/studio tient : une ambition
 aussi grosse qu'un générateur de films n'ajoute qu'un port.
 
+> **Complété le 2026-11-24 (réflexion demandée par Fabien, `ROUTE §10.7`) — la forme du film DANS LA
+> FILE.** Ce qui précède parle du GRAPHE du Studio ; reste à dire ce que sont un film, une séquence
+> et un plan une fois produits. Proposition : trois CARDS à trois profondeurs de la relation de
+> composition déjà livrée pour les pistes d'un morceau (`MODES_QUEUE_UX §5quater`) — le film porte le
+> lot de ses séquences, la séquence celui de ses plans ; l'ordre des cards est l'ordre du montage ;
+> la « bible » et le format commun sont portés par la card du film, hérités par ses parties ; les
+> prises d'un plan sont les résultats multiples de sa card. Principe validé par Fabien le jour même
+> (D1) ; rien n'en est construit : ce que porte chaque étage,
+> la page de montage simplifiée et les décisions sont en `ROUTE §10.7`.
+
 ### 3. Chaîne OBJETS 3D — de la photo au prop de simulation (idée Fabien 2026-08-18)
 **Cas d'usage** : image contenant un/des véhicules → **segmentation** (future app **detector**,
 YOLO/SAM3 — périmètre = ROADMAP §17bis) → **reconstruction 2D→3D** (modèle mono-image → mesh

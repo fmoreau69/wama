@@ -123,6 +123,17 @@ appartient au *jeu de données* ou à la *session*.
 - La couche 4 rejoint le point 4 de l'horizon §7ter : *« l'axe de session doit être un contrat
   explicite (souscription), sinon aucune synchronisation générique n'est possible »*.
 
+> **Complété le 2026-11-24 (réflexion demandée par Fabien) — ce vocabulaire au-delà du monde Data.**
+> L'événement et le segment de ce document, la table comme piste de marques, « présent dans » comme
+> parenté entre pistes : `WAMA_APP_GENERATION_ROUTE.md §10.7` propose d'en faire le vocabulaire
+> temporel des TROIS mondes (les phrases et les mots du Transcriber, les plans d'un film, les
+> fenêtres du cam_analyzer sont des segments), et d'un Segmenter universel par son modèle — ses
+> producteurs restant propres à chaque monde. Y sont aussi : la réponse à « les segments d'un
+> `.wdat` doivent-ils apparaître sous sa card » (une entrée par piste, une ligne ne devenant card
+> que par un geste explicite), le relevé mesuré des graphies de temps dans tout le dépôt, et la
+> question de l'emplacement du modèle de marques (glu inter-mondes — validé, D6). Décisions D1 à D14
+> validées par Fabien le jour même ; seule la marche 1 (le lecteur de pistes) est lancée.
+
 ---
 
 ## 3. Cahier des charges du référentiel temporel

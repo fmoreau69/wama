@@ -829,3 +829,20 @@ morceau d'audio quels mots du texte lui reviennent.
   MMS_FA (torchaudio) : licence CC-BY-NC 4.0.
   ⚠ Relevé au passage : `nvidia-nccl-cu12` est en 2.30.4 dans `venv_linux` quand torch exige 2.27.5
   — dérive préexistante, signalée, non corrigée.
+
+---
+
+## 11. Les marques du Transcriber dans le vocabulaire temporel commun (décidé le 2026-11-24, marche 1 en cours)
+
+> Demande de Fabien (24/11) : le Transcriber horodate déjà ses données — les faire entrer dans
+> l'alignement temporel de tout WAMA. Le domicile de la réflexion est
+> `docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.7` ; ceci n'en est que le renvoi.
+
+Ce que le Transcriber porte aujourd'hui (mesuré) : des phrases (`start_time`, `end_time`, locuteur,
+texte, rang — `models.py:255-256`) et, dans `segments_json`, des mots (`start`, `end`, et `timing` :
+la provenance du minutage). Ce que la proposition en fait : trois PISTES de segments — tours de
+parole, phrases, mots —, les mots enfants des phrases par inclusion ; `timing` y est l'origine de la
+marque ; scinder et fusionner sont des opérations de piste. Aucun stockage ne change : un lecteur
+rend ces pistes sous les noms communs (`start`, `end`), et c'est par lui que le Segmenter (« présent
+dans », filtre, calcul et export par segment) et la future page de montage les lisent. Première
+marche proposée et décision D7 : `ROUTE §10.7.6` et `§10.7.7`.

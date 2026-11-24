@@ -8562,6 +8562,439 @@ de répétition n'est ajouté pour les cards.
 
 ---
 
+### §10.7 — LE TEMPS ET L'IMBRICATION, COMMUNS À TOUS LES MONDES : axe, marques, pistes, familles (réflexion du 2026-11-24 — D1 à D14 VALIDÉES par Fabien le jour même, marche 1 lancée)
+
+> 📜 **Demande de Fabien (23 et 24/11)**, après la livraison de la famille d'une card
+> (`MODES_QUEUE_UX §5quater`) : *« approfondir la réflexion sur l'imbrication des cards mères/filles
+> et l'alignement vidéo »* — un film, ses séquences, ses plans ; ce que chaque card porte ; une page
+> de montage simplifiée ; *« aligner tout le fonctionnement temporel de WAMA : ligne de temps,
+> marqueurs temporels (événements/segments) »* ; la notion de **fragment** ; le découpage
+> phrases/mots du Transcriber, *« qui horodate déjà ses données »* ; les segments de données sous une
+> card `.wdat` ; *« peut-on envisager que le Segmenter soit universel et uniforme dans tout WAMA
+> média/data/lab »*.
+>
+> Cette section est le DOMICILE de cette réflexion, comme `§10.6` l'est du pipeline : les docs
+> Data, Studio, file et vision y renvoient. Elle dit ce qui EXISTE (mesuré), ce que font les outils
+> comparables (sourcé), une PROPOSITION, l'avis du concile et sa lecture, puis les décisions à
+> prendre. ✅ Les décisions D1 à D14 (10.7.7) sont validées par Fabien le 2026-11-24 ; ⚠ rien
+> d'autre n'est construit que ce que disent 10.7.8 (livré) et la marche 1 (en cours).
+
+#### 10.7.1 Ce qui existe déjà — mesuré
+
+| brique | ce qu'elle porte | où |
+|---|---|---|
+| **l'axe** | UNE horloge, indépendante ; médias et vues la SUIVENT, chacun avec un décalage | `wama-axis.js` (`ROUTE §F3b`) |
+| **la famille** | une card + LE LOT de ses cards dérivées, rangé sous elle ; le lien n'a pas de profondeur | `derived_cards.family_lot`, `batch_common.nest_derived_lots` |
+| **variation / composition** | la variation est le LOT (N modèles sur un audio), la composition est le lien `derived_from` | `MODES_QUEUE_UX §5quater` (décision du 23/11) |
+| **deux primitives de marque** (monde Data) | l'ÉVÉNEMENT (`time`) et le SEGMENT (`start`, `end`, `end = None` = segment OUVERT), origine tracée | `common/catalog/data_types.py:16,42` ; `wama_data/core/segmentation.py:26,31` |
+| **le Segmenter** | fonctions pures sur ces tables : autour d'une ancre, jonction de deux flux, condition avec hystérésis, « présent dans », chevauchement, marges, appariement, filtre, codage (humain ou modèle, `replay`) | `WAMA_DATA_WORLD §9ter`, `§11.9` |
+| **la hiérarchie Data** | projet → expérimentation → participant → essai (un `.wdat` = une CARD) → événements / situations (des TABLES dans le fichier) | `WAMA_DATA_WORLD §11.6`, `§11.8` |
+
+⭐ **L'unification est déjà ÉCRITE, pas encore FAITE.** `data_types.py:20-26` dit du type
+`SEGMENTS` : *« le Transcriber manipule des segments (début, fin, texte, locuteur) […] Une
+transcription EST donc une collection de segments au sens de ce type : le même outillage
+(segmenter, calculer par segment, exporter par segment) s'applique sans traduction. »* Mesuré le
+24/11 : la traduction manque. Le Transcriber écrit `start_time` / `end_time`
+(`transcriber/models.py:255-256`), ses mots `start` / `end` avec la provenance du minutage
+(`timing` : exact, aligné, estimé, interpolé) ; le monde Data lit `start` / `end` et ne connaît
+aucun `start_time`.
+
+**Relevé des graphies** (balayage du 24/11 sur les trois mondes — une liste par motif : elle
+oriente, chaque ligne se relit avant d'être portée) :
+
+| monde | objet | début / fin / instant | unité |
+|---|---|---|---|
+| Data | segment, événement | `start`, `end` (`None` = ouvert) / `time` | secondes |
+| Data | conteneur `.trip` (hérité) | `startTimecode`, `endTimecode` / `timecode` | secondes |
+| Médias | Transcriber — phrase | `start_time`, `end_time` | secondes |
+| Médias | Transcriber — mot | `start`, `end`, `timing` | secondes |
+| Médias | Composer — sections, paroles minutées | `start`, `end` | secondes |
+| Médias | Composer — repères de partition | paires (temps écrit en ms, temps audio en s) | ms ↔ s |
+| Médias | détections (anonymizer, vues) | `i` (indice d'image) | images |
+| Médias | Describer — légendes de vidéo | `frame`, `time` | image, secondes |
+| Lab | cam_analyzer — fenêtres, conflits, segments | `t_enter`/`t_exit`, `t_start`/`t_end`, `start_time`/`end_time` | secondes |
+| Lab | traces, images analysées | `ts`, `timestamp` + `frame_number` | secondes + images |
+| commun | bandes de la ligne de temps | `start`, `end` (`null` = jusqu'à la tête de lecture) | secondes |
+
+Neuf façons d'écrire « début », sept « fin », douze « instant ». Les SECONDES sont presque
+partout ; restent les indices d'image (détections), les millisecondes écrites d'une partition, les
+échantillons (détection de parole). La brique de règles de segments (`wama-segments.js`) ne parle
+que `start_time` / `end_time` ; aucune app ne coupe ni ne rogne un média aujourd'hui (aucun point
+d'entrée / de sortie trouvé) ; le Studio n'a rien de temporel ; **aucun objet temporel ne s'appelle
+« fragment »** (le mot désigne un morceau de document du RAG et des bouts de trajectoire).
+
+#### 10.7.2 Ce que font les outils comparables — sourcé (recherche web du 24/11)
+
+**Montage.** Partout DEUX repères distincts : la coupe sur la source (entrée / sortie), et la
+place dans le parent. Le média n'est jamais modifié.
+
+| outil | hiérarchie | la place d'un élément | vide, transition |
+|---|---|---|---|
+| OpenTimelineIO | Timeline → Stack (en parallèle) → Track (en série) → Clip ; une composition imbriquée « se comporte comme un clip » | DÉRIVÉE de l'ordre et des durées (`range_in_parent()`) ; la coupe est `source_range` | un objet `Gap` ; une `Transition` ENTRE deux clips, qui consomme la matière au-delà de la coupe |
+| FCPXML | projet → séquence → `spine` ; clip composé par référence | l'ordre ET un `offset` stockés | `gap` ; transition dans le fil |
+| CMX3600 (EDL) | à plat | des temps explicites seulement | aucune imbrication |
+| suivi de production (ShotGrid) | Projet → Séquence → Plan → Version | le PLAN (identité stable), la VERSION (un rendu) et l'ÉLÉMENT DE MONTAGE (sa place dans un montage) sont trois objets | — |
+
+**Outils de film par IA** (LTX Studio, Google Flow, MovieAgent, VideoDirectorGPT…) : tous suivent
+scénario → scènes → plans → image clé → vidéo ; le projet porte le style, le format et la
+distribution, la scène le lieu et la lumière, le plan la consigne, le cadrage, la durée ; un plan
+peut surcharger. Le plus proche de WAMA est ComfyUI-Spool (un clip = la recette de génération + ses
+prises, une seule prise « jouée », export OpenTimelineIO) — une ligne de temps à plat, sans
+imbrication. ComfyUI n'a pas de ligne de temps native ; n8n n'a ni temps ni imbrication d'éléments.
+
+**Annotation.** Point ou intervalle partout ; trois écritures (deux types de piste, deux types
+d'événement, ou un seul type à durée nulle).
+
+| outil | ce qu'il apporte |
+|---|---|
+| ELAN | des PISTES typées par leur rapport au parent : « Time Subdivision » (les enfants couvrent le parent, sans trou), « Included In » (dans les bornes du parent, trous permis), et des types symboliques ; imbrication récursive ; des séries liées ; un extrait de média par annotation |
+| BORIS | événement ponctuel / événement d'état, fin possible non appariée ; sujets, modificateurs, exclusion mutuelle ; jusqu'à 8 lecteurs avec décalage ; ni piste ni imbrication |
+| Praat | pistes d'intervalles et pistes de points, indépendantes |
+| NWB (neurosciences) | `TimeIntervals` ; une extension hiérarchise phrases > mots > syllabes > phonèmes |
+| normes | IIIF (une structure imbriquée de plages d'un média), WebVTT (chapitres : imbriqués ou disjoints), MPEG-7 (décomposition temporelle récursive, drapeaux `gap` / `overlap`) |
+
+**Montage par le texte** (Descript, Premiere) : la transcription pilote la coupe. Un mot retiré
+connaît quatre sorts : supprimé, remplacé par un vide de même durée, IGNORÉ (barré, réversible, non
+destructif), ou retiré du texte seul.
+
+**Ce que personne ne fait** (cherché, non trouvé) : un même objet qui soit à la fois un lot de
+traitements et un clip dans la ligne de temps de son parent, avec imbrication ; un modèle temporel
+commun aux plans et aux mots d'une transcription dans un format ouvert ; une segmentation unique
+partagée par un média, une série temporelle et une analyse vidéo, dont les segments sont des
+éléments d'une file de traitement ; **un type « fragment » défini par sa brièveté** — partout, une
+plage à écarter est un RÔLE (un préfixe `bad`, une table des temps invalides), jamais un type.
+
+#### 10.7.3 La proposition
+
+**① Un seul mécanisme d'imbrication : une card porte le lot de ses parties.** À la question *« une
+séquence est-elle une card mère de lot de plans, ou une card qui porte un lot de plans ? »* : depuis
+le 23/11 c'est la même chose, et c'est la seconde formule qui est juste. Film, séquence et plan
+sont trois CARDS, à trois profondeurs de la même relation de composition. Pas de « lot-film » :
+un lot n'a ni résultat, ni pipeline, ni page d'édition ; une card les a — et un film a un résultat
+(le film monté), un pipeline (scénario → découpage → storyboard → plans → assemblage), une page
+(le montage). Les PRISES d'un plan (N essais de génération) sont les résultats multiples de sa
+card, un seul retenu — pas un étage de plus.
+
+**② Posséder n'est pas référencer.** Une card a UN parent (la file et l'héritage restent un arbre).
+Un plan repris dans deux séquences ou deux montages n'a pas deux parents : c'est la distinction
+plan / version / élément de montage du suivi de production. Première marche : la copie de card
+(elle existe). Une RÉFÉRENCE (une place dans un autre parent, vers la même card) viendra si l'usage
+le demande.
+
+**③ Une famille déclare sa loi d'agencement.** EN PARALLÈLE : les pistes d'un morceau, toutes sur
+la durée du parent — c'est la famille d'aujourd'hui, et la card source sait déjà les recomposer
+(refusion, mixage). EN SÉRIE : les plans d'une séquence, l'un après l'autre. C'est la distinction
+Stack / Track d'OpenTimelineIO. En série :
+- **l'ordre des cards EST l'ordre du montage** — réordonner dans la file ou sur la page de montage
+  est le même geste sur la même donnée (une représentation, deux éditeurs) ;
+- **la place d'une partie sur l'axe du parent se DÉRIVE** (somme des durées précédentes, moins les
+  transitions) : elle ne se stocke pas. Aux *« événements début/fin »* qu'une séquence devrait
+  porter, la réponse est donc : elle porte sa DURÉE et ses coupes ; ses bornes dans le film se
+  calculent, et se LISENT comme une piste de segments du parent (« la piste des parties ») — sur
+  laquelle tout l'outillage des segments s'applique ;
+- **un vide est un objet** (une partie « vide » de durée propre), jamais un trou dans l'ordre ;
+- **une transition vit à la JONCTION** de deux parties (type, durée) et consomme la matière
+  au-delà de leur coupe ;
+- **deux durées, à ne pas confondre** (réserve du concile) : la durée PROPRE d'une partie, et celle
+  qu'elle OCCUPE dans le parent (un plan ralenti occupe plus que sa matière).
+
+**④ Ce que porte chaque étage.**
+
+| étage | porte | hérite / n'hérite pas |
+|---|---|---|
+| film | scénario, « bible » (style, personnages, décors — `STUDIO_VISION §2bis`), format commun (résolution, cadence, rapport d'image, son), génériques (des séquences d'un rôle donné), liste des décisions de montage, bande son | — |
+| séquence | lieu, moment, résumé, personnages présents, raccords, transition de sortie | hérite le format et la bible ; peut surcharger, de façon VISIBLE |
+| plan | consigne, cadrage, mouvement, durée visée, images clés d'entrée et de sortie, références à la bible, son propre au plan, coupe de début et de fin (non destructive), prise retenue | n'hérite JAMAIS les réglages d'exécution (modèle, graine) ; un plan d'un autre format se cadre, il ne s'écrase pas |
+
+L'héritage porte l'INTENTION (style, format, bible), pas l'exécution. La surcharge des réglages
+d'un pipeline imbriqué a déjà sa règle (`§10.6`, point 3.1) : elle s'applique telle quelle.
+
+**⑤ Un vocabulaire temporel pour les trois mondes** — celui du monde Data, qui l'a déjà :
+
+| mot | ce que c'est | existe sous la forme |
+|---|---|---|
+| **axe** | la base de temps d'une card qui a une durée | `wama-axis.js` ; le temps d'un essai |
+| **placement** | la place d'un axe enfant dans l'axe du parent : décalage, vitesse, ou repères par morceaux | le décalage d'un suiveur de l'axe, d'une vidéo dans un `.wdat` ; les repères d'une partition |
+| **événement** | un instant | `EVENTS` |
+| **segment** | un intervalle, fin éventuellement ouverte | `SEGMENTS` |
+| *(plage)* | PAS un concept de plus : les deux bornes d'un segment. Le mot sert ici pour « la plage qu'une partie couvre dans son parent » et pour le type natif de PostgreSQL ; l'objet, lui, s'appelle toujours un segment | — |
+| **piste** | un ensemble nommé de marques de même niveau sur un axe | une table d'un `.wdat` ; les phrases, les mots d'une transcription |
+| **piste parente** | une piste déclare son parent et sa contrainte : PARTITION (sans trou : plans d'une séquence) ou INCLUSION (trous permis : mots d'une phrase) | `within()` (« présent dans ») ; les deux types de piste d'ELAN |
+
+Mot, phrase, tour de parole, plan, séquence, mesure, situation, état, zone à flouter : des RÔLES
+de segment, déclarés — la règle de `data_types.py:28-34` (« un seul type, plusieurs producteurs,
+plusieurs libellés »), étendue.
+
+**⑥ Le fragment n'est pas une troisième primitive.** Réponse à *« faut-il ajouter la notion de
+fragment ? »* : non comme TYPE, oui comme GESTE. Un type défini par la brièveté n'existe nulle
+part, et un seuil ferait un mauvais type. Ce que Fabien décrit — retirer un bout de segment — est
+un segment d'une piste de **décisions de montage**, enfant du segment qu'il entame, qui porte une
+ACTION : retirer (le reste se resserre), remplacer par un vide de même durée, ignorer à la lecture
+(réversible). La source n'est jamais modifiée ; le rendu applique la piste ; la piste se versionne.
+C'est la liste de décisions du montage et le mot barré du montage par le texte, en un seul objet,
+pour un film comme pour une transcription (retirer des hésitations) ou un essai (écarter une plage
+de signal invalide). Le MOT « fragment » peut rester celui de l'écran. ⚠ Précision du concile,
+retenue : rogner le DÉBUT ou la FIN d'un plan déplace ses bornes de coupe (repère de la source), ce
+n'est pas une décision posée à l'intérieur — même geste à l'écran, deux données.
+
+**⑦ Segment-ligne ou segment-card.** Un segment est par défaut une LIGNE d'une piste (vingt mille
+mots pour deux heures de parole, des centaines de situations par essai). Il devient une CARD
+dérivée quand il doit porter son PROPRE traitement — pipeline, réglages, résultat, état, versions :
+un plan à générer, une piste, un extrait à retranscrire avec un autre modèle, une situation à
+analyser à part. La card dérivée garde le lien vers sa source et la PLAGE qu'elle en couvre ; pour
+une donnée c'est une VUE (source + plage), jamais une copie (« les données transitent »). La
+promotion est un geste EXPLICITE et réversible, pas l'effet de bord d'un lancement.
+Sous une card `.wdat` : non pas une card par segment, mais une entrée par PISTE (« Situations 0_15
+— 69 segments »), dépliable — la réponse à *« faut-il que les segments de données apparaissent
+imbriqués sous une card de base de données »*. Les calculs par segment n'ont pas besoin de cards
+(`calc_per_segment` travaille déjà ligne à ligne).
+
+**⑧ Le Transcriber.** Ses phrases et ses mots sont deux pistes, la seconde enfant de la première
+par INCLUSION ; ses tours de parole une troisième ; `timing` est l'ORIGINE de la marque (entendu,
+aligné, estimé, interpolé), comme `origin` / `coder` côté Data ; scinder et fusionner (page de
+correction) sont des opérations de piste. L'alignement des noms se fait par un LECTEUR qui rend les
+pistes d'une card sous les noms communs, sans toucher au stockage (frontière des données : ce qui
+est stocké reste) ; une migration ne viendrait qu'ensuite, par décision.
+
+**⑨ Le Segmenter, universel par son MODÈLE, pas par ses producteurs.**
+
+| commun aux trois mondes | propre à un monde |
+|---|---|
+| le modèle de marques (événement, segment, piste, parenté) | les PRODUCTEURS : conditions sur signaux (Data) ; reconnaissance de parole → phrases et mots, diarisation → tours, changement de plan, temps et mesures, activité d'une piste (Médias) ; détections → interactions (Lab) |
+| les opérations d'ensemble (présent dans, chevauchement, marges, appariement, filtre) | les VUES : signaux, onde, partition, vidéo, trajectoire |
+| le codage, manuel ou par modèle (`replay`) | |
+| la page d'édition temporelle : axe, transport, N vues, N pistes | |
+| les consommateurs par segment : calculer un indicateur, exporter un extrait, retranscrire, flouter, dériver des cards, monter | |
+
+Une brique n'est commune que si deux mondes s'en servent. Conséquence d'emplacement (à décider) :
+le modèle de marques et ses opérations d'ensemble sont de la glu INTER-mondes, comme
+`common/catalog/data_types.py` — pas une pièce du monde Data, où ils vivent aujourd'hui.
+
+**⑩ Une seule page d'édition temporelle.** La page de correction du Transcriber, le codage vidéo
+du Segmenter (`WAMA_DATA_WORLD §9ter.4`), la partition du Composer et le montage d'un film sont la
+MÊME page, composée de briques (`ROUTE §F3b`) : l'axe, le transport, des vues, des pistes. Le
+montage simplifié en est un cas : la piste des parties d'une card, des blocs à la durée, des
+poignées (la coupe), un glisser (l'ordre), une jonction (la transition).
+
+#### 10.7.4 L'avis du concile de WAMA (2026-11-24) — et sa lecture
+
+> Cinq agents (développement, contradicteur, idées, méthodologie, bénéfices) sur le dossier transmis
+> mot pour mot, relecture croisée, décideur : 264 s, cinq modèles distants de deux serveurs
+> souverains. ⚠ Un avis, pas une mesure : une seule lecture outillée sur onze passages, aucun agent
+> n'a relu le code.
+
+| point du concile | lecture |
+|---|---|
+| ① retenu ; mais un plan repris dans deux séquences demande de distinguer POSSÉDER et RÉFÉRENCER | ✅ repris en ② — c'est aussi ce que fait le suivi de production |
+| la bande son traverse les séquences : un second lot, en parallèle, porté par le film | ⏳ décision D3 ci-dessous (une card porte-t-elle plusieurs lots de parties ?) |
+| la place dérivée suffit, à condition que le vide soit un objet et la transition une donnée de la jonction | ✅ repris en ③ — conforme à OpenTimelineIO |
+| ne pas confondre durée propre et durée placée (ralenti, étirement) | ✅ repris en ③ ; le placement porte une vitesse |
+| ne jamais hériter les réglages d'exécution ; surcharge explicite | ✅ repris en ④ |
+| il manque au film la liste des décisions de montage, au plan son propre son, à la séquence l'écran partagé | ✅ les deux premiers repris ; l'écran partagé est un agencement en parallèle DANS une série — hors du montage simplifié |
+| pas de fragment comme primitive ; rogner un bord n'est pas poser une décision | ✅ repris en ⑥ |
+| un contradicteur : annotation et décision de montage ne tiennent pas dans le même objet | ⚠ écarté : ce sont deux PISTES de rôles différents, du même type — c'est ce que font déjà les tables d'un `.wdat` |
+| ligne par défaut ; la promotion en card doit être explicite et réversible | ✅ repris en ⑦ |
+| une interaction à deux participants demande deux axes | ⚠ écarté : le codage porte déjà des SUJETS sur l'axe de l'essai (`WAMA_DATA_WORLD §9ter.4`) |
+| Segmenter : commun pour le modèle, la page et les consommateurs ; par monde pour les producteurs et les vues | ✅ repris en ⑨ |
+| le piège : la sur-généralisation ; l'imbrication doit être explicite et rare | ✅ gardé comme règle : une card n'a un lot de parties que si son app le DÉCLARE |
+| ordre : le vocabulaire d'abord, la loi d'agencement en dernier | ✅ c'est l'ordre de 10.7.6 |
+| une provocation : plus de lots, tout est piste de marques | ❌ écarté : le lot porte la VARIATION, que les pistes ne disent pas |
+
+#### 10.7.5 Ce que cela permettrait, que n'offre aucun outil trouvé
+
+Le même segment serait ANNOTABLE (codage, humain ou modèle), CALCULABLE (un indicateur par
+segment), TRAITABLE (un modèle lancé dessus, avec file, état et versions), MONTABLE (ordre, coupe,
+transition, rendu) et DÉRIVABLE (il devient une card). Les outils d'annotation s'arrêtent à
+l'extrait et à la moyenne ; les logiciels de montage n'analysent rien ; les outils de flux n'ont
+pas de temps. Exemples croisés : retirer d'un entretien filmé tous les passages où le participant
+ne parle pas (tours de parole → décisions de montage) ; ne retranscrire avec le meilleur modèle que
+les situations d'un essai où un événement de conduite a lieu (situations Data → cards du
+Transcriber) ; les mots prononcés pendant une fixation du regard (« présent dans » entre une piste
+de mots et une piste d'oculométrie).
+
+#### 10.7.6 Les marches proposées — de la moins risquée à la plus structurante
+
+1. **Le vocabulaire et un lecteur de pistes.** Rendre les marques d'une card sous les noms communs
+   (`start`, `end`, `time`, origine, piste, piste parente), sans changer aucun stockage : phrases,
+   mots et tours du Transcriber d'abord, puis sections et paroles du Composer, fenêtres du
+   cam_analyzer. Garde générique : toute marque déclarée d'une app se lit par ce lecteur.
+2. **Un premier consommateur croisé** : les opérations du Segmenter sur les pistes d'une
+   transcription (« présent dans », filtre), et l'export d'un extrait par segment.
+3. **La plage sur une card dérivée et la promotion ligne → card** : une card dérivée dit quelle
+   plage de sa source elle couvre ; premier cas réel, retranscrire un extrait avec un autre modèle.
+4. **La loi d'agencement déclarée et la page de montage simplifiée** : en parallèle (ce que font
+   déjà les pistes d'un morceau), en série (ordre = montage, place dérivée).
+5. **Le Movie Director** (`STUDIO_VISION §2bis`), qui ne demande alors plus que ses apps.
+
+#### 10.7.7 Décisions — ✅ validées par Fabien le 2026-11-24
+
+> *« Ok pour D1 à D14, on lance la marche 1. »* Chaque décision est prise dans la position de la
+> troisième colonne. ⚠ D3 proposait deux formes sans en retenir une : elle reste à CHOISIR (avis
+> donné à Fabien : la card « image » et la card « son » côte à côte, qui ne changent rien au lien
+> de composition) ; aucune marche avant la quatrième n'en dépend.
+
+| # | question | position proposée |
+|---|---|---|
+| D1 | film, séquence, plan : trois cards à trois profondeurs de la même relation (①) ? | oui |
+| D2 | un plan repris ailleurs : copie d'abord, référence plus tard (②) ? | oui |
+| D3 | la bande son d'un film : une card peut-elle porter PLUSIEURS lots de parties (l'image en série, le son en parallèle), ou une card « image » et une card « son » dans un lot en parallèle ? | à trancher — la seconde ne change rien au lien, la première est plus directe à l'écran |
+| D4 | le fragment : un rôle de segment sur une piste de décisions, le mot gardé à l'écran (⑥) ? | oui |
+| D5 | la promotion d'une ligne en card : un geste explicite (⑦) ? | oui |
+| D6 | où vit le modèle de marques commun : la glu inter-mondes (`common/catalog`) plutôt que `wama_data` (⑨) ? | oui, au moment de la marche 1 |
+| D7 | les noms communs `start` / `end` / `time`, lus par un lecteur, le stockage du Transcriber inchangé (⑧) ? | oui |
+| D8 | les gestes d'un lot (▶, ZIP, réglages) portent-ils aussi sur les lots rangés sous ses filles ? | non par défaut — c'est le comportement livré ; une option « avec ses parties » si l'usage le demande |
+| D9 | l'affichage de la profondeur : en retrait jusqu'à deux étages, puis on ENTRE dans une card (fil d'Ariane film › séquence 3 › plan 12) ? | oui |
+| D10 | reconnaître un lot de segments d'un lot de pistes : par le RÔLE déclaré (libellé de l'en-tête, pictogramme de l'agencement, plage affichée sur chaque card), sans couleur par app (10.7.9) ? | oui — une teinte par RELATION au plus, jamais seule |
+| D11 | « une partie est une plage de son parent » : toute card dérivée dit la plage qu'elle couvre, et les parties d'une card se lisent comme une piste de segments (10.7.9) ? | oui — c'est ce qui fait de l'imbrication des cards et de celle des segments UNE relation |
+| D12 | la cible PostgreSQL (10.7.11) : un lien de composition commun à tous les modèles, puis une table de marques à plage native ; les tables de lot par app rejointes plus tard, derrière les accesseurs existants ? | oui sur la cible ; l'ordre et le moment sont à décider, rien n'est urgent |
+| D13 | une piste déclare son AXE dès le premier jour (temps, distance, texte, page, image), même si seul le temps sert d'abord (10.7.10) ? | oui — le déclarer coûte un mot, l'ajouter après coûterait une migration |
+| D14 | le dictionnaire des concepts clés (`WAMA_CONCEPTS.md`) : un index, la définition qui fait foi restant au domicile de chaque concept ? | oui |
+
+#### 10.7.8 Livré le 2026-11-24 — le rangement à toute profondeur
+
+La seule pièce de code de cette section, et son préalable : le lot des cards dérivées se range sous
+sa card source, qu'elle soit seule, la fille d'un lot, ou elle-même une card dérivée
+(`batch_common.nest_derived_lots`, `common/_queue_entry.html`) ; les dérivées d'une fille de lot
+naissent dans LEUR lot (`derived_cards.family_lot`) au lieu de rejoindre à plat celui de leur
+source ; tout ce qui lit « les filles d'un lot » passe par un seul lecteur
+(`WamaQueueActions.ownCards`) ; ouvrir un lot rangé ne referme pas le lot qui le contient
+(`WamaQueue.pilesToClose`). Détail : `MODES_QUEUE_UX §5quater`.
+
+#### 10.7.9 L'imbrication, UN concept pour tout WAMA (complément du 2026-11-24, seconde demande)
+
+> 📜 **Fabien, le même jour** : *« un `.wdat` porterait des cards de segments temporels. Faut-il un
+> code couleur entre des cards de segments imbriqués et des pistes dans le composer ? Le Segmenter
+> aurait une page d'édition de segments sur le même principe que le Transcriber, avec le ciseau et
+> les poignées. On pourrait aussi supprimer virtuellement un segment en le masquant par ses bornes.
+> Un segment pourrait avoir des sous-segments imbriqués. Donc l'imbrication doit être un concept
+> universel, uniforme et transversal dans tout WAMA […] sans limite d'imbrication idéalement. Il
+> faut que la base PostgreSQL soit aussi parfaitement alignée sur ces concepts. »*
+
+**Où WAMA imbrique déjà** (mesuré le 24/11 — sept endroits, sept écritures) :
+
+| ce qui s'imbrique | comment c'est écrit aujourd'hui |
+|---|---|
+| des cards dans un lot | une table de lot et une table de lignes PAR app |
+| des cards sous une card (les pistes d'un morceau) | un lien d'un modèle vers lui-même (`derived_from`), porté par le seul composer |
+| des mots dans une phrase | un document JSON dans la card (`segments_json`) |
+| un événement de voie dans une fenêtre d'intersection (cam_analyzer) | un INDICE dans une liste JSON (`intersection_window_idx`) |
+| un pipeline dans un pipeline (méta-process, `§10.6`) | un nœud `pipeline` dans le graphe déclaré |
+| une exécution du Studio dans une autre ; une unité dans une unité | deux autres liens vers soi-même (`StudioRun.parent`, `OrgUnit.parent`) |
+| projet → expérimentation → participant → essai → situations (monde Data) | manifeste, puis fichier, puis tables dans le fichier |
+
+**La définition commune.** Une imbrication est un ARBRE DÉCLARÉ, qui dit six choses — les mêmes
+pour des cards, des marques ou des process :
+
+1. **un parent unique** (un arbre ; reprendre un élément ailleurs est une référence, pas un second parent) ;
+2. **des enfants ordonnés** (un rang) ;
+3. **une loi d'agencement** : en parallèle, en série, ou libre ;
+4. **une contrainte** des enfants sur le parent : partition (sans trou), inclusion (trous permis), ou aucune ;
+5. **ce qui s'hérite**, déclaré (l'intention, jamais l'exécution) ;
+6. **aucune borne de profondeur dans la donnée** ; la borne est d'AFFICHAGE (en retrait, puis on entre).
+
+**Le pont entre cards et segments : une partie est toujours une plage de son parent.** Une card
+dérivée EST un segment de sa source auquel on a donné un traitement propre : une piste couvre
+toute la durée du morceau, sur une couche en parallèle ; un plan couvre une plage consécutive de sa
+séquence ; un extrait couvre une sous-plage. L'imbrication des cards et celle des segments sont
+donc UNE relation vue deux fois — les parties d'une card se lisent comme une piste de segments du
+parent, et un segment se promeut en card (⑦). Les sous-segments d'un segment sont une piste
+enfant, sans limite d'étages (tour de parole > phrase > mot ; film > séquence > plan ; essai >
+situation > sous-situation).
+
+**Reconnaître des segments de pistes — la question du code couleur.** Non par une couleur par app,
+et jamais par la couleur seule (`CARD_DESIGN` réserve déjà la couleur à l'état d'une card, le cyan
+à la famille d'un lot, et note « trop de couleurs »). Ce qui distingue est DÉCLARÉ et se lit sans
+légende : le libellé de l'en-tête du lot rangé (« Pistes — 6 », « Situations 0_15 — 69 »,
+« Plans — 12 »), un pictogramme de l'agencement (couches superposées pour le parallèle, bande pour
+la série), et sur chaque card de segment sa PLAGE (« 0:12 → 0:45 ») — qu'une piste n'a pas,
+puisqu'elle couvre tout. Si une teinte s'ajoute, c'est une par RELATION (variation, parties en
+parallèle, parties en série), posée une fois dans les jetons de design. Décision D10.
+
+**La page d'édition des segments.** Celle du Transcriber, généralisée : le ciseau (scinder), les
+poignées (déplacer une borne), fusionner — les règles existent (`wama-segments.js`, « scinder » à
+un instant), mais ne parlent que `start_time` / `end_time` : c'est la marche 1 (le lecteur de
+pistes) qui les ouvre aux tables d'un `.wdat`. S'y ajoutent la piste enfant (sous-segments) et le
+masque.
+
+**Masquer un segment par ses bornes.** C'est la décision « ignorer » de ⑥, posée sur les bornes
+exactes du segment : même piste de décisions, même réversibilité, la source intacte. Les
+consommateurs lisent « la piste moins ses masques ». C'est aussi la CURATION du monde Data —
+écarter une occurrence à l'œil, « un geste par fichier, tracé » (`WAMA_DATA_WORLD §11.9 ④`) —
+qui trouve là sa forme commune.
+
+#### 10.7.10 L'axe n'est pas que le temps — segmentation temporelle et spatiale
+
+Déjà consigné, et tranché, dans `WAMA_DATA_WORLD §9septies` (2026-08-23) et `§11.9 ①` (2026-08-26) :
+la segmentation spatiale n'est PAS un mode ; la zone à rayon du cam_analyzer est une colonne
+dérivée (la distance) suivie de la chaîne conditionnelle ; une marge spatiale est une marge sur
+une colonne monotone (les mètres parcourus) au lieu du temps. Ce que cette réflexion y ajoute :
+trois choses s'appellent « spatial », et elles ne sont pas de même nature.
+
+| ce qu'on appelle « spatial » | ce que c'est | dans le vocabulaire commun |
+|---|---|---|
+| être DANS une zone (rayon, rectangle, plus tard polygone) | une CONDITION sur la position | elle PRODUIT des segments temporels — un producteur de plus |
+| compter en mètres parcourus | un AUTRE AXE que le temps (l'abscisse le long du trajet) | des segments sur un axe de distance, reliés au temps par un placement à repères |
+| une boîte, un polygone, un masque dans une image | une ZONE, en deux dimensions | PAS un segment — `data_types.py:35-40` avertit déjà de l'homonymie avec la « segmentation » d'image |
+
+**Généralisation.** Un axe est une coordonnée qui ne fait qu'avancer : le temps (secondes), la
+distance (mètres), le temps écrit d'une partition, l'indice d'image, la position dans un texte, la
+page d'un document. Un segment est un intervalle sur UN axe ; un placement relie deux axes (la
+cadence relie images et secondes ; les repères relient partition et audio ; le minutage des mots
+relie texte et audio ; l'abscisse relie secondes et mètres). Les plages de texte que l'Anonymizer
+masque dans un document, les pages que lit le Reader, sont alors des segments sur d'autres axes,
+et la même imbrication s'y applique (document > page > paragraphe > phrase). Une détection suivie
+est une zone sur un segment. ⚠ Règle de prudence : on ne construit que l'axe du temps d'abord ;
+mais une piste DÉCLARE son axe dès le premier jour (D13), pour qu'un second axe ne soit jamais une
+migration.
+
+#### 10.7.11 PostgreSQL — ce que la base porte, et la cible
+
+**Mesuré sur la base réelle le 24/11** (PostgreSQL 16.10 ; extensions installées : `vector` ;
+disponibles et non installées : `btree_gist`, `ltree`) :
+
+| | constat |
+|---|---|
+| lots | une table de lot et une table de lignes par app : une trentaine de tables, jumelles comprises — lues par des accesseurs COMMUNS (`batch_of`, `batch_elements`) |
+| composition | un seul modèle porte `derived_from` (le composer) ; le lien va d'un modèle vers LUI-MÊME : un plan produit par l'Imager ne pourrait pas être la partie d'une card d'une autre app |
+| marques en tables | quatre graphies dans cinq tables : phrases du Transcriber (`start_time`/`end_time`, 158 540 lignes), cam_analyzer — événements de voie (`t_enter`/`t_exit`, 28 148), conflits (`t_start`/`t_end`, 3 316), segments (`start_time`/`end_time`, 2 695) |
+| marques en documents | mots et phrases corrigées (JSON de la card), légendes de vidéo, fenêtres d'intersection, traces GPS |
+| type « plage » natif | AUCUN champ de plage dans toute la base |
+| fin ouverte | impossible dans les tables du Transcriber (bornes à 0 par défaut) |
+
+La base n'est donc pas alignée : trois écritures de l'imbrication sans rapport entre elles, quatre
+du temps. **La cible, en trois pièces** — chacune additive, chacune derrière un accesseur :
+
+1. **Un lien de composition COMMUN à tous les modèles.** Une table : le parent (n'importe quel
+   modèle de card), l'enfant (n'importe lequel, UNIQUE : un arbre), le rôle, le rang, la plage
+   couverte. Elle remplace le lien d'un modèle vers lui-même, et permet qu'un plan de l'Imager soit
+   la partie d'un film. La profondeur est sans borne : une liste d'adjacence, parcourue par une
+   requête récursive (`WITH RECURSIVE`, avec sa clause `CYCLE` depuis PostgreSQL 14) ; `ltree` est
+   disponible si un jour les sous-arbres se lisent en masse.
+2. **Une table de marques à PLAGE NATIVE.** PostgreSQL a le type exact du segment : une plage
+   numérique (`numrange`). Sa borne haute peut être ABSENTE — c'est le segment ouvert, sans
+   sentinelle ; `[t, t]` est un événement ; ses opérateurs sont ceux du Segmenter : contenu dans
+   (`<@`, « présent dans »), chevauche (`&&`), adjacent (`-|-`) ; une contrainte d'exclusion
+   interdit le chevauchement dans une piste en partition (elle demande `btree_gist`) ; un index
+   GiST sert les requêtes par instant. Une marque porte sa piste, sa marque PARENTE (l'imbrication
+   des segments, sans borne), son rôle, son origine, ses attributs ; une piste porte son axe, sa
+   piste parente et sa contrainte.
+3. **Les lots rejoignent l'arbre commun en dernier**, app par app, derrière `batch_of` et
+   `batch_elements` qui cachent déjà leurs tables : c'est le plus gros déplacement et le moins
+   urgent — aucune app n'aurait à changer.
+
+**Ce qui reste HORS de PostgreSQL, à dessein** : les marques d'un essai vivent dans son `.wdat`
+(« les données transitent »), sous le même modèle logique (`start`, `end` absent = ouvert) ; la
+base n'en garde que l'INDEX des pistes (nom, nombre, étendue), ce qu'il faut pour afficher
+« Situations — 69 » sans ouvrir le fichier. Et les données DENSES (une ligne par image : 997 980
+détections du cam_analyzer) sont des signaux, pas des marques.
+
+**Le lecteur d'abord, les tables ensuite.** La marche 1 (10.7.6) rend les marques sous une forme
+commune quelle que soit leur écriture ; c'est elle qui permet de déplacer ensuite une écriture
+vers la table commune sans qu'aucun consommateur le voie. Aucune migration n'est proposée avant
+qu'un consommateur croisé (marche 2) ait prouvé le modèle. Décision D12.
+
+---
+
 ## 11. Trous prioritaires (liste actionnable, confrontée au code)
 
 > **Passe de confirmation du 2026-08-22.** Les statuts ci-dessous ont été re-mesurés contre le

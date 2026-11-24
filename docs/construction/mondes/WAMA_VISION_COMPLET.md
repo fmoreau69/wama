@@ -669,6 +669,20 @@ montage` où le storyboard est un objet structuré (durée, cadrage, personnages
 aux moteurs. **Gatée** par un Studio complet (runners pour toutes les apps, sorties gérées,
 batch orchestré) et par un cas d'usage laboratoire nommé — voir non-objectifs.
 
+> 📜 **Intention de Fabien (2026-11-24) — un seul temps et une seule imbrication pour tout WAMA** ⏳.
+> Un film est une card qui porte le lot de ses séquences, chaque séquence une card qui porte le lot
+> de ses plans ; l'ordre des cards est l'ordre du montage ; film et séquence ont une page de
+> montage simplifiée (réordonner, poignées de début et de fin, transitions). Et au-delà du film :
+> *« aligner tout le fonctionnement temporel de WAMA »* — la ligne de temps, les marqueurs
+> (événements, segments), le découpage phrases/mots du Transcriber, les situations du monde Data —
+> pour qu'un **Segmenter universel** serve les mondes Médias, Data et Lab, avec annotation manuelle
+> ou par IA. Ce que cela viserait, et que n'offre aucun outil comparé : le même segment annotable,
+> calculable, traitable, montable, et dérivable en card. Réflexion, comparaison aux outils
+> existants, avis du concile et décisions (D1 à D14, validées le jour même) :
+> `WAMA_APP_GENERATION_ROUTE.md §10.7`. ✅ Livré
+> ce jour, son préalable : le rangement des cards dérivées à toute profondeur
+> (`MODES_QUEUE_UX §5quater`). 🔄 Marche 1 lancée : un lecteur commun des marques.
+
 ## 6.4 Pédagogie, enseignement et entraînement ⏳ — volet ouvert le 2026-11-19 `[INGÉNIERIE]`
 
 > 📜 **Intention de Fabien (2026-11-19)**, première consignation de ce volet : *« ces éléments

@@ -157,6 +157,10 @@ DOCS: Tuple[Doc, ...] = (
         'architecture',
         "Comment on sait que ça marche : grille d'adoption contre grille fonctionnelle, "
         "catalogue des gestes, couverture."),
+    Doc('concepts', 'docs/construction/architecture/WAMA_CONCEPTS.md',
+        'Dictionnaire des concepts clés', 'architecture',
+        "Les mots de chaque demande — aligné, universel, uniforme, schéma-driven, card, lot, "
+        "imbrication, axe, segment, piste… — en deux lignes, avec le domicile de leur définition."),
     Doc('common-readme', 'wama/common/README.md', 'Briques communes — carte', 'architecture',
         "Carte d'entrée du dossier des briques communes."),
     # ── interface & file ──
