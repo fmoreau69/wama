@@ -32369,3 +32369,32 @@ par point. D6, D7, D8 confirmées ; D11 à D14 non rediscutées.
   agrandie, aucune colonne par port) ; les six copies à faire lire le lecteur ; la projection de
   `WAMA_PORT_FIELDS` aux jumelles (extracteur, `models_gen`) ; la consigne de l'anonymizer à
   déclarer portée par un réglage ; `prompt_file` de l'imager ; 🔴 relancer gunicorn + workers.
+
+## §PALIER — 2026-11-24 (nuit), « MARQUES TEMPORELLES : deux restes de la marche 1 soldés — pistes d'un fichier de données, registre des pistes » — commité `0724077fb`, non poussé — 🔚 E1 à E5 de Fabien (`ROUTE §10.7.12`) ; jumelles à régénérer ; piste parente dans un `.wdat` ; marche 2
+
+**Ce qui est livré.**
+- **Les pistes d'un fichier de données**, sans déclaration d'app : `wama_data/frames.referential_tracks`
+  dit comme des pistes les flux d'événements et de segments d'un référentiel chargé (`.wdat`,
+  `.trip` ; un signal échantillonné n'en est pas une) ; `read_referential_tracks` les rend par le
+  lecteur COMMUN, qui lit désormais des pistes dites sur place (`read_tracks(porteur, pistes)`,
+  contrôlées comme à l'enregistrement). Temps de session, fin inconnue restée ouverte, origine
+  tracée par chaque ligne. Les lignes canoniques d'un flux ne s'écrivent qu'une fois
+  (`_session_rows`, que lit aussi le cadre typé) — budget d'identifiants 2550 → 2547.
+- **Le registre `tracks`** (dérivé, sans page) : les pistes déclarées, par `app.modèle.piste`.
+  L'assistant le voit par `list_registries`.
+- `ROUTE §10.7.11` : l'adresse du lien de composition sera celle des tables communes (`app`,
+  `object_type`, `object_id`), la convention de la table des entrées proposée le même jour par la
+  session « colonne d'un port » (`INPUT_MODEL_MATCHING §6.13`) — deux tables, une convention.
+
+**Vérifié.** 1131 tests du périmètre verts (lecteur, registres, monde Data entier) ; 15
+contre-épreuves rouges sur 15 ; un conteneur `.wdat` écrit puis rouvert rend les mêmes marques ;
+`check_docs` : aucune référence cassée. **Non vérifié** : aucun conteneur réel n'a été lu (aucun
+`.wdat` ni `.trip` trouvé sous `media/` à six niveaux) ; la suite large n'a pas été rejouée.
+
+**Restes, nommés** :
+- E1 à E5 à trancher par Fabien (inchangé) ; marche 2 en attente de E1 à E3 ;
+- jumelles à régénérer pour porter `inspector.tracks` ; sections et paroles du Composer ;
+- un conteneur `.wdat` ne range pas la piste parente d'un flux : aucune n'est dite à la lecture ;
+- l'index des pistes d'un essai en base (`ROUTE §10.7.11`) ; un outil de l'assistant qui rende les
+  marques d'une card (à livrer avec la zone temporelle, premier geste qui les montre) ;
+- 🔴 relancer gunicorn + workers reste dû.
