@@ -9342,6 +9342,17 @@ des changements de plan d'une vidéo remplit une piste « plans », sur laquelle
 on réordonne. Comme tout producteur, il reste propre à son monde et passe par la route (une
 fonction déclarée ; la librairie, s'il en faut une, par la route d'installation).
 
+**⑳ Extraire et recomposer — deux gestes symétriques, déjà dans le modèle (⏳).** 📜 Fabien, le
+même jour : *« un clic droit sur un segment pourrait permettre d'extraire le segment en une nouvelle
+card ajustée à ce segment. Recomposer des cards pourrait les imbriquer dans l'ordre où elles sont
+[…] tout ce côté édition simple via la ligne de temps et la file d'attente. »* EXTRAIRE est le
+geste qui crée la card dérivée de ① : elle POINTE vers le segment (la source et ses bornes — une
+coupe d'un seul segment, aucune copie du fichier) ; c'est un geste qu'une piste déclare
+(`extract`), et il ne change pas la piste. RECOMPOSER est l'inverse : des cards rangées en SÉRIE
+sous une card mère, l'ordre de la file faisant le montage (la loi d'agencement de 10.7.3 ③, la
+place dérivée de l'ordre). Les deux ensemble donnent l'édition simple : la ligne de temps découpe,
+la file réordonne.
+
 **L'ordre, revu à la demande de Fabien — le fonctionnel d'abord.** Les questions restées ouvertes
 après 10.7.13 étaient des questions de MODÈLE (ce qu'est une ligne, dérivée ou niveau en dessous,
 qui porte la coupe) : elles se règlent par la construction et ses tests, pas par des images. Les
@@ -9350,7 +9361,7 @@ dessinées sur des marques réelles que le fonctionnel saura alors rendre.
 
 | marche | contenu | dépend de |
 |---|---|---|
-| ①bis | la DÉCLARATION d'une piste dit tout ce que l'écran et les gestes auront à savoir : piste principale (E1), échelle de couleur et attribut coloré (T8), gestes permis, édition dérivée ou en place (E3, E4) — Transcriber, cam_analyzer, pistes d'un `.wdat` ; registre et facette du manifeste | rien — tout est décidé |
+| ①bis ✅ (2026-11-24) | la DÉCLARATION d'une piste dit tout ce que l'écran et les gestes auront à savoir : piste principale (E1), échelle de couleur et attribut coloré (T8), gestes permis, édition dérivée ou en place (E3, E4) — Transcriber, cam_analyzer, pistes d'un `.wdat` ; registre et facette du manifeste. Livré : `Track.main`, `color_by` + `scale` + `steps` (catégorie, sévérité, intensité), `gestures`, `edits` (`common/catalog/marks.py`), contrôlés à l'enregistrement. ⏳ restes : la sévérité d'une phrase du Transcriber se calcule encore dans le script (`wama-segments.js:67-73`) ; la piste principale d'un `.wdat` n'est pas dite ; la jumelle du Transcriber à régénérer | rien — tout est décidé |
 | ①ter | la PISTE DÉRIVÉE : une source + une liste de gestes (scinder, fusionner, masquer, étiqueter, ajouter ; déplacer et réordonner là où c'est permis), rejouée par le lecteur commun ; la « ligne effective » (ce qui reste après les masques) | ①bis |
 | ①quater | la lecture d'une piste bornée à une plage (la plage active côté serveur) ; l'outil de l'assistant qui rend les marques d'une card | ①bis |
 | ②fonc | la COUPE portée par une entrée, sa matérialisation commune avant traitement, l'export du Converter (⑱) | la décision sur la table des entrées |

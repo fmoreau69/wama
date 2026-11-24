@@ -823,8 +823,9 @@ register(Registry(
 
 def _entries_tracks() -> dict:
     """Les pistes déclarées, par `app.modèle.piste` : ce que dit la déclaration (axe, famille,
-    piste parente, contrainte) et la façon dont ses lignes se trouvent (`rows` : `stored`, rangées
-    par l'app ; `nested`, écrites dans la marque parente ; `derived`, déduites d'une autre piste)."""
+    piste parente, contrainte, piste principale, couleur, gestes) et la façon dont ses lignes se
+    trouvent (`rows` : `stored`, rangées par l'app ; `nested`, écrites dans la marque parente ;
+    `derived`, déduites d'une autre piste)."""
     from .catalog.marks import registered
     out = {}
     for label, tracks in sorted(registered().items()):
@@ -834,6 +835,11 @@ def _entries_tracks() -> dict:
                 'kind': track.kind, 'axis': track.axis, 'parent': track.parent,
                 'constraint': track.constraint,
                 'rows': 'derived' if track.runs_of else 'nested' if track.within else 'stored',
+                # Ce que l'écran et les gestes ont à savoir (`ROUTE §10.7.14`) : la piste de la
+                # ligne segmentée, sa couleur, ce qu'on peut y faire et où vont les gestes.
+                'main': track.main, 'color_by': track.color_by, 'scale': track.scale,
+                'steps': list(track.steps), 'gestures': list(track.gestures),
+                'edits': track.edits,
             }
     return out
 
@@ -848,6 +854,8 @@ register(Registry(
     description="Les événements et les segments qu'une card porte sur son axe (les phrases et les "
                 "mots d'une transcription, les fenêtres et les conflits d'une analyse), tous lus "
                 "sous les mêmes noms par un seul lecteur. Une piste dit son axe, sa famille "
-                "(segments ou événements), sa piste parente et ce que ses marques lui doivent. "
+                "(segments ou événements), sa piste parente et ce que ses marques lui doivent ; "
+                "et, pour l'écran, si elle est la piste principale de la card, ce qui colore ses "
+                "marques et les gestes qu'elle permet. "
                 "Les pistes d'un fichier de données sont dites par le fichier, pas ici.",
 ))

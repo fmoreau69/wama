@@ -68,7 +68,7 @@ from __future__ import annotations
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from wama.common.catalog.data_types import CANONICAL_FIELDS, DataType, TypedFrame
-from wama.common.catalog.marks import Track, read_tracks
+from wama.common.catalog.marks import DERIVED, Track, read_tracks
 
 from .core.naming import TIME_AXES
 from .core.temporal import NEAREST, PREVIOUS, Signal, SignalMeta, TemporalReferential
@@ -301,6 +301,13 @@ MARK_TYPES = (DataType.SEGMENTS, DataType.EVENTS)
 #: La colonne où le Segmenter et le codage tracent l'origine d'un segment (`segmentation._trace`).
 ORIGIN_COLUMN = 'origin'
 
+#: Ce qu'on peut faire d'une marque MESURÉE (`ROUTE §10.7.12 ⑤`, `§10.7.14` E4) : le temps mesuré
+#: est un fait — ni déplacée, ni retaillée, ni réordonnée, ni supprimée. On l'étiquette, on la
+#: masque, on en tire une card ; un segment se scinde et se fusionne. Ces gestes vont TOUJOURS dans
+#: une piste dérivée : la piste du fichier reste intacte.
+MEASURED_GESTURES = {DataType.SEGMENTS: ('extract', 'label', 'mask', 'merge', 'split'),
+                     DataType.EVENTS: ('extract', 'label', 'mask')}
+
 
 def _stream_rows(name: str, segments: bool):
     """La source d'une piste : les lignes du flux `name` du référentiel qu'on lui passe."""
@@ -329,7 +336,8 @@ def referential_tracks(ref: TemporalReferential) -> Tuple[Track, ...]:
             key=name, label=name, kind=kind,
             source=_stream_rows(name, kind == DataType.SEGMENTS),
             attributes=tuple(c for c in columns if c != ORIGIN_COLUMN),
-            origin_field=ORIGIN_COLUMN if ORIGIN_COLUMN in columns else ''))
+            origin_field=ORIGIN_COLUMN if ORIGIN_COLUMN in columns else '',
+            gestures=MEASURED_GESTURES[kind], edits=DERIVED))
     return tuple(tracks)
 
 

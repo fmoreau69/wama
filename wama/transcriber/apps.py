@@ -203,14 +203,23 @@ class TranscriberConfig(AppConfig):
         # Les contraintes d'inclusion sont MESURÉES tenues avant d'être déclarées (2026-11-24, 58
         # transcriptions réelles : 36 676 mots, aucun hors de sa phrase ; les phrases sont dans
         # leur tour par construction).
-        from wama.common.catalog.marks import INCLUSION, Track, register_tracks
+        # Ce que l'écran et les gestes ont à savoir (`ROUTE §10.7.14`, 2026-11-24) : la ligne
+        # segmentée de la card est celle des PHRASES (c'est là qu'une phrase douteuse se voit) ; un
+        # tour se colore par son locuteur ; une phrase se retaille, se scinde et se fusionne, dans
+        # la transcription elle-même — les gestes de la page d'édition (`wama-segments.js` :
+        # `retime`, `splitAt`, `mergeAt`). ⏳ La SÉVÉRITÉ d'une phrase (la cohérence jugée par
+        # l'IA, sinon la confiance) se calcule encore dans le script (`wama-segments.js:67-73`) :
+        # la déclarer ici demande que la source la rende — à faire avec la zone temporelle.
+        from wama.common.catalog.marks import (CATEGORY, INCLUSION, IN_PLACE, Track,
+                                               register_tracks)
         register_tracks(Transcript, (
             Track('turns', 'Tours de parole', runs_of='sentences', by='speaker',
-                  origin='speaker_runs'),
+                  origin='speaker_runs', color_by='speaker', scale=CATEGORY),
             Track('sentences', 'Phrases', source='wama.transcriber.views:_editor_segments',
                   fields=(('start', 'start_time'), ('end', 'end_time')),
                   attributes=('text', ('speaker', 'speaker_id'), 'confidence'),
-                  parent='turns', constraint=INCLUSION, origin='transcription'),
+                  parent='turns', constraint=INCLUSION, origin='transcription',
+                  main=True, gestures=('retime', 'split', 'merge'), edits=IN_PLACE),
             Track('words', 'Mots', within='words', parent='sentences', constraint=INCLUSION,
                   attributes=(('text', 'word'), 'probability'),
                   origin='transcription', origin_field='timing'),

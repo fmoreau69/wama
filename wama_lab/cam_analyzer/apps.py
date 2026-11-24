@@ -35,7 +35,11 @@ class CamAnalyzerConfig(AppConfig):
         # là où la session range `t_enter` / `t_exit`, `t_start` / `t_end`, `start_time` /
         # `end_time`. Un conflit nomme sa fenêtre par son RANG (`intersection_window_idx`,
         # -1 = hors de toute fenêtre) : l'imbrication par référence.
-        from wama.common.catalog.marks import Track, register_tracks
+        # Ce que l'écran a à savoir (`ROUTE §10.7.14`, 2026-11-24) : la ligne segmentée de la
+        # card est celle des SITUATIONS, colorées par leur type ; un conflit se colore par sa
+        # sévérité, ses trois valeurs de la plus bénigne à la plus grave (`tasks.py` : info, warn,
+        # critical). Aucun geste : ces marques sont calculées, on les regarde.
+        from wama.common.catalog.marks import CATEGORY, SEVERITY, Track, register_tracks
         register_tracks(AnalysisSession, (
             Track('windows', "Fenêtres d'intersection", source='intersection_windows',
                   fields=(('start', 't_enter'), ('end', 't_exit')), attributes=('name',),
@@ -43,8 +47,10 @@ class CamAnalyzerConfig(AppConfig):
             Track('conflicts', 'Conflits', source='conflicts',
                   fields=(('start', 't_start'), ('end', 't_end')),
                   attributes=(('type', 'conflict_type'), 'severity', 'track_id'),
-                  parent='windows', parent_ref='intersection_window_idx', origin='conflicts'),
+                  parent='windows', parent_ref='intersection_window_idx', origin='conflicts',
+                  color_by='severity', scale=SEVERITY, steps=('info', 'warn', 'critical')),
             Track('situations', 'Situations', source='segments',
                   fields=(('start', 'start_time'), ('end', 'end_time')),
-                  attributes=(('type', 'segment_type'),), origin='temporal_segments'),
+                  attributes=(('type', 'segment_type'),), origin='temporal_segments',
+                  main=True, color_by='type', scale=CATEGORY),
         ))

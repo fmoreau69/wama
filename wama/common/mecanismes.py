@@ -3410,7 +3410,12 @@ MECHANISMS = (
               "sur place (`read_tracks(porteur, pistes)`) : les flux d'événements et de segments "
               "d'un fichier de données (`.wdat`, `.trip`) sont dits par le fichier "
               "(`wama_data.frames.referential_tracks`). Les pistes déclarées se lisent au registre "
-              "`tracks`",
+              "`tracks`. Une piste dit AUSSI ce que l'écran et les gestes ont à savoir (`§10.7.14`) : "
+              "si elle est la piste PRINCIPALE de la card (`main`, celle de sa ligne segmentée), "
+              "l'attribut qui colore ses marques et l'échelle (`color_by`, `scale`, `steps` : "
+              "catégorie, sévérité, intensité), les gestes qu'elle permet (`gestures`) et où ils "
+              "vont (`edits` : une piste dérivée, ou elle-même) — une marque mesurée d'un fichier "
+              "ne se déplace ni ne se supprime, ses gestes vont dans une piste dérivée",
               'wama/common/catalog/marks.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.7',
               symbol='register_tracks'),

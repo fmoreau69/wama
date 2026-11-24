@@ -43,6 +43,26 @@ CONSTRAINTS = ('', INCLUSION, PARTITION)
 #: brique des règles de segments de la page d'édition : en deçà, deux bornes sont la même.
 TOLERANCE = 0.05
 
+#: Les ÉCHELLES de couleur d'une piste (`ROUTE §10.7.13 ⑭`) — la piste dit l'attribut coloré
+#: (`color_by`) et l'échelle (`scale`) ; l'écran n'en invente aucune. L'ÉTAT (attente, en cours,
+#: échec…) n'en est pas une : il est réservé à l'avancement.
+CATEGORY = 'category'        # une couleur par valeur (locuteur, type) — aucun repère
+SEVERITY = 'severity'        # trois niveaux, du plus bénin au plus grave ; hors d'eux = inconnu
+INTENSITY = 'intensity'      # une grandeur continue, de sa borne calme à sa borne critique
+SCALES = (CATEGORY, SEVERITY, INTENSITY)
+#: Le nombre de repères (`steps`) que chaque échelle demande.
+STEPS = {CATEGORY: 0, SEVERITY: 3, INTENSITY: 2}
+
+#: Les GESTES qu'une piste peut permettre (`ROUTE §10.7.12 ⑤`, `§10.7.14`). Une piste qui n'en
+#: déclare aucun se regarde seulement.
+EXTRACT = 'extract'          # une card dérivée ajustée au segment — ne change pas la piste
+GESTURES = ('retime', 'move', 'reorder', 'split', 'merge', 'mask', 'add', 'delete', 'label',
+            EXTRACT)
+#: Où vont les gestes qui changent la piste : une piste DÉRIVÉE (la source et la liste des gestes,
+#: la source intacte — le monde Data) ou la piste elle-même.
+DERIVED, IN_PLACE = 'derived', 'in_place'
+EDITS = ('', DERIVED, IN_PLACE)
+
 
 class InvalidTracks(ValueError):
     """Une déclaration de pistes incohérente — refusée à l'enregistrement, pas à la lecture."""
@@ -67,6 +87,14 @@ class Track:
     Le PARENT d'une marque se résout, dans cet ordre : par construction (`within`, `runs_of`), par
     référence (`parent_ref` : le champ de la ligne qui porte le rang de sa marque parente, négatif
     = aucune), sinon par CONTENANCE — la marque parente dont les bornes contiennent son début.
+
+    Ce que l'écran et les gestes ont à savoir se déclare ICI, jamais dans une page (`§10.7.14`) :
+      • `main` — la piste PRINCIPALE du porteur, celle de la ligne segmentée de sa zone temporelle
+        (une seule ; les autres se déplient) ;
+      • `color_by` + `scale` (+ `steps`) — l'attribut qui colore ses marques et l'échelle : pour
+        `severity`, ses trois valeurs de la plus bénigne à la plus grave ; pour `intensity`, ses
+        deux bornes, de la calme à la critique (dans cet ordre, croissant ou non) ;
+      • `gestures` — ce qu'on peut y faire ; `edits` — où vont les gestes qui la changent.
     """
     key: str
     label: str
@@ -83,8 +111,17 @@ class Track:
     by: str = ''
     origin: str = ''
     origin_field: str = ''
+    main: bool = False
+    color_by: str = ''
+    scale: str = ''
+    steps: Tuple[Any, ...] = ()
+    gestures: Tuple[str, ...] = ()
+    edits: str = ''
 
     def __post_init__(self):
+        # Les gestes sont un ENSEMBLE (triés, sans double) ; les repères une suite ORDONNÉE.
+        object.__setattr__(self, 'gestures', tuple(sorted({str(g) for g in self.gestures})))
+        object.__setattr__(self, 'steps', tuple(self.steps))
         # Forme CANONIQUE : `fields` et `attributes` triés par nom commun, un attribut gardé sous
         # son propre nom écrit seul. L'ordre n'y porte aucun sens, et un manifeste range ses clés
         # triées : sans cela, la piste relue d'un manifeste ne serait plus égale à celle déclarée.
@@ -101,6 +138,11 @@ class Track:
         """Le nom RANGÉ d'un nom commun."""
         return dict(self.fields).get(name, name)
 
+    def carried(self) -> Tuple[str, ...]:
+        """Les noms communs de ce que ses marques portent en plus de leurs bornes."""
+        names = [a if isinstance(a, str) else a[0] for a in self.attributes]
+        return tuple(names + ([self.by] if self.runs_of and self.by else []))
+
 
 _DEFAULTS = Track(key='', label='')
 
@@ -115,10 +157,13 @@ def track_to_dict(track: Track) -> dict:
                             f"range pas dans un manifeste — la nommer par 'module:fonction'")
     data = {'key': track.key, 'label': track.label}
     for name in ('source', 'kind', 'axis', 'parent', 'constraint', 'within', 'parent_ref',
-                 'runs_of', 'by', 'origin', 'origin_field'):
+                 'runs_of', 'by', 'origin', 'origin_field', 'main', 'color_by', 'scale', 'edits'):
         value = getattr(track, name)
         if value != getattr(_DEFAULTS, name):
             data[name] = value
+    for name in ('steps', 'gestures'):
+        if getattr(track, name):
+            data[name] = list(getattr(track, name))
     if track.fields:
         data['fields'] = dict(track.fields)
     if track.attributes:
@@ -134,7 +179,8 @@ def track_from_dict(data: dict) -> Track:
     extra = sorted(set(data) - known)
     if extra:
         raise InvalidTracks(f"piste « {data.get('key')} » : champ(s) inconnu(s) {', '.join(extra)}")
-    values = {k: v for k, v in data.items() if k not in ('fields', 'attributes')}
+    values = {k: (tuple(v) if k in ('steps', 'gestures') else v)
+              for k, v in data.items() if k not in ('fields', 'attributes')}
     values['fields'] = tuple((str(k), str(v)) for k, v in (data.get('fields') or {}).items())
     values['attributes'] = tuple(k if k == v else (k, v)
                                  for k, v in (data.get('attributes') or {}).items())
@@ -151,6 +197,35 @@ def _label_of(model_or_card) -> str:
     return str(getattr(meta, 'label_lower', '') or '')
 
 
+def _display_problems(track: Track) -> List[str]:
+    """Les défauts de ce qu'une piste déclare pour l'écran et les gestes."""
+    problems = []
+    if bool(track.color_by) != bool(track.scale):
+        problems.append("`color_by` et `scale` se déclarent ensemble")
+    if track.scale and track.scale not in SCALES:
+        problems.append(f"échelle « {track.scale} » inconnue ({', '.join(SCALES)})")
+    if track.color_by and track.color_by not in track.carried():
+        problems.append(f"colorée par « {track.color_by} », que ses marques ne portent pas")
+    if len(track.steps) != STEPS.get(track.scale, 0):
+        problems.append(f"l'échelle « {track.scale or 'aucune'} » demande "
+                        f"{STEPS.get(track.scale, 0)} repère(s), {len(track.steps)} déclaré(s)")
+    elif track.scale == INTENSITY and (
+            any(isinstance(s, bool) or not isinstance(s, (int, float)) for s in track.steps)
+            or track.steps[0] == track.steps[1]):
+        problems.append("une intensité a deux bornes numériques distinctes")
+    elif len(set(track.steps)) != len(track.steps):
+        problems.append("un repère déclaré deux fois")
+    unknown = [gesture for gesture in track.gestures if gesture not in GESTURES]
+    if unknown:
+        problems.append(f"geste(s) inconnu(s) {', '.join(unknown)}")
+    if track.edits not in EDITS:
+        problems.append(f"`edits` « {track.edits} » inconnu ({DERIVED} ou {IN_PLACE})")
+    changing = [gesture for gesture in track.gestures if gesture != EXTRACT]
+    if bool(changing) != bool(track.edits):
+        problems.append("des gestes qui changent la piste demandent `edits`, et `edits` de tels gestes")
+    return problems
+
+
 def validate(tracks: Iterable[Track]) -> List[str]:
     """Les défauts d'une déclaration, en clair — liste vide = cohérente."""
     tracks = list(tracks)
@@ -159,8 +234,12 @@ def validate(tracks: Iterable[Track]) -> List[str]:
         if track.key in by_key:
             problems.append(f"piste « {track.key} » déclarée deux fois")
         by_key[track.key] = track
+    mains = [track.key for track in tracks if track.main]
+    if len(mains) > 1:
+        problems.append(f"plusieurs pistes principales ({', '.join(mains)}) : une seule par porteur")
     for track in tracks:
         name = f"piste « {track.key} »"
+        problems += [f"{name} : {problem}" for problem in _display_problems(track)]
         if track.kind not in (DataType.SEGMENTS, DataType.EVENTS):
             problems.append(f"{name} : type « {track.kind} » (attendu segments ou events)")
         if track.axis not in AXES:

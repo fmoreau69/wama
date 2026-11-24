@@ -213,6 +213,41 @@ class IncoherentStatementsTest(SimpleTestCase):
                                 Track('b', 'B', runs_of='a', by='x')),
             'another axis than its parent': (Track('a', 'A', source='a'),
                                              Track('b', 'B', source='b', parent='a', axis='page')),
+            # What the screen and the gestures have to know (`ROUTE §10.7.14`).
+            'two main tracks': (Track('a', 'A', source='a', main=True),
+                                Track('b', 'B', source='b', main=True)),
+            'a colour without its scale': (Track('a', 'A', source='a', attributes=('kind',),
+                                                 color_by='kind'),),
+            'a scale without its colour': (Track('a', 'A', source='a', scale=marks.CATEGORY),),
+            'an unknown scale': (Track('a', 'A', source='a', attributes=('kind',),
+                                       color_by='kind', scale='rainbow'),),
+            'coloured by what no mark carries': (Track('a', 'A', source='a', color_by='kind',
+                                                       scale=marks.CATEGORY),),
+            'a severity without its three steps': (Track('a', 'A', source='a', attributes=('level',),
+                                                         color_by='level', scale=marks.SEVERITY,
+                                                         steps=('low', 'high')),),
+            'a severity with the same step twice': (Track('a', 'A', source='a', attributes=('level',),
+                                                          color_by='level', scale=marks.SEVERITY,
+                                                          steps=('low', 'low', 'high')),),
+            'an intensity whose bounds are not numbers': (Track('a', 'A', source='a',
+                                                                attributes=('gap',), color_by='gap',
+                                                                scale=marks.INTENSITY,
+                                                                steps=('near', 'far')),),
+            'an intensity with one bound twice': (Track('a', 'A', source='a', attributes=('gap',),
+                                                        color_by='gap', scale=marks.INTENSITY,
+                                                        steps=(2, 2)),),
+            'a category with steps': (Track('a', 'A', source='a', attributes=('kind',),
+                                            color_by='kind', scale=marks.CATEGORY, steps=('x',)),),
+            'steps without a scale': (Track('a', 'A', source='a', steps=(1, 2)),),
+            'an unknown gesture': (Track('a', 'A', source='a', gestures=('juggle',),
+                                         edits=marks.DERIVED),),
+            'a changing gesture that says nowhere to go': (Track('a', 'A', source='a',
+                                                                 gestures=('split',)),),
+            'a place to go and nothing that changes': (Track('a', 'A', source='a',
+                                                             gestures=('extract',),
+                                                             edits=marks.IN_PLACE),),
+            'an unknown place to go': (Track('a', 'A', source='a', gestures=('mask',),
+                                             edits='elsewhere'),),
         }
         for case, tracks in bad.items():
             with self.subTest(case=case):
@@ -225,6 +260,12 @@ class IncoherentStatementsTest(SimpleTestCase):
         self.assertEqual([], marks.validate((
             Track('turns', 'T', runs_of='lines', by='speaker'),
             Track('lines', 'L', source='rows', parent='turns', constraint=INCLUSION))))
+        # A track that is only looked at, one that only gives cards, a derived one coloured by
+        # the value it groups : all coherent.
+        self.assertEqual([], marks.validate((
+            Track('turns', 'T', runs_of='lines', by='speaker', color_by='speaker',
+                  scale=marks.CATEGORY),
+            Track('lines', 'L', source='rows', parent='turns', main=True, gestures=('extract',)))))
 
 
 class EveryStatedTrackTest(SimpleTestCase):
@@ -254,6 +295,22 @@ class EveryStatedTrackTest(SimpleTestCase):
                     else:
                         self.assertTrue(hasattr(model, source), f'{track.key} : {label}.{source}')
 
+    def test_every_model_names_the_one_track_of_its_segmented_line(self):
+        """The temporal zone of a card shows its whole line and ONE segmented line : the app says
+        which track it is, the screen never picks one (`ROUTE §10.7.14`, E1)."""
+        from wama.common.sandbox import twin_source
+        seen = 0
+        for label, tracks in marks.registered().items():
+            if twin_source(label.split('.')[0]):
+                continue    # a twin replays the statement of its source, once it is regenerated
+            seen += 1
+            with self.subTest(model=label):
+                self.assertEqual(1, sum(track.main for track in tracks))
+                for track in tracks:
+                    if track.color_by:
+                        self.assertIn(track.color_by, track.carried())
+        self.assertGreaterEqual(seen, 2, 'the apps that state, not their twins')
+
     def test_the_registry_of_tracks_names_every_stated_track_and_only_those(self):
         """What a surface asks (« which tracks does this kind of card carry ? ») is answered by the
         common registry, derived from the statements at each reading."""
@@ -274,6 +331,11 @@ class EveryStatedTrackTest(SimpleTestCase):
                 self.assertEqual(entry['app'], django_apps.get_model(entry['model'])._meta.app_label)
                 self.assertEqual('derived' if track.runs_of else 'nested' if track.within
                                  else 'stored', entry['rows'])
+                self.assertEqual(
+                    (track.main, track.color_by, track.scale, list(track.steps),
+                     list(track.gestures), track.edits),
+                    (entry['main'], entry['color_by'], entry['scale'], entry['steps'],
+                     entry['gestures'], entry['edits']), 'what the screen and the gestures need')
                 if entry['parent']:
                     self.assertIn(f"{entry['model']}.{entry['parent']}", entries)
 
@@ -319,12 +381,15 @@ class TracksInTheManifestTest(SimpleTestCase):
     (`inspector.tracks`), which the generator replays in the `ready()` of an app born from it."""
 
     STATED = (
-        Track('turns', "Tours d'un échange", runs_of='lines', by='speaker', origin='runs'),
+        Track('turns', "Tours d'un échange", runs_of='lines', by='speaker', origin='runs',
+              color_by='speaker', scale=marks.CATEGORY),
         Track('lines', 'Lignes', source='wama.common.utils.durations:format_clock',
               fields=(('start', 'start_time'), ('end', 'end_time')),
-              attributes=('text', ('speaker', 'speaker_id')), parent='turns', constraint=INCLUSION),
+              attributes=('text', ('speaker', 'speaker_id')), parent='turns', constraint=INCLUSION,
+              main=True, gestures=('split', 'merge', 'mask', 'extract'), edits=marks.DERIVED),
         Track('beeps', 'Bips', source='beeps', kind=DataType.EVENTS, fields=(('time', 'ts'),),
-              parent='lines', parent_ref='line'),
+              attributes=('level', 'gap'), parent='lines', parent_ref='line',
+              color_by='level', scale=marks.SEVERITY, steps=('low', 'mid', 'high')),
     )
 
     def _manifest(self, tracks=None, model=None):
@@ -354,6 +419,17 @@ class TracksInTheManifestTest(SimpleTestCase):
             marks.track_to_dict(Track('a', 'A', source=len))
         with self.assertRaises(marks.InvalidTracks):
             marks.track_from_dict({'key': 'a', 'label': 'A', 'source': 'rows', 'colour': 'red'})
+        # What the screen and the gestures have to know goes the same way : the two bounds of an
+        # intensity keep their ORDER (calm first, even when it is the higher number), the gestures
+        # are a set.
+        shown = Track('a', 'A', source='rows', attributes=('gap',), main=True, color_by='gap',
+                      scale=marks.INTENSITY, steps=(4.0, 2.0), gestures=('split', 'mask', 'split'),
+                      edits=marks.DERIVED)
+        self.assertEqual([], marks.validate((shown,)))
+        data = json.loads(json.dumps(marks.track_to_dict(shown), sort_keys=True))
+        self.assertEqual(([4.0, 2.0], ['mask', 'split'], True), (data['steps'], data['gestures'],
+                                                                data['main']))
+        self.assertEqual(shown, marks.track_from_dict(data))
 
     def test_the_facet_of_an_app_is_what_it_registered(self):
         from wama.common.manifests.builtin.app import _inspector

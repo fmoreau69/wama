@@ -387,6 +387,22 @@ class TracksOfAReferentialTest(unittest.TestCase):
         self.assertEqual('origin', tracks['phases'].origin_field)
         self.assertEqual('', tracks['beeps'].origin_field, 'no origin column, none stated')
 
+    def test_a_measured_mark_is_never_moved_resized_or_removed_and_its_gestures_go_aside(self):
+        """Measured time is a fact (`ROUTE §10.7.12 ⑤`, `§10.7.14` E4) : what is done to a track
+        of a file goes to a DERIVED track, and no gesture can displace or drop a mark."""
+        from wama.common.catalog.marks import DERIVED, validate
+        from .frames import referential_tracks
+        tracks = referential_tracks(self._referential())
+        self.assertEqual([], validate(tracks))
+        for track in tracks:
+            with self.subTest(track=track.key):
+                self.assertEqual(DERIVED, track.edits)
+                self.assertFalse({'move', 'retime', 'reorder', 'delete', 'add'} & set(track.gestures))
+                self.assertLessEqual({'extract', 'label', 'mask'}, set(track.gestures))
+                self.assertEqual({'split', 'merge'} if track.kind == DataType.SEGMENTS else set(),
+                                 {'split', 'merge'} & set(track.gestures),
+                                 'an instant has nothing to split nor to merge')
+
     def test_the_marks_come_under_the_common_names_in_session_time(self):
         from .frames import read_referential_tracks
         read = read_referential_tracks(self._referential())
