@@ -470,6 +470,19 @@ def _inspector(app_id):
                                'user_field': entree.get('user_field')}
     except Exception:
         info['preview_registered'] = None
+    # Les PISTES de marques temporelles de ses modèles (`catalog/marks.register_tracks`, marche 1
+    # de `ROUTE §10.7`, 2026-11-24) : la déclaration elle-même, par nom de modèle — c'est elle que
+    # `apps_gen` rejoue dans le `ready()` d'une app née du manifeste. Clé absente quand l'app n'en
+    # déclare pas.
+    try:
+        from django.apps import apps as django_apps
+        from wama.common.catalog.marks import registered, track_to_dict
+        tracks = {django_apps.get_model(label).__name__: [track_to_dict(t) for t in declared]
+                  for label, declared in registered().items() if label.split('.')[0] == app_id}
+        if tracks:
+            info['tracks'] = tracks
+    except Exception:
+        logger.debug("[manifest app] pistes de %s illisibles", app_id, exc_info=True)
     return info
 
 

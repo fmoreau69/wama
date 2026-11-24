@@ -161,6 +161,15 @@ def _is_named_form(value) -> bool:
     return is_name(value) if isinstance(value, str) else True
 
 
+def _is_track_source(value) -> bool:
+    """D'où viennent les lignes d'une piste de marques (`catalog/marks.Track.source`) : un attribut
+    de la card (un nom), ou la fonction d'un module de WAMA, `chemin.du.module:fonction`."""
+    if is_name(value):
+        return True
+    module, sep, function = value.partition(':') if isinstance(value, str) else ('', '', '')
+    return bool(sep) and is_path(module) and is_name(function)
+
+
 def _is_attr(value) -> bool:
     """Un champ d'état de la triade : son nom, ou `{'attr': <nom>, …}`."""
     return is_name(value.get('attr') if isinstance(value, dict) else value)
@@ -191,6 +200,19 @@ DECLARED_VALUES = (
     (_is_named_form, ('inspector.detail_spec.result_file', 'inspector.detail_spec.result_text',
                       'inspector.detail_spec.source_text')),
     (_is_attr, ('tool_api.triad_spec.status_fields*',)),
+    # Les pistes de marques temporelles (`inspector.tracks`, 2026-11-24, `apps_gen`) : le modèle,
+    # et chaque champ d'une piste — des noms ; sa source, un nom ou une fonction de WAMA ; son
+    # libellé, un texte inerte.
+    (is_name, ('inspector.tracks{}', 'inspector.tracks*[].key', 'inspector.tracks*[].kind',
+               'inspector.tracks*[].axis', 'inspector.tracks*[].parent',
+               'inspector.tracks*[].constraint', 'inspector.tracks*[].within',
+               'inspector.tracks*[].parent_ref', 'inspector.tracks*[].runs_of',
+               'inspector.tracks*[].by', 'inspector.tracks*[].origin',
+               'inspector.tracks*[].origin_field', 'inspector.tracks*[].fields{}',
+               'inspector.tracks*[].fields*', 'inspector.tracks*[].attributes{}',
+               'inspector.tracks*[].attributes*')),
+    (_is_track_source, ('inspector.tracks*[].source',)),
+    (_is_prose, ('inspector.tracks*[].label',)),
     # Les crochets d'une surface (2026-11-10, `surfaces_gen.SURFACE_HOOKS`) : un import ou un nom.
     (is_path, ('surfaces[].available', 'surfaces[].validate')),
     (_is_view, ('processing.extra_routes[].view',)),

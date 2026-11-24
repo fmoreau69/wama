@@ -57,15 +57,20 @@
 | mot | ce qu'il veut dire | domicile |
 |---|---|---|
 | **imbrication** 🔄 | un arbre DÉCLARÉ : parent unique, enfants ordonnés, loi d'agencement, contrainte sur le parent, héritage déclaré, aucune borne de profondeur dans la donnée. ✅ pour les cards (rangement à toute profondeur) ; ⏳ comme concept commun aux cards, aux marques et à la base | `WAMA_APP_GENERATION_ROUTE.md §10.7.9` |
-| **partie** ⏳ | un enfant d'une composition : toujours une PLAGE de son parent, à laquelle on a donné un traitement propre | `§10.7.9` |
+| **card ou segment** ⏳ | LE critère (révisé le 2026-11-24 au soir) : ce qui demande une génération ou un traitement propre est une CARD ; ce qui ne fait que délimiter le temps est un SEGMENT. Un segment ne devient jamais une card : un traitement lancé sur lui est une card dérivée qui POINTE vers lui | `§10.7.12 ①` |
+| **partie** ⏳ | une card dérivée d'une autre : elle couvre un segment de sa source (une piste d'instrument tout le morceau, un plan un segment de son film) | `§10.7.9`, `§10.7.12` |
+| **flux** ⏳ | ce qu'une card porte en parallèle sur son axe : vidéo, audio, signaux de données — de même nature, chacun avec son placement. La bande son d'un film est un flux, pas une card à côté | `§10.7.12 ③` |
+| **emploi** ⏳ | un segment qui POINTE vers une card (un plan repris dans deux séquences) et porte sa propre coupe — une source, des pointages, jamais une copie | `§10.7.12 ②` |
+| **zone temporelle** ⏳ | la ligne de temps d'une card, sous son aperçu : ses segments à leur place et à leur durée, niveaux superposés, la même partout (file, aperçu, page d'édition) | `§10.7.12 ④` |
+| **geste de segment** ⏳ | déplacer, changer une borne, scinder, fusionner, masquer, supprimer, étiqueter — chaque piste DÉCLARE ceux qu'elle permet (un segment mesuré du monde Data ne se déplace ni ne se supprime) | `§10.7.12 ⑤` |
 | **loi d'agencement** ⏳ | comment les parties se placent dans leur parent : en parallèle (les pistes d'un morceau) ou en série (les plans d'une séquence, l'ordre faisant le montage) | `§10.7.3 ③` |
 | **axe** ✅ / ⏳ | une coordonnée qui ne fait qu'avancer. ✅ l'axe du temps, seule horloge de la lecture (`wama-axis.js`) ; ⏳ d'autres axes (distance, texte, page, image) | `WAMA_APP_GENERATION_ROUTE.md §F3b` ; `§10.7.10` |
 | **placement** ⏳ | la place d'un axe dans un autre : un décalage, une vitesse, ou des repères par morceaux | `§10.7.3 ⑤` |
 | **événement** ✅ | une marque à un instant (`time`) | `wama/common/catalog/data_types.py` ; `WAMA_DATA_WORLD §9ter` |
 | **segment** ✅ | une marque sur un intervalle (`start`, `end`, fin absente = segment ouvert). Le mot du MODÈLE ; l'écran dit situation, état, phrase, plan… | `wama/common/catalog/data_types.py:20-42` ; `WAMA_DATA_WORLD §9ter` |
 | **plage** | PAS un concept de plus : les deux bornes d'un segment (et le nom du type natif de PostgreSQL). L'objet s'appelle toujours un segment | `§10.7.3 ⑤` |
-| **piste** ⏳ | un ensemble nommé de marques de même niveau sur un axe ; une piste peut avoir une piste parente (partition ou inclusion) | `§10.7.3 ⑤` |
+| **piste** ✅ | un ensemble nommé de marques de même niveau sur un axe (les phrases d'une transcription, les situations d'un essai) ; une piste peut avoir une piste parente (partition ou inclusion). Une app DÉCLARE les siennes, un lecteur les rend | `wama/common/catalog/marks.py` ; `§10.7.3 ⑤`, `§10.7.6` |
 | **rôle** ⏳ | ce qu'un segment EST pour l'utilisateur (mot, phrase, plan, situation, masque) — déclaré, jamais un type de plus | `§10.7.3 ⑤ ⑥` |
-| **fragment / masque** ⏳ | un segment d'une piste de décisions de montage : retirer, remplacer par un vide, ignorer — la source n'est jamais modifiée | `§10.7.3 ⑥`, `§10.7.9` |
+| **fragment / masque** ⏳ | « fragment » n'est qu'un mot pour un petit segment : aucun geste ne lui est propre. MASQUER est un geste de segment : le retirer virtuellement, par ses bornes, de façon réversible — la source n'est jamais modifiée | `§10.7.12 ⑤`, `§10.7.9` |
 | **zone** ✅ / ⏳ | une région en deux dimensions (boîte, polygone). PAS un segment : « segmentation » d'image et segment de temps sont deux choses | `data_types.py:35-40` ; `§10.7.10` |
 | **Segmenter** ✅ / ⏳ | ✅ la bibliothèque de fonctions qui produit et combine des segments (monde Data) ; ⏳ universel par son modèle, ses producteurs restant propres à chaque monde | `WAMA_DATA_WORLD §9ter`, `§11.9` ; `§10.7.3 ⑨` |

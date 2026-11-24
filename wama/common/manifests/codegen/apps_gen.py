@@ -123,6 +123,36 @@ def render_apps(manifest: dict) -> tuple:
                 pad = ' ' * len(f"        register_app_detail_spec('{surface}', {item_model}, ")
                 lignes += [pad + l for l in rendu[1:]]
                 lignes[-1] += ')'
+    # Les PISTES de marques temporelles (`inspector.tracks`, 2026-11-24 — marche 1 de `ROUTE §10.7`) :
+    # la déclaration de l'app, rejouée telle quelle. Chaque piste est relue par `track_from_dict`
+    # (un champ inconnu arrête le rendu) et écrite par sa représentation : des littéraux, rien
+    # d'autre. Une piste déclarée pour un modèle que ce `ready()` n'importe pas n'est pas perdue en
+    # silence : le rendu est refusé.
+    tracks = insp.get('tracks') or {}
+    if tracks:
+        from wama.common.catalog.marks import (InvalidTracks, Track, track_from_dict, validate)
+        unknown = sorted(set(tracks) - set(modeles))
+        if unknown:
+            return None, f"inspector.tracks : modèle(s) hors de l'app {', '.join(unknown)}"
+        lignes.append('        from wama.common.catalog.marks import Track, register_tracks')
+        for model_name in modeles:
+            if model_name not in tracks:
+                continue
+            try:
+                declared = [track_from_dict(t) for t in tracks[model_name]]
+            except (InvalidTracks, TypeError) as exc:
+                return None, f'inspector.tracks[{model_name}] : {exc}'
+            problems = validate(declared)
+            if problems:
+                return None, f"inspector.tracks[{model_name}] : {' ; '.join(problems)}"
+            lignes.append(f'        register_tracks({model_name}, (')
+            for track in declared:
+                shown = ', '.join(f'{name}={getattr(track, name)!r}'
+                                  for name in Track.__dataclass_fields__
+                                  if name in ('key', 'label')
+                                  or getattr(track, name) != Track.__dataclass_fields__[name].default)
+                lignes.append(f'            Track({shown}),')
+            lignes.append('        ))')
     item_model = proc.get('item_model')
     revisions = proc.get('revisions')
     if revisions:

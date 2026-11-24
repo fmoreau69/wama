@@ -29,3 +29,22 @@ class CamAnalyzerConfig(AppConfig):
         from wama.common.services.journal import enregistrer_source
         from .models import AnalysisSession
         enregistrer_source('cam_analyzer', AnalysisSession)
+
+        # Les MARQUES d'une session dans le vocabulaire temporel commun (marche 1 de
+        # `ROUTE §10.7`, 2026-11-24) : aucun stockage ne change, un lecteur rend `start` / `end`
+        # là où la session range `t_enter` / `t_exit`, `t_start` / `t_end`, `start_time` /
+        # `end_time`. Un conflit nomme sa fenêtre par son RANG (`intersection_window_idx`,
+        # -1 = hors de toute fenêtre) : l'imbrication par référence.
+        from wama.common.catalog.marks import Track, register_tracks
+        register_tracks(AnalysisSession, (
+            Track('windows', "Fenêtres d'intersection", source='intersection_windows',
+                  fields=(('start', 't_enter'), ('end', 't_exit')), attributes=('name',),
+                  origin='intersection_windows'),
+            Track('conflicts', 'Conflits', source='conflicts',
+                  fields=(('start', 't_start'), ('end', 't_end')),
+                  attributes=(('type', 'conflict_type'), 'severity', 'track_id'),
+                  parent='windows', parent_ref='intersection_window_idx', origin='conflicts'),
+            Track('situations', 'Situations', source='segments',
+                  fields=(('start', 'start_time'), ('end', 'end_time')),
+                  attributes=(('type', 'segment_type'),), origin='temporal_segments'),
+        ))

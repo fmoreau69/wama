@@ -190,3 +190,25 @@ class TranscriberConfig(AppConfig):
             # Plus d'`extra` (2026-11-23) : les réglages du volet sont ceux du SCHÉMA, tous, pour
             # toute app (`detail_from_spec`) — la liste de quatre écrite ici en taisait les autres.
         })
+
+        # Les MARQUES d'une transcription dans le vocabulaire temporel commun (marche 1 de
+        # `ROUTE §10.7`, 2026-11-24 — D7 : aucun stockage ne change, un lecteur rend les noms
+        # communs). Trois pistes imbriquées : les tours de parole (DÉRIVÉS : les phrases
+        # consécutives d'un même locuteur), les phrases (les segments du moteur, corrigés s'ils
+        # l'ont été — la règle de l'éditeur, `views._editor_segments`), et les mots, rangés DANS
+        # chaque phrase. `timing` est l'ORIGINE d'un mot : entendu, aligné, estimé, interpolé.
+        # Les contraintes d'inclusion sont MESURÉES tenues avant d'être déclarées (2026-11-24, 58
+        # transcriptions réelles : 36 676 mots, aucun hors de sa phrase ; les phrases sont dans
+        # leur tour par construction).
+        from wama.common.catalog.marks import INCLUSION, Track, register_tracks
+        register_tracks(Transcript, (
+            Track('turns', 'Tours de parole', runs_of='sentences', by='speaker',
+                  origin='speaker_runs'),
+            Track('sentences', 'Phrases', source='wama.transcriber.views:_editor_segments',
+                  fields=(('start', 'start_time'), ('end', 'end_time')),
+                  attributes=('text', ('speaker', 'speaker_id'), 'confidence'),
+                  parent='turns', constraint=INCLUSION, origin='transcription'),
+            Track('words', 'Mots', within='words', parent='sentences', constraint=INCLUSION,
+                  attributes=(('text', 'word'), 'probability'),
+                  origin='transcription', origin_field='timing'),
+        ))

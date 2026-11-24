@@ -299,6 +299,13 @@ body:                                   # (sous l'enveloppe commune)
   # (cible ; extract actuel = `detail_registered` + `detail_spec` (spec déclarative, A3a) +
   #  `preview_registered` + `preview{file_field, user_field}` — `builtin/app.py:433-462` ; un adapter
   #  code reste un booléen. Corrigé le 2026-10-31 : disait « présence, pas contenu »)
+  # + `tracks` (2026-11-24, marche 1 de `ROUTE §10.7`) : les PISTES de marques temporelles que
+  #  l'app déclare (`catalog/marks.register_tracks`), par nom de modèle — `{Modele: [{key, label,
+  #  source | within | runs_of+by, kind, axis, fields{commun: rangé}, attributes{commun: rangé},
+  #  parent, constraint, parent_ref, origin, origin_field}]}`, les seuls champs hors défaut.
+  #  Extraite de la déclaration (`_inspector`), rejouée par `apps_gen` dans le `ready()` d'une app
+  #  née du manifeste ; ses valeurs passent `source_safety` (des noms ; la source : un attribut
+  #  ou `module.de.wama:fonction`). Clé absente quand l'app n'en déclare pas.
 
   # F4 MODÈLES IA          [model_config.py + model_selector.select_model] — CIBLE, pas l'extract
   # réel : extract actuel = {catalog_keys, source_attr} (lecture best-effort de <APP>_MODELS) ;

@@ -1190,7 +1190,48 @@
         "file_field": "audio",
         "user_field": "user"
       },
-      "preview_registered": true
+      "preview_registered": true,
+      "tracks": {
+        "Transcript": [
+          {
+            "by": "speaker",
+            "key": "turns",
+            "label": "Tours de parole",
+            "origin": "speaker_runs",
+            "runs_of": "sentences"
+          },
+          {
+            "attributes": {
+              "confidence": "confidence",
+              "speaker": "speaker_id",
+              "text": "text"
+            },
+            "constraint": "inclusion",
+            "fields": {
+              "end": "end_time",
+              "start": "start_time"
+            },
+            "key": "sentences",
+            "label": "Phrases",
+            "origin": "transcription",
+            "parent": "turns",
+            "source": "wama.transcriber.views:_editor_segments"
+          },
+          {
+            "attributes": {
+              "probability": "probability",
+              "text": "word"
+            },
+            "constraint": "inclusion",
+            "key": "words",
+            "label": "Mots",
+            "origin": "transcription",
+            "origin_field": "timing",
+            "parent": "sentences",
+            "within": "words"
+          }
+        ]
+      }
     },
     "models": {
       "catalog_keys": [

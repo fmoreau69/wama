@@ -8562,7 +8562,7 @@ de répétition n'est ajouté pour les cards.
 
 ---
 
-### §10.7 — LE TEMPS ET L'IMBRICATION, COMMUNS À TOUS LES MONDES : axe, marques, pistes, familles (réflexion du 2026-11-24 — D1 à D14 VALIDÉES par Fabien le jour même, marche 1 lancée)
+### §10.7 — LE TEMPS ET L'IMBRICATION, COMMUNS À TOUS LES MONDES : axe, marques, pistes, familles (réflexion du 2026-11-24 — décisions prises puis RÉVISÉES le soir même : lire 10.7.12 ; marche 1 livrée)
 
 > 📜 **Demande de Fabien (23 et 24/11)**, après la livraison de la famille d'une card
 > (`MODES_QUEUE_UX §5quater`) : *« approfondir la réflexion sur l'imbrication des cards mères/filles
@@ -8576,8 +8576,10 @@ de répétition n'est ajouté pour les cards.
 > Cette section est le DOMICILE de cette réflexion, comme `§10.6` l'est du pipeline : les docs
 > Data, Studio, file et vision y renvoient. Elle dit ce qui EXISTE (mesuré), ce que font les outils
 > comparables (sourcé), une PROPOSITION, l'avis du concile et sa lecture, puis les décisions à
-> prendre. ✅ Les décisions D1 à D14 (10.7.7) sont validées par Fabien le 2026-11-24 ; ⚠ rien
-> d'autre n'est construit que ce que disent 10.7.8 (livré) et la marche 1 (en cours).
+> prendre. ✅ Les décisions D1 à D14 (10.7.7) sont validées par Fabien le 2026-11-24, puis RÉVISÉES
+> par lui le soir même après relecture : **10.7.12 dit ce qui remplace quoi, et prime sur 10.7.3 et
+> 10.7.7 là où ils diffèrent.** ⚠ Seuls sont construits 10.7.8 (le rangement) et la marche 1 (le
+> lecteur de marques, 10.7.6).
 
 #### 10.7.1 Ce qui existe déjà — mesuré
 
@@ -8818,6 +8820,22 @@ de mots et une piste d'oculométrie).
    (`start`, `end`, `time`, origine, piste, piste parente), sans changer aucun stockage : phrases,
    mots et tours du Transcriber d'abord, puis sections et paroles du Composer, fenêtres du
    cam_analyzer. Garde générique : toute marque déclarée d'une app se lit par ce lecteur.
+   ✅ **Livrée le 2026-11-24** — `wama/common/catalog/marks.py` : une app DÉCLARE ses pistes
+   (`register_tracks`), un lecteur les rend (`read_tracks` : `start`, `end` absent = ouvert, ou
+   `time` ; `origin` ; `parent`, le rang de la marque parente). Trois écritures de l'imbrication
+   lues de la même façon : en document (les mots dans la phrase), par référence (le conflit qui
+   nomme sa fenêtre par son rang), par contenance (la phrase dans son tour) ; une piste peut être
+   dérivée (les tours de parole). Déclarants : le Transcriber (tours, phrases, mots) et le
+   cam_analyzer (fenêtres, conflits, situations) — deux mondes. Mesuré sur les cards réelles :
+   58 transcriptions, 329 tours, 4 669 phrases, 36 676 mots lus en 0,6 s, aucun mot hors de sa
+   phrase (l'inclusion est donc déclarée) ; 184 conflits sur 3 316 débordent leur fenêtre
+   (aucune contrainte déclarée). La déclaration est une FACETTE du manifeste d'app
+   (`inspector.tracks`, `WAMA_MANIFEST_SPEC`), rejouée par le générateur (`apps_gen`) et passée au
+   contrôle de sûreté (`source_safety`). Preuve croisée : les marques lues passent telles quelles
+   par `within` et `overlapping` du Segmenter (`wama_data/core/tests_segmentation`).
+   ⏳ Restent : les jumelles à régénérer pour qu'elles portent la facette ; les tables d'un `.wdat`
+   lues comme des pistes (sans déclaration d'app : la source est le fichier) ; l'inscription au
+   registre commun ; sections et paroles du Composer.
 2. **Un premier consommateur croisé** : les opérations du Segmenter sur les pistes d'une
    transcription (« présent dans », filtre), et l'export d'un extrait par segment.
 3. **La plage sur une card dérivée et la promotion ligne → card** : une card dérivée dit quelle
@@ -8832,6 +8850,10 @@ de mots et une piste d'oculométrie).
 > troisième colonne. ⚠ D3 proposait deux formes sans en retenir une : elle reste à CHOISIR (avis
 > donné à Fabien : la card « image » et la card « son » côte à côte, qui ne changent rien au lien
 > de composition) ; aucune marche avant la quatrième n'en dépend.
+>
+> 🔁 **RÉVISÉES le soir même** : D1, D2, D3, D4, D5 et D10 sont reprises en 10.7.12, qui prime.
+> D6, D7, D8 confirmées telles quelles ; D9 gardée pour les familles de cards ; D11 à D14 non
+> rediscutées.
 
 | # | question | position proposée |
 |---|---|---|
@@ -8992,6 +9014,97 @@ détections du cam_analyzer) sont des signaux, pas des marques.
 commune quelle que soit leur écriture ; c'est elle qui permet de déplacer ensuite une écriture
 vers la table commune sans qu'aucun consommateur le voie. Aucune migration n'est proposée avant
 qu'un consommateur croisé (marche 2) ait prouvé le modèle. Décision D12.
+
+#### 10.7.12 RÉVISION du 2026-11-24 (soir) — ce que Fabien a changé à la relecture, et ce qui remplace quoi
+
+> 📜 **Fabien**, après le rappel des quatorze décisions : *« si des segments temporels deviennent
+> des cards, j'ai peur que ça ajoute de la confusion dans tout WAMA […] Des cards s'empilent avec
+> la même forme, la même longueur : ce n'est pas représentatif du temps. Je verrais plutôt une
+> façon d'afficher les segments temporels directement sur la card […] Dans un film, les séquences
+> sont des enchaînements de plans, donc plutôt des informations de segments temporels, alors qu'un
+> plan est un rendu de média avec un début et une fin, mais nécessite une génération de vidéo. J'y
+> vois une différence importante qui pourrait nous aider à formaliser notre fonctionnement
+> universel […] Un segment vidéo ou audio n'est qu'un type de signal […] Il faut remanier les
+> choses en conséquence. »* Ce qui suit REMPLACE les points nommés de 10.7.3 et 10.7.7.
+
+**① Le critère — remplace D1 et D5.** Ce qui demande une GÉNÉRATION ou un traitement propre (qui
+produit un média ou un signal) est une CARD ; ce qui ne fait que DÉLIMITER le temps est un SEGMENT.
+Un film est une card ; ses séquences sont des SEGMENTS du film (une piste) ; ses plans sont des
+cards — chacun un rendu à générer —, placées sur l'axe du film et regroupées par les séquences.
+Une séquence n'a de card que si elle reçoit un traitement à elle. Précision du concile, retenue :
+**un segment ne DEVIENT jamais une card.** Exporter une séquence seule, retranscrire un extrait,
+analyser une situation à part : c'est le TRAITEMENT qui est une card, dérivée, qui POINTE vers le
+segment (la source et ses bornes). Le segment reste ce qu'il est ; il n'y a plus de « promotion ».
+
+**② Une source, des pointages — remplace D2.** Pas de copie : le précédent existe, celui des
+fichiers d'entrée (une card copiée PARTAGE le fichier de sa source, `queue_duplication`). Un plan
+est une card unique ; chaque EMPLOI (dans une séquence, dans un autre montage) est un segment qui
+pointe vers elle et porte SA coupe sur la source. Une card pointée ne part pas en cascade : son
+emploi devient ORPHELIN, de façon lisible (c'est aussi la décision du 19/11 sur les pistes
+disparues).
+
+**③ Une card = un axe + des FLUX en parallèle + des pistes de segments — remplace D3.** Vidéo,
+audio et signaux de données sont des flux de même nature, chacun PLACÉ sur l'axe de la card
+(décalage, vitesse, repères). C'est déjà la forme d'un `.wdat` (ses tables de flux, ses médias
+avec leur décalage) ; un film porte son image et sa bande son ; un morceau, ses pistes
+d'instruments. La bande son n'est donc ni un second lot ni une card à côté : un flux de la card.
+Un flux ne devient une card dérivée que s'il reçoit son propre traitement (la piste d'instrument
+dont on tire une partition). Le rangement peut différer (fichier `.wdat`, base SQL) : c'est le
+formalisme qui est commun.
+
+**④ Les segments se montrent SUR la card, dans une ZONE TEMPORELLE — remplace ⑦ de 10.7.3.**
+Plus de cards de segments empilées. La card a deux sous-zones : réglages et étapes, avec leur
+ligne de progression dessous ; aperçu, avec dessous la LIGNE DE TEMPS de la card — les segments à
+leur place et à leur durée, les niveaux hiérarchiques superposés (la rangée des séquences, dessous
+celle des plans), les informations d'un segment au survol, ses actions au clic droit. La même zone
+partout : file, aperçu, page d'édition. Le rangement des cards dérivées sous leur source (10.7.8)
+reste, pour ce qui EST une card (une piste d'instrument, un plan).
+
+**⑤ Des gestes DÉCLARÉS par piste — remplace D4.** Déplacer, changer une borne, scinder,
+fusionner, masquer (retirer virtuellement, par ses bornes, de façon réversible), supprimer,
+étiqueter. Chaque piste dit lesquels elle permet. Le « fragment » n'est qu'un mot pour un petit
+segment : aucun geste ne lui est propre. Dans un film on déplace et on réordonne ; dans le monde
+Data on ne déplace ni ne supprime un segment mesuré (le temps est un fait) — on le consulte, on le
+scinde, on en fusionne deux, on le masque, on lance une action dessus. Vouloir « grouper des
+segments pour n'analyser que ceux-là » est une SÉLECTION (un filtre, une étiquette, une piste
+dérivée), jamais un déplacement.
+
+**⑥ Pas de code couleur pour le temps — remplace D10.** Si la zone temporelle est bien identifiée
+et la même partout, elle suffit. Les couleurs restent au SENS des segments (locuteur, sévérité,
+type).
+
+**L'avis du concile sur cette révision** (seconde consultation, 196 s, cinq agents dont un
+contradicteur et un agent de design ; ⚠ le décideur n'a rendu qu'un classement, la lecture ci-dessous
+est faite sur les cinq avis ; un agent a cité une source qui n'existe pas dans le dossier — écarté) :
+
+| point du concile | lecture |
+|---|---|
+| le critère ① est bon comme règle d'OBJET : le segment est immuable, la card dérivée pointe vers lui | ✅ repris en ① |
+| ③ ne tient que si le PLACEMENT (décalage, vitesse, repères) est une primitive de premier rang : une vidéo qui démarre à 3 s ne se dit pas « en parallèle » | ✅ repris en ③ — 10.7.3 ⑤ le nommait déjà |
+| la zone temporelle : UNE rangée par défaut, la piste PRINCIPALE que l'app déclare, et un compteur (« + 2 pistes, + 20 000 segments ») ; deux rangées en mode ligne, une seule ou une miniature en mosaïque ; jamais vingt mille mots dans la file | ⏳ proposition E1 ci-dessous |
+| pas de zoom sur la card de la file : on y survole ; le zoom est un geste de l'aperçu et de la page d'édition | ⏳ E2 — Fabien demandait de pouvoir zoomer « dans cette zone » |
+| sur la card on regarde, on déclenche, et on MASQUE (trois avis) : masquer est réversible et sans effet sur la structure ; tout le reste est à la page d'édition | ⏳ E3 |
+| monde Data : scinder, fusionner et masquer produisent une piste DÉRIVÉE, la piste source n'est jamais modifiée ; chaque geste est tracé (qui, quand, avant, après) | ⏳ E4 — cohérent avec l'origine déjà tracée de chaque segment |
+| un emploi porte sa coupe ET ses réglages locaux ; un avis préfère deux cards quand le traitement diffère | ⏳ E5 |
+| la liste des gestes oubliait ÉTIQUETER | ✅ repris en ⑤ |
+| un contradicteur veut une couleur pour distinguer le temps du signal | ⚠ non retenu : quatre avis sur cinq suivent ⑥, à condition que la zone ait un style constant |
+| le piège : la card devient un petit éditeur et perd son rôle de tuile de suivi | ✅ c'est la raison de E1 à E3 |
+
+**Ce qui reste à trancher par Fabien** :
+
+| # | question | position proposée |
+|---|---|---|
+| E1 | dans la file, combien de rangées sur la card ? | une — la piste principale DÉCLARÉE par l'app (tours de parole, séquences, situations) — et un compteur ; deux en mode ligne ; une miniature en mosaïque |
+| E2 | le zoom de la zone temporelle : sur la card de la file aussi ? | non dans la file (survol et clic) ; oui dans l'aperçu et la page d'édition |
+| E3 | que permet la ligne de temps hors de la page d'édition ? | regarder, se placer, déclencher une action par segment, masquer ; changer la structure (bornes, ciseau, fusion, déplacement) reste à la page d'édition |
+| E4 | monde Data : un geste modifie-t-il la piste, ou en produit-il une dérivée ? | une dérivée, la piste mesurée intacte ; chaque geste tracé |
+| E5 | un plan employé deux fois avec des réglages différents : réglages locaux sur l'emploi, ou deux cards ? | la coupe sur l'emploi ; un traitement différent = une autre card (deux rendus) |
+
+**Les marches, réordonnées** : ① ✅ le lecteur de marques (10.7.6) ; ② la zone temporelle en
+lecture seule sur la card — piste principale déclarée, survol, clic, clic droit —, d'abord pour le
+Transcriber et le cam_analyzer qui déclarent déjà leurs pistes ; ③ les gestes déclarés par piste et
+la page d'édition des segments rendue commune (la brique des segments lit les noms communs), le
+masque en piste dérivée ; ④ le placement des flux et les emplois (pointages) ; ⑤ le film.
 
 ---
 

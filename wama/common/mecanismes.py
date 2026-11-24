@@ -3391,6 +3391,23 @@ MECHANISMS = (
               "ports. `segments` y est LE type « portion de temps bornée » (situation, état, section)",
               'wama/common/catalog/data_types.py', 'docs/construction/mondes/WAMA_DATA_FUNCTION_CARDS.md §3',
               symbol='DataType'),
+    Mechanism('marks', 'Marques temporelles (pistes de segments et d\'événements d\'une card)',
+              "Les événements et les segments d'une card lus sous UN vocabulaire dans les trois "
+              "mondes (2026-11-24, Fabien : « aligner tout le fonctionnement temporel de WAMA ») : "
+              "une app DÉCLARE ses pistes (`register_tracks`, dans son `ready()`), un seul lecteur "
+              "les rend (`read_tracks`) — `start`, `end` (absent = segment ouvert) ou `time`, "
+              "`origin`, et `parent`, le rang de la marque parente : l'imbrication des marques, "
+              "sans borne d'étages, écrite en document (`within`), par référence (`parent_ref`) ou "
+              "retrouvée par contenance ; une piste peut être DÉRIVÉE (`runs_of` : les tours de "
+              "parole, suites de phrases d'un locuteur). Aucun stockage ne change : le Transcriber "
+              "garde `start_time`, le cam_analyzer `t_enter`. Ce qu'il rend a la forme que lisent "
+              "les opérations du Segmenter (`within`, `overlapping`). Contraintes déclarées "
+              "(inclusion, partition) vérifiables (`violations`). La déclaration est une facette "
+              "du manifeste d'app (`inspector.tracks`), rejouée par `apps_gen`. 1ᵉʳˢ déclarants : "
+              "transcriber (tours, phrases, mots) et cam_analyzer (fenêtres, conflits, situations)",
+              'wama/common/catalog/marks.py',
+              'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.7',
+              symbol='register_tracks'),
     Mechanism('ffmpeg', 'Accès ffmpeg',
               "Résolution centralisée du binaire et des conversions (échappatoire FFMPEG_BINARY)",
               'wama/common/utils/ffmpeg_utils.py', ''),

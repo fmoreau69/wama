@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**249 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**250 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -3724,6 +3724,25 @@ La langue d'un TEXTE (`langid`, balises de section retirées, verdict peu sûr =
   - `say_emphasis(text: str) -> str` — Les mots courts d'EMPHASE en majuscules (`_SHORT_EMPHASIS_WORDS`) passent en minuscules ;
   - `pause_segments(text: str, sentence_pause: float=0.0, clause_pause: float=0.0) -> list` — Le texte À DIRE découpé là où la voix doit RESPIRER : `[(segment, pause en s), …]`.
   - `text_for_speech(text: str) -> str` — Prépare un texte pour la synthèse vocale : la TTS doit LIRE, pas décrire.
+
+### Marques temporelles (pistes de segments et d'événements d'une card)
+
+Les événements et les segments d'une card lus sous UN vocabulaire dans les trois mondes (2026-11-24, Fabien : « aligner tout le fonctionnement temporel de WAMA ») : une app DÉCLARE ses pistes (`register_tracks`, dans son `ready()`), un seul lecteur les rend (`read_tracks`) — `start`, `end` (absent = segment ouvert) ou `time`, `origin`, et `parent`, le rang de la marque parente : l'imbrication des marques, sans borne d'étages, écrite en document (`within`), par référence (`parent_ref`) ou retrouvée par contenance ; une piste peut être DÉRIVÉE (`runs_of` : les tours de parole, suites de phrases d'un locuteur). Aucun stockage ne change : le Transcriber garde `start_time`, le cam_analyzer `t_enter`. Ce qu'il rend a la forme que lisent les opérations du Segmenter (`within`, `overlapping`). Contraintes déclarées (inclusion, partition) vérifiables (`violations`). La déclaration est une facette du manifeste d'app (`inspector.tracks`), rejouée par `apps_gen`. 1ᵉʳˢ déclarants : transcriber (tours, phrases, mots) et cam_analyzer (fenêtres, conflits, situations)
+
+- **Domicile** : `wama/common/catalog/marks.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.7](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
+- **Module** : MARQUES — les événements et les segments d'une card, lus sous UN vocabulaire, dans les trois mondes.
+- **API publique** (11) :
+  - `class InvalidTracks(ValueError)` — Une déclaration de pistes incohérente — refusée à l'enregistrement, pas à la lecture.
+  - `class Track` — Une piste DÉCLARÉE par une app. Trois façons de dire d'où viennent ses lignes :
+  - `track_to_dict(track: Track) -> dict` — La déclaration d'une piste en DONNÉE (ce que porte la facette `inspector.tracks` d'un
+  - `track_from_dict(data: dict) -> Track` — L'inverse de `track_to_dict` — la piste que le générateur écrit dans le `apps.py` d'une app
+  - `validate(tracks: Iterable[Track]) -> List[str]` — Les défauts d'une déclaration, en clair — liste vide = cohérente.
+  - `register_tracks(model, tracks: Iterable[Track]) -> None` — Déclare les pistes des cards de `model` (une classe de modèle, ou `'app.Modele'`) — dans le
+  - `registered() -> Dict[str, Tuple[Track, ...]]` — Toutes les déclarations, par étiquette de modèle — ce que lit la garde générique.
+  - `tracks_of(model_or_card) -> Tuple[Track, ...]` — Les pistes déclarées pour ce modèle ou cette card ; () quand l'app n'en déclare pas.
+  - `read_tracks(card) -> Dict[str, List[dict]]` — Toutes les pistes déclarées d'une card : `{clé: [marques]}`, dans l'ordre déclaré. Les
+  - `read_track(card, key: str) -> List[dict]` — Les marques d'UNE piste d'une card, sous les noms communs : `start`, `end` (`None` =
+  - `violations(card, key: str, tolerance: float=TOLERANCE) -> List[str]` — Ce que les marques d'une piste doivent à leurs marques parentes et ne tiennent pas —
 
 ### Moteurs de recherche web
 

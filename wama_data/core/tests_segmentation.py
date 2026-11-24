@@ -514,5 +514,38 @@ class MargesSpatialesTest(unittest.TestCase):
         self.assertEqual(s['window'], '0_10_m')
 
 
+class MarksOfACardTest(unittest.TestCase):
+    """The marks of a card of ANY world, read by the common reader (`common/catalog/marks.py`,
+    `ROUTE §10.7` step 1), are segments in the sense of this module : the set operations apply to
+    them without translation — what `data_types.py` has stated since August."""
+
+    def test_the_words_of_a_talk_go_through_the_set_operations(self):
+        from types import SimpleNamespace
+        from wama.common.catalog import marks
+        from wama.common.catalog.marks import Track
+        label = 'tests.talk'
+        marks.register_tracks(label, (
+            Track('lines', 'Lines', source='rows',
+                  fields=(('start', 'start_time'), ('end', 'end_time'))),
+            Track('words', 'Words', within='words', parent='lines', attributes=(('text', 'word'),)),
+        ))
+        self.addCleanup(marks._REGISTRY.pop, label, None)
+        card = SimpleNamespace(_meta=SimpleNamespace(label_lower=label), rows=[
+            {'start_time': 0.0, 'end_time': 2.0, 'words': [
+                {'word': 'look', 'start': 0.1, 'end': 0.8}, {'word': 'left', 'start': 1.0, 'end': 1.6}]},
+            {'start_time': 2.0, 'end_time': None, 'words': [
+                {'word': 'now', 'start': 2.2, 'end': 2.5}, {'word': 'go', 'start': 3.0, 'end': None}]}])
+        read = marks.read_tracks(card)
+        gaze = [{'start': 0.9, 'end': 2.6}]            # a fixation, from another source
+        self.assertEqual(['left', 'now'],
+                         [w['text'] for w in within(read['words'], gaze, strict=False)])
+        self.assertEqual(['left', 'now', 'go'],
+                         [w['text'] for w in overlapping(read['words'], [{'start': 1.5, 'end': None}])])
+        # An OPEN line holds what follows its start — the convention of this module, kept as is.
+        self.assertEqual(['look', 'left', 'now', 'go'],
+                         [w['text'] for w in within(read['words'], read['lines'], strict=False)])
+        self.assertEqual(1, len(open_ones(read['lines'])))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
