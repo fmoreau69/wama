@@ -32236,3 +32236,75 @@ n'est né de la régénération du jour (tous antérieurs, 26/10 → 15/11), et 
 **Vérifié** : 177 tests des modules touchés ; contre-épreuves rouges (nature, gabarit, câblage,
 champ ; port de travail) ; `check_docs` : la périmée de `ROUTE:741` recalée (mon retrait) ;
 `doc_facts` régénéré, mes lignes seules commitées.
+
+## §PALIER — 2026-11-24, « FAMILLE À TOUTE PROFONDEUR ; RÉFLEXION : UN TEMPS ET UNE IMBRICATION POUR TOUT WAMA » — code livré et revérifié (`b54c469de`), réflexion consignée (`59ae10f25`), D1 à D14 VALIDÉES par Fabien — 🔚 relancer gunicorn + workers ; D3 à choisir entre ses deux formes ; marche 1 (lecteur de pistes) lancée
+
+> Fabien, 24/11 : *« gunicorn et les workers sont relancés, appliques aux cards existantes […] on
+> termine le travail en cours. En parallèle, je veux qu'on approfondisse la réflexion sur
+> l'imbrication des cards mères/filles et l'alignement vidéo »* — film, séquences, plans, ligne de
+> temps, marqueurs, fragment, Transcriber, segments sous un `.wdat`, Segmenter universel ; recherche
+> web et concile demandés.
+
+**Appliqué aux cards existantes.** `manage.py split_family_lots --apply` sur la base réelle : 4
+familles du composer, 27 pistes passées dans leurs lots (#1077 à #1080). Mesuré avant et après :
+69 cards, 58 fichiers sur 58 présents. Seules des lignes d'appartenance à un lot ont changé de lot
+et de rang ; aucune card, aucun réglage, aucun fichier n'est écrit ni retiré.
+
+**Famille à toute profondeur (`MODES_QUEUE_UX §5quater`).** Le reste nommé le 23/11, et le
+préalable de film / séquences / plans : le lot des dérivées se range sous sa source seule, fille
+d'un lot, ou elle-même dérivée (`nest_derived_lots`, `_queue_entry.html`) ; les dérivées d'une fille
+de lot naissent dans LEUR lot (`family_lot`) ; les scripts lisent « les filles d'un lot » par un
+seul lecteur (`WamaQueueActions.ownCards`) ; ouvrir un lot rangé ne referme plus son parent
+(`WamaQueue.pilesToClose` — l'accordéon et la mémoire de repli écoutaient des événements qui
+remontent). Les gestes d'un lot ne portent pas sur les lots rangés sous ses filles.
+
+**Réflexion (`ROUTE §10.7`, domicile unique ; renvois dans la vision §6.3, `STUDIO_VISION §2bis`,
+`WAMA_DATA_WORLD §2`, `TRANSCRIBER_CORRECTION §11`).** Ce qui existe, mesuré (dont : le type
+`SEGMENTS` écrit déjà qu'une transcription est des segments, la traduction manque — neuf graphies de
+« début » dans le dépôt) ; ce que font OpenTimelineIO, ELAN, BORIS, le montage par le texte, les
+outils de film par IA, et ce qu'aucun ne fait ; la proposition (une card porte le lot de ses
+parties ; loi d'agencement parallèle / série, place dérivée de l'ordre ; événement, segment, piste,
+piste parente ; le fragment est un rôle, pas un type ; segment-ligne par défaut, card par promotion
+explicite ; Segmenter universel par son modèle) ; l'avis du concile (5 agents, 264 s) lu point par
+point ; cinq marches, quatorze décisions.
+
+**Complément, seconde demande du 24/11 (`ROUTE §10.7.9` à `§10.7.11`).** L'imbrication comme UN
+concept : un arbre déclaré à six propriétés, relevé dans sept endroits de WAMA sous sept écritures ;
+« une partie est une plage de son parent » (l'imbrication des cards et celle des segments sont une
+seule relation) ; reconnaître des segments de pistes par le rôle déclaré, pas par une couleur ;
+masquer un segment = la décision « ignorer » ; temporel et spatial (une condition, un autre axe, ou
+une zone — `WAMA_DATA_WORLD §9septies` l'avait tranché pour la condition). **PostgreSQL mesuré sur
+la base réelle** : une trentaine de tables de lot (une paire par app), un seul lien de composition
+et d'un modèle vers lui-même, quatre graphies du temps dans cinq tables (158 540 phrases du
+Transcriber), aucun champ de plage ; cible en trois pièces — lien de composition commun à tous les
+modèles, table de marques à plage native (`numrange`, fin absente = segment ouvert), lots en dernier
+derrière `batch_of` / `batch_elements`. Aucune migration proposée avant qu'un consommateur croisé
+ait prouvé le modèle.
+
+**Dictionnaire des concepts clés** — `docs/construction/architecture/WAMA_CONCEPTS.md`, NEUF
+(demandé par Fabien) : un index, deux lignes par mot et le domicile de sa définition ; déclaré à la
+table d'`AGENTS.md`, au catalogue des docs et à l'arbre généré du README.
+
+**Vérifié** : 9 contre-épreuves en processus, toutes rouges ; la vraie page /composer/ (200, quatre
+lots de pistes sous leurs sources) ; deux sources mises dans un même lot en transaction annulée
+(chaque lot de pistes sous sa card, la card mère dit 2) ; suite large de 2358 tests (gardes
+transverses + dix apps) : 5 rouges d'autres sessions (WriteModesTest ×2 du transcriber, code
+vendorisé d'ACE-Step, une boucle `setInterval` de `wama-processes.js`, des entrées du calendrier sur
+la plage nocturne) ; `check_docs` : 0 cassée, 1 périmée qui n'est pas de ce palier
+(`PROJECT_STATUS:32181`).
+
+**Restes, nommés** :
+- 🔴 relancer gunicorn ET les workers (`family_lot`, `nest_derived_lots`, le suivi `derived`) ;
+- non vérifié au navigateur : le repli imbriqué à l'écran, le glisser d'une fille qui porte un lot
+  rangé (la page se recharge après le geste) ;
+- ✅ D1 à D14 validées par Fabien le 24/11 (« Ok pour D1 à D14, on lance la marche 1 ») ; D3
+  (bande son : plusieurs lots de parties sur une card, ou deux cards côte à côte) proposait deux
+  formes et reste à choisir ; 🔄 marche 1 lancée : le vocabulaire et un lecteur de pistes, sans
+  changer aucun stockage ;
+- toujours ouverts du 23/11 : `manifests/apps/composer.json` non réexporté (travail en cours d'une
+  autre session sur les surfaces de partition) ; décisions du 19/11 approuvées et pas encore
+  écrites — (3) un « auto » qui tire le même modèle ne périme pas, un amont coûteux se demande ;
+  (4) pistes disparues marquées orphelines ; (5) partitions applicables par instrument, onglets de
+  partition regroupés par nature ; durées des textes de console encore en secondes brutes ;
+- `wama-inspector.js` porte des lignes non commitées d'une autre session (« bug #1532 », avec
+  `tests_inspector_apply_select.py` non suivi) : laissées telles quelles.
