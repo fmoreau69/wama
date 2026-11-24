@@ -65,9 +65,10 @@ ne retombe sur la structure que si la source ne dit rien.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from wama.common.catalog.data_types import CANONICAL_FIELDS, DataType, TypedFrame
+from wama.common.catalog.marks import Track, read_tracks
 
 from .core.naming import TIME_AXES
 from .core.temporal import NEAREST, PREVIOUS, Signal, SignalMeta, TemporalReferential
@@ -108,6 +109,33 @@ def default_type(signal: Signal) -> str:
     return DataType.SEGMENTS if signal.is_segments else DataType.TIMESERIES
 
 
+def _session_rows(signal: Signal, i0: int, i1: int, offset: float, segments: bool,
+                  columns: Optional[Iterable[str]] = None) -> List[Dict[str, Any]]:
+    """Les lignes `[i0, i1[` d'un flux sous les noms canoniques (`time`, ou `start` / `end`), en
+    temps de SESSION — ce que lisent le cadre typé ET les pistes de marques, d'une seule façon."""
+    rows = _verifier_lignes(signal.rows(i0, i1), signal.meta.name)
+    kept = set(columns) if columns is not None else None
+    out: List[Dict[str, Any]] = []
+    for k in range(i0, i1):
+        raw = rows[k - i0] if (k - i0) < len(rows) else {}
+        # ② Le temps vient des `times` du signal — jamais de la ligne, qui peut être périmée.
+        line: Dict[str, Any] = {}
+        if segments:
+            line['start'] = signal.time_at(k) + offset
+            end = signal.end_at(k)
+            line['end'] = None if end is None else end + offset
+        else:
+            line['time'] = signal.time_at(k) + offset
+        for key, val in raw.items():
+            if key.lower() in TIME_AXES:
+                continue                      # ② colonne d'axe brute : retirée
+            if kept is not None and key not in kept:
+                continue
+            line[key] = val
+        out.append(line)
+    return out
+
+
 # ══════════════════════════════════════════════════════════════════════════════════════════════
 # 1. Référentiel / Signal → TypedFrame
 # ══════════════════════════════════════════════════════════════════════════════════════════════
@@ -135,30 +163,9 @@ def frame_from_signal(signal: Signal, *, t0: Optional[float] = None,
     else:
         i0, i1 = signal.range_indices(t0 - offset, t1 - offset)
 
-    rows = _verifier_lignes(signal.rows(i0, i1), name)
-    garde = set(champs) if champs is not None else None
-
     dt = data_type or default_type(signal)
     segments = dt == DataType.SEGMENTS
-
-    out: List[Dict[str, Any]] = []
-    for k in range(i0, i1):
-        brute = rows[k - i0] if (k - i0) < len(rows) else {}
-        # ② Le temps vient des `times` du signal — jamais de la ligne, qui peut être périmée.
-        ligne: Dict[str, Any] = {}
-        if segments:
-            ligne['start'] = signal.time_at(k) + offset
-            fin = signal.end_at(k)
-            ligne['end'] = None if fin is None else fin + offset
-        else:
-            ligne['time'] = signal.time_at(k) + offset
-        for key, val in brute.items():
-            if key.lower() in TIME_AXES:
-                continue                      # ② colonne d'axe brute : retirée
-            if garde is not None and key not in garde:
-                continue
-            ligne[key] = val
-        out.append(ligne)
+    out = _session_rows(signal, i0, i1, offset, segments, champs)
 
     champs = CANONICAL_FIELDS.get(dt, ['time'])
     df = pd.DataFrame(out) if out else pd.DataFrame(columns=champs)
@@ -281,3 +288,53 @@ def adjoin(ref: TemporalReferential, name: str, frame: TypedFrame, *,
     un nom dérivé, comme une colonne calculée (`derived_name()`, `chain_name()`).
     """
     return ref.add(signal_from_frame(frame, name, **kwargs), offset=offset)
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════
+# 3. Référentiel → PISTES de marques (`ROUTE §10.7`, marche 1)
+# ══════════════════════════════════════════════════════════════════════════════════════════════
+
+#: Les familles de flux qui SONT des pistes de marques. Un signal échantillonné (une ligne par
+#: instant de mesure) est un flux de données, pas une piste (`ROUTE §10.7.11`).
+MARK_TYPES = (DataType.SEGMENTS, DataType.EVENTS)
+
+#: La colonne où le Segmenter et le codage tracent l'origine d'un segment (`segmentation._trace`).
+ORIGIN_COLUMN = 'origin'
+
+
+def _stream_rows(name: str, segments: bool):
+    """La source d'une piste : les lignes du flux `name` du référentiel qu'on lui passe."""
+    def rows(ref: TemporalReferential) -> List[Dict[str, Any]]:
+        signal = ref.get(name)
+        return _session_rows(signal, 0, len(signal), ref.offset(name), segments)
+    return rows
+
+
+def referential_tracks(ref: TemporalReferential) -> Tuple[Track, ...]:
+    """Les flux d'ÉVÉNEMENTS et de SEGMENTS d'un référentiel, dits comme des pistes — sans
+    déclaration d'app : la source est le FICHIER (`.wdat`, `.trip`… tout ce qu'un lecteur du
+    registre charge). La famille est celle que le flux porte (`default_type`), les attributs sont
+    ses colonnes (lues sur sa première ligne), l'origine celle que chaque ligne trace quand le
+    Segmenter l'a produite. Aucune piste parente n'est dite : un conteneur ne range pas encore ce
+    lien, et le deviner par contenance en inventerait un."""
+    tracks = []
+    for name in ref.names:
+        signal = ref.get(name)
+        kind = default_type(signal)
+        if kind not in MARK_TYPES:
+            continue
+        first = _verifier_lignes(signal.rows(0, 1), name) if len(signal) else []
+        columns = [c for c in (first[0] if first else {}) if c.lower() not in TIME_AXES]
+        tracks.append(Track(
+            key=name, label=name, kind=kind,
+            source=_stream_rows(name, kind == DataType.SEGMENTS),
+            attributes=tuple(c for c in columns if c != ORIGIN_COLUMN),
+            origin_field=ORIGIN_COLUMN if ORIGIN_COLUMN in columns else ''))
+    return tuple(tracks)
+
+
+def read_referential_tracks(ref: TemporalReferential) -> Dict[str, List[dict]]:
+    """Les marques des pistes d'un référentiel, par le lecteur COMMUN (`catalog/marks.read_tracks`)
+    et sous ses noms (`start`, `end` absent = ouvert, ou `time` ; `origin`), en temps de SESSION :
+    la forme même que rend la piste d'une card d'un autre monde."""
+    return read_tracks(ref, referential_tracks(ref))

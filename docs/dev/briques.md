@@ -3727,7 +3727,7 @@ La langue d'un TEXTE (`langid`, balises de section retirées, verdict peu sûr =
 
 ### Marques temporelles (pistes de segments et d'événements d'une card)
 
-Les événements et les segments d'une card lus sous UN vocabulaire dans les trois mondes (2026-11-24, Fabien : « aligner tout le fonctionnement temporel de WAMA ») : une app DÉCLARE ses pistes (`register_tracks`, dans son `ready()`), un seul lecteur les rend (`read_tracks`) — `start`, `end` (absent = segment ouvert) ou `time`, `origin`, et `parent`, le rang de la marque parente : l'imbrication des marques, sans borne d'étages, écrite en document (`within`), par référence (`parent_ref`) ou retrouvée par contenance ; une piste peut être DÉRIVÉE (`runs_of` : les tours de parole, suites de phrases d'un locuteur). Aucun stockage ne change : le Transcriber garde `start_time`, le cam_analyzer `t_enter`. Ce qu'il rend a la forme que lisent les opérations du Segmenter (`within`, `overlapping`). Contraintes déclarées (inclusion, partition) vérifiables (`violations`). La déclaration est une facette du manifeste d'app (`inspector.tracks`), rejouée par `apps_gen`. 1ᵉʳˢ déclarants : transcriber (tours, phrases, mots) et cam_analyzer (fenêtres, conflits, situations)
+Les événements et les segments d'une card lus sous UN vocabulaire dans les trois mondes (2026-11-24, Fabien : « aligner tout le fonctionnement temporel de WAMA ») : une app DÉCLARE ses pistes (`register_tracks`, dans son `ready()`), un seul lecteur les rend (`read_tracks`) — `start`, `end` (absent = segment ouvert) ou `time`, `origin`, et `parent`, le rang de la marque parente : l'imbrication des marques, sans borne d'étages, écrite en document (`within`), par référence (`parent_ref`) ou retrouvée par contenance ; une piste peut être DÉRIVÉE (`runs_of` : les tours de parole, suites de phrases d'un locuteur). Aucun stockage ne change : le Transcriber garde `start_time`, le cam_analyzer `t_enter`. Ce qu'il rend a la forme que lisent les opérations du Segmenter (`within`, `overlapping`). Contraintes déclarées (inclusion, partition) vérifiables (`violations`). La déclaration est une facette du manifeste d'app (`inspector.tracks`), rejouée par `apps_gen`. 1ᵉʳˢ déclarants : transcriber (tours, phrases, mots) et cam_analyzer (fenêtres, conflits, situations). Un porteur qu'aucune app ne déclare se lit par le MÊME lecteur avec des pistes dites sur place (`read_tracks(porteur, pistes)`) : les flux d'événements et de segments d'un fichier de données (`.wdat`, `.trip`) sont dits par le fichier (`wama_data.frames.referential_tracks`). Les pistes déclarées se lisent au registre `tracks`
 
 - **Domicile** : `wama/common/catalog/marks.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.7](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : MARQUES — les événements et les segments d'une card, lus sous UN vocabulaire, dans les trois mondes.
@@ -3740,9 +3740,9 @@ Les événements et les segments d'une card lus sous UN vocabulaire dans les tro
   - `register_tracks(model, tracks: Iterable[Track]) -> None` — Déclare les pistes des cards de `model` (une classe de modèle, ou `'app.Modele'`) — dans le
   - `registered() -> Dict[str, Tuple[Track, ...]]` — Toutes les déclarations, par étiquette de modèle — ce que lit la garde générique.
   - `tracks_of(model_or_card) -> Tuple[Track, ...]` — Les pistes déclarées pour ce modèle ou cette card ; () quand l'app n'en déclare pas.
-  - `read_tracks(card) -> Dict[str, List[dict]]` — Toutes les pistes déclarées d'une card : `{clé: [marques]}`, dans l'ordre déclaré. Les
-  - `read_track(card, key: str) -> List[dict]` — Les marques d'UNE piste d'une card, sous les noms communs : `start`, `end` (`None` =
-  - `violations(card, key: str, tolerance: float=TOLERANCE) -> List[str]` — Ce que les marques d'une piste doivent à leurs marques parentes et ne tiennent pas —
+  - `read_tracks(card, tracks: Optional[Iterable[Track]]=None) -> Dict[str, List[dict]]` — Toutes les pistes d'une card : `{clé: [marques]}`, dans l'ordre déclaré. Les sources ne
+  - `read_track(card, key: str, tracks: Optional[Iterable[Track]]=None) -> List[dict]` — Les marques d'UNE piste d'une card, sous les noms communs : `start`, `end` (`None` =
+  - `violations(card, key: str, tolerance: float=TOLERANCE, tracks: Optional[Iterable[Track]]=None) -> List[str]` — Ce que les marques d'une piste doivent à leurs marques parentes et ne tiennent pas —
 
 ### Moteurs de recherche web
 
@@ -3865,13 +3865,15 @@ SEULE frontière entre les deux vocabulaires du monde Data : le référentiel (p
 
 - **Domicile** : `wama_data/frames.py` · **doc** : [docs/construction/mondes/WAMA_DATA_WORLD.md §9quater.7](../construction/mondes/WAMA_DATA_WORLD.md)
 - **Module** : LE PONT — `Signal` / `TemporalReferential` ↔ `TypedFrame`.
-- **API publique** (6) :
+- **API publique** (8) :
   - `default_type(signal: Signal) -> str` — Type de cadre : la FAMILLE DÉCLARÉE d'abord, la structure en repli.
   - `frame_from_signal(signal: Signal, *, t0: Optional[float]=None, t1: Optional[float]=None, offset: float=0.0, data_type: Optional[str]=None, champs: Optional[Ite…` — Une FENÊTRE d'un flux, en cadre typé prêt pour le catalogue.
   - `frame_from_referential(ref: TemporalReferential, name: str, *, t0: Optional[float]=None, t1: Optional[float]=None, data_type: Optional[str]=None, champs: Optio…` — Une fenêtre d'un flux du référentiel, **en temps de session** (piège ①).
   - `frame_from_table(path, data_type: str, *, meta: Optional[Mapping[str, Any]]=None) -> TypedFrame` — Un fichier PLAT (CSV, TSV, TXT, XLSX…) en cadre du type DIT — l'entrée « Jeu de données »
   - `signal_from_frame(frame: TypedFrame, name: str, *, fs: Optional[float]=None, units: Optional[Mapping[str, str]]=None, comments: str='') -> Signal` — Un cadre typé redevient un flux — **toujours DÉRIVÉ, jamais acquis** (piège ④).
   - `adjoin(ref: TemporalReferential, name: str, frame: TypedFrame, *, offset: float=0.0, **kwargs) -> Signal` — Ajoute au référentiel un flux issu d'un calcul, et le rend.
+  - `referential_tracks(ref: TemporalReferential) -> Tuple[Track, ...]` — Les flux d'ÉVÉNEMENTS et de SEGMENTS d'un référentiel, dits comme des pistes — sans
+  - `read_referential_tracks(ref: TemporalReferential) -> Dict[str, List[dict]]` — Les marques des pistes d'un référentiel, par le lecteur COMMUN (`catalog/marks.read_tracks`)
 
 ### Refusion de pistes séparées
 

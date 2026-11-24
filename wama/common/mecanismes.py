@@ -3404,7 +3404,12 @@ MECHANISMS = (
               "les opérations du Segmenter (`within`, `overlapping`). Contraintes déclarées "
               "(inclusion, partition) vérifiables (`violations`). La déclaration est une facette "
               "du manifeste d'app (`inspector.tracks`), rejouée par `apps_gen`. 1ᵉʳˢ déclarants : "
-              "transcriber (tours, phrases, mots) et cam_analyzer (fenêtres, conflits, situations)",
+              "transcriber (tours, phrases, mots) et cam_analyzer (fenêtres, conflits, situations). "
+              "Un porteur qu'aucune app ne déclare se lit par le MÊME lecteur avec des pistes dites "
+              "sur place (`read_tracks(porteur, pistes)`) : les flux d'événements et de segments "
+              "d'un fichier de données (`.wdat`, `.trip`) sont dits par le fichier "
+              "(`wama_data.frames.referential_tracks`). Les pistes déclarées se lisent au registre "
+              "`tracks`",
               'wama/common/catalog/marks.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.7',
               symbol='register_tracks'),

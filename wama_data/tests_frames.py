@@ -357,3 +357,69 @@ class FrameFromTableTest(unittest.TestCase):
             frame_from_table(self._file('notes.md', '# titre\n'), DataType.TABLE)
         self.assertIn('notes.md', str(said.exception))
         self.assertIn('.csv', str(said.exception))
+
+
+class TracksOfAReferentialTest(unittest.TestCase):
+    """The event and segment streams of a loaded source ARE tracks of marks (`ROUTE §10.7`, step
+    1) : stated by the file, read by the common reader, under the names of every other world."""
+
+    def _referential(self):
+        ref = TemporalReferential('trial')
+        ref.add(_signal('speed', (0.0, 1.0, 2.0)))
+        ref.add(_signal('beeps', (1.0, 2.5), rows=[{'timecode': 1.0, 'label': 'go'},
+                                                   {'timecode': 2.5, 'label': 'stop'}],
+                        data_type=DataType.EVENTS), offset=10.0)
+        ref.add(_signal('phases', (0.0, 5.0), ends=[3.0, None], data_type=DataType.SEGMENTS,
+                        rows=[{'startTimecode': 99.0, 'endTimecode': 98.0, 'name': 'a',
+                               'origin': 'coding'},
+                              {'startTimecode': 5.0, 'endTimecode': None, 'name': 'b',
+                               'origin': 'around'}]), offset=10.0)
+        ref.add(_signal('bare', (4.0,), rows=[{}], ends=[6.0]))
+        return ref
+
+    def test_the_event_and_segment_streams_are_the_tracks_and_a_sampled_signal_is_not(self):
+        from .frames import referential_tracks
+        tracks = {t.key: t for t in referential_tracks(self._referential())}
+        self.assertEqual(['bare', 'beeps', 'phases'], sorted(tracks))
+        self.assertEqual([DataType.SEGMENTS, DataType.EVENTS, DataType.SEGMENTS],
+                         [tracks[k].kind for k in ('bare', 'beeps', 'phases')])
+        self.assertEqual(('name',), tracks['phases'].attributes, 'its columns, the axis left out')
+        self.assertEqual('origin', tracks['phases'].origin_field)
+        self.assertEqual('', tracks['beeps'].origin_field, 'no origin column, none stated')
+
+    def test_the_marks_come_under_the_common_names_in_session_time(self):
+        from .frames import read_referential_tracks
+        read = read_referential_tracks(self._referential())
+        self.assertEqual([{'start': 10.0, 'end': 13.0, 'name': 'a', 'origin': 'coding'},
+                          {'start': 15.0, 'end': None, 'name': 'b', 'origin': 'around'}],
+                         read['phases'],
+                         'the offset of the stream ; the times of the signal, never the stale '
+                         'column of the row ; an unknown end stays open ; the origin each row traces')
+        self.assertEqual([{'time': 11.0, 'label': 'go', 'origin': 'beeps'},
+                          {'time': 12.5, 'label': 'stop', 'origin': 'beeps'}], read['beeps'])
+        self.assertEqual([{'start': 4.0, 'end': 6.0, 'origin': 'bare'}], read['bare'])
+        self.assertNotIn('speed', read)
+
+    def test_they_go_through_the_set_operations_like_the_marks_of_any_card(self):
+        from .core.segmentation import open_ones, times_within, within
+        from .frames import read_referential_tracks
+        read = read_referential_tracks(self._referential())
+        self.assertEqual(['a'], [m['name'] for m in within(read['phases'], [{'start': 9.0, 'end': 14.0}])])
+        self.assertEqual(1, len(open_ones(read['phases'])))
+        inside = times_within([m['time'] for m in read['beeps']], read['phases'])
+        self.assertEqual(2, len(inside), 'the two beeps fall inside a phase, the second one open')
+
+    def test_a_container_written_then_reopened_gives_the_same_marks(self):
+        import shutil
+        import tempfile
+        from pathlib import Path
+
+        from .containers import write
+        from .frames import read_referential_tracks
+        from .sources import load
+        folder = Path(tempfile.mkdtemp(prefix='wama_tracks_'))
+        self.addCleanup(shutil.rmtree, folder, ignore_errors=True)
+        before = self._referential()
+        write(before, folder / 'trial.wdat')
+        after = load(folder / 'trial.wdat')
+        self.assertEqual(read_referential_tracks(before), read_referential_tracks(after))

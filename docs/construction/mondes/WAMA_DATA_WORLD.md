@@ -133,6 +133,11 @@ appartient au *jeu de données* ou à la *session*.
 > que par un geste explicite), le relevé mesuré des graphies de temps dans tout le dépôt, et la
 > question de l'emplacement du modèle de marques (glu inter-mondes — validé, D6). Décisions D1 à D14
 > validées par Fabien le jour même ; seule la marche 1 (le lecteur de pistes) est lancée.
+> ⚠ Révisé le soir même (`§10.7.12`, qui prime) : les segments se montrent SUR la card, dans une
+> zone temporelle, et une ligne ne devient jamais une card. ✅ Marche 1 livrée côté Data
+> (2026-11-24) : les flux d'événements et de segments d'un fichier chargé se lisent comme des
+> pistes par le lecteur commun (`wama_data/frames.referential_tracks`, `read_referential_tracks`),
+> sous les noms des autres mondes.
 
 ---
 

@@ -119,6 +119,47 @@ class OneReaderTest(SimpleTestCase):
                 marks.read_track(_card('t.one', a=[]), 'b')
 
 
+class TracksStatedOnTheSpotTest(SimpleTestCase):
+    """A holder no app states tracks for — the streams of a data file — is read by the SAME reader,
+    with the tracks its source states on the spot."""
+
+    TRACKS = (Track('blocks', 'Blocks', source=lambda holder: holder['blocks']),
+              Track('steps', 'Steps', source=lambda holder: holder['steps'], parent='blocks',
+                    constraint=INCLUSION, attributes=('name',)))
+    HOLDER = {'blocks': [{'start': 0, 'end': 10}, {'start': 10, 'end': None}],
+              'steps': [{'start': 1, 'end': 2, 'name': 'a'}, {'start': 12, 'end': 30, 'name': 'b'}]}
+
+    def test_they_are_read_and_checked_like_registered_ones(self):
+        read = marks.read_tracks(self.HOLDER, self.TRACKS)
+        self.assertEqual(['blocks', 'steps'], list(read))
+        self.assertEqual([('a', 0), ('b', 1)], [(m['name'], m['parent']) for m in read['steps']])
+        self.assertEqual(read['steps'], marks.read_track(self.HOLDER, 'steps', self.TRACKS))
+        self.assertEqual([], marks.violations(self.HOLDER, 'steps', tracks=self.TRACKS))
+        late = dict(self.HOLDER, steps=[{'start': 8, 'end': 11, 'name': 'c'}])
+        self.assertEqual(1, len(marks.violations(late, 'steps', tracks=self.TRACKS)))
+        self.assertNotIn('', marks.registered(), 'nothing was registered for it')
+
+    def test_what_is_stated_on_the_spot_replaces_what_an_app_registered(self):
+        card = _card('t.spot', rows=[{'start': 1, 'end': 2}])
+        with _Registered('t.spot', (Track('rows', 'Rows', source='rows'),)):
+            self.assertEqual(['rows'], list(marks.read_tracks(card)))
+            self.assertEqual(['one'], list(marks.read_tracks(
+                card, (Track('one', 'One', source='rows'),))))
+
+    def test_an_incoherent_statement_is_turned_down_before_anything_is_read(self):
+        read = []
+        orphan = (Track('steps', 'Steps', source=lambda holder: read.append(1) or [],
+                        parent='nowhere'),)
+        for reading in (lambda: marks.read_tracks(self.HOLDER, orphan),
+                        lambda: marks.read_track(self.HOLDER, 'steps', orphan),
+                        lambda: marks.violations(self.HOLDER, 'steps', tracks=orphan)):
+            with self.assertRaises(marks.InvalidTracks):
+                reading()
+        self.assertEqual([], read)
+        with self.assertRaises(KeyError):
+            marks.read_track(self.HOLDER, 'absent', self.TRACKS)
+
+
 class StatedConstraintsTest(SimpleTestCase):
 
     def _problems(self, constraint, parents, children):
@@ -212,6 +253,29 @@ class EveryStatedTrackTest(SimpleTestCase):
                         self.assertTrue(callable(found), f'{track.key} : {source}')
                     else:
                         self.assertTrue(hasattr(model, source), f'{track.key} : {label}.{source}')
+
+    def test_the_registry_of_tracks_names_every_stated_track_and_only_those(self):
+        """What a surface asks (« which tracks does this kind of card carry ? ») is answered by the
+        common registry, derived from the statements at each reading."""
+        from wama.common import registries
+        registry = registries.get('tracks')
+        entries = registry.entries()
+        stated = {f'{label}.{track.key}': track
+                  for label, tracks in marks.registered().items() for track in tracks}
+        self.assertEqual(sorted(stated), sorted(entries))
+        self.assertEqual(len(stated), registry.count())
+        for key, track in stated.items():
+            entry = entries[key]
+            with self.subTest(track=key):
+                self.assertEqual((track.kind, track.axis, track.parent, track.constraint, track.label),
+                                 (entry['kind'], entry['axis'], entry['parent'],
+                                  entry['constraint'], entry['label']))
+                self.assertEqual(key, f"{entry['model']}.{track.key}")
+                self.assertEqual(entry['app'], django_apps.get_model(entry['model'])._meta.app_label)
+                self.assertEqual('derived' if track.runs_of else 'nested' if track.within
+                                 else 'stored', entry['rows'])
+                if entry['parent']:
+                    self.assertIn(f"{entry['model']}.{entry['parent']}", entries)
 
     def test_every_statement_gives_marks_under_the_common_names_only(self):
         """Whatever the stored names, a mark read through a real statement carries `start` and

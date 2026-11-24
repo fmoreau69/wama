@@ -65,7 +65,7 @@ la réponse n'est pas « tout en registre ».
 
 ## Les registres, un par un
 
-**22 registres**, par ordre alphabétique de libellé.
+**23 registres**, par ordre alphabétique de libellé.
 
 ### Applications
 
@@ -234,6 +234,16 @@ Les cards d'ENTRÉE et de SORTIE d'un pipeline (ni l'une ni l'autre n'est un pro
 - **Citable dans une doc** : `WAMA:FAIT(tools/<clé>/<champ>)`
 
 L'API de l'assistant — la même pour l'API REST, le serveur MCP et le Studio. Chaque outil dit son effet (lecture, écriture, destruction) et son origine : transverse, app de WAMA, jumelle du bac à sable, app née d'un manifeste (en construction), ou surface hors catalogue (Studio, médiathèque, registres…). Les outils du bac à sable n'existent que là où il est installé. Hors de cette liste : les outils de développement (surface à part) et la délégation à des sous-agents (un verbe de la boucle).
+
+### Pistes de marques
+
+- **Clé** : `tracks` — Dérivé à chaque affichage — toujours à jour
+- **Source** : Déclarations `register_tracks` des apps (`common/catalog/marks.py`), portées par la facette `inspector.tracks` de leur manifeste
+- **Provenance des éléments** : Système — déclaré par WAMA, sans auteur
+- **Doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.7](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
+- **Citable dans une doc** : `WAMA:FAIT(tracks/<clé>/<champ>)`
+
+Les événements et les segments qu'une card porte sur son axe (les phrases et les mots d'une transcription, les fenêtres et les conflits d'une analyse), tous lus sous les mêmes noms par un seul lecteur. Une piste dit son axe, sa famille (segments ou événements), sa piste parente et ce que ses marques lui doivent. Les pistes d'un fichier de données sont dites par le fichier, pas ici.
 
 ### Prompts déclarés
 

@@ -806,3 +806,48 @@ register(Registry(
                 "Hors de cette liste : les outils de développement (surface à part) et la "
                 "délégation à des sous-agents (un verbe de la boucle).",
 ))
+
+
+# ──────────────────────────────────────────────────────────────────────────────────────────────
+# PISTES — les marques temporelles qu'une card porte, NOMMÉES (2026-11-24, `ROUTE §10.7`, marche 1)
+#
+# Une app DÉCLARE ses pistes (`catalog/marks.register_tracks`, dans son `ready()`), un seul lecteur
+# les rend. Ce registre lit ces déclarations et n'écrit rien : c'est ce qui permet à une surface —
+# la zone temporelle d'une card, l'assistant, un nœud du Studio — de demander « quelles pistes
+# porte ce type de card, sur quel axe, sous quelle piste parente ? » sans connaître l'app.
+#
+# ⚠ Seules les pistes DÉCLARÉES y figurent. Celles d'un fichier de données (`.wdat`, `.trip`) sont
+# dites par le fichier lui-même (`wama_data.frames.referential_tracks`) : elles appartiennent à un
+# essai, pas à WAMA, et n'ont pas à entrer dans un registre du code.
+# ──────────────────────────────────────────────────────────────────────────────────────────────
+
+def _entries_tracks() -> dict:
+    """Les pistes déclarées, par `app.modèle.piste` : ce que dit la déclaration (axe, famille,
+    piste parente, contrainte) et la façon dont ses lignes se trouvent (`rows` : `stored`, rangées
+    par l'app ; `nested`, écrites dans la marque parente ; `derived`, déduites d'une autre piste)."""
+    from .catalog.marks import registered
+    out = {}
+    for label, tracks in sorted(registered().items()):
+        for track in tracks:
+            out[f'{label}.{track.key}'] = {
+                'app': label.partition('.')[0], 'model': label, 'label': track.label,
+                'kind': track.kind, 'axis': track.axis, 'parent': track.parent,
+                'constraint': track.constraint,
+                'rows': 'derived' if track.runs_of else 'nested' if track.within else 'stored',
+            }
+    return out
+
+
+register(Registry(
+    key='tracks', label='Pistes de marques', nature=DERIVED,
+    source="Déclarations `register_tracks` des apps (`common/catalog/marks.py`), portées par la "
+           "facette `inspector.tracks` de leur manifeste",
+    count=lambda: len(_entries_tracks()), entries=_entries_tracks,
+    permission='auth', provenance=SYSTEM,
+    doc='docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.7',
+    description="Les événements et les segments qu'une card porte sur son axe (les phrases et les "
+                "mots d'une transcription, les fenêtres et les conflits d'une analyse), tous lus "
+                "sous les mêmes noms par un seul lecteur. Une piste dit son axe, sa famille "
+                "(segments ou événements), sa piste parente et ce que ses marques lui doivent. "
+                "Les pistes d'un fichier de données sont dites par le fichier, pas ici.",
+))

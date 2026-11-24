@@ -217,11 +217,30 @@ def tracks_of(model_or_card) -> Tuple[Track, ...]:
     return _REGISTRY.get(_label_of(model_or_card), ())
 
 
-def _track(card, key: str) -> Track:
-    for track in tracks_of(card):
-        if track.key == key:
-            return track
-    raise KeyError(f"{_label_of(card) or type(card).__name__} : aucune piste « {key} » déclarée")
+#: La place, dans le contexte d'UNE lecture, des pistes qu'elle lit (par clé, dans l'ordre dit).
+_STATED = ('stated',)
+
+
+def _context(holder, tracks: Optional[Iterable[Track]] = None) -> dict:
+    """Le contexte d'UNE lecture : les pistes lues et ce qui a déjà été lu. Les pistes sont celles
+    que l'app a déclarées pour ce modèle, ou celles DITES SUR PLACE (`tracks`) quand la source les
+    porte elle-même — un fichier de données dit ses flux, aucune app n'a à les déclarer. Dites sur
+    place, elles passent le même contrôle qu'à l'enregistrement."""
+    if tracks is None:
+        tracks = tracks_of(holder)
+    else:
+        tracks = tuple(tracks)
+        problems = validate(tracks)
+        if problems:
+            raise InvalidTracks(' ; '.join(problems))
+    return {_STATED: {track.key: track for track in tracks}}
+
+
+def _track(card, key: str, cache: dict) -> Track:
+    track = cache[_STATED].get(key)
+    if track is None:
+        raise KeyError(f"{_label_of(card) or type(card).__name__} : aucune piste « {key} » déclarée")
+    return track
 
 
 def _get(row, name: str, default=None):
@@ -317,7 +336,7 @@ def _read(card, track: Track, cache: dict) -> List[dict]:
     marks: List[dict] = []
     cache[track.key] = marks            # posé d'abord : une lecture ne se relance pas elle-même
     if track.runs_of:
-        base = _track(card, track.runs_of)
+        base = _track(card, track.runs_of, cache)
         # Ses marques SANS leur parent (qui peut être cette piste même) : lues à part.
         raw = [m for m in (_mark(base, row) for row in _source_rows(card, base, cache)) if m]
         marks.extend(_runs(track, raw))
@@ -327,7 +346,7 @@ def _read(card, track: Track, cache: dict) -> List[dict]:
             if mark is None:
                 continue
             if track.parent:
-                parents = _read(card, _track(card, track.parent), cache)
+                parents = _read(card, _track(card, track.parent, cache), cache)
                 if built_parent is not None:
                     mark['parent'] = built_parent
                 elif track.parent_ref:
@@ -353,7 +372,7 @@ def _source_rows_with_parent(card, track: Track, cache: dict) -> List[tuple]:
         if slot not in cache:
             cache[slot] = _rows(card, track.source)
         return [(row, None) for row in cache[slot]]
-    parent = _track(card, track.parent)
+    parent = _track(card, track.parent, cache)
     out, rank = [], 0
     for parent_row in _source_rows(card, parent, cache):
         timed = _mark(parent, parent_row) is not None
@@ -364,32 +383,35 @@ def _source_rows_with_parent(card, track: Track, cache: dict) -> List[tuple]:
     return out
 
 
-def read_tracks(card) -> Dict[str, List[dict]]:
-    """Toutes les pistes déclarées d'une card : `{clé: [marques]}`, dans l'ordre déclaré. Les
-    sources ne sont lues qu'une fois."""
-    cache: dict = {}
-    return {track.key: _read(card, track, cache) for track in tracks_of(card)}
+def read_tracks(card, tracks: Optional[Iterable[Track]] = None) -> Dict[str, List[dict]]:
+    """Toutes les pistes d'une card : `{clé: [marques]}`, dans l'ordre déclaré. Les sources ne
+    sont lues qu'une fois. `tracks` : des pistes DITES SUR PLACE, pour un porteur qu'aucune app ne
+    déclare (les flux d'un fichier de données) — `card` est alors ce que lisent leurs sources."""
+    cache = _context(card, tracks)
+    return {key: _read(card, track, cache) for key, track in cache[_STATED].items()}
 
 
-def read_track(card, key: str) -> List[dict]:
+def read_track(card, key: str, tracks: Optional[Iterable[Track]] = None) -> List[dict]:
     """Les marques d'UNE piste d'une card, sous les noms communs : `start`, `end` (`None` =
     ouvert) ou `time`, `origin`, ses attributs déclarés, et `parent` (le rang de sa marque parente
     dans la piste parente, `None` si elle n'en a pas) quand la piste en déclare une. L'ordre est
     celui de la source : c'est une donnée (le rang), il n'est pas retrié."""
-    return _read(card, _track(card, key), {})
+    cache = _context(card, tracks)
+    return _read(card, _track(card, key, cache), cache)
 
 
-def violations(card, key: str, tolerance: float = TOLERANCE) -> List[str]:
+def violations(card, key: str, tolerance: float = TOLERANCE,
+               tracks: Optional[Iterable[Track]] = None) -> List[str]:
     """Ce que les marques d'une piste doivent à leurs marques parentes et ne tiennent pas —
     liste vide = la contrainte déclarée est tenue (ou la piste n'en déclare pas). INCLUSION :
     chaque marque a une parente et tient dans ses bornes. PARTITION : en plus, les marques d'une
     même parente la couvrent sans trou ni chevauchement."""
-    track = _track(card, key)
+    cache = _context(card, tracks)
+    track = _track(card, key, cache)
     if not track.constraint:
         return []
-    cache: dict = {}
     marks = _read(card, track, cache)
-    parents = _read(card, _track(card, track.parent), cache)
+    parents = _read(card, _track(card, track.parent, cache), cache)
     problems, children = [], {}
     for rank, mark in enumerate(marks):
         index = mark.get('parent')

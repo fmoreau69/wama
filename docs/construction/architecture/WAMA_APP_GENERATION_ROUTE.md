@@ -8833,9 +8833,25 @@ de mots et une piste d'oculométrie).
    (`inspector.tracks`, `WAMA_MANIFEST_SPEC`), rejouée par le générateur (`apps_gen`) et passée au
    contrôle de sûreté (`source_safety`). Preuve croisée : les marques lues passent telles quelles
    par `within` et `overlapping` du Segmenter (`wama_data/core/tests_segmentation`).
-   ⏳ Restent : les jumelles à régénérer pour qu'elles portent la facette ; les tables d'un `.wdat`
-   lues comme des pistes (sans déclaration d'app : la source est le fichier) ; l'inscription au
-   registre commun ; sections et paroles du Composer.
+   ✅ **Complétée le 2026-11-24 (nuit)** — deux des restes :
+   - **les pistes d'un fichier de données**, sans déclaration d'app : la source est le fichier.
+     `wama_data/frames.referential_tracks` dit comme des pistes les flux d'événements et de
+     segments d'un référentiel chargé (`.wdat`, `.trip`, tout ce qu'un lecteur du registre
+     charge ; un signal échantillonné n'en est pas une), et `read_referential_tracks` les rend par
+     le lecteur COMMUN — `read_tracks(porteur, pistes)` lit désormais des pistes dites sur place,
+     contrôlées comme à l'enregistrement. Temps de session (le décalage du flux appliqué), fin
+     inconnue restée ouverte, origine tracée par chaque ligne quand le Segmenter l'a produite.
+     Les lignes canoniques d'un flux ne s'écrivent qu'une fois (`_session_rows`, que lit aussi le
+     cadre typé). Preuve : un conteneur `.wdat` écrit puis rouvert rend les mêmes marques, et
+     elles passent par `within`, `times_within`, `open_ones`. Aucune piste parente n'est dite :
+     le conteneur ne range pas encore ce lien, et le deviner en inventerait un ;
+   - **le registre commun** : `tracks` (`registries_builtin`), dérivé des déclarations à chaque
+     lecture — par `app.modèle.piste` : axe, famille, piste parente, contrainte, et la façon dont
+     ses lignes se trouvent (rangées, écrites dans la marque parente, déduites). Les pistes d'un
+     fichier n'y entrent pas : elles appartiennent à un essai, pas à WAMA.
+   ⏳ Restent : les jumelles à régénérer pour qu'elles portent la facette ; sections et paroles du
+   Composer ; la piste parente dans un conteneur `.wdat` ; l'index des pistes d'un essai en base
+   (10.7.11).
 2. **Un premier consommateur croisé** : les opérations du Segmenter sur les pistes d'une
    transcription (« présent dans », filtre), et l'export d'un extrait par segment.
 3. **La plage sur une card dérivée et la promotion ligne → card** : une card dérivée dit quelle
@@ -8988,7 +9004,11 @@ du temps. **La cible, en trois pièces** — chacune additive, chacune derrière
 
 1. **Un lien de composition COMMUN à tous les modèles.** Une table : le parent (n'importe quel
    modèle de card), l'enfant (n'importe lequel, UNIQUE : un arbre), le rôle, le rang, la plage
-   couverte. Elle remplace le lien d'un modèle vers lui-même, et permet qu'un plan de l'Imager soit
+   couverte. L'adresse d'une card y sera celle que les tables communes emploient déjà (`app`,
+   `object_type`, `object_id` : `InputProvenance`, `RunOutcome`, `ItemRevision`), et le vocabulaire
+   rôle / rang celui de la table des ENTRÉES d'un élément proposée le même jour
+   (`INPUT_MODEL_MATCHING §6.13`) — deux tables distinctes pour une raison mesurée (une partie a
+   UN parent, un fichier d'entrée peut nourrir plusieurs cards), une seule convention. Elle remplace le lien d'un modèle vers lui-même, et permet qu'un plan de l'Imager soit
    la partie d'un film. La profondeur est sans borne : une liste d'adjacence, parcourue par une
    requête récursive (`WITH RECURSIVE`, avec sa clause `CYCLE` depuis PostgreSQL 14) ; `ltree` est
    disponible si un jour les sous-arbres se lisent en masse.
