@@ -32346,3 +32346,26 @@ par point. D6, D7, D8 confirmées ; D11 à D14 non rediscutées.
 - 🔴 relancer gunicorn + workers reste dû (rangement à toute profondeur, déclarations de pistes) ;
 - marche 2 proposée : la zone temporelle en lecture seule sur la card, pour le Transcriber et le
   cam_analyzer.
+
+## §PALIER — 2026-11-24, « LA VALEUR D'UN PORT SE LIT PAR UN LECTEUR COMMUN » — 🔚 décision de Fabien : la table commune des entrées
+
+- ✅ `common/utils/port_fields.py` (959feff87) : un consommateur demande la valeur d'un PORT, jamais
+  une colonne. Résolution : `WAMA_PORT_FIELDS` du modèle d'élément (posé sur les dix apps, les seuls
+  écarts hérités), sinon le champ homonyme (writer_01, translator_01 : rien à déclarer), sinon aucun.
+  Un champ partagé (l'avatar de l'avatarizer, photo OU `.glb`) rend le fichier au port de sa nature
+  (`input_match.work_token_for`). Aucun stockage touché, aucune migration.
+- ✅ Garde générique `tests_port_fields` (5 tests, ports lus dans le corpus versionné ; écarts `GAPS`
+  et jumelles en attente de projection, listes qui ne peuvent que baisser) ; contre-épreuves en
+  mémoire, cinq rouges ; vérifiée sur HEAD en worktree — où elle a montré un défaut, corrigé
+  (cdc91bc0a : les jumelles ne sont pas versionnées, une jumelle absente n'est pas jugée).
+- ✅ Cartographie mesurée, constat daté et cible : `INPUT_MODEL_MATCHING §6.13`. Corrigé en
+  revérifiant : « colonnes au nom du port » (`BATCH_FORMAT`, `CARD_DESIGN §11.11`) parle des
+  colonnes d'un FICHIER DE LOT, pas de la base ; un port « avatar » est exclu (décision du 30/09) ;
+  `work` est le port générique COMMUN, pas celui du converter. Renommer les colonnes (option 4) est
+  RETIRÉ : une colonne par port bloque toute nature nouvelle.
+- ✅ 3fb6d6628 : compte de l'API de `source_ingest` dans `docs/dev/briques.md` (9 → 11, oubli de
+  5762bae52).
+- 🔚 restent : décision de Fabien sur la cible (une table commune des entrées = `InputProvenance`
+  agrandie, aucune colonne par port) ; les six copies à faire lire le lecteur ; la projection de
+  `WAMA_PORT_FIELDS` aux jumelles (extracteur, `models_gen`) ; la consigne de l'anonymizer à
+  déclarer portée par un réglage ; `prompt_file` de l'imager ; 🔴 relancer gunicorn + workers.
