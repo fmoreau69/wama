@@ -32308,3 +32308,41 @@ la plage nocturne) ; `check_docs` : 0 cassée, 1 périmée qui n'est pas de ce p
   partition regroupés par nature ; durées des textes de console encore en secondes brutes ;
 - `wama-inspector.js` porte des lignes non commitées d'une autre session (« bug #1532 », avec
   `tests_inspector_apply_select.py` non suivi) : laissées telles quelles.
+
+## §PALIER — 2026-11-24 (soir), « MARQUES TEMPORELLES : marche 1 livrée (lecteur de pistes, facette du manifeste, générateur) ; DÉCISIONS RÉVISÉES par Fabien » — commité `f2553ebad`, non poussé — 🔚 E1 à E5 de Fabien (`ROUTE §10.7.12`) ; jumelles à régénérer ; pistes d'un `.wdat` ; registre ; marche 2 (zone temporelle sur la card)
+
+> Fabien, après le rappel des quatorze décisions : *« si des segments temporels deviennent des
+> cards, j'ai peur que ça ajoute de la confusion […] Je verrais plutôt une façon d'afficher les
+> segments temporels directement sur la card […] Il faut remanier les choses en conséquence. On
+> consulte le concile aussi souvent que nécessaire. »* Et : *« ajoute la facette du manifeste et le
+> générateur avant de commiter. »*
+
+**Marche 1 (`ROUTE §10.7.6`).** `wama/common/catalog/marks.py` : une app DÉCLARE ses pistes
+(`register_tracks`), un seul lecteur les rend sous les noms communs (`read_tracks` : `start`, `end`
+absent = segment ouvert, `time`, `origin`, `parent`). Aucun stockage ne change. Déclarants : le
+Transcriber (tours, phrases, mots) et le cam_analyzer (fenêtres, conflits, situations). Portée par
+le manifeste d'app (`inspector.tracks`), le générateur (`apps_gen`) et le contrôle de sûreté
+(`source_safety`). Mesuré sur les cards réelles : 58 transcriptions, 36 676 mots lus en 0,6 s, aucun
+hors de sa phrase ; 184 conflits sur 3 316 débordent leur fenêtre. 388 tests, 19 contre-épreuves
+rouges (l'une, restée verte, a fait ajouter une garde).
+
+**Révision des décisions (`ROUTE §10.7.12`, qui prime sur 10.7.3 et 10.7.7).** Card si génération
+ou traitement propre, segment si simple délimitation du temps (film = card, séquences = segments,
+plans = cards) ; un segment ne devient jamais une card (le traitement lancé sur lui est une card
+dérivée qui pointe vers lui) ; une source et des pointages, pas de copie ; une card = un axe + des
+flux en parallèle + des pistes de segments (la bande son est un flux) ; les segments se montrent
+SUR la card, dans une zone temporelle sous l'aperçu ; gestes déclarés par piste (le fragment n'a
+aucun geste propre) ; pas de code couleur pour le temps. Second avis du concile (196 s) lu point
+par point. D6, D7, D8 confirmées ; D11 à D14 non rediscutées.
+
+**Restes, nommés** :
+- E1 à E5 à trancher par Fabien : rangées sur la card de la file, zoom, ce que permet la ligne de
+  temps hors page d'édition, piste dérivée ou modifiée dans le monde Data, réglages d'un emploi ;
+- jumelles à régénérer pour porter la facette `inspector.tracks` (la session qui les régénère est
+  prévenue) ; tables d'un `.wdat` lues comme des pistes ; inscription des pistes au registre commun ;
+  sections et paroles du Composer ;
+- les docs générées gardent dans l'arbre des compteurs de consommateurs d'autres sessions, non
+  commités ;
+- 🔴 relancer gunicorn + workers reste dû (rangement à toute profondeur, déclarations de pistes) ;
+- marche 2 proposée : la zone temporelle en lecture seule sur la card, pour le Transcriber et le
+  cam_analyzer.
