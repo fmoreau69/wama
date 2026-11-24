@@ -199,6 +199,10 @@ class ImageGeneration(ProcessingTimeMixin, NativeOutputsMixin, PromptScoped, Sco
         help_text="Reference image for img2img, style transfer, or auto-describe"
     )
 
+    #: Le champ de chaque port d'entrée qui ne porte pas son nom — lu par `common/utils/port_fields`.
+    #: ⚠ `prompt_file` (fichier de consignes du lot) n'est la valeur d'aucun port.
+    WAMA_PORT_FIELDS = {'work_image': 'reference_image'}
+
     # Ingest média déclaratif commun (source_ingest.ensure_local_input, appelé en tête de
     # tâche — contrat composer 307b9fb) : URL d'IMAGE de référence → téléchargée vers
     # reference_image AU LANCEMENT. Un fichier local déjà joint prime (ensure_local_input

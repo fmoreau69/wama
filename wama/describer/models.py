@@ -18,6 +18,9 @@ class Description(ProcessingTimeMixin, ScopedVisibility):
 
     """Model for a description/summarization task."""
 
+    #: Le champ de chaque port d'entrée qui ne porte pas son nom — lu par `common/utils/port_fields`.
+    WAMA_PORT_FIELDS = {'work_file': 'input_file'}
+
     # Ingest média déclaratif commun (common/utils/source_ingest.ensure_local_input) :
     # une URL dans source_url est téléchargée vers input_file dès la création. mode 'smart' =
     # page web → `.html` gardé / média → download ; `derive` pose la nature du fichier reçu.

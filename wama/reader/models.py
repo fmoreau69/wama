@@ -32,6 +32,9 @@ class ReadingItem(KeptOutputsMixin, ProcessingTimeMixin, ScopedVisibility):
         PRINTED     = 'printed',     'Imprimé / Typographié'
         HANDWRITTEN = 'handwritten', 'Manuscrit'
 
+    #: Le champ de chaque port d'entrée qui ne porte pas son nom — lu par `common/utils/port_fields`.
+    WAMA_PORT_FIELDS = {'work_file': 'input_file'}
+
     # Ingest déclaratif commun (source_ingest.ensure_local_input) : résout source_url
     # → input_file local en tête de tâche (avant : source_url était persisté mais JAMAIS
     # téléchargé — items d'un batch d'URLs sans entrée, bug identifié 2026-07-25).

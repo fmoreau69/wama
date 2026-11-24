@@ -688,6 +688,81 @@ port de TRAVAIL (`INPUT_TYPES`). Correction, à périmètre de JETONS :
   describer), `tests_taxonomie_ollama.test_a_model_that_sees_or_hears_accepts_the_matching_input` ;
   contre-épreuves rouges (slot qui accepte tout ; entrées gardées ; version de HEAD du catalogue).
 
+### 6.13 Où se range la VALEUR d'un port — un lecteur d'abord, aucune colonne ensuite (2026-11-24)
+
+> Demande de Fabien (23 et 24/11) : déclarer la colonne d'un port d'une façon *« universelle,
+> parfaitement alignée et pérenne »*, puis *« un fonctionnement universel qui ne bloque pas les
+> évolutions de wama […] 2 colonnes pour l'avatarizer et demain, 3 colonnes dans un autre cas de
+> figure ? »*. Déclencheur : cinq rouges des jumelles (consigne d'`avatarizer_01` et de
+> `synthesizer_01`, aperçu d'`imager_01`, port de travail lu sous un autre nom) avaient UNE cause.
+
+**Le constat, mesuré.** Les ports sont nés le 2026-06-24 (`aa26b0066`, `work_audio`), après les
+colonnes (`voice_reference` et `text_file` 2025-11-26, `reference_image` 2026-01-05, `audio_input`
+et `avatar_upload` 2026-02-28, `melody_reference` 2026-03-17 — `git log -S`). Aucune colonne n'a été
+renommée et aucune doc ne justifie l'écart. Seul le transcriber a nommé ses colonnes d'après ses
+ports (ports le 23/09, colonnes le 24/09). ⚠ La phrase « à terme des colonnes au nom du port »
+(`BATCH_FORMAT` §Studio, `CARD_DESIGN §11.11`) parle des colonnes d'un FICHIER DE LOT, pas de la
+base : elle est soldée par `line_to_ports` (2026-10-20). L'intention écrite côté base est ailleurs :
+« le champ du port au manifeste, puis la liste du générateur dérivée de lui » (`ROUTE §10.6`,
+couche 2, point 4.6 : le ⧉ d'une jumelle vide la référence que l'utilisateur avait donnée).
+
+Six endroits recopiaient la liaison, chacun pour lui : `WAMA_INGEST['target']`, la spec du volet
+(`source_text`, `source_file` rangé par ordre d'AFFICHAGE), `_LINE_FIELDS` / `COVER_FIELDS` des vues
+(passés à `batch_parsers.line_file_inputs`), des littéraux de JS, le « premier FileField » de
+l'extracteur (`manifests/builtin/app._model_spec`), le `file_field` de l'aperçu
+(`register_app_preview`). Cartographie (ports de la card par domaine, champ désigné par chaque
+source) :
+
+| app | port → champ | ce qu'aucune source ne disait |
+|---|---|---|
+| anonymizer | `work_file` → `file` | `prompt` : un RÉGLAGE (`sam3_prompt`), sans champ |
+| avatarizer | `prompt` → `text_content`, `work_audio` → `audio_input`, **`work_image` ET `work_object3d` → `avatar_upload`** | les deux ports de l'avatar ; et sa 3ᵉ forme, un avatar de GALERIE (`avatar_source`, `avatar_gallery_name`), n'est pas un fichier |
+| composer | `work_audio` → `melody_reference`, `work_score` → `reference_score`, `prompt` homonyme | — |
+| converter | `work` → `input_file` | `work` est le port générique COMMUN (`app_registry.studio_node_ports`, repli sans modèle déclarant), pas un port du converter |
+| describer, reader | `work_file` → `input_file` | — |
+| enhancer | `work_file` → `input_file` (Enhancement), `work_audio` → `input_file` (AudioEnhancement) | — |
+| imager | `work_image` → `reference_image` (les deux domaines, un modèle), `prompt` homonyme | `prompt_file`, fichier de consignes du lot : la valeur d'aucun port — mais le premier FileField, que l'extracteur prend pour l'entrée de la jumelle |
+| synthesizer | `prompt` → `text_content`, `work_file` → `text_file`, `reference_voice` → `voice_reference` (porté par le réglage `voice_preset`) | `work_file` |
+| transcriber | `work_audio` → `audio`, `work_result` / `reference_result` homonymes | — |
+| writer_01, translator_01 (nés d'un manifeste) | tout homonyme | aucune déclaration nécessaire |
+
+**Pourquoi renommer les colonnes n'est PAS la réponse** (proposition « option 4 » du 23/11,
+retirée) : elle garde une colonne PAR port. Toute nature nouvelle (un avatar vidéo demain) serait un
+port de plus, donc une colonne de plus, donc une migration du modèle, de sa jumelle et du générateur
+— et un champ qui sert deux ports ne se renomme d'après aucun des deux. Un port « avatar » à deux
+natures est exclu aussi : décision du 2026-09-30, le vocabulaire des rôles suit les NATURES (§6.8).
+
+**Le fonctionnement universel — trois étages, chacun derrière le précédent.**
+1. ✅ **Un lecteur** (2026-11-24, `common/utils/port_fields.py`) : un consommateur ne nomme plus de
+   colonne, il demande la valeur d'un PORT. Résolution : `WAMA_PORT_FIELDS` du modèle d'élément (à
+   côté de `WAMA_INGEST` ; les SEULS écarts hérités, liste qui ne doit que baisser), sinon le champ
+   homonyme, sinon aucun. Un champ partagé rend le fichier au port que sa nature désigne
+   (`input_match.work_token_for`, la traduction du tirage du modèle). Aucun stockage touché.
+2. ⏳ **Les six copies lisent le lecteur**, une à une ; chacune retirée allège la garde. Le
+   générateur suit : l'extracteur projette `WAMA_PORT_FIELDS` dans le manifeste, `models_gen` dans
+   la jumelle (⚠ `manifests/builtin/app.py` est en cours d'édition par une autre session le 24/11).
+3. ⏳ **Le stockage universel, à décider** : la valeur d'un port ne demande AUCUNE colonne — une
+   table commune des ENTRÉES d'un élément, une ligne par (élément, port, rang) : la copie de travail
+   et sa provenance. C'est `InputProvenance` agrandie (`common/models.py`) : elle a déjà une ligne
+   par entrée d'un élément, l'adresse `(app, object_type, object_id, field)`, la provenance
+   (`upload`, `asset`, `app`, `url`…), et ne s'écrit que par les briques communes (dépôt direct,
+   `copy_into_app_input`, `ensure_local_input` — sa docstring).
+   Un port de plus = des lignes de plus, sans migration ; N fichiers par port ; l'avatar de galerie
+   et la voix de « Mes voix » y sont des entrées de provenance `asset`. Même convention d'adresse et
+   de rôle que le lien de composition de `ROUTE §10.7.11` (pièce 1), mais une table DISTINCTE, pour
+   une raison mesurée : une partie a UN parent (un arbre), un fichier d'entrée peut nourrir
+   PLUSIEURS cards (déduplication par provenance). Les deux relations coexistent déjà sur une card
+   dérivée : `derived_from` relie les cards, `InputProvenance` (provenance `app`) le fichier
+   (`common/models.DerivedCardMixin`). Comme les lots derrière `batch_of`, les apps rejoindraient la
+   table une à une derrière le lecteur — rien n'est urgent (`ROUTE §10.7.11`, D12).
+
+Gardes : `wama/common/tests/tests_port_fields.py` — tout port d'une card a le champ qui garde sa
+valeur (ports lus dans le corpus versionné des modèles ; écarts `GAPS` et jumelles en attente de
+projection, deux listes qui ne peuvent que baisser) ; aucun port ni champ fantôme ; les copies qui
+restent disent ce que dit le lecteur ; un champ partagé rend à chaque port le fichier de sa nature.
+Contre-épreuves en mémoire, cinq rouges (déclaration retirée, homonyme oublié, partage ignoré, champ
+fantôme, copie divergente).
+
 ## 7. Les RÉGLAGES bornés par la capacité du modèle choisi — `cap_from` (2026-09-23)
 
 **Demande de Fabien** : *« il faut que les paramètres modale/inspecteur tirent leurs infos des

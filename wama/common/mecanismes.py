@@ -1683,6 +1683,17 @@ MECHANISMS = (
               "la déclaration du domaine d'une card et le port qui offre l'URL",
               'wama/common/utils/source_ingest.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/utils/url_ingest.py',)),
+    # La valeur d'un PORT, lue au lieu d'une colonne nommée (2026-11-24) : six endroits recopiaient
+    # la liaison port → champ. Le lecteur d'abord ; le stockage peut changer derrière lui.
+    Mechanism('port_fields', "Le champ qui garde la valeur d'un port",
+              "Où se range la valeur d'un port d'entrée sur un élément : `WAMA_PORT_FIELDS` du "
+              "modèle (les seuls écarts hérités, liste qui ne doit que baisser), sinon le champ "
+              "HOMONYME du port (les apps nées d'un manifeste), sinon aucun. `port_value` : un champ "
+              "partagé par deux ports (l'avatar, photo OU objet 3D) rend le fichier au port que sa "
+              "nature désigne (`input_match.work_token_for`). Un consommateur ne nomme plus de "
+              "colonne : la cible (table commune des entrées) se pose derrière ce lecteur",
+              'wama/common/utils/port_fields.py', 'docs/construction/ui/INPUT_MODEL_MATCHING.md',
+              depends_on=('source_ingest',)),
     # Garde de SORTIE, distincte de l'ingest : l'ingest sait CHERCHER, celle-ci dit OÙ il a le
     # droit d'aller. Séparées parce que tout nouvel appelant réseau doit la traverser, même
     # s'il n'a rien à voir avec WAMA_INGEST.

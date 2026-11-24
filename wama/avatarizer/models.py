@@ -26,6 +26,12 @@ AVATAR_FILE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'glb']
 class AvatarJob(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
     """Représente une tâche de génération d'avatar animé (pipeline MuseTalk)."""
 
+    #: Le champ de chaque port d'entrée qui ne porte pas son nom — lu par `common/utils/port_fields`.
+    #: L'avatar (photo de MuseTalk OU objet 3D de TalkingHead) partage `avatar_upload` : le lecteur
+    #: rend le fichier au port que sa nature désigne. Stockage hérité, pas une forme à imiter.
+    WAMA_PORT_FIELDS = {'prompt': 'text_content', 'work_audio': 'audio_input',
+                        'work_image': 'avatar_upload', 'work_object3d': 'avatar_upload'}
+
     WAMA_INGEST = {
         'source': 'source_url',
         'target': 'audio_input',

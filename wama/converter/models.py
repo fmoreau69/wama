@@ -62,6 +62,8 @@ class ConversionJob(ProcessingTimeMixin, ScopedVisibility):
 
     #: Vocabulaire COMMUN (wama.common.models) — plus de copie par app.
     STATUS_CHOICES = JOB_STATUS_CHOICES
+    #: Le champ de chaque port d'entrée qui ne porte pas son nom — lu par `common/utils/port_fields`.
+    WAMA_PORT_FIELDS = {'work': 'input_file'}
     # Ingest URL déclaratif — consommé par la brique commune
     # common/utils/source_ingest.ensure_local_input() dès la création ; `derive` pose media_type.
     WAMA_INGEST = {

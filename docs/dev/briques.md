@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**248 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**249 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -1908,6 +1908,18 @@ Chaque étape d'outil porte son verdict (`ok`) et sa durée (`seconds`), écrits
   - `family(tool: str) -> str` — La famille d'un outil : `development` (surface de développement, `dev_*`), `delegation`
   - `callable_tools() -> set` — Les outils que l'assistant peut appeler : le registre, la surface de développement, et le
   - `usage(days: int | None=None) -> dict` — Ce que les fils persistés disent des outils, sur les `days` derniers jours (tout, sinon).
+
+### Le champ qui garde la valeur d'un port
+
+Où se range la valeur d'un port d'entrée sur un élément : `WAMA_PORT_FIELDS` du modèle (les seuls écarts hérités, liste qui ne doit que baisser), sinon le champ HOMONYME du port (les apps nées d'un manifeste), sinon aucun. `port_value` : un champ partagé par deux ports (l'avatar, photo OU objet 3D) rend le fichier au port que sa nature désigne (`input_match.work_token_for`). Un consommateur ne nomme plus de colonne : la cible (table commune des entrées) se pose derrière ce lecteur
+
+- **Domicile** : `wama/common/utils/port_fields.py` · **doc** : [docs/construction/ui/INPUT_MODEL_MATCHING.md](../construction/ui/INPUT_MODEL_MATCHING.md)
+- **Module** : OÙ SE RANGE LA VALEUR D'UN PORT — le lecteur commun des entrées d'un élément (2026-11-24).
+- **API publique** (4) :
+  - `port_field_map(model) -> dict` — `{port: champ}` que le modèle d'élément DÉCLARE (`WAMA_PORT_FIELDS`), ou {}.
+  - `port_field(model, port: str) -> str` — Le champ du modèle d'élément `model` (classe ou instance) qui porte la valeur de `port` —
+  - `ports_sharing(model, field: str) -> list` — Les ports que le modèle range dans le MÊME champ `field` (déclarés), dans l'ordre déclaré.
+  - `port_value(element, port: str)` — La valeur de `port` sur `element` : le fichier (`FieldFile`) ou le texte du champ qui le
 
 ### Moteur de l'assistant IA
 

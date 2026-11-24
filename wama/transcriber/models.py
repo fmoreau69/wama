@@ -17,6 +17,9 @@ class Transcript(ProcessingTimeMixin, ScopedVisibility):
     # Card de transcription — partageable en lecture seule (PROFILES_PERMISSIONS §7).
     objects = ScopedManager()
 
+    #: Le champ de chaque port d'entrée qui ne porte pas son nom — lu par `common/utils/port_fields`.
+    WAMA_PORT_FIELDS = {'work_audio': 'audio'}
+
     WAMA_INGEST = {
         'source': 'source_url', 'target': 'audio', 'mode': 'audio',
         'title_field': 'title',
