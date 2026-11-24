@@ -332,10 +332,6 @@ def handle_txt2img(request, user):
     })
 
 
-#: Le champ de chaque PORT fichier d'une génération : l'image de travail ET l'image de référence se
-#: rangent dans `reference_image` (la card les poste sous ce nom, `input_card.js`) — lu par la brique
-#: des lignes de lot (`batch_parsers.line_file_inputs`, 2026-11-06).
-_LINE_FIELDS = {'reference_image': 'reference_image', 'work_image': 'reference_image'}
 
 
 def creer_lot_de_prompts(chemin, nom_fichier, user, *, domain='image', reglages=None,
@@ -423,8 +419,9 @@ def creer_lot_de_prompts(chemin, nom_fichier, user, *, domain='image', reglages=
         try:
             files = (line_file_ports(app_label, {'reference': p['reference'], 'line_num': n})
                      if p.get('reference') else {})
-            received, remote = line_file_inputs(user, app_label, files, _LINE_FIELDS,
-                                                model=ImageGeneration)
+            # Le champ de chaque port : le lecteur commun (`ImageGeneration.WAMA_PORT_FIELDS` ; le
+            # port `reference_image` garde son champ homonyme).
+            received, remote = line_file_inputs(user, app_label, files, model=ImageGeneration)
         except ValueError as exc:        # `InputRefused` compris : une désignation refusée
             warnings.append(f"Ligne {n} : {exc} — ignorée")
             continue

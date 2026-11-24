@@ -94,9 +94,6 @@ def synthesis_params(user, post, model=None, app='synthesizer', inputs=None) -> 
     return {**posted, **new_synthesis_settings(user, model=model, app=app, post=posted, inputs=inputs)}
 
 
-#: Le champ de chaque PORT fichier d'une synthèse (des données : ils gardent leur nom) — lu par la
-#: brique des lignes de lot (`batch_parsers.line_file_inputs`, 2026-11-06).
-_LINE_FIELDS = {'reference_voice': 'voice_reference'}
 
 
 def _deposit_params(user, post, work_file=None):
@@ -610,7 +607,8 @@ def batch_create(request):
             files = (line_file_ports('synthesizer', {'reference': task['voice_reference'],
                                                      'line_num': task.get('line_num')})
                      if task.get('voice_reference') else {})
-            lines.append((task, *line_file_inputs(user, 'synthesizer', files, _LINE_FIELDS,
+            # Le champ de chaque port : le lecteur commun (`VoiceSynthesis.WAMA_PORT_FIELDS`).
+            lines.append((task, *line_file_inputs(user, 'synthesizer', files,
                                                   model=VoiceSynthesis)))
         except ValueError as exc:        # `InputRefused` compris : une désignation refusée
             warnings.append(f"Ligne {task.get('line_num') or '?'} : {exc} — ignorée")

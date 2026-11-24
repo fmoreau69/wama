@@ -112,14 +112,13 @@ def composer_rules(values) -> dict:
     return values
 
 
-#: Les ports du MORCEAU À REPRENDRE (cover) — ports de TRAVAIL depuis le 2026-10-03 —, le champ où
-#: chacun se range (des données : ils gardent leur nom) et ce qu'il porte, dit dans un refus. Lus par
-#: la card (`generate`), l'outil de l'assistant (`tool_api.compose_music`) et le lot
-#: (`import_batch`) : la liste était écrite deux fois (2026-11-06).
-COVER_PORTS = (('work_score', 'reference_score', 'de partition'),
-               ('work_audio', 'melody_reference', "d'audio à reprendre"))
-#: Le champ de chaque port, pour la brique des lignes de lot (`batch_parsers.line_file_inputs`).
-COVER_FIELDS = {port: field for port, field, _what in COVER_PORTS}
+#: Les ports du MORCEAU À REPRENDRE (cover) — ports de TRAVAIL depuis le 2026-10-03 — et ce que
+#: chacun porte, dit dans un refus. Lus par la card (`generate`), l'outil de l'assistant
+#: (`tool_api.compose_music`) et le lot (`import_batch`) : la liste était écrite deux fois
+#: (2026-11-06). Le CHAMP de chaque port se lit au lecteur commun (`port_fields.port_field`,
+#: `ComposerGeneration.WAMA_PORT_FIELDS`, 2026-11-24), plus ici.
+COVER_PORTS = (('work_score', 'de partition'),
+               ('work_audio', "d'audio à reprendre"))
 
 
 def cover_refusal(model, port) -> str:
@@ -128,7 +127,7 @@ def cover_refusal(model, port) -> str:
     le prend. Jamais ignoré en silence."""
     if accepts_input(model, port):
         return ''
-    what = next(w for p, _f, w in COVER_PORTS if p == port)
+    what = next(w for p, w in COVER_PORTS if p == port)
     return (f"Le modèle « {model} » ne prend pas {what} — choisir un modèle qui le déclare, ou un "
             f"« auto » de groupe ('{AUTO_MUSIC}').")
 
@@ -139,15 +138,16 @@ def designated_cover(user, model, paths: dict, app: str = 'composer') -> list:
     lisibilité, puis pointer ou copier). Refusés AVANT toute création si le modèle ne prend pas le
     port (`cover_refusal`) : lève `InputRefused`."""
     from wama.common.utils.media_paths import InputRefused, designate
+    from wama.common.utils.port_fields import port_field
     received = []
-    for port, field, _what in COVER_PORTS:
+    for port, _what in COVER_PORTS:
         path = (paths or {}).get(port)
         if not path:
             continue
         refusal = cover_refusal(model, port)
         if refusal:
             raise InputRefused(refusal)
-        received.append((designate(path, user, app), field))
+        received.append((designate(path, user, app), port_field(ComposerGeneration, port)))
     return received
 
 
@@ -381,13 +381,14 @@ def generate(request):
     from wama.common.utils.media_paths import received_inputs
     # « Le modèle le déclare » s'entend AU SEIN DU PIPELINE : l'audio d'un cover est aussi joint
     # pour un modèle qui en suivra la partition extraite (`accepts_input`, 2026-10-03).
+    from wama.common.utils.port_fields import port_field
     joined = []
-    for port, field, _what in COVER_PORTS:
+    for port, _what in COVER_PORTS:
         if not accepts_input(model_id, port):
             continue
         received = received_inputs(request, user, 'composer', field=port)
         if received:
-            joined.append((received[0], field))
+            joined.append((received[0], port_field(ComposerGeneration, port)))
         elif received.refusal:
             return JsonResponse({'error': received.refusal}, status=400)
 
@@ -514,8 +515,7 @@ def _batch_line(user, post, task_data, default_model, default_duration, warnings
         refusal = next((r for r in (cover_refusal(model, port) for port in files) if r), '')
         if refusal:
             raise ValueError(refusal)
-        received, remote = line_file_inputs(user, 'composer', files, COVER_FIELDS,
-                                            model=ComposerGeneration)
+        received, remote = line_file_inputs(user, 'composer', files, model=ComposerGeneration)
     except ValueError as exc:            # `InputRefused` compris : une désignation refusée
         warnings.append(f"Ligne {task_data.get('line_num') or '?'} : {exc} — ignorée")
         return None

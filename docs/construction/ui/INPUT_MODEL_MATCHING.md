@@ -738,9 +738,19 @@ natures est exclu aussi : décision du 2026-09-30, le vocabulaire des rôles sui
    côté de `WAMA_INGEST` ; les SEULS écarts hérités, liste qui ne doit que baisser), sinon le champ
    homonyme, sinon aucun. Un champ partagé rend le fichier au port que sa nature désigne
    (`input_match.work_token_for`, la traduction du tirage du modèle). Aucun stockage touché.
-2. ⏳ **Les six copies lisent le lecteur**, une à une ; chacune retirée allège la garde. Le
+2. 🔄 **Les copies lisent le lecteur**, une à une ; chacune retirée allège la garde.
+   ✅ Les lignes de lot (24/11, revérification) : `batch_parsers.line_file_inputs` lit le lecteur ;
+   `_LINE_FIELDS` (avatarizer, imager, synthesizer) et `COVER_FIELDS` (composer) sont retirés, et
+   `COVER_PORTS` ne porte plus que le libellé d'un refus. ⏳ Restent : la spec du volet
+   (`source_text`, `source_file`), l'aperçu (`file_field`), l'extracteur (premier FileField), les
+   littéraux de JS (non remesurés le 24/11), et une SEPTIÈME copie trouvée à la revérification :
+   `studio/services/generic_runner.port_argument_name`, qui relie la consigne à l'argument de
+   l'outil par `source_text` (mesuré : les arguments des outils portent déjà le nom des PORTS —
+   `work_audio`, `work_score`, `reference_voice` —, seule la consigne de l'avatarizer passe par son
+   champ `text_content`). ⚠ Ordre : la porter APRÈS la projection aux jumelles — lue au lecteur
+   aujourd'hui, la consigne d'`avatarizer_01` (sans déclaration) redeviendrait non lue. Le
    générateur suit : l'extracteur projette `WAMA_PORT_FIELDS` dans le manifeste, `models_gen` dans
-   la jumelle (⚠ `manifests/builtin/app.py` est en cours d'édition par une autre session le 24/11).
+   la jumelle (`manifests/builtin/app.py` est libre depuis f2553ebad).
 3. ⏳ **Le stockage universel, à décider** : la valeur d'un port ne demande AUCUNE colonne — une
    table commune des ENTRÉES d'un élément, une ligne par (élément, port, rang) : la copie de travail
    et sa provenance. C'est `InputProvenance` agrandie (`common/models.py`) : elle a déjà une ligne

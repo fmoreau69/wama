@@ -8,8 +8,9 @@ LE CONSTAT (mesuré le 2026-11-24, cartographie `INPUT_MODEL_MATCHING §6.13`) :
 les colonnes des apps (`voice_reference` 2025-11-26, `reference_image` 2026-01-05, `avatar_upload`
 2026-02-28…). Aucune colonne n'a été renommée, et SIX endroits ont recopié la liaison, chacun pour
 lui : `WAMA_INGEST['target']`, la spec du volet (`source_text`, `source_file`), `_LINE_FIELDS` /
-`COVER_FIELDS` des vues, des littéraux de JS, le « premier FileField » de l'extracteur et le
-`file_field` de l'aperçu. Trois ports rendus n'avaient aucune déclaration (l'avatar de
+`COVER_FIELDS` des vues (retirés le même jour : `batch_parsers.line_file_inputs` lit ce lecteur),
+des littéraux de JS, le « premier FileField » de l'extracteur et le `file_field` de l'aperçu — et
+une septième, trouvée à la revérification : `studio/services/generic_runner.port_argument_name`. Trois ports rendus n'avaient aucune déclaration (l'avatar de
 l'avatarizer, photo ou `.glb` ; le fichier de travail du synthesizer).
 
 LA RÈGLE : un consommateur ne nomme JAMAIS une colonne — il demande la valeur d'un PORT à ce

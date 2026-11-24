@@ -761,23 +761,24 @@ def line_file_ports(app_id, line) -> Dict[str, str]:
     return values
 
 
-def line_file_inputs(user, app_id, files: Dict[str, str], fields: Dict[str, str], *, model):
+def line_file_inputs(user, app_id, files: Dict[str, str], fields: Dict[str, str] = None, *, model):
     """Les fichiers d'une ligne (`line_file_ports`) REÇUS comme sur la card — `({champ: entrée
     reçue}, {source: URL})`, prêts à poser sur l'élément créé (`attach_line_inputs`). Un chemin se
     DÉSIGNE (`media_paths.designate` : confinement, existence, lisibilité, puis pointer ou copier) ;
     une URL va à la SOURCE que le modèle `model` déclare pour ce champ (`WAMA_INGEST`), téléchargée à
-    l'enregistrement. `fields` : `{port: champ}` de l'élément (des données, propres à l'app). Tout se
-    juge AVANT la création : lève `ValueError` (port sans champ, adresse sans source) ou
-    `InputRefused` (désignation)."""
+    l'enregistrement. Le champ de chaque port est celui que dit le lecteur commun
+    (`port_fields.port_field`, 2026-11-24) ; `fields` (`{port: champ}`) ne sert plus qu'aux appelants
+    qui le passent encore (le code d'une jumelle générée avant). Tout se juge AVANT la création :
+    lève `ValueError` (port sans champ, adresse sans source) ou `InputRefused` (désignation)."""
     from wama.common.utils.media_paths import designate
+    from wama.common.utils.port_fields import port_field
     from wama.common.utils.source_ingest import is_remote
     ingest = getattr(model, 'WAMA_INGEST', None) or {}
     received, remote = {}, {}
     for port, value in (files or {}).items():
-        field = fields.get(port)
+        field = fields.get(port) if fields is not None else port_field(model, port)
         if not field:
-            raise ValueError(f"Le port « {port} » n'a pas de champ où entrer "
-                             f"({', '.join(fields) or 'aucun'}).")
+            raise ValueError(f"Le port « {port} » n'a pas de champ où entrer ici.")
         if is_remote(value):
             if ingest.get('target') != field:
                 raise ValueError(f"« {value} » : une adresse ne se télécharge pas dans « {field} » ici.")

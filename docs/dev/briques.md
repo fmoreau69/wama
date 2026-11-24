@@ -2575,7 +2575,7 @@ Parsing des fichiers batch (txt/csv/pdf/docx) et cycle de vie du lot. Depuis le 
   - `parse_batch_lines(text: str, plain_as: str='input') -> Tuple[List[Dict], List[str]]` — Les LIGNES d'un fichier de lot, quelle que soit sa famille, sous la forme normalisée des
   - `line_to_ports(line: Dict, ports: List[Dict]) -> Tuple[Dict, Dict]` — Une ligne de lot rangée dans les PORTS d'un nœud — `({port: valeur}, réglages)`.
   - `line_file_ports(app_id, line) -> Dict[str, str]` — Les FICHIERS qu'une ligne de lot donne à un élément de `app_id`, rangés dans ses PORTS —
-  - `line_file_inputs(user, app_id, files: Dict[str, str], fields: Dict[str, str], *, model)` — Les fichiers d'une ligne (`line_file_ports`) REÇUS comme sur la card — `({champ: entrée
+  - `line_file_inputs(user, app_id, files: Dict[str, str], fields: Dict[str, str]=None, *, model)` — Les fichiers d'une ligne (`line_file_ports`) REÇUS comme sur la card — `({champ: entrée
   - `attach_line_inputs(instance, received: Dict, remote: Dict)` — Pose sur l'élément CRÉÉ ce qu'a rendu `line_file_inputs` : chaque fichier reçu dans son champ
   - `is_csv_header_batch(text: str) -> bool` — True si la 1ʳᵉ ligne utile est un en-tête tableur (délimiteur , ; | ou tab)
   - `parse_csv_header_batch(text: str) -> Tuple[List[Dict], List[str]]` — Parse un tableur à en-têtes (délimiteur sniffé) → items normalisés (clés des balises).

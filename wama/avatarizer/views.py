@@ -545,11 +545,6 @@ def batch_template(request):
                "-r / avatar = nom d'un avatar de la médiathèque. Une ligne = un job."))
 
 
-#: Le champ du PORT de l'audio d'un job (une donnée : il garde son nom) — lu par la brique des lignes
-#: de lot (`batch_parsers.line_file_inputs`, 2026-11-06).
-_LINE_FIELDS = {'work_audio': 'audio_input'}
-
-
 def _parse_avatar_batch_from_request(request):
     """Le fichier batch posté → (lignes de job, avertissements) : la réception COMMUNE
     (`parse_batch_file_from_request` : extension, fichier temporaire, nettoyage — recopiée ici
@@ -675,8 +670,8 @@ def batch_create(request):
             try:
                 files = line_file_ports('avatarizer', {'input': row['audio_path'],
                                                        'line_num': row.get('line_num')})
-                received, remote = line_file_inputs(user, 'avatarizer', files, _LINE_FIELDS,
-                                                    model=AvatarJob)
+                # Le champ de chaque port : le lecteur commun (`AvatarJob.WAMA_PORT_FIELDS`).
+                received, remote = line_file_inputs(user, 'avatarizer', files, model=AvatarJob)
             except ValueError as exc:    # `InputRefused` compris : une désignation refusée
                 warnings.append(f"Ligne {row.get('line_num') or '?'} : {exc} — ignorée")
                 return None
