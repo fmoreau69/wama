@@ -44,6 +44,10 @@ class SynthesizerConfig(AppConfig):
         # d'entrée — la face Entrée montrait le résultat, ou une erreur avant lui.
         from wama.common.utils.preview_utils import register_app_preview
         from .models import VoiceSynthesis
+        # Le champ de chaque port d'entrée qui ne porte pas son nom (`common/utils/port_fields`).
+        from wama.common.utils.port_fields import register_port_fields
+        register_port_fields(VoiceSynthesis, {'prompt': 'text_content', 'work_file': 'text_file',
+                                              'reference_voice': 'voice_reference'})
 
         register_app_preview('synthesizer', VoiceSynthesis, file_field='text_file')
 

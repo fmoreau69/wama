@@ -10,6 +10,9 @@ class ConverterConfig(AppConfig):
         # Aperçu inline inspecteur (brique commune) — banc d'essai « tous types de fichiers ».
         from wama.common.utils.preview_utils import register_app_preview
         from .models import ConversionJob
+        # Le champ de chaque port d'entrée qui ne porte pas son nom (`common/utils/port_fields`).
+        from wama.common.utils.port_fields import register_port_fields
+        register_port_fields(ConversionJob, {'work': 'input_file'})
         register_app_preview('converter', ConversionJob, file_field='input_file')
 
         # Invariant « un lot sans membre n'existe pas ». Le converter est la seule app à

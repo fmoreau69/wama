@@ -483,6 +483,19 @@ def _inspector(app_id):
             info['tracks'] = tracks
     except Exception:
         logger.debug("[manifest app] pistes de %s illisibles", app_id, exc_info=True)
+    # Le CHAMP de chaque port d'entrée qui ne porte pas son nom (`common/utils/port_fields`,
+    # 2026-11-24), par nom de modèle — même forme que les pistes : `apps_gen` le rejoue dans le
+    # `ready()` de la jumelle, que son `models.py` soit généré ou copié. Absent : tout homonyme.
+    try:
+        from django.apps import apps as django_apps
+        from wama.common.utils.port_fields import registered as registered_port_fields
+        port_fields = {django_apps.get_model(label).__name__: mapping
+                       for label, mapping in registered_port_fields().items()
+                       if label.split('.')[0] == app_id}
+        if port_fields:
+            info['port_fields'] = port_fields
+    except Exception:
+        logger.debug("[manifest app] champs des ports de %s illisibles", app_id, exc_info=True)
     return info
 
 
@@ -752,6 +765,28 @@ def _elements(app_id: str) -> dict:
     return out
 
 
+def _work_port_field(app_id: str, surface, model) -> str:
+    """Le FileField de `model` qui garde la valeur du port de travail principal de la card de cette
+    surface ('' si aucun) : les ports de l'app (`studio_node_ports`), restreints aux domaines de la
+    surface, sa forme d'entrée (`entry_form`), puis le lecteur commun (`port_fields.port_field`)."""
+    try:
+        from wama.common.app_registry import entry_form, ports_for_domain, studio_node_ports
+        from wama.common.utils.app_modes import surface_domains
+        from wama.common.utils.port_fields import port_field
+        ports = (studio_node_ports(app_id) or {}).get('inputs') or []
+        if surface and surface != app_id:
+            ports = [p for domain in surface_domains(app_id, surface)
+                     for p in ports_for_domain(app_id, domain, ports)]
+        work = entry_form(ports).get('work')
+        field = port_field(model, work) if work else ''
+        files = {f.name for f in model._meta.fields if f.get_internal_type() == 'FileField'}
+        return field if field in files else ''
+    except Exception:
+        logger.debug("[manifest app] port de travail de %s illisible", surface or app_id,
+                     exc_info=True)
+        return ''
+
+
 def _model_spec(app_id: str, surface: str = None):
     """Spine du models.py de l'app, MESURÉ par introspection Django (marche A5).
 
@@ -781,7 +816,12 @@ def _model_spec(app_id: str, surface: str = None):
         pass
     fichiers = [f.name for f in meta.fields if f.get_internal_type() == 'FileField']
     if fichiers:
-        item['input_field'] = fichiers[0]
+        # Le champ du port de TRAVAIL principal (2026-11-24) — le port que la card désigne
+        # (`app_registry.entry_form`, sur les ports du domaine de cette surface), lu au lecteur
+        # commun (`port_fields.port_field`). Le « premier FileField » n'en est que le repli : chez
+        # l'imager c'était `prompt_file`, l'ancien fichier de lot, et la jumelle rangeait l'image de
+        # travail dans ce champ mort.
+        item['input_field'] = _work_port_field(app_id, surface, model) or fichiers[0]
     if meta.ordering:
         item['ordering'] = list(meta.ordering)
     try:

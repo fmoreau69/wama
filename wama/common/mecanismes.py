@@ -1686,8 +1686,9 @@ MECHANISMS = (
     # La valeur d'un PORT, lue au lieu d'une colonne nommée (2026-11-24) : six endroits recopiaient
     # la liaison port → champ. Le lecteur d'abord ; le stockage peut changer derrière lui.
     Mechanism('port_fields', "Le champ qui garde la valeur d'un port",
-              "Où se range la valeur d'un port d'entrée sur un élément : `WAMA_PORT_FIELDS` du "
-              "modèle (les seuls écarts hérités, liste qui ne doit que baisser), sinon le champ "
+              "Où se range la valeur d'un port d'entrée sur un élément : `register_port_fields` au "
+              "`ready()` de l'app, rejoué dans celui des jumelles par `apps_gen` (les seuls écarts "
+              "hérités, liste qui ne doit que baisser), sinon le champ "
               "HOMONYME du port (les apps nées d'un manifeste), sinon aucun. `port_value` : un champ "
               "partagé par deux ports (l'avatar, photo OU objet 3D) rend le fichier au port que sa "
               "nature désigne (`input_match.work_token_for`). Un consommateur ne nomme plus de "

@@ -419,7 +419,7 @@ def creer_lot_de_prompts(chemin, nom_fichier, user, *, domain='image', reglages=
         try:
             files = (line_file_ports(app_label, {'reference': p['reference'], 'line_num': n})
                      if p.get('reference') else {})
-            # Le champ de chaque port : le lecteur commun (`ImageGeneration.WAMA_PORT_FIELDS` ; le
+            # Le champ de chaque port : le lecteur commun (`register_port_fields`, apps.py ; le
             # port `reference_image` garde son champ homonyme).
             received, remote = line_file_inputs(user, app_label, files, model=ImageGeneration)
         except ValueError as exc:        # `InputRefused` compris : une désignation refusée

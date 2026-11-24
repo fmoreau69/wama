@@ -20,6 +20,9 @@ class AnonymizerConfig(AppConfig):
         from wama.common.utils.preview_registry import PreviewRegistry
         from wama.common.utils.preview_utils import anonymizer_preview_adapter
         from .models import Media
+        # Le champ de chaque port d'entrée qui ne porte pas son nom (`common/utils/port_fields`).
+        from wama.common.utils.port_fields import register_port_fields
+        register_port_fields(Media, {'work_file': 'file'})
 
         PreviewRegistry.register(
             app_name='anonymizer',

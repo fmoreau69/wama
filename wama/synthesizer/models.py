@@ -51,10 +51,6 @@ class VoiceSynthesis(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
         help_text="Contenu texte extrait du fichier"
     )
 
-    #: Le champ de chaque port d'entrée qui ne porte pas son nom — lu par `common/utils/port_fields`.
-    WAMA_PORT_FIELDS = {'prompt': 'text_content', 'work_file': 'text_file',
-                        'reference_voice': 'voice_reference'}
-
     # Ingest URL déclaratif — app PROMPT-FIRST : le fichier ingérable est la VOIX
     # de référence (échantillon de clonage), résolu par la brique commune
     # common/utils/source_ingest.ensure_local_input() au démarrage de la tâche.

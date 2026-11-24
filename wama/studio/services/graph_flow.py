@@ -17,8 +17,8 @@ qui sort de chaque nœud et le TEXTE d'une saisie ; le diagnostic lit les champs
 Ce que reçoit un nœud se range dans les champs que son app DÉCLARE déjà, sans déclaration neuve :
   • `source_type` de la spec de détail (`detail_registry`) — le champ qui porte la nature de la
     source (converter, anonymizer, enhancer : `media_type` ; describer : `detected_type`) ;
-  • `source_text` — le champ qui porte le texte de la source (synthesizer, avatarizer :
-    `text_content` ; composer, imager : `prompt`) ;
+  • le champ du port de consigne, lu au lecteur commun (`port_fields.port_field`, 2026-11-24) — le
+    texte de la source (synthesizer, avatarizer : `text_content` ; composer, imager : `prompt`) ;
   • pour une ÉTAPE de card (nœud fonction rattaché à un process), l'élément désigné porte ses
     valeurs lui-même : les porteurs cachés du schéma sont lus sur lui.
 
@@ -122,12 +122,18 @@ def _put_nature(values, field, possible):
 
 
 def _app_carriers(app_id, inputs, values, provided):
-    """Les champs DÉCLARÉS de l'app (`source_type`, `source_text`) remplis par ce que reçoit son
+    """Les champs de l'app (`source_type` déclaré, le champ du port de consigne) remplis par ce que reçoit son
     nœud. La nature : celle de l'entrée principale, bornée à ce que le port accepte — connue, une
     valeur ; possible parmi plusieurs (aucun lien, aucun média choisi, amont ambigu), la liste."""
     from wama.studio.services.generic_runner import GENERIC_APPS, primary_ports
+    from wama.common.utils.detail_registry import DetailRegistry
+    from wama.common.utils.port_fields import port_field
     spec = _detail_spec(app_id)
-    source_type, source_text = spec.get('source_type'), spec.get('source_text')
+    source_type = spec.get('source_type')
+    # Le champ qui garde la valeur du port de consigne — le lecteur commun (2026-11-24 ; c'était
+    # `source_text` de la spec de détail, une copie de la même liaison).
+    model = (DetailRegistry.get(app_id) or {}).get('model')
+    source_text = (port_field(model, 'prompt') or None) if model is not None else None
 
     if isinstance(source_type, str) and app_id in GENERIC_APPS:
         primary = primary_ports(app_id)

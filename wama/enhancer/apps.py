@@ -22,7 +22,11 @@ class EnhancerConfig(AppConfig):
 
         # Register for unified preview
         from wama.common.utils.preview_utils import register_app_preview
-        from .models import Enhancement
+        from .models import AudioEnhancement, Enhancement
+        # Le champ de chaque port d'entrée qui ne porte pas son nom (`common/utils/port_fields`).
+        from wama.common.utils.port_fields import register_port_fields
+        register_port_fields(Enhancement, {'work_file': 'input_file'})
+        register_port_fields(AudioEnhancement, {'work_audio': 'input_file'})
 
         register_app_preview(
             app_name='enhancer',

@@ -1911,12 +1911,14 @@ Chaque étape d'outil porte son verdict (`ok`) et sa durée (`seconds`), écrits
 
 ### Le champ qui garde la valeur d'un port
 
-Où se range la valeur d'un port d'entrée sur un élément : `WAMA_PORT_FIELDS` du modèle (les seuls écarts hérités, liste qui ne doit que baisser), sinon le champ HOMONYME du port (les apps nées d'un manifeste), sinon aucun. `port_value` : un champ partagé par deux ports (l'avatar, photo OU objet 3D) rend le fichier au port que sa nature désigne (`input_match.work_token_for`). Un consommateur ne nomme plus de colonne : la cible (table commune des entrées) se pose derrière ce lecteur
+Où se range la valeur d'un port d'entrée sur un élément : `register_port_fields` au `ready()` de l'app, rejoué dans celui des jumelles par `apps_gen` (les seuls écarts hérités, liste qui ne doit que baisser), sinon le champ HOMONYME du port (les apps nées d'un manifeste), sinon aucun. `port_value` : un champ partagé par deux ports (l'avatar, photo OU objet 3D) rend le fichier au port que sa nature désigne (`input_match.work_token_for`). Un consommateur ne nomme plus de colonne : la cible (table commune des entrées) se pose derrière ce lecteur
 
 - **Domicile** : `wama/common/utils/port_fields.py` · **doc** : [docs/construction/ui/INPUT_MODEL_MATCHING.md](../construction/ui/INPUT_MODEL_MATCHING.md)
 - **Module** : OÙ SE RANGE LA VALEUR D'UN PORT — le lecteur commun des entrées d'un élément (2026-11-24).
-- **API publique** (4) :
-  - `port_field_map(model) -> dict` — `{port: champ}` que le modèle d'élément DÉCLARE (`WAMA_PORT_FIELDS`), ou {}.
+- **API publique** (6) :
+  - `register_port_fields(model, mapping: dict) -> None` — Déclare, pour le modèle d'élément `model` (classe, instance ou `'app.Modèle'`), le champ des
+  - `registered() -> dict` — Toutes les déclarations, par étiquette de modèle — ce que lisent l'extracteur et la garde.
+  - `port_field_map(model) -> dict` — `{port: champ}` que le modèle d'élément déclare (`register_port_fields`), ou {}.
   - `port_field(model, port: str) -> str` — Le champ du modèle d'élément `model` (classe ou instance) qui porte la valeur de `port` —
   - `ports_sharing(model, field: str) -> list` — Les ports que le modèle range dans le MÊME champ `field` (déclarés), dans l'ordre déclaré.
   - `port_value(element, port: str)` — La valeur de `port` sur `element` : le fichier (`FieldFile`) ou le texte du champ qui le
@@ -4312,7 +4314,7 @@ Exécute une app par son CONTRAT (triade tool_api normalisée) — zéro logique
 - **Module** : Studio — runner GÉNÉRIQUE piloté par le CONTRAT d'app (STUDIO_VISION « principe directeur », 2026-07-12). Zéro logique par app : tout vient des sources uniques.
 - **API publique** (9) :
   - `primary_ports(app_id, ports=None) -> set` — Les ports par lesquels arrive l'ENTRÉE PRINCIPALE du nœud (transmise par `create`).
-  - `port_argument_name(app_id, port_id, accepted=None)` — L'argument de l'outil où ARRIVE le port `port_id` : celui du MÊME NOM ; à défaut, pour le
+  - `port_argument_name(app_id, port_id, accepted=None)` — L'argument de l'outil où ARRIVE le port `port_id` : celui du MÊME NOM ; à défaut, le CHAMP
   - `work_arguments(app_id) -> set` — Les arguments de `add_to_<app>` où arrivent PLUSIEURS fichiers ensemble
   - `single_file_arguments(app_id) -> set` — Les arguments de `add_to_<app>` d'un port FICHIER qui en prend UN (référence, résultat
   - `primary_argument(app_id)` — L'argument de `add_to_<app>` où arrive l'ENTRÉE PRINCIPALE du nœud : celui que l'app déclare

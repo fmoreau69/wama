@@ -215,6 +215,9 @@ DECLARED_VALUES = (
     (_is_prose, ('inspector.tracks*[].label',)),
     # Les crochets d'une surface (2026-11-10, `surfaces_gen.SURFACE_HOOKS`) : un import ou un nom.
     (is_path, ('surfaces[].available', 'surfaces[].validate')),
+    # Le champ de chaque port (`inspector.port_fields`, 2026-11-24, `apps_gen`) : le modèle, le
+    # port et le champ — trois noms.
+    (is_name, ('inspector.port_fields{}', 'inspector.port_fields*{}', 'inspector.port_fields**')),
     (_is_view, ('processing.extra_routes[].view',)),
     (_is_dotted, ('processing.tasks[].task_name',)),
     (_is_text, ('processing.extra_routes[].pattern', 'processing.extra_routes[].name',

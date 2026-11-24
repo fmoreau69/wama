@@ -17,6 +17,9 @@ class ReaderConfig(AppConfig):
 
         from wama.common.utils.preview_utils import register_app_preview
         from .models import ReadingItem
+        # Le champ de chaque port d'entrée qui ne porte pas son nom (`common/utils/port_fields`).
+        from wama.common.utils.port_fields import register_port_fields
+        register_port_fields(ReadingItem, {'work_file': 'input_file'})
         register_app_preview('reader', ReadingItem, file_field='input_file')
 
         # Rendu des formats de sortie (late-binding, §6.4) — celui des téléchargements, déclaré

@@ -30,9 +30,6 @@ class Media(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
     # mutations inchangées (filtrées par user) → lecture seule par construction.
     objects = ScopedManager()
 
-    #: Le champ de chaque port d'entrée qui ne porte pas son nom — lu par `common/utils/port_fields`.
-    WAMA_PORT_FIELDS = {'work_file': 'file'}
-
     # Ingest commun (source_ingest.ensure_local_input, dès la création) : télécharge
     # source_url vers le FileField ; `derive` relève les métadonnées du fichier reçu.
     WAMA_INGEST = {'source': 'source_url', 'target': 'file', 'mode': 'media',

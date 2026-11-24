@@ -78,6 +78,10 @@ class ComposerConfig(AppConfig):
         # rendu (≈ 100 Mo) par révision ne se garde pas — il se refait depuis sa partition.
         from wama.common.services.revisions import keep_outputs
         from .models import ComposerGeneration
+        # Le champ de chaque port d'entrée qui ne porte pas son nom (`common/utils/port_fields`).
+        from wama.common.utils.port_fields import register_port_fields
+        register_port_fields(ComposerGeneration, {'work_audio': 'melody_reference',
+                                                  'work_score': 'reference_score'})
         # La partition COMPLÈTE aussi depuis le 2026-10-22 : elle se corrige sur la même surface.
         keep_outputs('composer', keep=20,
                      fields=tuple(ComposerGeneration.SCORE_FIELDS)

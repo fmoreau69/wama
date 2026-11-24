@@ -223,22 +223,21 @@ def primary_ports(app_id, ports=None) -> set:
 
 
 def port_argument_name(app_id, port_id, accepted=None):
-    """L'argument de l'outil où ARRIVE le port `port_id` : celui du MÊME NOM ; à défaut, pour le
-    port de SAISIE (`prompt`, jeton de rôle), le champ que l'app DÉCLARE porter son texte source
-    (`source_text` de sa spec de détail — le texte à dire de l'avatarizer, `text_content`), la
-    déclaration que lit aussi le contexte du nœud (`graph_flow`, 2026-10-18). `None` : l'outil ne
-    le lit pas."""
+    """L'argument de l'outil où ARRIVE le port `port_id` : celui du MÊME NOM ; à défaut, le CHAMP
+    qui garde la valeur du port sur l'élément de l'app, quand l'outil le prend sous ce nom (le texte
+    à dire de l'avatarizer, `text_content`) — lu au lecteur commun (`port_fields.port_field`,
+    2026-11-24 ; c'était `source_text` de la spec de détail, une copie de la même liaison, et pour la
+    seule consigne). `None` : l'outil ne le lit pas."""
     if accepted is None:
         from wama.tool_api import tool_arg_names
         accepted = tool_arg_names(f'add_to_{app_id}')
     if port_id in accepted:
         return port_id
-    if port_id == 'prompt':
-        from wama.common.utils.detail_registry import DetailRegistry
-        field = ((DetailRegistry.get(app_id) or {}).get('spec') or {}).get('source_text')
-        if isinstance(field, str) and field in accepted:
-            return field
-    return None
+    from wama.common.utils.detail_registry import DetailRegistry
+    from wama.common.utils.port_fields import port_field
+    model = (DetailRegistry.get(app_id) or {}).get('model')
+    field = port_field(model, port_id) if model is not None else ''
+    return field if field and field in accepted else None
 
 
 def work_arguments(app_id) -> set:

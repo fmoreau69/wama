@@ -116,7 +116,7 @@ def composer_rules(values) -> dict:
 #: chacun porte, dit dans un refus. Lus par la card (`generate`), l'outil de l'assistant
 #: (`tool_api.compose_music`) et le lot (`import_batch`) : la liste était écrite deux fois
 #: (2026-11-06). Le CHAMP de chaque port se lit au lecteur commun (`port_fields.port_field`,
-#: `ComposerGeneration.WAMA_PORT_FIELDS`, 2026-11-24), plus ici.
+#: `register_port_fields` de apps.py, 2026-11-24), plus ici.
 COVER_PORTS = (('work_score', 'de partition'),
                ('work_audio', "d'audio à reprendre"))
 

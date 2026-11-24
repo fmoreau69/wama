@@ -105,9 +105,13 @@ def render_apps(manifest: dict) -> tuple:
                     '            pass',
                 ]
         if preview:
+            # `file_field=None` se REJOUE (2026-11-24) : l'app qui n'a aucun média d'entrée à
+            # décrire le déclare ainsi (le composer, `preview_registry.create_simple_adapter`) ;
+            # omis, l'aperçu de la jumelle prenait le défaut `input_file`, une colonne qu'elle n'a
+            # pas (mesuré sur composer_01).
             kwargs = ''.join(f", {k}={v!r}" for k, v in (('file_field', preview.get('file_field')),
                                                          ('user_field', preview.get('user_field')))
-                             if v)
+                             if v or (k == 'file_field' and k in preview))
             lignes += [
                 '        from wama.common.utils.preview_utils import register_app_preview',
                 f"        register_app_preview('{surface}', {item_model}{kwargs})",
@@ -153,6 +157,19 @@ def render_apps(manifest: dict) -> tuple:
                                   or getattr(track, name) != Track.__dataclass_fields__[name].default)
                 lignes.append(f'            Track({shown}),')
             lignes.append('        ))')
+    # Le CHAMP de chaque port qui ne porte pas son nom (`inspector.port_fields`, 2026-11-24,
+    # `common/utils/port_fields`) : la déclaration de l'app, rejouée telle quelle — même règle que les
+    # pistes, un modèle que ce `ready()` n'importe pas refuse le rendu.
+    port_fields = insp.get('port_fields') or {}
+    if port_fields:
+        unknown = sorted(set(port_fields) - set(modeles))
+        if unknown:
+            return None, f"inspector.port_fields : modèle(s) hors de l'app {', '.join(unknown)}"
+        lignes.append('        from wama.common.utils.port_fields import register_port_fields')
+        for model_name in modeles:
+            if model_name in port_fields:
+                mapping = {str(p): str(f) for p, f in dict(port_fields[model_name]).items()}
+                lignes.append(f'        register_port_fields({model_name}, {mapping!r})')
     item_model = proc.get('item_model')
     revisions = proc.get('revisions')
     if revisions:

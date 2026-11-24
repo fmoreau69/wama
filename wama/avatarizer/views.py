@@ -670,7 +670,7 @@ def batch_create(request):
             try:
                 files = line_file_ports('avatarizer', {'input': row['audio_path'],
                                                        'line_num': row.get('line_num')})
-                # Le champ de chaque port : le lecteur commun (`AvatarJob.WAMA_PORT_FIELDS`).
+                # Le champ de chaque port : le lecteur commun (`register_port_fields`, apps.py).
                 received, remote = line_file_inputs(user, 'avatarizer', files, model=AvatarJob)
             except ValueError as exc:    # `InputRefused` compris : une désignation refusée
                 warnings.append(f"Ligne {row.get('line_num') or '?'} : {exc} — ignorée")

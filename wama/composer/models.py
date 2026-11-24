@@ -77,9 +77,6 @@ class ComposerGeneration(MediaDurationMixin, DerivedCardMixin, KeptOutputsMixin,
         blank=True, null=True,
     )
 
-    #: Le champ de chaque port d'entrée qui ne porte pas son nom — lu par `common/utils/port_fields`.
-    WAMA_PORT_FIELDS = {'work_audio': 'melody_reference', 'work_score': 'reference_score'}
-
     # Ingest média déclaratif commun (source_ingest.ensure_local_input, appelé en tête de
     # tâche) : URL de MÉLODIE de référence (YouTube/lien audio) → téléchargée vers
     # melody_reference AU LANCEMENT. Un fichier local déjà joint prime (ensure_local_input

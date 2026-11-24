@@ -27,6 +27,9 @@ class ImagerConfig(AppConfig):
         from wama.common.utils.detail_registry import register_app_detail_spec
         from wama.common.utils.preview_utils import register_app_preview
         from .models import ImageGeneration
+        # Le champ de chaque port d'entrée qui ne porte pas son nom (`common/utils/port_fields`).
+        from wama.common.utils.port_fields import register_port_fields
+        register_port_fields(ImageGeneration, {'work_image': 'reference_image'})
 
         # SPEC déclarative (A3a, portage 2026-10-05 — dernier adapter code de l'app, mesuré
         # identique sur les 31 générations réelles avant bascule ; seul l'ORDRE des réglages

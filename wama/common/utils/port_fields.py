@@ -20,10 +20,14 @@ c'est la règle « le lecteur d'abord, les tables ensuite » de `ROUTE §10.7.11
 tenir les tables de lot par app derrière `batch_of` / `batch_elements`.
 
 LA RÉSOLUTION, dans cet ordre :
-  1. la DÉCLARATION du modèle d'élément, `WAMA_PORT_FIELDS = {port: champ}` — à côté de
-     `WAMA_INGEST`, même nature (une donnée du modèle, lue par les briques). Elle ne porte QUE les
-     ports dont le champ ne porte pas le nom : c'est la liste des écarts hérités, qui ne doit que
-     baisser ;
+  1. la DÉCLARATION du modèle d'élément, `register_port_fields(Modèle, {port: champ})` dans le
+     `ready()` de l'app. Elle ne porte QUE les ports dont le champ ne porte pas le nom : c'est la
+     liste des écarts hérités, qui ne doit que baisser. Dans `ready()` et non sur le modèle (forme
+     du 24/11 au matin) — mesuré le même jour : le `apps.py` des jumelles est GÉNÉRÉ pour les douze,
+     leur `models.py` pour six seulement (les six autres sont des copies figées à leur création) ;
+     une déclaration du modèle n'aurait jamais atteint ces six-là. C'est la forme des pistes
+     (`catalog/marks.register_tracks`) : l'extracteur la lit au registre (`inspector.port_fields`),
+     `apps_gen` la rejoue dans le `ready()` généré ;
   2. sinon un champ HOMONYME du port (les apps nées d'un manifeste nomment déjà leurs colonnes
      ainsi : `reference_layout` du Writer, `work_result` du transcriber) ;
   3. sinon '' — le port n'a pas de champ (porté par un réglage, une capture en direct…).
@@ -38,9 +42,33 @@ AUCUNE colonne (une nature de plus = un port de plus, sans migration) — `INPUT
 from __future__ import annotations
 
 
+#: `{'app_label.Modèle': {port: champ}}` — écrit par `register_port_fields`, au `ready()` des apps.
+_LISTED: dict = {}
+
+
+def _label(model) -> str:
+    if isinstance(model, str):
+        return model
+    model = model if isinstance(model, type) else type(model)
+    return model._meta.label
+
+
+def register_port_fields(model, mapping: dict) -> None:
+    """Déclare, pour le modèle d'élément `model` (classe, instance ou `'app.Modèle'`), le champ des
+    ports qui ne portent pas son nom. Une seconde déclaration du même modèle la remplace (un
+    rechargement de `ready()` ne double rien). Rien n'est vérifié ici — un `ready()` qui lève
+    arrêterait tout WAMA ; la garde `tests_port_fields` refuse un port ou un champ fantôme."""
+    _LISTED[_label(model)] = {str(port): str(field) for port, field in dict(mapping or {}).items()}
+
+
+def registered() -> dict:
+    """Toutes les déclarations, par étiquette de modèle — ce que lisent l'extracteur et la garde."""
+    return {label: dict(mapping) for label, mapping in _LISTED.items()}
+
+
 def port_field_map(model) -> dict:
-    """`{port: champ}` que le modèle d'élément DÉCLARE (`WAMA_PORT_FIELDS`), ou {}."""
-    return dict(getattr(model, 'WAMA_PORT_FIELDS', None) or {})
+    """`{port: champ}` que le modèle d'élément déclare (`register_port_fields`), ou {}."""
+    return dict(_LISTED.get(_label(model)) or {})
 
 
 def _field_names(model) -> set:

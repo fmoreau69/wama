@@ -607,7 +607,7 @@ def batch_create(request):
             files = (line_file_ports('synthesizer', {'reference': task['voice_reference'],
                                                      'line_num': task.get('line_num')})
                      if task.get('voice_reference') else {})
-            # Le champ de chaque port : le lecteur commun (`VoiceSynthesis.WAMA_PORT_FIELDS`).
+            # Le champ de chaque port : le lecteur commun (`register_port_fields`, apps.py).
             lines.append((task, *line_file_inputs(user, 'synthesizer', files,
                                                   model=VoiceSynthesis)))
         except ValueError as exc:        # `InputRefused` compris : une désignation refusée

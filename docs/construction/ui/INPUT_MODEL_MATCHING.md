@@ -734,23 +734,52 @@ natures est exclu aussi : décision du 2026-09-30, le vocabulaire des rôles sui
 
 **Le fonctionnement universel — trois étages, chacun derrière le précédent.**
 1. ✅ **Un lecteur** (2026-11-24, `common/utils/port_fields.py`) : un consommateur ne nomme plus de
-   colonne, il demande la valeur d'un PORT. Résolution : `WAMA_PORT_FIELDS` du modèle d'élément (à
-   côté de `WAMA_INGEST` ; les SEULS écarts hérités, liste qui ne doit que baisser), sinon le champ
-   homonyme, sinon aucun. Un champ partagé rend le fichier au port que sa nature désigne
-   (`input_match.work_token_for`, la traduction du tirage du modèle). Aucun stockage touché.
+   colonne, il demande la valeur d'un PORT. Résolution : la déclaration de l'app,
+   `register_port_fields(Modèle, {port: champ})` dans son `ready()` (les SEULS écarts hérités, liste
+   qui ne doit que baisser), sinon le champ homonyme, sinon aucun. Un champ partagé rend le fichier
+   au port que sa nature désigne (`input_match.work_token_for`, la traduction du tirage du modèle).
+   Aucun stockage touché. ⚠ Posée d'abord sur le modèle (`WAMA_PORT_FIELDS`, à côté de
+   `WAMA_INGEST`), elle est passée dans `ready()` le jour même, sur mesure : le `apps.py` des jumelles
+   est GÉNÉRÉ pour les douze, leur `models.py` pour six seulement (les six autres sont des copies
+   figées à leur création) — une déclaration du modèle n'en aurait jamais atteint six. C'est la
+   forme des pistes (`register_tracks`, `ROUTE §10.7`).
 2. 🔄 **Les copies lisent le lecteur**, une à une ; chacune retirée allège la garde.
    ✅ Les lignes de lot (24/11, revérification) : `batch_parsers.line_file_inputs` lit le lecteur ;
    `_LINE_FIELDS` (avatarizer, imager, synthesizer) et `COVER_FIELDS` (composer) sont retirés, et
-   `COVER_PORTS` ne porte plus que le libellé d'un refus. ⏳ Restent : la spec du volet
-   (`source_text`, `source_file`), l'aperçu (`file_field`), l'extracteur (premier FileField), les
-   littéraux de JS (non remesurés le 24/11), et une SEPTIÈME copie trouvée à la revérification :
-   `studio/services/generic_runner.port_argument_name`, qui relie la consigne à l'argument de
-   l'outil par `source_text` (mesuré : les arguments des outils portent déjà le nom des PORTS —
-   `work_audio`, `work_score`, `reference_voice` —, seule la consigne de l'avatarizer passe par son
-   champ `text_content`). ⚠ Ordre : la porter APRÈS la projection aux jumelles — lue au lecteur
-   aujourd'hui, la consigne d'`avatarizer_01` (sans déclaration) redeviendrait non lue. Le
-   générateur suit : l'extracteur projette `WAMA_PORT_FIELDS` dans le manifeste, `models_gen` dans
-   la jumelle (`manifests/builtin/app.py` est libre depuis f2553ebad).
+   `COVER_PORTS` ne porte plus que le libellé d'un refus.
+   ✅ Le Studio et l'assistant (24/11) : `generic_runner.port_argument_name` (l'argument d'outil
+   d'un port) et `graph_flow._app_carriers` (le champ où le texte reçu par un nœud se range)
+   lisaient `source_text` de la spec — une copie de la liaison, et pour la seule consigne ; ils
+   lisent le lecteur, pour tout port.
+   ✅ Le générateur (24/11) : l'extracteur porte la déclaration au manifeste
+   (`inspector.port_fields`), `apps_gen` la rejoue dans le `ready()` de la jumelle, `source_safety`
+   la contrôle ; le champ d'entrée d'une jumelle (`model_spec.item.input_field`) est celui du port
+   de travail principal (`entry_form`, puis le lecteur), le premier FileField n'en est plus que le
+   repli — seul l'imager change (`prompt_file` → `reference_image`) ; et la liste de ce que ⧉ vide
+   (`views_gen`, `output_fields`) exclut le champ de chaque port — l'intention de `ROUTE §10.6`,
+   couche 2, point 4.6 (« le champ du port au manifeste, puis la liste du générateur dérivée de
+   lui »). Mesuré avant/après : ⧉ vidait l'image de travail d'`imager_01`, la voix de référence de
+   `synthesizer_01`, la partition de `composer_01` et l'avatar d'`avatarizer_01` ; les jumelles
+   rejoignent leur source (le synthesizer réel déclare `output_fields=('audio_output',)`).
+   Trouvé en chemin, corrigé : `apps_gen` omettait un aperçu déclaré SANS fichier
+   (`file_field=None`, le composer) — la jumelle prenait le défaut `input_file`, une colonne
+   qu'elle n'a pas. Douze jumelles régénérées (`apps` pour neuf, plus `views+templates` pour
+   imager_01, synthesizer_01, composer_01, avatarizer_01) ; `anonymizer_01` laissée à la session de
+   l'anonymizer (son modèle porte des champs non commités). Leurs tests copiés : les MÊMES 106 rouges
+   avant et après (synthesizer_01, composer_01, avatarizer_01) — des tests de l'app réelle qui
+   visent ses internes, absents du code généré.
+   ⚠ Reste nommé : `translator_01` (né d'un manifeste qui déclare `input_field: source_document`)
+   range son fichier de travail DEUX fois, dans `source_document` et dans la colonne homonyme
+   `work_file` (sa vue générée, ports secondaires) ; à trancher.
+   Ne sont PAS des copies, et restent : la spec du volet (`source_text`, clé de la valeur affichée ;
+   `source_file`, un ORDRE d'affichage) et l'aperçu (`file_field`, le port qu'on montre) — des choix
+   d'affichage, contrôlés : chacun doit nommer le champ d'un port de l'élément.
+   ⏳ Les littéraux de JS (mesurés le 24/11) : trois pages réelles postent leurs fichiers sous le
+   nom de la COLONNE (avatarizer `audio_input`, `avatar_upload`, `text_content` ; imager
+   `reference_image` ; synthesizer `text_content`) et leur vue les lit sous ce nom. C'est leur
+   contrat d'envoi, pas une copie de la table ; le porter (poster sous l'id du PORT, la vue rangeant
+   au champ par le lecteur — ce que fait déjà le composer, `ports: 'card'`) change trois cards et
+   trois vues, et se vérifie au navigateur : une étape à part.
 3. ⏳ **Le stockage universel, à décider** : la valeur d'un port ne demande AUCUNE colonne — une
    table commune des ENTRÉES d'un élément, une ligne par (élément, port, rang) : la copie de travail
    et sa provenance. C'est `InputProvenance` agrandie (`common/models.py`) : elle a déjà une ligne

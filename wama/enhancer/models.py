@@ -17,8 +17,6 @@ class Enhancement(MediaDurationMixin, ProcessingTimeMixin, NativeOutputsMixin, S
     """
 
     objects = ScopedManager()
-    #: Le champ de chaque port d'entrée qui ne porte pas son nom — lu par `common/utils/port_fields`.
-    WAMA_PORT_FIELDS = {'work_file': 'input_file'}
     # Ingest URL déclaratif — consommé par la brique commune
     # common/utils/source_ingest.ensure_local_input() dès la création ; `derive` pose media_type.
     WAMA_INGEST = {
@@ -154,8 +152,6 @@ class AudioEnhancement(MediaDurationMixin, ProcessingTimeMixin, NativeOutputsMix
     """
 
     objects = ScopedManager()
-    #: cf. `Enhancement.WAMA_PORT_FIELDS`.
-    WAMA_PORT_FIELDS = {'work_audio': 'input_file'}
     # Ingest URL déclaratif (brique commune, cf. Enhancement.WAMA_INGEST).
     WAMA_INGEST = {
         'source': 'source_url',

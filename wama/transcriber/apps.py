@@ -47,6 +47,9 @@ class TranscriberConfig(AppConfig):
         from wama.common.utils.preview_registry import PreviewRegistry
         from wama.common.utils.preview_utils import transcriber_preview_adapter
         from .models import Transcript
+        # Le champ de chaque port d'entrée qui ne porte pas son nom (`common/utils/port_fields`).
+        from wama.common.utils.port_fields import register_port_fields
+        register_port_fields(Transcript, {'work_audio': 'audio'})
 
         PreviewRegistry.register(
             app_name='transcriber',

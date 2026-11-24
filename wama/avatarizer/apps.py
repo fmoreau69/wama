@@ -23,6 +23,13 @@ class AvatarizerConfig(AppConfig):
         from wama.common.utils.preview_utils import register_app_preview
         from wama.common.utils.detail_registry import register_app_detail_spec
         from .models import AvatarJob
+        # Le champ de chaque port d'entrée qui ne porte pas son nom (`common/utils/port_fields`).
+        # L'avatar (photo de MuseTalk OU objet 3D de TalkingHead) partage `avatar_upload` : le
+        # lecteur rend le fichier au port que sa nature désigne. Stockage hérité, pas une forme à imiter.
+        from wama.common.utils.port_fields import register_port_fields
+        register_port_fields(AvatarJob, {'prompt': 'text_content', 'work_audio': 'audio_input',
+                                         'work_image': 'avatar_upload',
+                                         'work_object3d': 'avatar_upload'})
 
         register_app_preview(
             app_name='avatarizer',
