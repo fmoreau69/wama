@@ -177,6 +177,19 @@ PLAYBACK_DIR = '.preview'
 #: de l'onde (`waveform.DENSE_SUFFIX`, ROUTE §F3b). Le balayage des orphelins et l'audit
 #: d'intégrité les reconnaissent tous par `original_of_copy`.
 DERIVED_SUFFIXES = ('.peaks.json', '.mp4', '.m4a')
+#: Et une FAMILLE à clé (2026-11-25) : les pistes automatiques d'un média (`media_marks` — ses
+#: plans, demain les parties d'un morceau), un fichier par producteur, `<média>.<clé>.marks.json`.
+#: La famille se reconnaît à sa fin, quelle que soit la clé : le balayage et l'audit n'ont à
+#: connaître aucun producteur, et un producteur de plus ne demande rien ici.
+KEYED_SUFFIX = '.marks.json'
+
+
+def keyed_suffix(key: str) -> str:
+    """Le suffixe du fichier dérivé à clé `key` (un identifiant) — pure."""
+    key = str(key or '')
+    if not key.isidentifier():
+        raise ValueError(f"clé de fichier dérivé « {key} » : un identifiant est attendu")
+    return f'.{key}{KEYED_SUFFIX}'
 
 # ── L'AUDIO : lisible, mais pas toujours POSITIONNABLE (2026-11-18) ───────────────────────────
 # Mesuré dans Chromium (le banc `common.audio_seek`, `ui_smoke_audio_seek.py`) : après un
@@ -333,10 +346,12 @@ def drop_playback_copy(rel: str) -> bool:
     """Retire les fichiers DÉRIVÉS d'un média — sa copie de lecture et, depuis le 2026-10-21, ses
     pics fins (`DERIVED_SUFFIXES`) : l'original part, ce qu'on en tirait aussi. Rend True si l'un
     d'eux a été retiré. Ne lève jamais."""
+    import glob
     removed = False
-    for suffix in DERIVED_SUFFIXES:
+    keyed = glob.glob(glob.escape(_absolute(derived_rel(rel, ''))) + '.*' + KEYED_SUFFIX)
+    for path in [_absolute(derived_rel(rel, suffix)) for suffix in DERIVED_SUFFIXES] + keyed:
         try:
-            os.remove(_absolute(derived_rel(rel, suffix)))
+            os.remove(path)
             removed = True
         except OSError:
             pass
@@ -347,10 +362,17 @@ def original_of_copy(copy_rel: str) -> str:
     """L'original (chemin relatif) d'un fichier dérivé — l'inverse de `derived_rel`, pour chacun
     des `DERIVED_SUFFIXES` ; '' pour tout autre fichier."""
     copy_rel = str(copy_rel or '').replace('\\', '/')
-    suffix = next((s for s in DERIVED_SUFFIXES if copy_rel.endswith(s)), '')
-    if not suffix:
-        return ''
-    parts = copy_rel[:-len(suffix)].split('/')
+    if copy_rel.endswith(KEYED_SUFFIX):
+        # `<média>.<clé>.marks.json` : la clé part avec le suffixe de la famille.
+        stem, dot, key = copy_rel[:-len(KEYED_SUFFIX)].rpartition('.')
+        if not dot or not key.isidentifier():
+            return ''
+    else:
+        suffix = next((s for s in DERIVED_SUFFIXES if copy_rel.endswith(s)), '')
+        if not suffix:
+            return ''
+        stem = copy_rel[:-len(suffix)]
+    parts = stem.split('/')
     if len(parts) > 3 and parts[0] == 'users' and parts[2] == PLAYBACK_DIR:
         return '/'.join(parts[:2] + parts[3:])
     if parts and parts[0] == PLAYBACK_DIR:

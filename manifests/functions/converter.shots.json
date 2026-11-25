@@ -1,0 +1,82 @@
+{
+  "body": {
+    "app": "converter",
+    "binding": "app",
+    "category": "detector",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "converter.utils.shots:shots_job",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "video",
+        "description": "La vidéo à analyser.",
+        "group": "travail",
+        "key": "video",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "converter.shots",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "segments",
+        "description": "Les plans, du début à la fin de la vidéo, sans trou ; `score` est la force de la coupe qui ouvre le plan.",
+        "key": "shots",
+        "optional": false,
+        "produced_fields": [
+          "start",
+          "end",
+          "score"
+        ],
+        "required_fields": []
+      }
+    ],
+    "params": [
+      {
+        "choices": null,
+        "default": 10.0,
+        "description": "Sensibilité : plus bas, plus de coupes (fondus, mouvements brusques) ; plus haut, les seules coupes franches.",
+        "key": "threshold",
+        "max": 100,
+        "min": 1,
+        "type": "float",
+        "unit": ""
+      },
+      {
+        "choices": null,
+        "default": 0.5,
+        "description": "Durée minimale d'un plan : en deçà, il rejoint son voisin.",
+        "key": "min_duration",
+        "max": 30,
+        "min": 0,
+        "type": "float",
+        "unit": "s"
+      }
+    ],
+    "projects": [],
+    "tags": [
+      "ffmpeg",
+      "video",
+      "segments"
+    ]
+  },
+  "description": "Repère les changements de plan d'une vidéo (ffmpeg) et range ses plans comme une piste de segments sur l'axe du fichier : ce qu'on gardera, masquera ou réordonnera pour la couper. La vidéo n'est pas modifiée.",
+  "key": "converter.shots",
+  "manifest_kind": "function",
+  "name": "Converter — détecter les plans",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:converter.shots",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

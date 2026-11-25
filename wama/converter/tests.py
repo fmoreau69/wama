@@ -9,8 +9,10 @@ import re
 import zipfile
 
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
+
+from wama.converter.utils import shots
 
 
 class BatchDownloadTest(TestCase):
@@ -663,3 +665,61 @@ class VideoResolutionCapTest(TestCase):
 
     def test_an_explicit_size_comes_first(self):
         self.assertEqual((320, 180), self._encode('1920x1080', resolution_cap='720', resize_w=320))
+
+
+class ShotsFromCutsTest(SimpleTestCase):
+    """`converter.shots` (`ROUTE §10.7.14` step 19) — what ffmpeg says becomes shots that cover the
+    video from its start to its end, with neither gap nor overlap."""
+
+    def test_the_cuts_ffmpeg_says_are_read_in_time_order(self):
+        said = ("[scdet @ 0x55] lavfi.scd.score: 26.360, lavfi.scd.time: 3.5\n"
+                "frame=  110 fps=0.0\n"
+                "[scdet @ 0x55] lavfi.scd.score: 33.142, lavfi.scd.time: 2\n")
+        self.assertEqual([(2.0, 33.142), (3.5, 26.36)], shots.cuts_of(said))
+        self.assertEqual([], shots.cuts_of(''))
+
+    def test_shots_cover_the_video_and_each_one_says_the_cut_that_opens_it(self):
+        found = shots.shots_from_cuts([(2.0, 33.142), (3.5, 26.36)], 5.5)
+        self.assertEqual([{'start': 0.0, 'end': 2.0, 'score': None},
+                          {'start': 2.0, 'end': 3.5, 'score': 33.1},
+                          {'start': 3.5, 'end': 5.5, 'score': 26.4}], found)
+        for before, after in zip(found, found[1:]):
+            self.assertEqual(before['end'], after['start'])
+
+    def test_a_video_without_a_cut_is_one_shot(self):
+        self.assertEqual([{'start': 0.0, 'end': 4.0, 'score': None}],
+                         shots.shots_from_cuts([], 4.0))
+
+    def test_a_shot_too_short_joins_its_neighbour(self):
+        cuts = [(0.2, 50.0), (2.0, 40.0), (2.3, 60.0), (5.8, 30.0), (9.0, 20.0)]
+        found = shots.shots_from_cuts(cuts, 6.0, min_duration=0.5)
+        self.assertEqual([(0.0, 2.0), (2.0, 6.0)], [(s['start'], s['end']) for s in found])
+        every = shots.shots_from_cuts(cuts, 6.0, min_duration=0)
+        self.assertEqual(5, len(every), 'the cut past the end is never a shot')
+
+
+class DetectShotsTest(SimpleTestCase):
+    """The real analysis, on a real video with two hard cuts (the picture inverted for a second)."""
+
+    def test_the_cuts_of_a_real_video_are_found_where_they_are(self):
+        import tempfile
+
+        from wama.common.utils.ffmpeg_utils import test_pattern_video
+        with tempfile.TemporaryDirectory() as folder:
+            video = test_pattern_video(f'{folder}/cuts.mp4', size='160x120', seconds=3,
+                                       video_filter="negate=enable='between(t,1,1.99)'")
+            found = shots.detect_shots(video)
+            self.assertEqual([(0.0, 1.0), (1.0, 2.0), (2.0, 3.0)],
+                             [(s['start'], s['end']) for s in found])
+            self.assertIsNone(found[0]['score'])
+            self.assertTrue(all(s['score'] > shots.THRESHOLD for s in found[1:]))
+            self.assertEqual(1, len(shots.detect_shots(video, threshold=100)),
+                             'the threshold asked is the one ffmpeg applies')
+            self.assertEqual(1, len(shots.detect_shots(video, min_duration=1.5)))
+            still = test_pattern_video(f'{folder}/still.mp4', size='160x120', seconds=2)
+            self.assertEqual([(0.0, 2.0)], [(s['start'], s['end'])
+                                            for s in shots.detect_shots(still)])
+            with open(f'{folder}/empty.mp4', 'wb'):
+                pass
+            with self.assertRaises(ValueError):
+                shots.detect_shots(f'{folder}/empty.mp4')

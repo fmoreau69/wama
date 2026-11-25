@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**250 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**251 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -3498,10 +3498,11 @@ Une vidéo qu'une card porte et que le navigateur ne lit pas (conteneur, profil 
 
 - **Domicile** : `wama/common/utils/video_compat.py` · **doc** : [docs/construction/exploitation/MEDIA_STORAGE_TIERING.md](../construction/exploitation/MEDIA_STORAGE_TIERING.md)
 - **Module** : Browser-compatibility helpers for video files.
-- **API publique** (19) :
+- **API publique** (20) :
   - `get_video_codec(file_path: str, *, timeout: int=10) -> Optional[str]` — Return the codec name of the first video stream, lowercased
   - `is_browser_compatible_codec(codec: Optional[str]) -> bool` — True when the codec is one HTML5 ``<video>`` can play directly.
   - `ensure_h264(file_path: str, *, timeout: int=1800) -> Union[bool, str]` — Ensure a video is browser-compatible. When the codec is already in
+  - `keyed_suffix(key: str) -> str` — Le suffixe du fichier dérivé à clé `key` (un identifiant) — pure.
   - `seekability(info: Optional[dict]) -> tuple` — `(positionnable, raison)` d'un audio décrit par la sonde commune (`media_probe.
   - `playability(info: Optional[dict]) -> tuple` — `(lisible, raison)` d'une vidéo décrite par la sonde COMMUNE (`media_probe.
   - `derived_rel(rel: str, suffix: str) -> str` — Le chemin (relatif à MEDIA_ROOT) d'un fichier DÉRIVÉ d'un média — pure. Sous
@@ -3890,6 +3891,23 @@ Commune à tout moteur de la tâche `image-to-score` (contrat `ScoreReadingBacke
   - `merge_drum_pages(pages: list) -> str` — UNE partition des `pages` (`merge_pages`), la LÉGENDE de batterie lue sur l'une d'elles
   - `drum_instruments(text: str) -> list` — Les noms des instruments que déclarent les parties d'une partition (`score-instrument`).
   - `merge_pages(pages: list) -> str` — UNE partition MusicXML faite de `pages` (textes MusicXML « partwise », dans l'ordre) : la
+
+### Pistes automatiques d'un média (producteurs de marques)
+
+Ce qui se segmente tout seul dans un fichier média, rangé UNE fois par fichier et rendu à toute card qui l'emploie (2026-11-25, `ROUTE §10.7.14 ⑲`). Un PRODUCTEUR reste propre à son app : elle déclare sa fonction au catalogue (réglages typés, nœud du Studio) et l'inscrit ici (`register_producer` : la piste qu'il remplit, les natures qu'il analyse, son analyse `'module:fonction'`) — ce module n'en nomme aucun. 1ᵉʳ producteur : les PLANS d'une vidéo (`converter.shots`, filtre `scdet` de ffmpeg, aucune librairie de plus) ; la même porte recevra les parties d'un morceau, les silences d'un audio. Le rangement est le cycle des pics fins, écrit une fois (`derived_json.DerivedJson` : fichier dérivé au dossier caché, à jour tant qu'il est plus récent que l'original, une tâche par version du fichier — `common.make_media_marks`, file CPU —, « en file » et « échec » lus d'une marque de cache) ; un fichier par producteur, `<média>.<clé>.marks.json`, famille reconnue à sa fin par le balayage et l'audit (`video_compat.KEYED_SUFFIX`). La lecture est celle des marques : les pistes d'un fichier dites sur place (`media_tracks`), lues par le lecteur commun (`marks.read_tracks`, `outline`, `read_span`). D'autres réglages que ceux qui ont produit la piste la REMPLACENT (une piste, un jeu de réglages, gardé avec elle). La piste appartient au FICHIER : la coupe qu'une card en fait est une piste dérivée portée par son entrée. Outil de l'assistant : `get_file_marks`
+
+- **Domicile** : `wama/common/utils/media_marks.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
+- **Module** : LES PISTES AUTOMATIQUES D'UN MÉDIA — ce qui se segmente tout seul, rangé une fois par fichier.
+- **API publique** (9) :
+  - `class Producer` — Un producteur DÉCLARÉ par l'app dont c'est le métier.
+  - `register_producer(producer: Producer) -> Producer` — Inscrit un producteur (dans le `ready()` de son app, par son module déclarant). Une seconde
+  - `producers() -> Dict[str, Producer]` — Tous les producteurs inscrits, par clé. Un producteur s'inscrit depuis le module DÉCLARANT
+  - `producers_for(rel: str) -> List[Producer]` — Les producteurs qui savent analyser ce média, d'après sa nature — dans l'ordre inscrit.
+  - `media_tracks(rel: str) -> Tuple[Track, ...]` — Les pistes automatiques d'un média (chemin relatif à MEDIA_ROOT), dites sur place — à
+  - `read_media_tracks(rel: str) -> Dict[str, List[dict]]` — Les marques des pistes automatiques d'un média, par le lecteur COMMUN et sous ses noms.
+  - `marks_state(rel: str, *, schedule: bool=True, retry_failed: bool=False) -> Dict[str, dict]` — Où en est l'analyse de chaque piste automatique de ce média : `{clé: {'status': 'ready',
+  - `make_media_marks(rel: str, key: str, params: Optional[dict]=None) -> bool` — Analyse un média et range sa piste `key` — idempotent : ce qui est rangé et à jour reste,
+  - `summary(rel: str, key: str) -> str` — Une phrase sur la piste rangée d'un média (« Plans — 12 sur 0:34 ») — ce qu'un lancement
 
 ### Pont référentiel ↔ cadres typés (WAMA Data)
 
@@ -4361,7 +4379,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
 
 - **Domicile** : `wama/tool_api.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Tool API
-- **API publique** (154) :
+- **API publique** (155) :
   - `tool_effect(effect: str, *, sub_agent: bool=True, reason: str='')` — Marque l'EFFET d'un outil sur sa fonction. `sub_agent=False` retire une LECTURE de ce qu'un
   - `effect_of(tool_name: str) -> dict | None` — L'effet déclaré d'un outil du registre, None s'il n'en déclare pas (ou n'existe pas).
   - `tool_schema(provider)` — Déclare le schéma des arguments d'un outil : `provider()` rend une liste de `Param` (ou de
@@ -4450,6 +4468,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `get_item_preview(user, app: str, pk: int, side: str='input', variant: str='', look: bool=False, question: str='') -> dict` — Look at what an item actually holds — the SAME faces the user sees on the card, in the
   - `get_item_result(user, app: str, pk: int, output_format: str='') -> dict` — Read the RESULT of a finished item — the extracted text of an OCR, a transcript, a
   - `get_item_marks(user, app: str, pk: int, track: str='', start: float=None, end: float=None, within_track: str='', within_mark: int=None, limit: int=MARKS_LIMIT,…` — Read the time marks an item carries on its timeline — the speaker turns, sentences and words
+  - `get_file_marks(user, file_path: str, track: str='', start: float=None, end: float=None, within_track: str='', within_mark: int=None, limit: int=MARKS_LIMIT, of…` — Read the marks WAMA detects by itself in one of the user's media files — today the shots of
   - `delete_item(user, app: str, pk: int) -> dict` — Delete ONE of the user's items from an app queue.
   - `duplicate_item(user, app: str, pk: int) -> dict` — Duplicate ONE of the user's items, so it can be re-run with different settings.
   - `stop_item(user, app: str, pk: int) -> dict` — Stop ONE of the user's items that is waiting or running — the stop button of its card.

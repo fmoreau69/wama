@@ -678,7 +678,7 @@ class AddItemToMediaLibraryTest(TestCase):
 
 
 _LECTURES = ('list_my_items', 'get_item_detail', 'get_item_preview', 'get_item_result',
-             'get_item_marks', 'list_registries',
+             'get_item_marks', 'get_file_marks', 'list_registries',
              'get_my_access', 'list_my_memories')
 _ECRITURES = ('delete_item', 'duplicate_item', 'clear_my_queue',
               'add_item_to_media_library')

@@ -33,40 +33,18 @@ DENSE_QUEUED_TTL = 30 * 86400
 DENSE_FAILED_TTL = 3600
 
 
-def _absolute(rel):
-    import os
-    from django.conf import settings
-    return os.path.join(settings.MEDIA_ROOT, rel)
-
-
-def _version(rel):
-    """`chemin:taille:date` du média (une version), ou None s'il n'existe pas."""
-    import os
-    try:
-        stat = os.stat(_absolute(rel))
-    except OSError:
-        return None
-    return f'{rel}:{stat.st_size}:{int(stat.st_mtime)}'
+def _dense():
+    """Le fait dérivé « pics fins » — son cycle (fichier à jour, une tâche par version, « en file »
+    et « échec » lus d'une marque de cache) est celui de TOUT fait dérivé d'un média
+    (`derived_json`, 2026-11-25) : il était écrit ici, pour l'onde seule."""
+    from .derived_json import DerivedJson
+    return DerivedJson('dense_peaks', DENSE_SUFFIX, 'wama.common.tasks:make_dense_peaks_task',
+                       required='peaks', queued_ttl=DENSE_QUEUED_TTL, failed_ttl=DENSE_FAILED_TTL)
 
 
 def dense_peaks_rel(rel):
     """Le chemin (relatif à MEDIA_ROOT) des pics fins d'un média — pure."""
-    from .video_compat import derived_rel
-    return derived_rel(rel, DENSE_SUFFIX)
-
-
-def _read_fresh(rel):
-    """Les pics fins À JOUR d'un média (`{peaks, duration, bps}`), ou None."""
-    import json
-    import os
-    path = _absolute(dense_peaks_rel(rel))
-    try:
-        if os.path.getmtime(path) < os.path.getmtime(_absolute(rel)):
-            return None                           # l'original a été remplacé depuis
-        with open(path, encoding='utf-8') as source:
-            return json.load(source)
-    except (OSError, ValueError):
-        return None
+    return _dense().rel(rel)
 
 
 def dense_peaks(rel, *, schedule=True, retry_failed=False):
@@ -74,78 +52,39 @@ def dense_peaks(rel, *, schedule=True, retry_failed=False):
     'peaks', 'duration'}`, ou `{'status': 'pending' | 'failed' | 'none'}`. `schedule` met le calcul
     en file s'il n'y est pas ; `retry_failed` le relance après un échec (une page qui s'OUVRE, pas
     une page qui interroge). Ne lève jamais."""
-    rel = str(rel or '').replace('\\', '/')
-    data = _read_fresh(rel) if rel else None
-    if data and data.get('peaks'):
-        return {'status': 'ready', 'peaks': data['peaks'], 'duration': data.get('duration') or 0}
-    version = _version(rel) if rel else None
-    if version is None:
-        return {'status': 'none'}
-    try:
-        from django.core.cache import cache
-        if cache.get(f'dense_peaks_failed:{version}'):
-            if not retry_failed:
-                return {'status': 'failed'}
-            cache.delete_many([f'dense_peaks_failed:{version}', f'dense_peaks:{version}'])
-        if schedule and schedule_dense_peaks(rel):
-            return {'status': 'pending'}
-        return {'status': 'pending' if cache.get(f'dense_peaks:{version}') else 'none'}
-    except Exception:
-        return {'status': 'none'}
+    state = _dense().state(rel, schedule=schedule, retry_failed=retry_failed)
+    if state['status'] != 'ready':
+        return state
+    data = state['data']
+    return {'status': 'ready', 'peaks': data['peaks'], 'duration': data.get('duration') or 0}
 
 
 def schedule_dense_peaks(rel):
     """Met en file le calcul des pics fins d'un média, UNE fois par version du fichier. Rend True
     si une tâche part. Ne lève jamais : une page ne casse pas pour une onde."""
-    version = _version(rel)
-    if version is None:
-        return False
-    try:
-        from django.core.cache import cache
-        from django.db import transaction
-
-        from wama.common.tasks import make_dense_peaks_task
-        if not cache.add(f'dense_peaks:{version}', 1, DENSE_QUEUED_TTL):
-            return False
-        transaction.on_commit(lambda: make_dense_peaks_task.delay(rel))
-        return True
-    except Exception:
-        return False
+    return _dense().schedule(rel)
 
 
 def hold_dense_peaks(rel):
     """Marque la version d'un média « en file » SANS rien lancer : un témoin de scénario s'ouvre
     sur une onde « en cours », comme une page dont la tâche n'a pas encore tourné."""
-    version = _version(rel)
-    if version is not None:
-        from django.core.cache import cache
-        cache.add(f'dense_peaks:{version}', 1, DENSE_QUEUED_TTL)
+    _dense().hold(rel)
 
 
 def make_dense_peaks(rel):
     """Calcule et range les pics fins d'un média (ffmpeg, densité de l'éditeur, `uint8`) —
     idempotent. Rend True s'ils sont prêts. Un échec se marque (`dense_peaks` le dit)."""
-    import json
-    import os
-    if _read_fresh(rel):
+    from .derived_json import absolute, version_of
+    dense = _dense()
+    if dense.fresh(rel):
         return True
-    version = _version(rel)
-    if version is None:
+    if version_of(rel) is None:
         return False
-    peaks, duration = compute_peaks(_absolute(rel), backend='ffmpeg',
+    peaks, duration = compute_peaks(absolute(rel), backend='ffmpeg',
                                     buckets_per_second=BUCKETS_PER_SECOND, dtype='uint8',
                                     with_duration=True)
-    if not peaks:
-        from django.core.cache import cache
-        cache.set(f'dense_peaks_failed:{version}', 1, DENSE_FAILED_TTL)
-        return False
-    target = _absolute(dense_peaks_rel(rel))
-    os.makedirs(os.path.dirname(target), exist_ok=True)
-    partial = target + '.part'
-    with open(partial, 'w', encoding='utf-8') as out:
-        json.dump({'v': 1, 'duration': duration, 'bps': BUCKETS_PER_SECOND, 'peaks': peaks}, out)
-    os.replace(partial, target)
-    return True
+    return dense.store(rel, {'v': 1, 'duration': duration, 'bps': BUCKETS_PER_SECOND,
+                             'peaks': peaks} if peaks else None)
 
 
 def _decode_ffmpeg(audio_path):

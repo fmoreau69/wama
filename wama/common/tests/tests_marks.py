@@ -330,8 +330,11 @@ class EveryStatedTrackTest(SimpleTestCase):
         entries = registry.entries()
         stated = {f'{label}.{track.key}': track
                   for label, tracks in marks.registered().items() for track in tracks}
-        self.assertEqual(sorted(stated), sorted(entries))
-        self.assertEqual(len(stated), registry.count())
+        # Les pistes qu'un PRODUCTEUR remplit sont portées par un fichier média, pas par un
+        # modèle (`model` = `media`) : `tests_media_marks` les tient, ici elles se comptent.
+        produced = {key for key, entry in entries.items() if entry['model'] == 'media'}
+        self.assertEqual(sorted(stated), sorted(set(entries) - produced))
+        self.assertEqual(len(stated) + len(produced), registry.count())
         for key, track in stated.items():
             entry = entries[key]
             with self.subTest(track=key):

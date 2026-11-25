@@ -9339,10 +9339,43 @@ ENTRÉES (`INPUT_MODEL_MATCHING §6.13` : une entrée = un fichier + sa coupe), 
 d'adresse que le lien de composition (10.7.11). La coupe y est la LISTE DES GESTES d'une piste
 dérivée (⑰, marche ①ter) dont la source est la ligne complète du fichier — jamais des valeurs.
 
-**⑲ Les plans détectés automatiquement (⏳).** Un PRODUCTEUR de segments du monde Médias : l'analyse
+**⑲ Les plans détectés automatiquement (✅ serveur et assistant le 2026-11-25, ⏳ écran).** Un
+PRODUCTEUR de segments du monde Médias : l'analyse
 des changements de plan d'une vidéo remplit une piste « plans », sur laquelle on masque, on garde,
 on réordonne. Comme tout producteur, il reste propre à son monde et passe par la route (une
 fonction déclarée ; la librairie, s'il en faut une, par la route d'installation).
+- **Ce qui est commun** (`common/utils/media_marks.py`) : les PISTES AUTOMATIQUES d'un média. Une
+  app inscrit son producteur (`register_producer` : la piste qu'il remplit, les natures qu'il
+  analyse, son analyse) depuis son module déclarant, avec sa fonction du catalogue — le commun
+  n'en nomme aucun. La piste appartient au FICHIER, pas à une card : elle est rangée une fois par
+  version du fichier, comme les pics fins de l'onde et par le même cycle, écrit une fois
+  (`derived_json` : fichier dérivé au dossier caché, tâche commune CPU, « en file » et « échec »
+  lus d'une marque de cache, parti avec son original) ; elle se lit par le lecteur commun des
+  marques, pistes dites sur place (`media_tracks`, le pendant pour un média de
+  `wama_data.frames.referential_tracks` pour un fichier de données). D'autres réglages que ceux
+  qui l'ont produite la REMPLACENT.
+- **Le premier producteur** : `converter.shots` (`converter/functions.py`) — le filtre `scdet` de
+  ffmpeg, aucune librairie de plus ; les plans couvrent la vidéo sans trou, chacun dit la force de
+  la coupe qui l'ouvre ; un plan plus court que la durée minimale rejoint son voisin. La piste
+  déclare ses gestes (scinder, fusionner, étiqueter, masquer, réordonner, extraire), en piste
+  dérivée : la détection reste intacte. Fonction au catalogue, donc nœud du Studio ; outil de
+  l'assistant `get_file_marks`.
+- **Mesuré le 2026-11-25** sur 15 des 49 vidéos que portent des cards (lecture seule, rien de
+  rangé) : aucun trou ; 0,3 à 1,3 s pour une vidéo de moins d'une minute, 35 s pour 2 h 20
+  (1 Go). ⚠ Ces vidéos sont presque toutes des prises CONTINUES (un plan) ; une caméra embarquée
+  de 2 h 20 rend 11 « plans » qui sont des changements de lumière, pas des coupes. La justesse sur
+  un film MONTÉ n'est prouvée que sur un témoin de synthèse (coupes retrouvées à l'image près) :
+  à mesurer sur un vrai montage avant de fixer le seuil par défaut.
+- **La même porte pour ce qui se segmente tout seul** (📜 Fabien, le même jour : *« segmenter
+  automatiquement ce qu'il est possible de segmenter automatiquement, comme les parties d'un
+  morceau (intro, couplet, refrain, bridge) »*) : un producteur de plus, inscrit par l'app dont
+  c'est le métier (le Composer), sans rien changer au commun. Différence : il demande un MODÈLE
+  appris (bornes plutôt fiables, étiquettes moins), donc la route d'installation des modèles et la
+  file de la carte graphique — ⏳ à prospecter.
+- ⏳ Restes : montrer la piste sur une card (quelle entrée de la card pose son axe : le lecteur des
+  ports, `port_fields`, avec la coupe de ⑱) ; le Describer légende une image toutes les 10 s, il
+  pourrait légender une image par plan ; l'analyse automatique à l'import (aujourd'hui à la
+  demande) ; un producteur sur la carte graphique passera par la file de son app.
 
 **⑳ Extraire et recomposer — deux gestes symétriques, déjà dans le modèle (⏳).** 📜 Fabien, le
 même jour : *« un clic droit sur un segment pourrait permettre d'extraire le segment en une nouvelle
@@ -9367,7 +9400,7 @@ dessinées sur des marques réelles que le fonctionnel saura alors rendre.
 | ①ter ✅ (2026-11-25) | la PISTE DÉRIVÉE : une source + une liste de gestes, rejouée par le lecteur commun ; la « ligne effective ». Livré (`common/catalog/marks.py`) : un geste est une DONNÉE (`gesture`, `was` — les bornes de sa cible au moment du geste, l'« avant » de la trace —, `mark` — le rang où elle était —, ce que le geste demande, et qui / quand) ; il désigne sa cible par sa PLACE, pas par un rang ni des bornes exactes — la règle que WAMA applique déjà aux corrections humaines de détections (`utils/detections.apply_corrections` : « vivre à part pour survivre à une détection relancée »), au même seuil de recouvrement (`CORRECTION_MIN_IOU`, mesure `utils/intervals.overlap_ratio`) : un geste survit donc à une piste remesurée ; `read_derived` / `apply_edits` rejouent la liste sans toucher à la source et rendent un COMPTE RENDU par geste qui ne s'est pas fait tel quel — SAUTÉ (sa marque n'est plus là, la piste ne le déclare pas), jamais fait à côté, ou fait sur une marque dont les bornes ont bougé (`was`, `now` : à montrer pour qu'on le revoie) ; `extend_edits` est la porte d'entrée d'un geste dans une liste (refusé s'il ne peut pas se faire) ; défaire = retirer de la liste ; une marque dérivée dit d'où elle vient (`source_ranks`, les rangs des marques de la source — pas `source`, que le monde Data emploie déjà sur un segment pour son origine d'avant une marge, `segmentation.margins`), les gestes qui l'ont changée (`touched`), si elle est masquée ; une marque ajoutée a pour origine le nom de son geste (`add`), comme une production du Segmenter celui de son mode ; `effective_line` rend ce qui reste après les masques, chaque segment à sa place ; `violations(…, edits=)` contrôle la contrainte sur la dérivée. Avec : aucun attribut ne se lit sous un nom que le lecteur écrit (`RESERVED`, contrôlé à la déclaration ; une colonne `masked` ou `parent` d'un fichier de données se lit `masked_`, `parent_`) ; un événement ne déclare ni scinder, ni fusionner, ni retailler ; « dérivée » réservé à source + gestes, les tours de parole sont une piste CALCULÉE (registre : `rows = computed`). ⏳ restes : OÙ se range la liste (la table des entrées pour une coupe ; le `.wdat` de travail d'une card du monde Data) ; les pistes FILLES d'une piste dérivée gardent les rangs de la source (`source_ranks` permet de les suivre, rien ne le fait encore) ; aucune interface | ①bis |
 | ①quater ✅ (2026-11-25) | la lecture d'une piste bornée à une plage (la PLAGE ACTIVE côté serveur, ⑧) ; l'outil de l'assistant qui rend les marques d'une card. Livré (`common/catalog/marks.py`) : `read_span` pose la plage par ses bornes ou par UNE marque (piste et rang — le segment cliqué) et rend, pour chaque piste de la card, les marques qui y sont ou la traversent (`bounded` : leur RANG dans la piste entière, la marque TELLE QUELLE, et `inside` — elle y tient, ou elle déborde l'une de ses bornes) ; c'est une sélection, rien n'est rogné ni calculé (calculer sur la plage reste le geste explicite de ⑨, au Segmenter). BORNES : une marque qui ne fait que toucher la plage n'y est pas — la convention de la contenance (`_holder`) et de la partition, celle de la plage native visée en base (`numrange`, `&&`) ; `overlapping` du Segmenter, lui, compte les bornes (preuve croisée : `wama_data/core/tests_segmentation`) ; en deçà de la tolérance deux bornes sont la même ; un segment ouvert court toujours ; une plage réduite à un instant (celle d'un événement) rend ce qui le contient. PARENTÉ avant le temps : posée par une marque, la plage rend dans les pistes qui DESCENDENT de la sienne les marques dont elle est la parente ou l'aïeule, et sa marque parente à chaque étage au-dessus — décidé sur mesure (462 transcriptions réelles, 158 183 phrases : par le temps seul, 5 % des phrases ne retrouvaient pas exactement leurs mots — 10 098 mots sans durée posés sur la borne de fin de leur phrase, 7 007 rendus à la phrase voisine ; par la parenté, sur un échantillon de 6 800 phrases de ces transcriptions et 56 fenêtres de 5 sessions du cam_analyzer, chaque plage rend exactement ses marques filles, et dit débordantes celles qui sortent de ses bornes — 78 conflits, 2 mots). Une piste lue dérivée (`edits`) se borne telle qu'on la montre. `outline` rend l'INDEX des pistes d'une card (10.7.11 : ce que chacune dit d'elle-même — `describe`, que lit aussi le registre `tracks` —, le nombre de ses marques, leur étendue ; une fin ouverte reste inconnue). Les pistes d'un fichier de données se bornent par le même lecteur (`wama_data/tests_frames`). OUTIL : `get_item_marks` (`tool_api`, lecture, garde d'ownership des lectures d'un élément — `_foreign_item`, écrite une fois pour `get_item_detail`, `get_item_result` et lui) : sans piste, l'index des pistes (et, avec une plage, le nombre de marques de chacune dans la plage) ; avec une piste, ses marques, entières ou bornées par `start`/`end` ou par une marque d'une autre piste, par pages (100 au plus : mesuré, 200 phrases dépassaient le budget d'un résultat d'outil). Il ne nomme aucune app : le modèle d'un élément est celui du journal (les trois mondes), les pistes celles que l'app déclare. ⏳ restes : sous une piste DÉRIVÉE la parenté n'est pas suivie (ses rangs sont ceux de la source — le reste de ①ter) ; une card du monde Data n'a pas encore de modèle, ses pistes ne se lisent que du fichier ; les cards DÉRIVÉES dont le pointage recouvre la plage (⑧) attendent le lien de composition (T7) ; aucune interface | ①bis |
 | ②fonc | la COUPE portée par une entrée, sa matérialisation commune avant traitement, l'export du Converter (⑱) | ①ter ✅ ; la table des entrées (décidée le 2026-11-25, à construire par la session « valeur d'un port ») |
-| ③fonc | le producteur automatique de plans (⑲) | ①bis |
+| ③fonc ✅ (2026-11-25) | le producteur automatique de plans (⑲). Livré : les pistes automatiques d'un média au commun (`common/utils/media_marks.py` : producteurs inscrits par leur app, piste rangée une fois par fichier par le cycle des pics fins — `derived_json` —, lue par le lecteur commun), le producteur `converter.shots` (ffmpeg), l'outil `get_file_marks`. ⏳ restes : la piste montrée sur une card (avec ②fonc), la justesse sur un film monté, les parties d'un morceau (un producteur à modèle) | ①bis |
 | ④fonc | le résumé d'un lot sur ses cards filtrées, les facettes déclarées (T3, T4) | — |
 | ⑤fonc | les préalables du monde Data (T5 : participant, assemblage d'un lot) | décisions du monde Data |
 | puis | les maquettes ; la zone temporelle ; la barre de lot ; le Data Analyzer ; la page d'édition commune ; le film | le fonctionnel ci-dessus |

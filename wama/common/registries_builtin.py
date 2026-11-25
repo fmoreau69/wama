@@ -834,13 +834,24 @@ def _entries_tracks() -> dict:
             # pistes d'une card et l'outil de l'assistant rendent les mêmes champs.
             out[f'{label}.{track.key}'] = {
                 'app': label.partition('.')[0], 'model': label, **describe(track)}
+    # Les pistes AUTOMATIQUES d'un média : déclarées par l'app de leur producteur, portées par
+    # un FICHIER (toute card qui l'emploie), pas par un modèle — `media` en tient la place.
+    from .catalog import function_catalog as fc
+    from .utils.media_marks import producers
+    for key, producer in sorted(producers().items()):
+        spec = fc.get(producer.function) if producer.function else None
+        app = fc.spec_app(spec) if spec is not None else ''
+        out[f'{app or "media"}.media.{key}'] = {
+            'app': app, 'model': 'media', **describe(producer.track),
+            'natures': list(producer.natures), 'function': producer.function}
     return out
 
 
 register(Registry(
     key='tracks', label='Pistes de marques', nature=DERIVED,
     source="Déclarations `register_tracks` des apps (`common/catalog/marks.py`), portées par la "
-           "facette `inspector.tracks` de leur manifeste",
+           "facette `inspector.tracks` de leur manifeste ; producteurs inscrits par les apps "
+           "(`common/utils/media_marks.register_producer`)",
     count=lambda: len(_entries_tracks()), entries=_entries_tracks,
     permission='auth', provenance=SYSTEM,
     doc='docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.7',
@@ -850,5 +861,8 @@ register(Registry(
                 "(segments ou événements), sa piste parente et ce que ses marques lui doivent ; "
                 "et, pour l'écran, si elle est la piste principale de la card, ce qui colore ses "
                 "marques et les gestes qu'elle permet. "
-                "Les pistes d'un fichier de données sont dites par le fichier, pas ici.",
+                "Les pistes d'un fichier de données sont dites par le fichier, pas ici. "
+                "Une piste AUTOMATIQUE (les plans d'une vidéo) est remplie par un producteur et "
+                "portée par un fichier média, quelle que soit la card qui l'emploie : elle dit "
+                "les natures qu'elle analyse et sa fonction du catalogue.",
 ))

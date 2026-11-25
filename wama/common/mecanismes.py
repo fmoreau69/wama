@@ -3703,6 +3703,30 @@ MECHANISMS = (
               annexes=('wama/common/management/commands/playback_copies.py',
                        'wama/common/services/ui_smoke_audio_seek.py'),
               depends_on=('media_probe', 'preview')),
+    Mechanism('media_marks', "Pistes automatiques d'un média (producteurs de marques)",
+              "Ce qui se segmente tout seul dans un fichier média, rangé UNE fois par fichier et "
+              "rendu à toute card qui l'emploie (2026-11-25, `ROUTE §10.7.14 ⑲`). Un PRODUCTEUR "
+              "reste propre à son app : elle déclare sa fonction au catalogue (réglages typés, "
+              "nœud du Studio) et l'inscrit ici (`register_producer` : la piste qu'il remplit, les "
+              "natures qu'il analyse, son analyse `'module:fonction'`) — ce module n'en nomme "
+              "aucun. 1ᵉʳ producteur : les PLANS d'une vidéo (`converter.shots`, filtre `scdet` de "
+              "ffmpeg, aucune librairie de plus) ; la même porte recevra les parties d'un morceau, "
+              "les silences d'un audio. Le rangement est le cycle des pics fins, écrit une fois "
+              "(`derived_json.DerivedJson` : fichier dérivé au dossier caché, à jour tant qu'il "
+              "est plus récent que l'original, une tâche par version du fichier — "
+              "`common.make_media_marks`, file CPU —, « en file » et « échec » lus d'une marque de "
+              "cache) ; un fichier par producteur, `<média>.<clé>.marks.json`, famille reconnue à "
+              "sa fin par le balayage et l'audit (`video_compat.KEYED_SUFFIX`). La lecture est "
+              "celle des marques : les pistes d'un fichier dites sur place (`media_tracks`), lues "
+              "par le lecteur commun (`marks.read_tracks`, `outline`, `read_span`). D'autres "
+              "réglages que ceux qui ont produit la piste la REMPLACENT (une piste, un jeu de "
+              "réglages, gardé avec elle). La piste appartient au FICHIER : la coupe qu'une card "
+              "en fait est une piste dérivée portée par son entrée. Outil de l'assistant : "
+              "`get_file_marks`",
+              'wama/common/utils/media_marks.py',
+              'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
+              annexes=('wama/common/utils/derived_json.py',),
+              depends_on=('marks', 'playback_copy')),
     Mechanism('media_paths', 'Chemins média',
               "Emplacements canoniques des entrées/sorties par app et par utilisateur "
               "(`app_media_dir` : `users/<uid>/<app>/input|output`). ⭐ Depuis le 2026-09-23 la "

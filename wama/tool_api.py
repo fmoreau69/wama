@@ -4569,10 +4569,22 @@ def get_item_marks(user, app: str, pk: int, track: str = '', start: float = None
     if refusal := _foreign_item(user, instance, holder.champ_user):
         return refusal
 
-    stated = [t.key for t in marks.tracks_of(instance)]
-    for name in (track, within_track):
-        if name and name not in stated:
-            return {'error': f"Piste inconnue : '{name}'. Pistes de {app}#{pk} : "
+    return _marks_answer({'app': app, 'id': pk}, instance, f'{app}#{pk}', track, start, end,
+                         within_track, within_mark, limit, offset)
+
+
+def _marks_answer(result: dict, holder, name: str, track, start, end, within_track, within_mark,
+                  limit, offset, tracks=None, facts=None) -> dict:
+    """La réponse d'une lecture de marques — l'index des pistes ou une piste, entière ou bornée,
+    par pages — pour un porteur quel qu'il soit : une card et ses pistes déclarées
+    (`get_item_marks`), un fichier et ses pistes dites sur place (`tracks`, `get_file_marks`).
+    `result` porte l'adresse du porteur, `name` le nomme dans un refus ; `facts` ajoute à l'index
+    ce que l'appelant sait de plus de chaque piste (où en est son analyse)."""
+    from wama.common.catalog import marks
+    stated = [t.key for t in (tracks if tracks is not None else marks.tracks_of(holder))]
+    for key in (track, within_track):
+        if key and key not in stated:
+            return {'error': f"Piste inconnue : '{key}'. Pistes de {name} : "
                              f"{', '.join(stated)}."}
     try:
         limit = max(1, min(int(limit or MARKS_LIMIT), MARKS_LIMIT_MAX))
@@ -4580,32 +4592,95 @@ def get_item_marks(user, app: str, pk: int, track: str = '', start: float = None
     except (TypeError, ValueError):
         limit, offset = MARKS_LIMIT, 0
 
-    result = {'app': app, 'id': pk}
     ranged = start is not None or bool(within_track)
     try:
         if ranged:
-            span, in_span = marks.read_span(instance, start, end, key=within_track,
-                                            rank=within_mark)
+            span, in_span = marks.read_span(holder, start, end, key=within_track,
+                                            rank=within_mark, tracks=tracks)
             result['span'] = span
         if not track:
             result['tracks'] = [
-                {'key': key, **facts, **({'in_span': len(in_span[key])} if ranged else {})}
-                for key, facts in marks.outline(instance).items()]
+                {'key': key, **said, **((facts or {}).get(key) or {}),
+                 **({'in_span': len(in_span[key])} if ranged else {})}
+                for key, said in marks.outline(holder, tracks).items()]
             return result
         entries = in_span[track] if ranged else [
             {'rank': rank, 'mark': mark}
-            for rank, mark in enumerate(marks.read_track(instance, track))]
+            for rank, mark in enumerate(marks.read_track(holder, track, tracks))]
     except (IndexError, ValueError) as e:       # un rang sans marque, une plage mal posée
         return {**result, 'error': str(e)}
-    except Exception as e:                      # une source d'app ne doit jamais casser la porte
-        logger.warning(f"[tool_api] get_item_marks {app}#{pk} : lecture en échec : {e}")
-        return {**result, 'error': f"Marques illisibles pour {app}#{pk} : {e}"}
+    except Exception as e:                      # une source ne doit jamais casser la porte
+        logger.warning(f"[tool_api] marques de {name} : lecture en échec : {e}")
+        return {**result, 'error': f"Marques illisibles pour {name} : {e}"}
 
     page = entries[offset:offset + limit]
     result.update(track=track, marks=page, total=len(entries), returned=len(page))
     if offset + len(page) < len(entries):
         result['next_offset'] = offset + len(page)
     return result
+
+
+@tool_effect(READ)
+def get_file_marks(user, file_path: str, track: str = '', start: float = None,
+                   end: float = None, within_track: str = '', within_mark: int = None,
+                   limit: int = MARKS_LIMIT, offset: int = 0) -> dict:
+    """
+    Read the marks WAMA detects by itself in one of the user's media files — today the shots of
+    a video (where it cuts), as segments on the file's timeline. Without `track` it lists the
+    file's automatic tracks and where each analysis stands; with `track` it returns that track's
+    marks, optionally restricted to a time range, as `get_item_marks` does for an item.
+
+    The analysis runs once per file, in the background: the first call queues it and answers
+    `status` "pending" — call again a little later ("failed" is retried by the next call). The
+    file is never modified. A shot is a segment (`start`, `end` in seconds); `score` is the
+    strength of the cut that opens it (none for the first shot).
+
+    Args:
+        file_path:    the file's `path` (from find_user_files or list_user_files), or the path of
+                      an item's file.
+        track:        key of the track to read (e.g. "shots"); empty = list the tracks.
+        start, end:   bounds of the range, in seconds; `end` empty = open.
+        within_track: key of the track whose mark sets the range.
+        within_mark:  rank of that mark in `within_track`.
+        limit:        marks per call (1-100, default 50).
+        offset:       first mark to return (use `next_offset` to read on).
+
+    Returns:
+        tracks: {"file","tracks":[{"key","label","status","count","start","end",…}]}
+        marks:  {"file","track","status","marks":[{"rank","mark":{…},"inside"?}],"total",
+                 "returned","next_offset"?}
+        or {"error"}
+    """
+    if refusal := _signed_in_refusal(user):
+        return refusal
+    src, err = _resolve_user_path(user, file_path)
+    if err:
+        return err
+    from wama.common.utils import media_marks
+    rel = os.path.relpath(str(src), str(settings.MEDIA_ROOT)).replace('\\', '/')
+    if rel.startswith('..'):
+        # Un dossier CONNECTÉ se lit en place, hors de l'espace de WAMA : rien n'y est rangé.
+        return {'error': f"'{src.name}' est dans un dossier connecté : ses pistes automatiques ne "
+                         f"se rangent pas. L'importer d'abord dans une app."}
+    tracks = media_marks.media_tracks(rel)
+    if not tracks:
+        served = sorted({n for p in media_marks.producers().values() for n in p.natures})
+        return {'error': f"Aucune piste automatique pour '{src.name}'. Natures analysées : "
+                         f"{', '.join(served) or 'aucune'}."}
+    # Une demande de l'assistant est une page qui S'OUVRE : l'analyse se met en file, un échec
+    # se retente.
+    states = media_marks.marks_state(rel, retry_failed=True)
+    result = {'file': rel}
+    if track and track in states:
+        result['status'] = states[track]['status']
+        if result['status'] != 'ready':
+            return {**result, 'track': track,
+                    'hint': "Analyse en file : redemander dans quelques instants."
+                            if result['status'] == 'pending' else
+                            "L'analyse de ce fichier n'a pas abouti."}
+    return _marks_answer(result, rel, f"'{src.name}'", track, start, end, within_track,
+                         within_mark, limit, offset, tracks=tracks,
+                         facts={key: {'status': state['status']} for key, state in states.items()})
 
 
 # ---------------------------------------------------------------------------
@@ -5945,6 +6020,7 @@ TOOL_REGISTRY = {
     # pistes, puis une piste, bornée ou non à une plage — par le lecteur commun (`catalog/marks`),
     # donc pour toute app qui déclare des pistes, sans une ligne par app.
     'get_item_marks':   get_item_marks,
+    'get_file_marks':   get_file_marks,
     # VERBES DE CYCLE — premières ÉCRITURES. 🔴 Transverses par leur nom, donc NI `tool_accessible`
     # NI `AppAccessMiddleware` ne les gardent : la garde d'app est écrite DANS leurs corps
     # (`_refus_app`). Ne jamais leur donner un nom d'app sans relire ce bloc.

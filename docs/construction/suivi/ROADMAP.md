@@ -1540,7 +1540,7 @@ STANDARD comme toutes les apps, `filemanager` → `import_to_converter` ; `queue
 | Option enhancement audio lors conversion vidéo (Enhancer) | ✅ (2026-08-18) | DeepFilterNet via `cross_app_options` : audio direct (ré-encodage au format cible) + vidéo (demux → enhance → remux, flux vidéo copié) — `utils/cross_app.py` ; ⚠ validation GPU navigateur = Fabien |
 | **Rotation** (90°/180°/270° + flip H/V) | ✅ Phase 6 (2026-05-16) | PIL `Image.Transpose` / ffmpeg `transpose,hflip,vflip` |
 | **Crop de zone** (image + vidéo, UI canvas) | ⏳ Phase 7 | Vision initiale — canvas JS overlay + ffmpeg crop |
-| Extraction de frames vidéo | ⏳ Phase 8 | Intervalle fixe ou détection de scène (PySceneDetect) |
+| Extraction de frames vidéo | 🔄 Phase 8 | Intervalle fixe ou détection de scène ~~(PySceneDetect)~~ — ✅ 2026-11-25 la DÉTECTION des plans, par ffmpeg (filtre `scdet`, aucune librairie de plus) : fonction `converter.shots`, piste « Plans » rangée une fois par fichier (`ROUTE §10.7.14 ⑲`) · ⏳ l'extraction d'images (une par plan, ou à intervalle fixe) |
 | Concaténation (N fichiers → 1) | 🔄 Phase 9 | ✅ 2026-11-10 images / PDF → UN PDF (`common/utils/pdf_pages.pages_to_pdf`) : le fichier unique de tout lot dont les résultats sont des pages, et les textes d'un lot en un document (`WAMA_APP_CONVENTIONS §9.10`) et le dépôt « un seul document » du Reader · ⏳ vidéo / audio (FFmpeg concat demuxer) |
 | Time-lapse / slow-motion (interpolation RIFE/DAIN) | ⏳ Phase 10 | Modèle ~500 MB, deps lourdes |
 | **Watermarking invisible** (stéganographie) | ⏳ Phase 11 | Vision initiale (Claude) — lib `stegano` ou DWT |
@@ -1561,7 +1561,7 @@ STANDARD comme toutes les apps, `filemanager` → `import_to_converter` ; `queue
 | **5** | Batch avec aperçu avant/après sur échantillon | ⏳ | ~200 l | Moyen |
 | **6** | **Rotation** 90°/180°/270° + flip H/V (image + vidéo) | ✅ 2026-05-16 | ~120 l | Faible |
 | **7** | **Crop de zone** (UI canvas overlay + ffmpeg crop) | ⏳ | ~250 l | Moyen |
-| **8** | **Extraction de frames** (intervalle + détection de scène) | ⏳ | ~150 l + scenedetect | Faible |
+| **8** | **Extraction de frames** (intervalle + détection de scène) | 🔄 détection des plans ✅ 2026-11-25 (`converter.shots`, ffmpeg) ; ⏳ l'extraction | ~150 l ~~+ scenedetect~~ | Faible |
 | **9** | **Concaténation** N fichiers → 1 (FFmpeg concat) | 🔄 images/PDF → un PDF ✅ 2026-11-10 (§9.10 des conventions) ; ⏳ vidéo/audio | ~120 l | Faible |
 | **10** | **Time-lapse / slow-motion** (RIFE/DAIN interpolation) | ⏳ | ~200 l + modèle 500 MB | Élevé |
 | **11** | **Watermarking invisible** (stéganographie) | ⏳ | ~100 l + lib stegano | Faible |

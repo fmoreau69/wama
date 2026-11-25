@@ -238,12 +238,12 @@ L'API de l'assistant — la même pour l'API REST, le serveur MCP et le Studio. 
 ### Pistes de marques
 
 - **Clé** : `tracks` — Dérivé à chaque affichage — toujours à jour
-- **Source** : Déclarations `register_tracks` des apps (`common/catalog/marks.py`), portées par la facette `inspector.tracks` de leur manifeste
+- **Source** : Déclarations `register_tracks` des apps (`common/catalog/marks.py`), portées par la facette `inspector.tracks` de leur manifeste ; producteurs inscrits par les apps (`common/utils/media_marks.register_producer`)
 - **Provenance des éléments** : Système — déclaré par WAMA, sans auteur
 - **Doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.7](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Citable dans une doc** : `WAMA:FAIT(tracks/<clé>/<champ>)`
 
-Les événements et les segments qu'une card porte sur son axe (les phrases et les mots d'une transcription, les fenêtres et les conflits d'une analyse), tous lus sous les mêmes noms par un seul lecteur. Une piste dit son axe, sa famille (segments ou événements), sa piste parente et ce que ses marques lui doivent ; et, pour l'écran, si elle est la piste principale de la card, ce qui colore ses marques et les gestes qu'elle permet. Les pistes d'un fichier de données sont dites par le fichier, pas ici.
+Les événements et les segments qu'une card porte sur son axe (les phrases et les mots d'une transcription, les fenêtres et les conflits d'une analyse), tous lus sous les mêmes noms par un seul lecteur. Une piste dit son axe, sa famille (segments ou événements), sa piste parente et ce que ses marques lui doivent ; et, pour l'écran, si elle est la piste principale de la card, ce qui colore ses marques et les gestes qu'elle permet. Les pistes d'un fichier de données sont dites par le fichier, pas ici. Une piste AUTOMATIQUE (les plans d'une vidéo) est remplie par un producteur et portée par un fichier média, quelle que soit la card qui l'emploie : elle dit les natures qu'elle analyse et sa fonction du catalogue.
 
 ### Prompts déclarés
 

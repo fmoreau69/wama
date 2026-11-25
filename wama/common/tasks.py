@@ -118,6 +118,16 @@ def make_dense_peaks_task(rel):
     return make_dense_peaks(rel)
 
 
+@shared_task(name='common.make_media_marks')
+def make_media_marks_task(rel, key):
+    """PISTE AUTOMATIQUE `key` d'un média (`media_marks.make_media_marks`, 2026-11-25 — les plans
+    d'une vidéo, `ROUTE §10.7.14 ⑲`) : le producteur inscrit l'analyse, ses marques sont rangées
+    au dossier caché comme les pics fins. File CPU : un producteur qui demande la carte graphique
+    passera par la file de son app. Idempotente."""
+    from wama.common.utils.media_marks import make_media_marks
+    return make_media_marks(rel, key)
+
+
 @shared_task(name='common.ingest_source')
 def ingest_source_task(app_label, model_name, pk):
     """Télécharge l'entrée d'une card créée avec une URL (`source_ingest`, 2026-10-13 — décision
