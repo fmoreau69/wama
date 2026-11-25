@@ -4755,6 +4755,12 @@ sont souvent les mêmes »*) ; puis B.
   floute » les choisit sans redétecter (`blur_skip_colors/sizes/planes`,
   `detections.without_attributes` — un objet sans l'attribut reste flouté). Le floutage lit le
   plus proche amont qui rend des détections (`upstream_output`), plus le champ seul.
+- **Revérification (suite complète, 11 727 tests)** : quatre rouges de ce chantier, réparés —
+  `qualify` sans ETA (`tasks.qualify_eta`, apprise, clé propre à la profondeur) ni étiquette `gpu`
+  sur sa fonction ; et, mis au jour par le nouveau défaut, l'outil `add_to_anonymizer` JETAIT une
+  description donnée en mode Classes (un nœud du Studio ne la transmettait plus) : elle est gardée
+  comme au volet, qui la masque sans l'effacer ; le témoin de `tests_setting_keys` enregistrait
+  le mode devenu défaut. Les 21 autres rouges ne touchent aucun fichier du chantier.
 
 **Restes nommés (2026-11-25)** : ⏳ B : tirer les attributs de la DESCRIPTION (« la voiture rouge »
 → concept + couleur, skill `anonymizer-detection`), puis relations et rang ; jouer la qualification

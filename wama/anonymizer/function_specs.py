@@ -49,7 +49,7 @@ register(FunctionSpec(
                 "le document de détections (`common/utils/detection_attributes`), que le "
                 "floutage choisit sans redétecter.",
     category=FC.TRANSFORM, binding=Binding.APP, app=_APP, impl=_IMPL,
-    tags=['image', 'video', 'detection', 'attributes'],
+    tags=['image', 'video', 'detection', 'attributes', 'gpu'],
     inputs=[PortSpec('work_media', 'video', description="L'image ou la vidéo détectée."),
             PortSpec('detections', 'detections', description="Les objets à qualifier.")],
     outputs=[PortSpec('detections', 'detections',
@@ -147,7 +147,7 @@ PIPELINE = register_app_pipeline(_APP, (
     # qualifiés quand elle a lieu, ceux de la détection sinon.
     ProcessSpec('qualify', label='Qualification', depends_on=('detect',), degree='optional',
                 toggle='qualify_objects', gpu=True, share=2, outputs=('qualified_file',),
-                domains=MEDIA_DOMAINS),
+                eta='anonymizer.tasks:qualify_eta', domains=MEDIA_DOMAINS),
     ProcessSpec('blur', label='Floutage', depends_on=('detect', 'qualify'), watched=BLUR_WATCHED,
                 share=3,
                 outputs=('output_file',), eta='anonymizer.tasks:blur_eta',

@@ -76,6 +76,7 @@
           "domains": [
             "image_video"
           ],
+          "eta": "anonymizer.tasks:qualify_eta",
           "gpu": true,
           "label": "Qualification",
           "outputs": [

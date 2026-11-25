@@ -52,6 +52,17 @@ def blur_eta(media):
     return (*anonymizer_blur_eta_key_size(media), True, 0.0)
 
 
+def qualify_eta(media):
+    """ETA déclarée du process `qualify` : APPRISE seulement, comme `blur_eta` — même taille
+    (durée de la vidéo, surface de l'image) ; la profondeur a sa propre clé, son modèle domine le
+    coût, et sa résidence est laissée au gouverneur (None)."""
+    _, size, unit = anonymizer_blur_eta_key_size(media)
+    kind = 'vid' if unit == 'video_sec' else 'img'
+    if getattr(media, 'qualify_depth', False):
+        return (f'anonymizer:qualify:depth:{kind}', size, unit, None, 0.0)
+    return (f'anonymizer:qualify:{kind}', size, unit, True, 0.0)
+
+
 def _record_output(media, written):
     """Pose sur le média le fichier que le moteur a RÉELLEMENT écrit (2026-09-27).
 

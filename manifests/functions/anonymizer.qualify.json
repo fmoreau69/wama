@@ -45,7 +45,8 @@
       "image",
       "video",
       "detection",
-      "attributes"
+      "attributes",
+      "gpu"
     ]
   },
   "description": "Dit, de chaque objet détecté, sa couleur majoritaire, sa taille et — profondeur demandée — son plan (premier / arrière) : des attributs déterministes rangés dans le document de détections (`common/utils/detection_attributes`), que le floutage choisit sans redétecter.",

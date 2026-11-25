@@ -94,7 +94,9 @@ class AlignmentCommandTest(TestCase):
         from wama.enhancer.params import AUDIO_PARAMS_JSON
         from wama.common.utils.param_schema import panel_dom_id
         self.audio_intent = next(panel_dom_id(p) for p in AUDIO_PARAMS_JSON if p['name'] == 'quality_intent')
-        UserAppSetting.objects.create(user=self.user, app='anonymizer', name='target_mode', value='description')
+        # A value AWAY from the default (Description since 2026-11-25), or the proof has nothing
+        # the user set to show.
+        UserAppSetting.objects.create(user=self.user, app='anonymizer', name='target_mode', value='classes')
         UserAppSetting.objects.create(user=self.user, app='enhancer', name=self.audio_intent, value=80)
         UserAppSetting.objects.create(user=self.user, app='assistant', name='model', value='auto')
         self.dir = Path(tempfile.mkdtemp())
@@ -136,7 +138,7 @@ class AlignmentCommandTest(TestCase):
 
     def test_a_plan_whose_rows_changed_since_is_not_applied(self):
         path, _plan = self._plan()
-        self.U.objects.filter(user=self.user, app='anonymizer').update(value='classes')
+        self.U.objects.filter(user=self.user, app='anonymizer').update(value='description')
         with self.assertRaises(CommandError):
             call_command('align_setting_keys', apply=str(path), stdout=open(self.dir / 'a.txt', 'w'))
         self.assertEqual({'target_mode'}, self._names('anonymizer'), 'nothing written: all or none')

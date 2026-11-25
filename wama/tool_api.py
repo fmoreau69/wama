@@ -310,8 +310,10 @@ def add_to_anonymizer(
     by_description = (params.get('target_mode') == 'description'
                       or (bool(sam3_prompt) and not params.get('target_mode')))
 
-    # Validate prompt if SAM3 requested
-    if by_description and sam3_prompt:
+    # Une description DONNÉE est un réglage de la card, gardée quel que soit le mode (comme au
+    # volet, où le mode Classes la masque sans l'effacer) : elle se valide donc dès qu'elle est
+    # donnée (2026-11-25 — jetée en mode Classes, celle d'un nœud du Studio n'atteignait pas la card).
+    if sam3_prompt:
         from wama.anonymizer.utils.sam3_manager import validate_sam3_prompt
         valid, err = validate_sam3_prompt(sam3_prompt)
         if not valid:
@@ -333,7 +335,7 @@ def add_to_anonymizer(
     # reçu, comme un dépôt de la card. Le mode est celui déduit ci-dessus.
     posted = _given({**params, 'precision_level': precision_level,
                      'target_mode': 'description' if by_description else 'classes',
-                     'sam3_prompt': sam3_prompt if by_description else None})
+                     'sam3_prompt': sam3_prompt or None})
     try:
         result = process_media(received.local_path, user, post=posted, app=app_label)
     except Exception as e:
