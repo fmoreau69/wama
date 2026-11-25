@@ -826,21 +826,14 @@ def _entries_tracks() -> dict:
     piste parente, contrainte, piste principale, couleur, gestes) et la façon dont ses lignes se
     trouvent (`rows` : `stored`, rangées par l'app ; `nested`, écrites dans la marque parente ;
     `computed`, calculées d'une autre piste — « dérivée » se dit d'une piste et de ses gestes)."""
-    from .catalog.marks import registered
+    from .catalog.marks import describe, registered
     out = {}
     for label, tracks in sorted(registered().items()):
         for track in tracks:
+            # Ce qu'une piste dit d'elle-même s'écrit UNE fois (`marks.describe`) : l'index des
+            # pistes d'une card et l'outil de l'assistant rendent les mêmes champs.
             out[f'{label}.{track.key}'] = {
-                'app': label.partition('.')[0], 'model': label, 'label': track.label,
-                'kind': track.kind, 'axis': track.axis, 'parent': track.parent,
-                'constraint': track.constraint,
-                'rows': 'computed' if track.runs_of else 'nested' if track.within else 'stored',
-                # Ce que l'écran et les gestes ont à savoir (`ROUTE §10.7.14`) : la piste de la
-                # ligne segmentée, sa couleur, ce qu'on peut y faire et où vont les gestes.
-                'main': track.main, 'color_by': track.color_by, 'scale': track.scale,
-                'steps': list(track.steps), 'gestures': list(track.gestures),
-                'edits': track.edits,
-            }
+                'app': label.partition('.')[0], 'model': label, **describe(track)}
     return out
 
 

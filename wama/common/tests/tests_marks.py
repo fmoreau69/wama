@@ -347,6 +347,9 @@ class EveryStatedTrackTest(SimpleTestCase):
                      list(track.gestures), track.edits),
                     (entry['main'], entry['color_by'], entry['scale'], entry['steps'],
                      entry['gestures'], entry['edits']), 'what the screen and the gestures need')
+                self.assertEqual({'app': entry['app'], 'model': entry['model'],
+                                  **marks.describe(track)}, entry,
+                                 'one writing of what a track states (`marks.describe`)')
                 if entry['parent']:
                     self.assertIn(f"{entry['model']}.{entry['parent']}", entries)
 
@@ -643,6 +646,204 @@ class DerivedTrackTest(SimpleTestCase):
                          'the source track still holds its constraint')
         with self.assertRaisesRegex(marks.InvalidEdit, 'parente'):
             marks.extend_edits(tracks[1], source, [], 'merge', 0)
+
+
+class SpanReadingTest(SimpleTestCase):
+    """The ACTIVE RANGE of a card, on the server (`ROUTE §10.7.13 ⑧`, step 1quater) : a range of
+    its axis, set by its bounds or by ONE mark, within which every track is read. A selection :
+    no mark is cut, each one keeps its rank in its track."""
+
+    SHOTS = Track('shots', 'Shots', source=lambda holder: holder['shots'])
+    TALK = (
+        Track('turns', 'Turns', runs_of='lines', by='speaker'),
+        Track('lines', 'Lines', source=f'{__name__}:rows_by_path', attributes=('speaker',),
+              parent='turns', main=True),
+        Track('words', 'Words', within='words', parent='lines', attributes=('text',)),
+        Track('beeps', 'Beeps', source='beeps', kind=DataType.EVENTS),
+    )
+
+    @staticmethod
+    def _talk():
+        def words(*bounds):
+            return [{'start': a, 'end': b, 'text': f'{a:g}'} for a, b in bounds]
+        return _card('t.talk', beeps=[{'time': 4.0}, {'time': 9.5}], rows=[
+            {'start': 0, 'end': 4, 'speaker': 'A', 'words': words((0.5, 1), (1, 2), (3, 4))},
+            {'start': 4, 'end': 9, 'speaker': 'A', 'words': words((4, 5), (8, 9))},
+            {'start': 9, 'end': 12, 'speaker': 'B', 'words': words((9, 10))}])
+
+    @staticmethod
+    def _places(entries):
+        return [(entry['rank'], entry['inside']) for entry in entries]
+
+    def test_a_mark_that_only_touches_the_range_is_not_in_it_and_no_mark_is_cut(self):
+        rows = [{'start': 0, 'end': 10}, {'start': 10, 'end': 20}, {'start': 20, 'end': 30},
+                {'start': 30, 'end': None}]
+        shots = marks.read_track({'shots': rows}, 'shots', (self.SHOTS,))
+        before = copy.deepcopy(shots)
+        clicked = marks.bounded(shots, 10, 20)
+        self.assertEqual([(1, True)], self._places(clicked),
+                         'the shots before and after share a bound with it : they are not in it')
+        self.assertIs(shots[1], clicked[0]['mark'], 'the mark as it is')
+        self.assertEqual([(0, False), (1, True), (2, False)], self._places(marks.bounded(shots, 5, 25)),
+                         'a mark across a bound is in the range, and says it overflows')
+        self.assertEqual(before, shots, 'a reading : the bounds of a mark across are not cut')
+        self.assertEqual([(3, False)], self._places(marks.bounded(shots, 40, 50)),
+                         'an open segment still runs : it crosses whatever starts after it')
+        self.assertEqual([(2, False), (3, True)], self._places(marks.bounded(shots, 25)),
+                         'an open range holds what starts in it, the open segment too')
+        self.assertEqual([], marks.bounded(shots[:3], 30, 40))
+        with self.assertRaisesRegex(ValueError, 'invers'):
+            marks.bounded(shots, 20, 10)
+
+    def test_below_the_tolerance_two_bounds_are_the_same(self):
+        near = [{'start': 0, 'end': 10.02}, {'start': 9.99, 'end': 20.01},
+                {'start': 10.0, 'end': 10.03}, {'start': 19.97, 'end': 25}, {'start': 19.5, 'end': 25}]
+        self.assertEqual([(1, True), (2, True), (4, False)], self._places(marks.bounded(near, 10, 20)),
+                         'a neighbour that reaches in by a hair is out ; a short mark inside is in')
+        self.assertEqual([(0, False), (1, False), (2, True), (3, False), (4, False)],
+                         self._places(marks.bounded(near, 10, 20, tolerance=0)))
+
+    def test_instants_at_the_start_are_in_at_the_end_are_out_and_an_instant_is_a_range(self):
+        ticks = [{'time': 10.0}, {'time': 15.0}, {'time': 20.0}]
+        self.assertEqual([(0, True), (1, True)], self._places(marks.bounded(ticks, 10, 20)),
+                         'the instant at the end belongs to what follows')
+        parts = [{'start': 10, 'end': 15}, {'start': 10, 'end': 20}, {'start': 15, 'end': 18}]
+        self.assertEqual([(1, False), (2, False)], self._places(marks.bounded(parts, 15, 15)),
+                         'the range of an instant : the segments that hold it — not the one it ends')
+        self.assertEqual([(1, True)], self._places(marks.bounded(ticks, 15, 15)))
+        self.assertEqual({'start': 15.0, 'end': 15.0}, marks.span_of(ticks[1]))
+        self.assertEqual({'start': 30, 'end': None, 'track': 'shots', 'rank': 3},
+                         marks.span_of({'start': 30, 'end': None}, 'shots', 3))
+
+    def test_the_range_of_one_mark_bounds_every_track_of_the_card(self):
+        card = self._talk()
+        del CALLS[:]
+        span, read = marks.read_span(card, key='lines', rank=1, tracks=self.TALK)
+        self.assertEqual(1, len(CALLS), 'the source is read once for the range and every track')
+        self.assertEqual({'start': 4.0, 'end': 9.0, 'track': 'lines', 'rank': 1}, span)
+        self.assertEqual(['turns', 'lines', 'words', 'beeps'], list(read), 'the stated order')
+        self.assertEqual({'turns': [(0, False)], 'lines': [(1, True)], 'words': [(3, True), (4, True)],
+                          'beeps': [(0, True)]},
+                         {key: self._places(entries) for key, entries in read.items()})
+        whole = marks.read_tracks(card, self.TALK)
+        self.assertEqual([rank for rank, word in enumerate(whole['words']) if word['parent'] == 1],
+                         [entry['rank'] for entry in read['words']],
+                         'the words in the range of a line are the words of that line')
+        self.assertEqual(whole['words'][3], read['words'][0]['mark'], 'with what the track reads')
+        # By its bounds : what the range crosses is said, and the range gives no origin.
+        span, read = marks.read_span(card, 3.5, 4.5, tracks=self.TALK)
+        self.assertEqual({'start': 3.5, 'end': 4.5}, span)
+        self.assertEqual({'turns': [(0, False)], 'lines': [(0, False), (1, False)],
+                          'words': [(2, False), (3, False)], 'beeps': [(0, True)]},
+                         {key: self._places(entries) for key, entries in read.items()})
+        # By an instant : the mark of a track of events.
+        span, read = marks.read_span(card, key='beeps', rank=0, tracks=self.TALK)
+        self.assertEqual({'start': 4.0, 'end': 4.0, 'track': 'beeps', 'rank': 0}, span)
+        self.assertEqual([(1, False)], self._places(read['lines']), 'the line that starts there')
+
+    def test_set_by_a_mark_the_range_follows_the_stated_kinship_before_the_time(self):
+        """Time alone cannot say whose a mark is when it sits on a bound two parents share (a word
+        with no length at the end of its line — 5 % of the real lines, measured 2026-11-25). The
+        range of a mark gives, in the tracks below its own, the marks it is the parent of."""
+        def word(a, b, text):
+            return {'start': a, 'end': b, 'text': text}
+        card = _card('t.talk', beeps=[], rows=[
+            {'start': 0, 'end': 4, 'speaker': 'A', 'words': [word(3, 4, 'x'), word(4, 4, 'last')]},
+            {'start': 4, 'end': 9, 'speaker': 'B',
+             'words': [word(4, 4, 'first'), word(3.5, 5, 'early'), word(8, 9.5, 'late')]}])
+
+        def words(**kwargs):
+            read = marks.read_span(card, tracks=self.TALK, **kwargs)[1]['words']
+            return [(entry['mark']['text'], entry['inside']) for entry in read]
+        self.assertEqual([('x', True), ('last', True)], words(key='lines', rank=0),
+                         'its last word, on the bound — not the early word of the next line')
+        self.assertEqual([('first', True), ('early', False), ('late', False)],
+                         words(key='lines', rank=1),
+                         'its own words, said to overflow when they do — not the last of the line before')
+        self.assertEqual([('last', True), ('first', True), ('early', False), ('late', False)],
+                         words(start=4, end=9), 'by its bounds, a range has only the time to go by')
+        # Two floors down : the words of the lines of a turn.
+        span, read = marks.read_span(card, key='turns', rank=1, tracks=self.TALK)
+        self.assertEqual(([(1, True)], [(2, True), (3, False), (4, False)]),
+                         (self._places(read['lines']), self._places(read['words'])))
+        # And up : the parent of the mark, at each floor, is always in its range.
+        span, read = marks.read_span(card, key='words', rank=4, tracks=self.TALK)
+        self.assertEqual(([(1, False)], [(1, False)]),
+                         (self._places(read['lines']), self._places(read['turns'])))
+
+    def test_a_mark_tied_to_its_parent_by_its_rank_is_in_its_range_wherever_it_lies(self):
+        tracks = (Track('windows', 'Windows', source='windows'),
+                  Track('conflicts', 'Conflicts', source='conflicts', parent='windows',
+                        parent_ref='window', attributes=('name',)))
+        card = _card('t.drive', windows=[{'start': 0, 'end': 10}, {'start': 20, 'end': 30}],
+                     conflicts=[{'start': 12, 'end': 15, 'window': 0, 'name': 'beside'},
+                                {'start': 5, 'end': 8, 'window': 1, 'name': 'elsewhere'},
+                                {'start': 2, 'end': 3, 'window': -1, 'name': 'free'}])
+        span, read = marks.read_span(card, key='windows', rank=0, tracks=tracks)
+        self.assertEqual([('beside', False), ('free', True)],
+                         [(e['mark']['name'], e['inside']) for e in read['conflicts']],
+                         'the conflict that names this window, though it lies beside it ; the one '
+                         'that names no window, by the time ; not the one that names another')
+        span, read = marks.read_span(card, key='conflicts', rank=0, tracks=tracks)
+        self.assertEqual({'start': 12.0, 'end': 15.0, 'track': 'conflicts', 'rank': 0}, span)
+        self.assertEqual([(0, False)], self._places(read['windows']),
+                         'the window it names is in its range, which the time would not have found')
+        self.assertEqual([], marks.read_span(card, 12, 15, tracks=tracks)[1]['windows'])
+
+    def test_a_range_that_is_not_set_is_refused(self):
+        card = self._talk()
+        for kwargs, error in (({'key': 'absent', 'rank': 0}, KeyError),
+                              ({'key': 'lines', 'rank': 3}, IndexError),
+                              ({'key': 'lines', 'rank': True}, IndexError),
+                              ({'key': 'lines'}, IndexError), ({}, ValueError),
+                              ({'start': 'soon'}, ValueError), ({'start': 5, 'end': 1}, ValueError)):
+            with self.subTest(kwargs=kwargs), self.assertRaises(error):
+                marks.read_span(card, tracks=self.TALK, **kwargs)
+
+    def test_a_derived_track_is_bounded_as_it_is_shown(self):
+        track = Track('parts', 'Parts', source=lambda holder: holder['parts'],
+                      gestures=('split', 'mask'), edits=marks.DERIVED)
+        holder = {'parts': [{'start': 0, 'end': 10}, {'start': 10, 'end': 20}]}
+        source = marks.read_track(holder, 'parts', (track,))
+        edits = marks.extend_edits(track, source, [], 'split', 0, at=4)
+        edits = marks.extend_edits(track, source, edits, 'mask', 1)
+        span, read = marks.read_span(holder, key='parts', rank=1, tracks=(track,),
+                                     edits={'parts': edits})
+        self.assertEqual({'start': 4.0, 'end': 10.0, 'track': 'parts', 'rank': 1}, span,
+                         'the rank names a mark of the DERIVED track, the one on the screen')
+        self.assertEqual([(1, True)], self._places(read['parts']))
+        self.assertTrue(read['parts'][0]['mark']['masked'], 'a masked mark is still read, and says so')
+        self.assertEqual({'start': 10.0, 'end': 20.0, 'track': 'parts', 'rank': 1},
+                         marks.read_span(holder, key='parts', rank=1, tracks=(track,))[0])
+        self.assertEqual([{'start': 0.0, 'end': 10.0, 'origin': 'parts'},
+                          {'start': 10.0, 'end': 20.0, 'origin': 'parts'}], source)
+        # The ranks of a kinship are those of the SOURCE : below a derived track, the time decides.
+        both = (track, Track('bits', 'Bits', source=lambda holder: holder['bits'], parent='parts'))
+        holder['bits'] = [{'start': 1, 'end': 2}, {'start': 5, 'end': 6}, {'start': 12, 'end': 13}]
+        derived = marks.read_span(holder, key='parts', rank=1, tracks=both, edits={'parts': edits})
+        self.assertEqual([(1, True)], self._places(derived[1]['bits']),
+                         'the bit that lies in the second half of the split part')
+        self.assertEqual([(2, True)], self._places(
+            marks.read_span(holder, key='parts', rank=1, tracks=both)[1]['bits']))
+
+    def test_the_outline_of_a_card_counts_its_marks_and_says_how_far_they_go(self):
+        card = self._talk()
+        outline = marks.outline(card, self.TALK)
+        self.assertEqual(['turns', 'lines', 'words', 'beeps'], list(outline))
+        self.assertEqual({'turns': (2, 0.0, 12.0), 'lines': (3, 0.0, 12.0), 'words': (6, 0.5, 10.0),
+                          'beeps': (2, 4.0, 9.5)},
+                         {key: (row['count'], row['start'], row['end']) for key, row in outline.items()})
+        for track in self.TALK:
+            self.assertEqual(marks.describe(track),
+                             {name: outline[track.key][name] for name in marks.describe(track)},
+                             'with what the track states, as the registry gives it')
+        self.assertEqual(('computed', 'stored', 'nested', True),
+                         (outline['turns']['rows'], outline['lines']['rows'], outline['words']['rows'],
+                          outline['lines']['main']))
+        self.assertEqual({'count': 2, 'start': 0.0, 'end': None},
+                         marks.extent([{'start': 5.0, 'end': None}, {'start': 0.0, 'end': 3.0}]),
+                         'an open mark : the end is not known, and none is made up')
+        self.assertEqual({'count': 0, 'start': None, 'end': None}, marks.extent([]))
 
 
 DRAFT = Path(settings.BASE_DIR) / 'manifests' / 'app_drafts' / 'writer.json'

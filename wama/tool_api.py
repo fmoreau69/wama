@@ -4176,6 +4176,18 @@ def _queue_places(viewer, items) -> dict:
     return {pk: place for pk, place in places.items() if place}
 
 
+def _foreign_item(user, instance, owner_field: str = 'user'):
+    """`None` si `user` peut LIRE cet élément (le sien, ou un compte du palier administrateur),
+    sinon le refus à rendre. C'est la règle d'ownership de `unified_detail`
+    (`detail_registry.py`), écrite UNE fois pour toutes les lectures d'un élément : si deux portes
+    divergeaient, l'assistant verrait plus (ou moins) que l'inspecteur."""
+    from wama.accounts.permissions import is_admin_tier
+    owner = getattr(instance, owner_field, None)
+    if owner is not None and owner != user and not is_admin_tier(user):
+        return {'error': 'forbidden', 'detail': "Cet élément appartient à un autre utilisateur."}
+    return None
+
+
 @tool_effect(READ)
 def get_item_detail(user, app: str, pk: int) -> dict:
     """
@@ -4211,12 +4223,8 @@ def get_item_detail(user, app: str, pk: int) -> dict:
     if instance is None:
         return {'error': f"Élément #{pk} introuvable dans '{app}'."}
 
-    # MÊME règle d'ownership que `unified_detail` (detail_registry.py) — les deux portes ne
-    # doivent jamais diverger, sinon l'assistant voit plus (ou moins) que l'inspecteur.
-    owner = getattr(instance, 'user', None)
-    from wama.accounts.permissions import is_admin_tier
-    if owner is not None and owner != user and not is_admin_tier(user):
-        return {'error': 'forbidden', 'detail': "Cet élément appartient à un autre utilisateur."}
+    if refusal := _foreign_item(user, instance):
+        return refusal
 
     try:
         detail = entry['adapter'](instance)
@@ -4447,11 +4455,8 @@ def get_item_result(user, app: str, pk: int, output_format: str = '') -> dict:
     instance = registry_entry['model'].objects.filter(pk=pk).first()
     if instance is None:
         return {'error': f"Élément #{pk} introuvable dans '{app}'."}
-    # MÊME règle d'ownership que `get_item_detail` et l'inspecteur.
-    owner = getattr(instance, 'user', None)
-    from wama.accounts.permissions import is_admin_tier
-    if owner is not None and owner != user and not is_admin_tier(user):
-        return {'error': 'forbidden', 'detail': "Cet élément appartient à un autre utilisateur."}
+    if refusal := _foreign_item(user, instance):
+        return refusal
 
     status = getattr(instance, 'status', '')
     base = {'app': app, 'id': pk, 'status': status}
@@ -4487,6 +4492,120 @@ def get_item_result(user, app: str, pk: int, output_format: str = '') -> dict:
     text = payload.decode('utf-8', errors='replace') if isinstance(payload, bytes) else str(payload)
     return {**base, 'format': entry(ext)['value'], 'text': text[:RESULT_TEXT_LIMIT],
             'total_chars': len(text), 'truncated': len(text) > RESULT_TEXT_LIMIT}
+
+
+#: Marques rendues par appel de `get_item_marks`, par défaut et au plus : une transcription
+#: réelle porte des milliers de mots, et un résultat d'outil a un budget (`TOOL_RESULT_CHARS` de
+#: la boucle, 24 000 caractères). Mesuré le 2026-11-25 sur la transcription la plus longue
+#: (4 306 phrases) : 50 phrases pèsent 9 606 caractères, 200 en pèsent 38 686 — d'où 100 au
+#: plus. Au-delà, la réponse dit `total` et `next_offset` — ou la plage se resserre.
+MARKS_LIMIT, MARKS_LIMIT_MAX = 50, 100
+
+
+@tool_effect(READ)
+def get_item_marks(user, app: str, pk: int, track: str = '', start: float = None,
+                   end: float = None, within_track: str = '', within_mark: int = None,
+                   limit: int = MARKS_LIMIT, offset: int = 0) -> dict:
+    """
+    Read the time marks an item carries on its timeline — the speaker turns, sentences and words
+    of a transcript, the windows, conflicts and situations of a video analysis — all under the
+    same names. Without `track` it lists the item's tracks; with `track` it returns that track's
+    marks, optionally restricted to a time range.
+
+    A mark is a segment (`start`, `end` in seconds — `end` null = still open) or an event
+    (`time`); it carries its `origin`, the attributes its track declares (text, speaker, type…)
+    and `parent`, the rank of its parent mark in the parent track. Each mark comes with its
+    `rank` in the whole track.
+
+    The range is given either by `start`/`end`, or by ONE mark of any track (`within_track` +
+    `within_mark`, its rank) — the words of sentence 12: track='words',
+    within_track='sentences', within_mark=12. In a range, `inside` false means the mark
+    overflows it (a speaker turn around the sentence). Marks that only touch the range are not
+    in it. Nothing is cut or computed: this is what the item's timeline shows.
+
+    Args:
+        app:          app id the item belongs to (as returned by `list_my_items`).
+        pk:           item id.
+        track:        key of the track to read; empty = list the tracks (count, extent, what each
+                      one declares — and, with a range, how many marks of each fall in it).
+        start, end:   bounds of the range, on the item's axis (seconds); `end` empty = open.
+        within_track: key of the track whose mark sets the range.
+        within_mark:  rank of that mark in `within_track`.
+        limit:        marks per call (1-100, default 50).
+        offset:       first mark to return (use `next_offset` to read on).
+
+    Returns:
+        tracks: {"app","id","tracks":[{"key","label","kind","axis","parent","count","start",
+                 "end","in_span"?,…}],"span"?}
+        marks:  {"app","id","track","span"?,"marks":[{"rank","mark":{…},"inside"?}],
+                 "total","returned","next_offset"?}
+        or {"error"}
+    """
+    if refusal := _signed_in_refusal(user):
+        return refusal
+    from wama.common.catalog import marks
+    from wama.common.services.journal import sources
+
+    # Le modèle des cards de l'app : celui que le journal connaît (les trois mondes y entrent, le
+    # Lab compris), donc l'`app` et l'`id` que `list_my_items` a rendus.
+    known = sources()
+    holders = [s for s in known if s.app == app]
+    stating = ', '.join(sorted({s.app for s in known if marks.tracks_of(s.model)})) or '—'
+    if not holders:
+        return {'error': f"App inconnue : '{app}'. Apps dont les éléments portent des pistes : "
+                         f"{stating}."}
+    # Les pistes se déclarent par MODÈLE : on sait sans lire un élément si l'app en porte.
+    holders = [s for s in holders if marks.tracks_of(s.model)]
+    if not holders:
+        return {'error': f"Les éléments de '{app}' ne déclarent aucune piste de marques. Apps "
+                         f"dont les éléments en portent : {stating}."}
+    holder = instance = None
+    for holder in holders:
+        instance = holder.model.objects.filter(pk=pk).first()
+        if instance is not None:
+            break
+    if instance is None:
+        return {'error': f"Élément #{pk} introuvable dans '{app}'."}
+    if refusal := _foreign_item(user, instance, holder.champ_user):
+        return refusal
+
+    stated = [t.key for t in marks.tracks_of(instance)]
+    for name in (track, within_track):
+        if name and name not in stated:
+            return {'error': f"Piste inconnue : '{name}'. Pistes de {app}#{pk} : "
+                             f"{', '.join(stated)}."}
+    try:
+        limit = max(1, min(int(limit or MARKS_LIMIT), MARKS_LIMIT_MAX))
+        offset = max(0, int(offset or 0))
+    except (TypeError, ValueError):
+        limit, offset = MARKS_LIMIT, 0
+
+    result = {'app': app, 'id': pk}
+    ranged = start is not None or bool(within_track)
+    try:
+        if ranged:
+            span, in_span = marks.read_span(instance, start, end, key=within_track,
+                                            rank=within_mark)
+            result['span'] = span
+        if not track:
+            result['tracks'] = [
+                {'key': key, **facts, **({'in_span': len(in_span[key])} if ranged else {})}
+                for key, facts in marks.outline(instance).items()]
+            return result
+        entries = in_span[track] if ranged else [
+            {'rank': rank, 'mark': mark}
+            for rank, mark in enumerate(marks.read_track(instance, track))]
+    except (IndexError, ValueError) as e:       # un rang sans marque, une plage mal posée
+        return {**result, 'error': str(e)}
+    except Exception as e:                      # une source d'app ne doit jamais casser la porte
+        logger.warning(f"[tool_api] get_item_marks {app}#{pk} : lecture en échec : {e}")
+        return {**result, 'error': f"Marques illisibles pour {app}#{pk} : {e}"}
+
+    page = entries[offset:offset + limit]
+    result.update(track=track, marks=page, total=len(entries), returned=len(page))
+    if offset + len(page) < len(entries):
+        result['next_offset'] = offset + len(page)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -5822,6 +5941,10 @@ TOOL_REGISTRY = {
     # la sortie n'est un fichier qu'au téléchargement : sans lui l'assistant n'en voyait que
     # l'aperçu tronqué de `get_<app>_status`. Ownership dans le corps, comme les deux ci-dessus.
     'get_item_result':  get_item_result,
+    # Les MARQUES d'un élément sur son axe (2026-11-25, `ROUTE §10.7.14` marche 1quater) : ses
+    # pistes, puis une piste, bornée ou non à une plage — par le lecteur commun (`catalog/marks`),
+    # donc pour toute app qui déclare des pistes, sans une ligne par app.
+    'get_item_marks':   get_item_marks,
     # VERBES DE CYCLE — premières ÉCRITURES. 🔴 Transverses par leur nom, donc NI `tool_accessible`
     # NI `AppAccessMiddleware` ne les gardent : la garde d'app est écrite DANS leurs corps
     # (`_refus_app`). Ne jamais leur donner un nom d'app sans relire ce bloc.

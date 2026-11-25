@@ -485,6 +485,27 @@ class TracksOfAReferentialTest(unittest.TestCase):
         inside = times_within([m['time'] for m in read['beeps']], read['phases'])
         self.assertEqual(2, len(inside), 'the two beeps fall inside a phase, the second one open')
 
+    def test_the_range_of_a_phase_bounds_every_stream_of_the_file(self):
+        """The ACTIVE RANGE of a trial (`ROUTE §10.7.13 ⑧`) : one phase of its file sets it, and
+        the common reader bounds every track the file states — nothing is computed nor cut."""
+        from wama.common.catalog.marks import outline, read_span
+        from .frames import referential_tracks
+        ref = self._referential()
+        tracks = referential_tracks(ref)
+        span, read = read_span(ref, key='phases', rank=0, tracks=tracks)
+        self.assertEqual({'start': 10.0, 'end': 13.0, 'track': 'phases', 'rank': 0}, span)
+        self.assertEqual({'beeps': [(0, True), (1, True)], 'phases': [(0, True)], 'bare': []},
+                         {key: [(e['rank'], e['inside']) for e in entries]
+                          for key, entries in read.items()})
+        span, read = read_span(ref, key='phases', rank=1, tracks=tracks)
+        self.assertEqual((15.0, None), (span['start'], span['end']), 'an open phase, an open range')
+        self.assertEqual({'beeps': [], 'phases': [1], 'bare': []},
+                         {key: [e['rank'] for e in entries] for key, entries in read.items()})
+        self.assertEqual({'beeps': (2, 11.0, 12.5), 'phases': (2, 10.0, None), 'bare': (1, 4.0, 6.0)},
+                         {key: (row['count'], row['start'], row['end'])
+                          for key, row in outline(ref, tracks).items()},
+                         'the index of the tracks of a file : how many marks, how far they go')
+
     def test_a_container_written_then_reopened_gives_the_same_marks(self):
         import shutil
         import tempfile

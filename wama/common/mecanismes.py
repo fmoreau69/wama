@@ -3437,7 +3437,16 @@ MECHANISMS = (
               "faits sur une marque qui a bougé. Un geste entre dans la liste par `extend_edits`, "
               "qui le refuse s'il ne peut pas se faire ; `effective_line` rend ce qui reste après "
               "les masques, chaque segment à sa place. Aucun attribut ne se lit sous un nom que "
-              "le lecteur écrit (`RESERVED`)",
+              "le lecteur écrit (`RESERVED`). La PLAGE (marche 1quater) : la « plage active » "
+              "d'une card côté serveur — `read_span` la pose par ses bornes ou par UNE marque "
+              "et rend, pour chaque piste, les marques qui y sont ou la traversent (`bounded` : "
+              "leur rang, la marque telle quelle, `inside`), jamais rognées ; une marque qui ne "
+              "fait que toucher la plage n'y est pas ; posée par une marque, elle suit la PARENTÉ "
+              "déclarée avant le temps (ses marques filles, sa marque parente). `outline` rend "
+              "l'index des pistes d'une card (ce que chacune dit d'elle-même — `describe`, que "
+              "lit aussi le registre `tracks` —, le nombre de ses marques, leur étendue). "
+              "L'assistant les lit par `get_item_marks` (`tool_api`), pour toute app qui déclare "
+              "des pistes",
               'wama/common/catalog/marks.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.7',
               symbol='register_tracks'),

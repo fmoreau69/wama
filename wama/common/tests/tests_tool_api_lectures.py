@@ -232,6 +232,115 @@ class GetItemDetailTest(TestCase):
         self.assertEqual(out['raw']['status'], item.status)
 
 
+class GetItemMarksTest(TestCase):
+    """The marks an item carries on its axis (`catalog/marks`, `ROUTE §10.7.14` step 1quater),
+    by the common reader : the tool names no app — a statement of tracks is all it reads. The
+    tracks are stated here on the lightest model of the journal, for the time of a test."""
+
+    LABEL = 'imager.imagegeneration'
+    LINES = [{'start': 0, 'end': 4, 'text': 'a'}, {'start': 4, 'end': 9, 'text': 'b'},
+             {'start': 9, 'end': 12, 'text': 'c'}]
+    TICKS = [{'time': 1.0}, {'time': 5.0}, {'time': 8.5}]
+
+    def setUp(self):
+        from wama.common.catalog import marks
+        from wama.common.catalog.data_types import DataType
+        previous = marks._REGISTRY.get(self.LABEL)
+        marks.register_tracks(self.LABEL, (
+            marks.Track('lines', 'Lines', source=lambda card: self.LINES, attributes=('text',),
+                        main=True),
+            marks.Track('ticks', 'Ticks', source=lambda card: self.TICKS, kind=DataType.EVENTS)))
+
+        def restore():
+            marks._REGISTRY.pop(self.LABEL, None)
+            if previous is not None:
+                marks._REGISTRY[self.LABEL] = previous
+        self.addCleanup(restore)
+        self.moi = _utilisateur('moi_marks')
+        self.item = _item(self.moi)
+
+    def _marks(self, **args):
+        return T.get_item_marks(self.moi, 'imager', self.item.pk, **args)
+
+    def test_without_a_track_it_lists_the_tracks_their_count_and_how_far_they_go(self):
+        out = self._marks()
+        self.assertEqual([('lines', 'segments', 3, 0.0, 12.0, True), ('ticks', 'events', 3, 1.0, 8.5, False)],
+                         [(t['key'], t['kind'], t['count'], t['start'], t['end'], t['main'])
+                          for t in out['tracks']])
+        self.assertNotIn('marks', out)
+        in_span = self._marks(start=4, end=9)
+        self.assertEqual({'start': 4.0, 'end': 9.0}, in_span['span'])
+        self.assertEqual({'lines': 1, 'ticks': 2}, {t['key']: t['in_span'] for t in in_span['tracks']})
+
+    def test_a_track_is_read_whole_or_within_the_range_of_one_mark_of_another(self):
+        whole = self._marks(track='lines')
+        self.assertEqual((3, 3, [0, 1, 2]),
+                         (whole['total'], whole['returned'], [m['rank'] for m in whole['marks']]))
+        self.assertEqual({'start': 4.0, 'end': 9.0, 'text': 'b', 'origin': 'lines'},
+                         whole['marks'][1]['mark'], 'under the common names')
+        self.assertNotIn('span', whole)
+        out = self._marks(track='ticks', within_track='lines', within_mark=1)
+        self.assertEqual({'start': 4.0, 'end': 9.0, 'track': 'lines', 'rank': 1}, out['span'])
+        self.assertEqual([{'rank': 1, 'mark': {'time': 5.0, 'origin': 'ticks'}, 'inside': True},
+                          {'rank': 2, 'mark': {'time': 8.5, 'origin': 'ticks'}, 'inside': True}],
+                         out['marks'])
+        crossed = self._marks(track='lines', start=3, end=5)
+        self.assertEqual([(0, False), (1, False)],
+                         [(m['rank'], m['inside']) for m in crossed['marks']])
+        self.assertEqual({'start': 0.0, 'end': 4.0, 'text': 'a', 'origin': 'lines'},
+                         crossed['marks'][0]['mark'], 'a mark across the range is not cut')
+
+    def test_a_long_track_comes_by_pages_and_says_where_to_read_on(self):
+        first = self._marks(track='lines', limit=2)
+        self.assertEqual((3, 2, 2), (first['total'], first['returned'], first['next_offset']))
+        last = self._marks(track='lines', limit=2, offset=first['next_offset'])
+        self.assertEqual([2], [m['rank'] for m in last['marks']])
+        self.assertNotIn('next_offset', last)
+        self.assertEqual(3, self._marks(track='lines', limit=10 ** 6, offset=-1)['returned'])
+        from unittest import mock
+        with mock.patch.object(T, 'MARKS_LIMIT_MAX', 2):
+            capped = self._marks(track='lines', limit=10 ** 6)
+        self.assertEqual((2, 2), (capped['returned'], capped['next_offset']),
+                         'whatever is asked, one answer stays within the budget of a tool result')
+
+    def test_the_item_of_someone_else_is_not_read(self):
+        other = _item(_utilisateur('autre_marks'))
+        self.assertEqual('forbidden',
+                         T.get_item_marks(self.moi, 'imager', other.pk, track='lines').get('error'))
+        self.assertIn('error', T.get_item_marks(None, 'imager', self.item.pk))
+
+    def test_what_cannot_be_read_is_said_with_what_can(self):
+        from wama.common.catalog import marks
+        from wama.common.services.journal import sources
+        self.assertIn('imager', T.get_item_marks(self.moi, 'no_such_app', 1)['error'])
+        self.assertIn('lines', self._marks(track='absent')['error'])
+        self.assertIn('lines', self._marks(track='ticks', within_track='absent', within_mark=0)['error'])
+        self.assertIn('rang', self._marks(track='ticks', within_track='lines', within_mark=7)['error'])
+        self.assertIn('invers', self._marks(track='lines', start=9, end=2)['error'])
+        gone = T.get_item_marks(self.moi, 'imager', 10 ** 9)
+        self.assertIn('introuvable', gone['error'])
+        bare = next(s.app for s in sources() if not marks.tracks_of(s.model))
+        said = T.get_item_marks(self.moi, bare, 1)['error']
+        self.assertIn('aucune piste', said)
+        self.assertIn('imager', said, 'and the apps whose items carry tracks are named')
+
+    def test_it_answers_through_the_real_door_with_plain_data(self):
+        out = T.execute_tool('get_item_marks', {'app': 'imager', 'pk': self.item.pk,
+                                                'track': 'lines', 'start': 0}, self.moi)
+        self.assertNotIn('error', out)
+        self.assertEqual(out, json.loads(json.dumps(out)))
+
+    def test_every_model_that_states_tracks_is_within_reach_of_the_tool(self):
+        """The tool finds the model of an item where `list_my_items` found the item : the journal.
+        An app that states tracks on a model the journal does not know would never be read."""
+        from wama.common.catalog import marks
+        from wama.common.services.journal import sources
+        known = {s.model._meta.label_lower for s in sources()}
+        stated = set(marks.registered())
+        self.assertGreaterEqual(len(stated), 3, 'two worlds state tracks, and this test')
+        self.assertEqual(set(), stated - known)
+
+
 class ListRegistriesTest(TestCase):
     def test_rend_chaque_registre_avec_sa_nature(self):
         """La `nature` est ce qui dit à l'assistant CE QU'IL LIT : une mesure du système réel
@@ -569,7 +678,7 @@ class AddItemToMediaLibraryTest(TestCase):
 
 
 _LECTURES = ('list_my_items', 'get_item_detail', 'get_item_preview', 'get_item_result',
-             'list_registries',
+             'get_item_marks', 'list_registries',
              'get_my_access', 'list_my_memories')
 _ECRITURES = ('delete_item', 'duplicate_item', 'clear_my_queue',
               'add_item_to_media_library')

@@ -546,6 +546,25 @@ class MarksOfACardTest(unittest.TestCase):
                          [w['text'] for w in within(read['words'], read['lines'], strict=False)])
         self.assertEqual(1, len(open_ones(read['lines'])))
 
+    def test_a_range_read_by_the_common_reader_is_what_the_set_operations_select(self):
+        """The active range of a card (`marks.bounded`, `ROUTE §10.7.13 ⑧`) against this module :
+        what it gives « inside » is `within` (bounds accepted) ; what it gives at all is
+        `overlapping` LESS the segments that only touch the range — `overlapping` counts the
+        bounds, a range does not (two shots that follow each other share a bound)."""
+        from wama.common.catalog import marks
+        segs = [{'start': 0.0, 'end': 10.0}, {'start': 10.0, 'end': 20.0},
+                {'start': 12.0, 'end': 15.0}, {'start': 18.0, 'end': 25.0},
+                {'start': 20.0, 'end': 30.0}, {'start': 30.0, 'end': None}]
+        ref = [{'start': 10.0, 'end': 20.0}]
+        read = marks.bounded(segs, 10.0, 20.0, tolerance=0)
+        in_range = [entry['mark'] for entry in read]
+        self.assertEqual(within(segs, ref, strict=False),
+                         [entry['mark'] for entry in read if entry['inside']])
+        touching = [s for s in overlapping(segs, ref) if s not in in_range]
+        self.assertEqual([segs[0], segs[4]], touching)
+        self.assertEqual([s for s in overlapping(segs, ref) if s not in touching], in_range)
+        self.assertEqual([s for s in segs if s not in overlapping(segs, ref)], [segs[5]])
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

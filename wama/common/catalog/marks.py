@@ -21,10 +21,16 @@ dessus (scinder, fusionner, masquer, étiqueter…). On persiste la déclaration
 source n'est jamais modifiée, le lecteur REJOUE les gestes (`read_derived`, `apply_edits`) et dit
 ceux qui ne s'appliquent plus. `effective_line` rend ce qui reste après les masques.
 
+LA PLAGE (`§10.7.13 ⑧`, marche 1quater) : la « plage active » d'une card, côté serveur. Elle se pose
+par ses bornes ou par UNE marque, et `read_span` rend les marques de chaque piste qui y sont ou la
+traversent — avec leur rang, jamais rognées. `outline` rend l'INDEX des pistes d'une card (ce que
+chacune déclare, le nombre de ses marques, leur étendue).
+
 CE QUE CE MODULE NE FAIT PAS : il n'écrit rien, ne déplace aucun stockage (où se range la liste des
 gestes d'une card est l'affaire de son monde), et ne calcule rien sur les marques (« présent
-dans », filtre, indicateur par segment restent au Segmenter). Ce qu'il rend a la FORME que ces
-fonctions lisent déjà (`start`, `end`, `origin`) — c'est tout l'intérêt.
+dans », filtre, indicateur par segment restent au Segmenter ; lire une plage est une SÉLECTION, pas
+un calcul sur la portion). Ce qu'il rend a la FORME que ces fonctions lisent déjà (`start`, `end`,
+`origin`) — c'est tout l'intérêt.
 
 Sans Django : le lecteur ne connaît que des objets et des dictionnaires.
 """
@@ -211,6 +217,22 @@ def track_to_dict(track: Track) -> dict:
         data['attributes'] = {(a if isinstance(a, str) else a[0]): (a if isinstance(a, str) else a[1])
                               for a in track.attributes}
     return data
+
+
+def describe(track: Track) -> dict:
+    """Ce qu'une piste DIT d'elle-même, pour qui la montre sans la lire (le registre `tracks`,
+    l'index des pistes d'une card, l'assistant) : son libellé, sa famille, son axe, sa piste
+    parente et ce que ses marques lui doivent, la façon dont ses lignes se trouvent (`rows` :
+    `stored`, rangées par leur porteur ; `nested`, écrites dans la marque parente ; `computed`,
+    calculées d'une autre piste), et ce que l'écran et les gestes ont à savoir (`§10.7.14`).
+    Tous les champs y sont, défauts compris — `track_to_dict`, lui, écrit un manifeste."""
+    return {
+        'label': track.label, 'kind': track.kind, 'axis': track.axis, 'parent': track.parent,
+        'constraint': track.constraint,
+        'rows': 'computed' if track.runs_of else 'nested' if track.within else 'stored',
+        'main': track.main, 'color_by': track.color_by, 'scale': track.scale,
+        'steps': list(track.steps), 'gestures': list(track.gestures), 'edits': track.edits,
+    }
 
 
 def track_from_dict(data: dict) -> Track:
@@ -597,7 +619,7 @@ def _bounds(mark: dict) -> dict:
     return {'start': mark['start'], 'end': mark.get('end')}
 
 
-def _span(edit: dict) -> int:
+def _taken(edit: dict) -> int:
     """Le nombre de marques que prend un geste : `count` pour une fusion (la marque désignée et
     celles qui la suivent), une sinon."""
     count = edit.get('count', 2) if edit.get('gesture') == 'merge' else 1
@@ -639,8 +661,8 @@ def _target(marks: List[dict], edit: dict, tolerance: float) -> Tuple[Optional[i
             best, found = score, rank
     if found is None or best < CORRECTION_MIN_IOU:
         return None, "la marque qu'il visait n'est plus dans la piste"
-    span = _span(edit)
-    if span < 1 or found + span > len(marks):
+    taken = _taken(edit)
+    if taken < 1 or found + taken > len(marks):
         return None, "ne désigne pas autant de marques dans la piste"
     return found, None
 
@@ -753,7 +775,7 @@ def _do(track: Track, marks: List[dict], index: int, edit, tolerance: float,
         _touch(mark, index)
         _touch(second, index)
     elif gesture == 'merge':
-        group = marks[rank:rank + _span(edit)]
+        group = marks[rank:rank + _taken(edit)]
         if len(group) < 2:
             return "une fusion prend au moins deux segments"
         if any(after['start'] < before['start'] for before, after in zip(group, group[1:])):
@@ -902,3 +924,214 @@ def effective_line(marks: Iterable[dict], end: Optional[float] = None) -> List[d
                 cursor = None if stop is None else cursor + max(0.0, stop - mark['start'])
         out.append(kept)
     return out
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════
+# LA PLAGE — les pistes d'une card bornées à une plage de son axe (`ROUTE §10.7.13 ⑧`)
+# ══════════════════════════════════════════════════════════════════════════════════════════════
+# La « plage active » d'une card, côté serveur : `[start, end[` sur son axe, posée par ses bornes
+# ou par UNE marque (cliquer un segment). La lire est une SÉLECTION : aucune marque n'est rognée ni
+# recalculée, chacune garde son rang dans sa piste (c'est par lui qu'une marque fille nomme sa
+# parente, et qu'un geste la désignera). Calculer sur la plage reste un geste explicite (⑨), au
+# Segmenter.
+#
+# Les BORNES suivent la contenance (`_holder`) et la partition : une marque qui ne fait que TOUCHER
+# la plage n'y est pas — deux plans qui se suivent partagent une borne sans se chevaucher, et
+# cliquer l'un ne doit pas rendre l'autre. C'est aussi la plage native visée en base (`§10.7.11` :
+# `numrange`, opérateur `&&`). ⚠ `overlapping` du Segmenter (`wama_data.core.segmentation`), lui,
+# compte les bornes : il rend EN PLUS ces marques qui touchent.
+#
+# Le temps ne suffit pas quand la plage est posée par UNE marque : ce qui lui APPARTIENT est dit
+# par la parenté des pistes, et c'est elle qui tranche alors (`read_span`).
+
+def extent(marks: Iterable[dict]) -> dict:
+    """Le nombre et l'ÉTENDUE des marques d'une piste : `{'count', 'start', 'end'}` — du premier
+    début à la dernière fin. `end` vaut None quand elle n'est pas connue : aucune marque, ou une
+    marque encore ouverte (elle court toujours ; la fermer est un acte du Segmenter, `close`)."""
+    count, low, high, is_open = 0, None, None, False
+    for mark in marks:
+        count += 1
+        start = _starts_at(mark)
+        stop = mark.get('end') if 'start' in mark else start
+        low = start if low is None else min(low, start)
+        if stop is None:
+            is_open = True
+        else:
+            high = stop if high is None else max(high, stop)
+    return {'count': count, 'start': low, 'end': None if is_open else high}
+
+
+def outline(card, tracks: Optional[Iterable[Track]] = None) -> Dict[str, dict]:
+    """L'INDEX des pistes d'une card, dans l'ordre déclaré : pour chacune ce qu'elle dit
+    d'elle-même (`describe`), le nombre de ses marques et leur étendue (`extent`) — de quoi
+    afficher « Situations — 69 » ou répondre « que porte cette card ? » sans rendre une marque.
+    `tracks` : des pistes dites sur place, comme pour `read_tracks`."""
+    cache = _context(card, tracks)
+    return {key: {**describe(track), **extent(_read(card, track, cache))}
+            for key, track in cache[_STATED].items()}
+
+
+def span_of(mark: dict, key: str = '', rank: Optional[int] = None) -> dict:
+    """La PLAGE que pose une marque : ses bornes (`end` None = ouverte ; un événement pose une
+    plage réduite à son instant) et, quand on les dit, d'où elle vient (`track`, `rank`)."""
+    start = _starts_at(mark)
+    span = {'start': start, 'end': mark.get('end') if 'start' in mark else start}
+    if key:
+        span.update(track=key, rank=rank)
+    return span
+
+
+def _fits(mark: dict, low: float, high: Optional[float], tolerance: float) -> bool:
+    """Une marque tient-elle EN ENTIER dans la plage, bornes comprises ?"""
+    start = _starts_at(mark)
+    stop = mark.get('end') if 'start' in mark else start        # None : encore ouverte
+    return start >= low - tolerance and (
+        high is None or (stop is not None and stop <= high + tolerance))
+
+
+def _place(mark: dict, low: float, high: Optional[float], tolerance: float) -> Optional[bool]:
+    """Où est une marque par rapport à la plage, PAR LE TEMPS : None hors d'elle ; True dedans en
+    entier ; False à cheval sur l'une de ses bornes. En deçà de `tolerance`, deux bornes sont la
+    même."""
+    start = _starts_at(mark)
+    stop = mark.get('end') if 'start' in mark else start
+    if start < low - tolerance:                                 # commencée AVANT la plage
+        return False if (stop is None or stop > low + tolerance) else None
+    if high is not None:
+        if high - low <= tolerance:                             # une plage réduite à un instant
+            if start > low + tolerance:
+                return None
+        elif start >= high - tolerance:                         # commence où la plage finit
+            return None
+    return _fits(mark, low, high, tolerance)
+
+
+def _lineage(card, track: Track, ancestor: str, cache: dict) -> Optional[List[Track]]:
+    """Les pistes ENTRE `track` et sa piste aïeule `ancestor` (ni l'une ni l'autre), de la plus
+    proche à la plus haute — None quand `track` n'en descend pas."""
+    between: List[Track] = []
+    cursor = track
+    while cursor.parent:
+        if cursor.parent == ancestor:
+            return between
+        cursor = _track(card, cursor.parent, cache)
+        between.append(cursor)
+    return None
+
+
+def _owner(card, mark: dict, between: List[Track], cache: dict) -> Optional[int]:
+    """Le rang de la marque AÏEULE d'une marque, en remontant ses parentes par les pistes
+    `between` — None dès qu'un étage n'a pas de parente. Les rangs d'une parenté sont ceux de la
+    piste telle que sa source la rend : c'est elle qu'on remonte."""
+    rank = mark.get('parent')
+    for track in between:
+        if rank is None:
+            return None
+        rank = _read(card, track, cache)[rank].get('parent')
+    return rank
+
+
+def bounded(marks: Iterable[dict], start: float, end: Optional[float] = None,
+            tolerance: float = TOLERANCE) -> List[dict]:
+    """Les marques d'une piste qui sont DANS la plage `[start, end[` ou la traversent, dans l'ordre
+    de la piste — pour chacune `{'rank', 'mark', 'inside'}` : son rang dans la piste entière, la
+    marque TELLE QUELLE, et si elle tient en entier dans la plage (`inside` faux : elle déborde
+    l'une de ses bornes — un tour de parole autour de la phrase cliquée).
+
+    `end` None : la plage est ouverte (celle d'un segment encore ouvert). Une plage réduite à un
+    instant (`end == start`, celle d'un événement) rend les marques qui CONTIENNENT cet instant.
+    Un segment ouvert court toujours : il traverse toute plage postérieure à son début. Les marques
+    masquées d'une piste dérivée restent rendues, avec leur `masked` (c'est `effective_line` qui
+    les saute)."""
+    if end is not None and end < start:
+        raise ValueError(f"plage inversée : {start:g} → {end:g}")
+    out = []
+    for rank, mark in enumerate(marks):
+        inside = _place(mark, start, end, tolerance)
+        if inside is not None:
+            out.append({'rank': rank, 'mark': mark, 'inside': inside})
+    return out
+
+
+def read_span(card, start: Optional[float] = None, end: Optional[float] = None, *,
+              key: str = '', rank: Optional[int] = None,
+              tracks: Optional[Iterable[Track]] = None,
+              edits: Optional[Dict[str, Iterable[dict]]] = None,
+              tolerance: float = TOLERANCE) -> Tuple[dict, Dict[str, List[dict]]]:
+    """Toutes les pistes d'une card BORNÉES à une plage : `(plage, {clé: [{'rank', 'mark',
+    'inside'}]})` (`bounded`), dans l'ordre déclaré. La plage se pose de deux façons :
+      • par ses bornes — `start`, `end` (None = ouverte) ;
+      • par UNE marque — `key`, `rank` : la marque de ce rang dans cette piste (le segment cliqué).
+        La plage rendue dit alors d'où elle vient (`track`, `rank`).
+
+    Posée par une marque, la plage suit la PARENTÉ déclarée avant le temps : dans une piste qui
+    DESCEND de la sienne (ses mots, les mots de ses phrases), elle rend les marques dont cette
+    marque est la parente ou l'aïeule — celles d'une autre marque n'y sont pas, même si elles la
+    touchent — et sa marque parente, à chaque étage au-dessus, y est toujours. Le temps seul ne
+    sait pas à qui appartient une marque posée sur une borne commune (mesuré le 2026-11-25 sur
+    158 183 phrases réelles : 5 % ne retrouvaient pas exactement leurs mots, des mots sans durée
+    posés à la fin de leur phrase). Une marque sans parente, et toute piste sans lien avec celle
+    de la plage, se lisent par le temps (`bounded`). `inside` dit toujours si la marque tient dans
+    les bornes — un conflit rattaché à sa fenêtre peut la déborder.
+
+    Les sources ne sont lues qu'une fois. `edits` : `{clé: liste de gestes}` — ces pistes se lisent
+    DÉRIVÉES (`read_derived`), et un rang y désigne une marque de la dérivée : c'est elle que
+    l'écran montre à la place de sa source. ⚠ Les rangs d'une parenté sont ceux de la SOURCE : une
+    plage posée sur une piste dérivée se lit par le temps seul (suivre les marques filles d'une
+    dérivée par `source_ranks` reste à faire). Lève `KeyError` pour une piste inconnue,
+    `IndexError` pour un rang sans marque, `ValueError` pour une plage qui n'est pas posée."""
+    cache = _context(card, tracks)
+    edits, read = dict(edits or {}), {}
+
+    def marks_of(track: Track) -> List[dict]:
+        if track.key not in read:
+            read[track.key] = (_derived(card, track, edits[track.key], cache, tolerance)[0]
+                               if track.key in edits else _read(card, track, cache))
+        return read[track.key]
+
+    def entry(position: int, mark: dict, inside: bool) -> dict:
+        return {'rank': position, 'mark': mark, 'inside': inside}
+
+    elders: Dict[str, int] = {}         # par piste aïeule : le rang de l'aïeule de la marque
+    kin = bool(key) and key not in edits
+    if key:
+        origin_track = _track(card, key, cache)
+        origin = marks_of(origin_track)
+        if not _rank(rank, 0, len(origin) - 1):
+            raise IndexError(f"piste « {key} » : aucune marque de rang {rank!r} "
+                             f"({len(origin)} marque(s))")
+        span = span_of(origin[rank], key, rank)
+        cursor, above = origin_track, origin[rank].get('parent')
+        while kin and cursor.parent and above is not None:
+            cursor = _track(card, cursor.parent, cache)
+            elders[cursor.key] = above
+            above = _read(card, cursor, cache)[above].get('parent')
+    else:
+        low = _number(start)
+        if low is None:
+            raise ValueError("une plage se pose par ses bornes (`start`) ou par une marque "
+                             "(`key`, `rank`)")
+        span = {'start': low, 'end': _number(end)}
+    low, high = span['start'], span['end']
+
+    out: Dict[str, List[dict]] = {}
+    for name, track in cache[_STATED].items():
+        found = marks_of(track)
+        between = _lineage(card, track, key, cache) if kin else None
+        if between is None:                         # aucun lien de descendance : par le temps
+            entries = bounded(found, low, high, tolerance)
+            elder = elders.get(name)
+            if elder is not None and name not in edits \
+                    and all(kept['rank'] != elder for kept in entries):
+                entries.append(entry(elder, found[elder], _fits(found[elder], low, high, tolerance)))
+                entries.sort(key=lambda kept: kept['rank'])
+        else:                                       # une piste qui descend de celle de la plage
+            entries = []
+            for position, mark in enumerate(found):
+                owner = _owner(card, mark, between, cache)
+                place = (_place(mark, low, high, tolerance) if owner is None
+                         else _fits(mark, low, high, tolerance) if owner == rank else None)
+                if place is not None:
+                    entries.append(entry(position, mark, place))
+        out[name] = entries
+    return span, out
