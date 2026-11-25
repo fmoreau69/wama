@@ -235,6 +235,22 @@ class OneCreatorForEveryDomainTest(TestCase):
                                        self.user, model_call=True)
         self.assertIn('error', result)
 
+    def test_a_twin_creates_in_its_own_audio_domain(self):
+        """`enhancer_01` had NO audio creator (the audio tool wrote the app in its body) : its
+        retargeted creator now births the element on the twin's model, under the twin's surface,
+        followed by the twin's triad. Twins are not versioned : skipped on a fresh clone."""
+        if 'add_to_enhancer_01' not in tool_api.TOOL_REGISTRY:
+            self.skipTest('no enhancer_01 twin installed')
+        result = tool_api.execute_tool('add_to_enhancer_01', {'file_path': self._file('voix.wav')},
+                                       self.user, model_call=True)
+        self.assertNotIn('error', result)
+        self.assertEqual('audio_enhancer_01', result['surface'])
+        model = DetailRegistry.get('audio_enhancer_01')['model']
+        self.assertEqual('enhancer_01', model._meta.app_label)
+        self.assertTrue(model.objects.filter(pk=result['item_id']).exists())
+        self.assertEqual('start_audio_enhancer_01',
+                         tool_api.relay_next_step('add_to_enhancer_01', result)['next_step'])
+
     def test_the_next_step_is_the_start_of_the_surface_created(self):
         result = tool_api.relay_next_step('add_to_enhancer', tool_api.execute_tool(
             'add_to_enhancer', {'file_path': self._file('voix.wav')}, self.user, model_call=True))
