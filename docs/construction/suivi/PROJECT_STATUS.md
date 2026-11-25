@@ -32741,3 +32741,81 @@ l'écran vient avec la zone temporelle, après les maquettes.
   sans l'app, littéraux de JS, coupe, glu marche B, `translator_01`, `prompt_file`).
   Coordination : la session « add_to » a pris le point 2 (`acd78bb29`, jumelles jugées sur la ligne
   de leur source) ; le point 1 (`add_to_enhancer` unique) attend le go de Fabien.
+
+## §PALIER — 2026-11-25 (nuit), « LES PLANS : ce qui se segmente tout seul, rangé une fois par fichier » — marche 3fonc de `ROUTE §10.7.14`, commités `18a15b6d6` et `0cc519250`, non poussés
+
+Demandée par Fabien (« tu peux poursuivre puis /reverif ») ; la coupe (②fonc) attend la table des
+entrées de la session « portage ». Pendant la marche, Fabien : *« segmenter automatiquement ce
+qu'il est possible de segmenter automatiquement, comme les parties d'un morceau (intro, couplet,
+refrain, bridge) »* — d'où un registre de producteurs, et non un détecteur de plans posé seul.
+
+**Cherché avant d'écrire.** Aucune détection de plans dans le dépôt (motifs `scenedetect`,
+`scdet`, `gt(scene`, `shot_detect`, `TransNet`, « changement de plan » : la route et une intention
+de `ROADMAP` seulement, qui prévoyait PySceneDetect). ffmpeg 6.1 porte le filtre `scdet` : aucune
+librairie de plus. Les fonctions du monde Médias sont des process d'app (`function_specs.py`,
+`binding: app`), et `studio.image_to_3d` montre une fonction d'app hors pipeline lancée par le
+Studio avec le fichier de son amont. Les pics fins de l'onde (`waveform.dense_peaks`) sont déjà
+« un fait tiré d'un fichier, rangé une fois par version, calculé par une tâche commune » : le même
+cycle. Les pistes d'un fichier de données sont dites sur place (`referential_tracks`) : la même
+lecture.
+
+**Livré** (`18a15b6d6`).
+
+- `wama/common/utils/derived_json.py` — le cycle d'un fait dérivé d'un média (fichier au dossier
+  caché, à jour tant qu'il est plus récent que l'original, une tâche par version, « en file » et
+  « échec » lus d'une marque de cache), écrit UNE fois. Les pics fins y délèguent (`waveform.py`,
+  61 lignes de moins) ; leurs gardes (`tests_dense_peaks`) n'ont pas changé.
+- `wama/common/utils/media_marks.py` — les PISTES AUTOMATIQUES d'un média : `register_producer`
+  (la piste, les natures, l'analyse, la fonction du catalogue), `media_tracks` / `read_media_tracks`
+  (pistes dites sur place, lecteur commun des marques), `marks_state`, `make_media_marks` (d'autres
+  réglages remplacent la piste ; les réglages passent par la fonction déclarée). Tâche
+  `common.make_media_marks`, file `default`.
+- `video_compat` — une FAMILLE de fichiers dérivés à clé, `<média>.<clé>.marks.json`, reconnue à sa
+  fin : le balayage, le retrait avec l'original et l'audit ne connaissent aucun producteur.
+- `wama/converter/functions.py`, `utils/shots.py` — le producteur `converter.shots` : fonction au
+  catalogue (seuil, durée minimale), piste « Plans » (segments sans trou, `score` = la coupe qui
+  ouvre le plan ; gestes scinder, fusionner, étiqueter, masquer, réordonner, extraire, en piste
+  dérivée). Dans `functions.py`, pas dans `function_specs.py` : celui-ci est le pipeline de la card,
+  que le générateur relit pour les jumelles. Manifeste `manifests/functions/converter.shots.json`.
+- `get_file_marks` (`wama/tool_api.py`, lecture) : les pistes automatiques d'un fichier de
+  l'utilisateur, l'analyse mise en file à la première demande. La lecture d'une piste (entière,
+  bornée, par pages) est écrite une fois pour les deux outils (`_marks_answer`).
+- Le registre `tracks` liste aussi les pistes des producteurs (natures, fonction).
+
+**Ce que la revérification a ramené** (`0cc519250`, `/reverif`).
+
+- *Le seuil par défaut était faux sur le réel.* La première mesure (15 vidéos de cards) ne voyait
+  que des prises continues. Cherché ensuite sur tout le disque (59 vidéos) : aucun film monté, mais
+  trois vidéos à coupes — un clip du banc des plaques (montage de caméras de véhicules), une vidéo
+  de démonstration, une séquence à pictogramme inséré en fondu. Images regardées de part et d'autre
+  de chaque candidate : au seuil par défaut de ffmpeg (10), 6 coupes trouvées sur 22 dans le clip,
+  1 sur 2 dans la démonstration, les deux fondus manqués ; les 13 candidates regardées entre 6 et
+  10 étaient toutes de vraies coupes ou de vrais fondus. Seuil par défaut ramené à 6.
+- *De deux coupes proches, la plus forte.* La première écriture gardait la PREMIÈRE de deux coupes
+  à moins de la durée minimale : une candidate faible un quart de seconde avant une coupe franche
+  prenait sa place (vu dans le clip, à 16,75 s et 17 s).
+- *La porte du Studio n'était gardée que par introspection* : essai réel ajouté (la fonction
+  lancée par `_run_app_function` avec le fichier de son amont et les réglages du nœud, sur une
+  vraie vidéo).
+- *La clé de la fonction était écrite deux fois* dans `converter/functions.py` : une constante.
+- Lu et laissé : la copie de lecture garde son propre cycle (un verdict, pas un échec marqué) —
+  non rapprochée de `derived_json` ; l'inscription d'un producteur vit en code, sans facette de
+  manifeste (consigné aux restes de `§10.7.14 ⑲`).
+
+**Vérifié.** Gardes du livrable et gardes transverses : 345 tests verts (cycle des faits dérivés, pics fins, copie de lecture, marques, registres, index des mécanismes, outils et leur couverture, identifiants, catalogue des docs, coût de démarrage) ; après la reprise, 484 tests (converter et studio entiers compris), 1 rouge pas d'ici. Périmètre élargi : 1 401 tests, 3 rouges pas d'ici (nommés plus bas). `doc_facts --check` propre au moment du commit, `check_docs` 0 cassée (1 périmée pas d'ici, `PROJECT_STATUS:32181`), corpus des manifestes à jour. 36 contre-épreuves rouges sur 36 (29 + 1 du registre + 6 de la reprise), celles qui écrivent dans la base dans une seule file.
+
+**Non vérifié.** La suite large ; HEAD dans un worktree ; `get_file_marks` dans une conversation
+réelle (servi après relance de gunicorn, des workers, de la passerelle et du serveur MCP) ; la
+justesse sur un long métrage (trois vidéos ne sont pas un banc) ; une caméra embarquée de 2 h 20,
+prise continue, rendait déjà 11 « plans » au seuil de 10 — non remesurée à 6 ; aucune interface.
+
+**Restes.** La piste montrée sur une card (quelle entrée pose son axe : `port_fields`, avec la
+coupe de ②fonc) ; l'analyse à l'import (aujourd'hui à la demande) ; le Describer pourrait légender
+une image par plan ; les parties d'un morceau (producteur à modèle, à prospecter) ; un détecteur de
+plans adaptatif ou à modèle, par la route, si le seuil fixe ne suffit pas ; un producteur sur la
+carte graphique passera par la file de son app ; une facette de manifeste pour l'inscription d'un
+producteur.
+
+**Rouges vus, pas d'ici** (périmètre élargi) : `transcriber.tests.tests_editor.WriteModesTest` ×2
+(la doublure `hear` ne prend pas `clean_mode`, depuis `bca38228d` du 18/11) ;
+`converter.tests.SauverCommeProfilTest` (`data-key` dans `wama-params.js`, depuis `1c31cbd2f`).
