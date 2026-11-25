@@ -32819,3 +32819,57 @@ producteur.
 **Rouges vus, pas d'ici** (périmètre élargi) : `transcriber.tests.tests_editor.WriteModesTest` ×2
 (la doublure `hear` ne prend pas `clean_mode`, depuis `bca38228d` du 18/11) ;
 `converter.tests.SauverCommeProfilTest` (`data-key` dans `wama-params.js`, depuis `1c31cbd2f`).
+
+---
+
+## §PALIER — 2026-11-25 (soir), PROSPECTION : le détecteur de plans, les parties d'un morceau, et la cartographie de ce qui se découpe déjà tout seul
+
+> Demande de Fabien : prospecter le détecteur adaptatif et les parties d'un morceau ; puis, en
+> cours de route : cartographier tout ce qui s'auto-segmente déjà (toutes apps), en vue de
+> l'universalité ; ce travail servira l'annotation automatique des vidéos (Anonymizer, Detector) ;
+> faut-il un curseur rapide / qualité avec un modèle. **Rien de construit : mesures en lecture
+> seule, consignées** (`ROUTE §10.7.14 ⑲` et `㉑`). Aucun fichier écrit dans `media/`.
+
+**Deux constats du palier précédent étaient FAUX, corrigés et datés dans la route :**
+- le « clip monté » qui avait servi à juger le seuil (« 6 coupes sur 22 ») n'est pas un montage :
+  ses 320 images regardées, presque chacune change de lieu. Le seuil de 6 tient, mais pour une
+  autre raison : sur un témoin à vérité connue fabriqué au scratchpad (29 coupes franches entre
+  deux caméras embarquées), 28 retrouvées au seuil de 6, 26 au seuil de 10, aucune fausse ;
+- les fausses coupes de la prise continue de 2 h 20 ne sont pas des « changements de lumière »
+  mais des SAUTS D'EXPOSITION de la caméra — un pic isolé, comme une coupe. Le commentaire de
+  `converter/utils/shots.py` est réécrit sur la mesure (aucun changement de comportement).
+
+**Le détecteur, mesuré** (33 coupes de vérité connue ; 100 588 images de prise continue) :
+seuil 6 d'aujourd'hui = 32/33 et 73 fausses ; « pic face à ses voisines » = 32/33 et 63 (ne sert
+presque à rien) ; image égalisée = 32/33 et 13 ; contours = 30/33 et 4 ; en deux temps
+(candidates au seuil 6, confirmées par les contours) = 30/33 et 2. L'analyse simple prend 48 s
+pour 2 h 20 ; la confirmation ne concerne que 114 images. ⏳ La confirmation sur les seules
+candidates n'est ni construite ni chronométrée ; aucun modèle essayé ; pas de film ni de fondu
+enchaîné dans les témoins.
+
+**Les parties d'un morceau : le modèle est déjà au catalogue.** SheetSage2 rend la structure à
+chaque extraction de partition (`labs['structure']`) et `sheetsage2_backend.extract_score` la
+jette. Mesuré sur trois morceaux : 10 à 12 parties nommées, 34 à 37 s, 3,5 Go de carte graphique.
+Non jugé à l'oreille. SongFormer et All-In-One lus sur leurs pages : licence ou installation hors
+route.
+
+**La cartographie (`ROUTE §10.7.14 ㉑`)** : une soixantaine de découpages automatiques, sept
+pistes déclarées. Quatre familles : gardé mais non déclaré ; calculé puis jeté ; découpe technique
+(une même règle écrite trois fois pour l'audio, sept pour le texte) ; la boîte du monde Data, déjà
+uniforme. Huit conventions de bornes, cinq moments de calcul. Relevé par une lecture déléguée,
+huit points recontrôlés à la main — le reste se relit avant de s'y appuyer.
+
+**Défaut vu au passage, non corrigé** : le Describer date ses légendes `i × 10` s même quand il
+étire l'intervalle (`describer/backends/video_backend.py:47-48`, `:243`, `:295`) — instants faux
+au-delà de 3 minutes de vidéo.
+
+**Proposé, ⏳ décisions de Fabien** : l'analyse appartient au fichier (hors du travail de la card),
+son EMPLOI est un process optionnel de la card (`ProcessSpec`, `toggle`) ; la règle par défaut dès
+l'arrivée du fichier, un modèle à la demande ; curseur rapide (règle) / qualité (modèle
+spécialisé), un modèle de vision pour NOMMER les segments, pas pour les borner ; ordre : déclarer
+ce qui est gardé, garder ce qui est jeté, la confirmation des plans, une brique pour la découpe
+technique, puis les emplois « par plans ».
+
+**Vérifié** : `check_docs` 0 cassée (1 périmée qui n'est pas d'ici, `PROJECT_STATUS:32181`) ; les
+5 tests du détecteur verts. **Scripts et séries de mesure** : scratchpad de la session
+(`adaptive_probe*.py`, `structure_probe.py`), non versionnés.

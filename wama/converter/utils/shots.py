@@ -14,14 +14,15 @@ import subprocess
 from typing import List, Optional, Tuple
 
 #: Le seuil du filtre, de 0 à 100. Plus bas : plus de coupes (les fondus, les mouvements
-#: brusques) ; plus haut : les seules coupes franches. MESURÉ le 2026-11-25 sur les vidéos montées
-#: du disque, images regardées de part et d'autre de chaque coupe : la valeur par défaut de ffmpeg
-#: (10) ne trouvait que 6 des 22 coupes d'un montage de caméras de véhicules (des scènes qui se
-#: ressemblent : route, ciel, capot) et 1 des 2 coupes d'une vidéo de démonstration ; les 13
-#: candidates regardées entre 6 et 10 étaient toutes de vraies coupes ou de vrais fondus. ⚠ Une
-#: prise CONTINUE à la lumière changeante rend de fausses coupes à tout seuil fixe (une caméra
-#: embarquée de 2 h 20 : 14 au seuil de 10, 66 au seuil de 6) : ce défaut sert les vidéos montées,
-#: celles qu'on coupe par leurs plans.
+#: brusques) ; plus haut : les seules coupes franches. MESURÉ le 2026-11-25 sur 33 coupes de
+#: vérité connue (un témoin de 29 coupes franches entre deux caméras embarquées — une sur deux dans
+#: la même caméra : même capot, autre lieu —, une vidéo de démonstration, deux fondus) : 32 au
+#: seuil de 6, 27 à la valeur par défaut de ffmpeg (10), aucune fausse coupe sur ces vidéos.
+#: ⚠ Une prise CONTINUE rend de fausses coupes à tout seuil fixe : ce sont des sauts d'exposition
+#: de la caméra (toute l'image s'assombrit d'un coup), des pics isolés comme une coupe — une caméra
+#: embarquée de 2 h 20 : 73 au seuil de 6, 15 au seuil de 10. Ce défaut sert les vidéos montées,
+#: celles qu'on coupe par leurs plans ; le remède mesuré (confirmer chaque candidate en comparant
+#: les formes) est consigné, pas construit : `ROUTE §10.7.14 ⑲`.
 THRESHOLD = 6.0
 #: En deçà, deux coupes sont un même changement (un flash, un fondu) : elles n'en font qu'une, la
 #: plus forte des deux.

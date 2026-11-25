@@ -9376,15 +9376,63 @@ fonction déclarée ; la librairie, s'il en faut une, par la route d'installatio
   fausses coupes au seuil de 10 et 66 au seuil de 6 (des changements de lumière) — une toutes les
   deux minutes. Le seuil par défaut sert les vidéos montées, celles qu'on coupe par leurs plans ;
   il se règle (`threshold`), et les fausses coupes se fusionnent. Trois vidéos ne sont pas un
-  banc : la justesse sur un long métrage reste à mesurer. Le vrai remède — un détecteur ADAPTATIF
-  (une coupe est un pic par rapport à ses voisines) ou à modèle — passerait par la route
-  d'installation : ⏳ décision de Fabien.
+  banc : la justesse sur un long métrage reste à mesurer.
+- **⚠ Constat corrigé le soir même (prospection du détecteur, 2026-11-25) — deux choses dites
+  ci-dessus étaient fausses.** (1) Le « clip du banc des plaques » n'est pas un montage : toutes
+  ses images regardées (320, en planches), c'est une suite d'images échantillonnées où presque
+  CHAQUE image change de lieu. « 6 coupes sur 22 » y mesurait donc autre chose qu'une justesse (la
+  règle de ffmpeg — le minimum entre l'écart à l'image précédente et la variation de cet écart —
+  écarte par construction une suite où tout change). Le seuil de 6 tient quand même, sur un TÉMOIN
+  À VÉRITÉ CONNUE fabriqué pour l'occasion (30 extraits de 3 s de deux caméras embarquées, mis bout
+  à bout hors de `media/` : 29 coupes franches, une sur deux dans la même caméra — même capot,
+  autre lieu) : 28 sur 29 au seuil de 6, 26 au seuil de 10, aucune fausse. (2) Les fausses coupes
+  de la prise continue ne sont pas « des changements de lumière » : images regardées, ce sont des
+  SAUTS D'EXPOSITION de la caméra (un véhicule blanc entre, toute l'image s'assombrit en une
+  image). C'est un pic isolé, comme une coupe. (Les comptes de la prise continue, refaits image par
+  image et après fusion des coupes proches : 73 au seuil de 6, 15 au seuil de 10.)
+- **Ce que la prospection a mesuré** (lecture seule ; 33 coupes de vérité connue sur trois vidéos,
+  et la prise continue de 2 h 20, 100 588 images, où toute coupe est fausse) :
+
+  | règle | coupes retrouvées | fausses sur 2 h 20 | durée d'analyse des 2 h 20 |
+  |---|---|---|---|
+  | aujourd'hui : écart entre images, seuil 6 | 32 / 33 | 73 | 48 s |
+  | seuil 10 (défaut de ffmpeg) | 27 / 33 | 15 | 48 s |
+  | + « pic face à ses 3 voisines de chaque côté » (×2,5) | 32 / 33 | 63 | 48 s |
+  | écart diminué de l'écart des luminances moyennes, seuil 6 | 16 / 33 | 6 | 106 s |
+  | image ÉGALISÉE avant comparaison, seuil 5 | 32 / 33 | 13 | 135 s |
+  | CONTOURS comparés (les formes), seuil 2 (2 fausses aussi sur la vidéo de démonstration) | 30 / 33 | 4 | 217 s |
+  | deux temps : candidates au seuil 6, confirmées par l'image égalisée (≥ 4) | 32 / 33 | 15 | — |
+  | deux temps : candidates au seuil 6, confirmées par les contours (≥ 2) | 30 / 33 | 2 | — |
+
+  Lecture : un pic comparé à ses voisines (l'« adaptatif ») ne sert presque à rien ici, parce
+  qu'un saut d'exposition est lui aussi un pic isolé ; la luminance moyenne retranchée écarte les
+  sauts mais aussi les coupes entre une scène claire et une scène sombre ; ce qui sépare, c'est de
+  comparer les FORMES (contours) ou l'image rendue insensible à l'exposition (égalisée). Les deux
+  coupes que les contours perdent sont les deux fondus d'un pictogramme incrusté, qui ne sont pas
+  des changements de plan. Le coût n'est pas un obstacle : l'analyse simple va 175 fois plus vite
+  que la lecture, et la confirmation ne concerne que les candidates (114 images sur 100 588) — la
+  faire sur ces seules images, plutôt que par une passe entière (2,8 à 4,5 fois plus longue), est
+  ⏳ à construire et à chronométrer. Limites : un témoin fabriqué de deux caméras, des coupes
+  franches seulement, aucun fondu enchaîné ni film ; les durées ont été prises pendant qu'une autre
+  mesure occupait la machine. Aucun modèle n'a été essayé (TransNetV2 est le candidat connu, non
+  mesuré ici) : ⏳ décision de Fabien, la règle en deux temps d'abord.
 - **La même porte pour ce qui se segmente tout seul** (📜 Fabien, le même jour : *« segmenter
   automatiquement ce qu'il est possible de segmenter automatiquement, comme les parties d'un
   morceau (intro, couplet, refrain, bridge) »*) : un producteur de plus, inscrit par l'app dont
-  c'est le métier (le Composer), sans rien changer au commun. Différence : il demande un MODÈLE
-  appris (bornes plutôt fiables, étiquettes moins), donc la route d'installation des modèles et la
-  file de la carte graphique — ⏳ à prospecter.
+  c'est le métier (le Composer), sans rien changer au commun. **Prospecté le 2026-11-25 : le modèle
+  est déjà là.** SheetSage2 (au catalogue, appelé par le Composer et le Reader pour la partition)
+  rend à chaque extraction la STRUCTURE du morceau — `labs['structure']`, que
+  `sheetsage2_backend.extract_score` ne lit pas (il ne garde que la partition et `labs['beat']`).
+  Mesuré sur trois morceaux de 5 à 6 minutes (un enregistrement public, deux générés) : 10 à 12
+  parties nommées (intro, couplet, refrain, pont, interlude, outro),
+  34 à 37 s par morceau, 3,5 Go de carte graphique ; avec, dans la même passe, les temps, les
+  premiers temps, la tonalité et les accords. Non jugé à l'oreille, ni contre une vérité. Les
+  autres candidats, pour mémoire (lus sur leurs pages le même jour, rien d'installé) : SongFormer
+  (meilleur sur ses propres bancs, mais il dépend des poids de MuQ, sous licence non commerciale,
+  et son code ne vient pas de PyPI) ; All-In-One (licence MIT, mais sa notice installe `madmom`
+  depuis un dépôt git, ce que la route des librairies refuse). ⏳ Reste : garder ce que l'extraction calcule déjà (une piste « parties », une
+  piste « mesures ») au lieu de le jeter, et un producteur qui le demande pour un audio sans
+  partition.
 - ⏳ Restes : montrer la piste sur une card (quelle entrée de la card pose son axe : le lecteur des
   ports, `port_fields`, avec la coupe de ⑱) ; le Describer légende une image toutes les 10 s, il
   pourrait légender une image par plan ; l'analyse automatique à l'import (aujourd'hui à la
@@ -9403,6 +9451,58 @@ sous une card mère, l'ordre de la file faisant le montage (la loi d'agencement 
 place dérivée de l'ordre). Les deux ensemble donnent l'édition simple : la ligne de temps découpe,
 la file réordonne.
 
+**㉑ Ce qui se découpe déjà tout seul dans WAMA — cartographie du 2026-11-25 (⏳ rien de porté).**
+📜 Fabien : *« intégrer ça dans toute application qui traite des médias temporels […] pour le
+Translator, le découpage des phrases et des paragraphes […] cartographier tout ce qui existe
+actuellement pour envisager l'universalité et l'uniformité de tous ces mécanismes
+d'auto-segmentation »*, et : *« ce travail servirait à l'annotation automatisée des vidéos, à
+adjoindre aux évolutions de l'anonymizer et qui serviront le Detector »*. Relevé par une lecture
+déléguée du code des trois mondes (chaque ligne citée ; recontrôlés à la main : les pistes
+déclarées, le process optionnel, les tours de pyannote, le cache des temps, la chaîne d'un objet,
+les sections d'une partition, les instants du Describer, le déclenchement de l'onde — le reste est
+à relire avant de s'y appuyer) : une soixantaine de découpages automatiques, **sept pistes déclarées**
+(Transcriber : tours, phrases, mots ; cam_analyzer : fenêtres, conflits, situations ; Converter :
+plans). Le reste se range en quatre familles.
+
+| famille | ce qu'on y trouve (domicile) | ce qui manque pour l'uniformité |
+|---|---|---|
+| **A. calculé et GARDÉ, mais pas déclaré comme piste** | Describer : une légende par image (`Description.frame_captions`) ; Composer : mots chantés datés (`input_lyrics_timed`), mesures posées sur l'audio (ligne `% wama-sync` de la partition) ; cam_analyzer : passages par voie (`LaneEvent`), tables d'insertion et de dépassement ; Reader et documents : pages, lignes lues, paragraphes ; Writer : sections | une déclaration (`Track`), rien à recalculer |
+| **B. calculé puis JETÉ** | parties d'un morceau, temps, tonalité, accords (SheetSage2, ⑲) ; tours de parole bruts de pyannote (seul le locuteur de chaque phrase est gardé) ; présence d'un objet d'une image à l'autre dans l'Anonymizer (`detections.object_chain`, refait à chaque floutage) ; temps d'un audio (`audio_rhythm`, cache de 7 jours) ; sections d'une partition (`yue2_3b_backend.score_sections`) ; clignements du face_analyzer | le garder — une piste du FICHIER (`media_marks`) ou de la card |
+| **C. découpe TECHNIQUE, à ne pas montrer** | audio long coupé à une pause pour un moteur, texte coupé pour une voix ou une traduction, fenêtres de débruitage, fragments de la mémoire | une seule règle écrite une fois : « couper à une pause (ou à une fin de phrase) sous une longueur maximale » existe en trois écritures pour l'audio (`workers._split_audio_chunks`, `speech_activity.pause_windows`, `speech_to_text_base.segments_from_words`) et en sept pour le texte (`tts_text.pause_segments`, `speech_render.split_text_into_chunks`, `translator._chunk`, `memory.index.split_text`, `document_text.read_segments`, `document_sections.split_sections`, `describer.text_backend`) |
+| **D. le monde Data a déjà la boîte complète** | `wama_data/core/segmentation.py` : autour d'un événement, par condition, par état, par paires, avec hystérésis, marges, durée minimale — chaque fonction au catalogue avec ses réglages déclarés | c'est le modèle à suivre : une fonction déclarée, des réglages déclarés, des noms communs |
+
+Ce que la lecture montre encore : **huit conventions de bornes** (`start`/`end`,
+`start_time`/`end_time`, `t_enter`/`t_exit`, `t_start`/`t_end`, `t0_s`/`t1_s`, un rang d'image, une
+plage de caractères, des paires de synchronisation) — la déclaration d'une piste sait déjà les
+ramener aux noms communs ; **cinq moments de calcul** (dans la tâche de la card, à l'ouverture
+d'une page, à la demande de l'assistant, dans la requête, dans le navigateur) ; des réglages
+presque toujours écrits en constantes, sauf au monde Data. Un défaut vu au passage, ⏳ à corriger :
+le Describer date ses légendes `i × 10` secondes même quand il a étiré l'intervalle au-delà de
+10 s (`describer/backends/video_backend.py:47-48` contre `:243` et `:295`) — sur une vidéo de plus
+de 3 minutes, ses instants sont faux.
+
+**Proposé, ⏳ décision de Fabien — une seule forme pour tout ce qui découpe :**
+- **L'analyse appartient au FICHIER, pas à la card** (⑲) : faite une fois, hors du travail de la
+  card, donc sans allonger aucun traitement. Une règle sur le processeur (les plans : moins d'une
+  seconde par minute de vidéo) peut tourner dès l'arrivée du fichier, par défaut, désactivable ; un
+  producteur à modèle (les parties d'un morceau : 35 s et la carte graphique) seulement à la
+  demande, ou quand une card en a besoin.
+- **L'EMPLOI de la piste est un process de la card**, par le mécanisme existant (`ProcessSpec`,
+  `toggle` : un process optionnel qu'une case active, son défaut étant celui du champ) : « par
+  plans » pour le Describer (une légende par plan au lieu d'une toutes les 10 s), pour l'Anonymizer
+  (un objet suivi ne traverse pas une coupe), pour l'Imager ; le process déclare la piste qu'il lui
+  faut, et le squelette l'attend comme il attend un modèle absent.
+- **Rapide / qualité, comme partout** (Auto, curseur, manuel) : rapide = la règle, sur le
+  processeur ; qualité = un modèle SPÉCIALISÉ quand il existe (structure musicale, locuteurs, et un
+  détecteur de plans appris si la règle ne suffit pas). Un modèle de vision généraliste n'est pas
+  l'outil des BORNES (lent, imprécis dans le temps) ; il est celui des ÉTIQUETTES — nommer et
+  décrire chaque segment une fois trouvé, ce qui est le métier du Describer, et le découpage d'un
+  texte par le sens pour le Translator et le Writer.
+- **L'annotation automatique d'une vidéo** (le Detector, `ROADMAP §17bis`) est alors la somme de
+  pistes du même fichier : plans, présence de chaque objet (famille B), situations, légendes.
+- **Ordre proposé** : déclarer la famille A ; garder la famille B ; la règle en deux temps des
+  plans (⑲) ; une brique pour la famille C ; puis les emplois « par plans ».
+
 **L'ordre, revu à la demande de Fabien — le fonctionnel d'abord.** Les questions restées ouvertes
 après 10.7.13 étaient des questions de MODÈLE (ce qu'est une ligne, dérivée ou niveau en dessous,
 qui porte la coupe) : elles se règlent par la construction et ses tests, pas par des images. Les
@@ -9415,7 +9515,7 @@ dessinées sur des marques réelles que le fonctionnel saura alors rendre.
 | ①ter ✅ (2026-11-25) | la PISTE DÉRIVÉE : une source + une liste de gestes, rejouée par le lecteur commun ; la « ligne effective ». Livré (`common/catalog/marks.py`) : un geste est une DONNÉE (`gesture`, `was` — les bornes de sa cible au moment du geste, l'« avant » de la trace —, `mark` — le rang où elle était —, ce que le geste demande, et qui / quand) ; il désigne sa cible par sa PLACE, pas par un rang ni des bornes exactes — la règle que WAMA applique déjà aux corrections humaines de détections (`utils/detections.apply_corrections` : « vivre à part pour survivre à une détection relancée »), au même seuil de recouvrement (`CORRECTION_MIN_IOU`, mesure `utils/intervals.overlap_ratio`) : un geste survit donc à une piste remesurée ; `read_derived` / `apply_edits` rejouent la liste sans toucher à la source et rendent un COMPTE RENDU par geste qui ne s'est pas fait tel quel — SAUTÉ (sa marque n'est plus là, la piste ne le déclare pas), jamais fait à côté, ou fait sur une marque dont les bornes ont bougé (`was`, `now` : à montrer pour qu'on le revoie) ; `extend_edits` est la porte d'entrée d'un geste dans une liste (refusé s'il ne peut pas se faire) ; défaire = retirer de la liste ; une marque dérivée dit d'où elle vient (`source_ranks`, les rangs des marques de la source — pas `source`, que le monde Data emploie déjà sur un segment pour son origine d'avant une marge, `segmentation.margins`), les gestes qui l'ont changée (`touched`), si elle est masquée ; une marque ajoutée a pour origine le nom de son geste (`add`), comme une production du Segmenter celui de son mode ; `effective_line` rend ce qui reste après les masques, chaque segment à sa place ; `violations(…, edits=)` contrôle la contrainte sur la dérivée. Avec : aucun attribut ne se lit sous un nom que le lecteur écrit (`RESERVED`, contrôlé à la déclaration ; une colonne `masked` ou `parent` d'un fichier de données se lit `masked_`, `parent_`) ; un événement ne déclare ni scinder, ni fusionner, ni retailler ; « dérivée » réservé à source + gestes, les tours de parole sont une piste CALCULÉE (registre : `rows = computed`). ⏳ restes : OÙ se range la liste (la table des entrées pour une coupe ; le `.wdat` de travail d'une card du monde Data) ; les pistes FILLES d'une piste dérivée gardent les rangs de la source (`source_ranks` permet de les suivre, rien ne le fait encore) ; aucune interface | ①bis |
 | ①quater ✅ (2026-11-25) | la lecture d'une piste bornée à une plage (la PLAGE ACTIVE côté serveur, ⑧) ; l'outil de l'assistant qui rend les marques d'une card. Livré (`common/catalog/marks.py`) : `read_span` pose la plage par ses bornes ou par UNE marque (piste et rang — le segment cliqué) et rend, pour chaque piste de la card, les marques qui y sont ou la traversent (`bounded` : leur RANG dans la piste entière, la marque TELLE QUELLE, et `inside` — elle y tient, ou elle déborde l'une de ses bornes) ; c'est une sélection, rien n'est rogné ni calculé (calculer sur la plage reste le geste explicite de ⑨, au Segmenter). BORNES : une marque qui ne fait que toucher la plage n'y est pas — la convention de la contenance (`_holder`) et de la partition, celle de la plage native visée en base (`numrange`, `&&`) ; `overlapping` du Segmenter, lui, compte les bornes (preuve croisée : `wama_data/core/tests_segmentation`) ; en deçà de la tolérance deux bornes sont la même ; un segment ouvert court toujours ; une plage réduite à un instant (celle d'un événement) rend ce qui le contient. PARENTÉ avant le temps : posée par une marque, la plage rend dans les pistes qui DESCENDENT de la sienne les marques dont elle est la parente ou l'aïeule, et sa marque parente à chaque étage au-dessus — décidé sur mesure (462 transcriptions réelles, 158 183 phrases : par le temps seul, 5 % des phrases ne retrouvaient pas exactement leurs mots — 10 098 mots sans durée posés sur la borne de fin de leur phrase, 7 007 rendus à la phrase voisine ; par la parenté, sur un échantillon de 6 800 phrases de ces transcriptions et 56 fenêtres de 5 sessions du cam_analyzer, chaque plage rend exactement ses marques filles, et dit débordantes celles qui sortent de ses bornes — 78 conflits, 2 mots). Une piste lue dérivée (`edits`) se borne telle qu'on la montre. `outline` rend l'INDEX des pistes d'une card (10.7.11 : ce que chacune dit d'elle-même — `describe`, que lit aussi le registre `tracks` —, le nombre de ses marques, leur étendue ; une fin ouverte reste inconnue). Les pistes d'un fichier de données se bornent par le même lecteur (`wama_data/tests_frames`). OUTIL : `get_item_marks` (`tool_api`, lecture, garde d'ownership des lectures d'un élément — `_foreign_item`, écrite une fois pour `get_item_detail`, `get_item_result` et lui) : sans piste, l'index des pistes (et, avec une plage, le nombre de marques de chacune dans la plage) ; avec une piste, ses marques, entières ou bornées par `start`/`end` ou par une marque d'une autre piste, par pages (100 au plus : mesuré, 200 phrases dépassaient le budget d'un résultat d'outil). Il ne nomme aucune app : le modèle d'un élément est celui du journal (les trois mondes), les pistes celles que l'app déclare. ⏳ restes : sous une piste DÉRIVÉE la parenté n'est pas suivie (ses rangs sont ceux de la source — le reste de ①ter) ; une card du monde Data n'a pas encore de modèle, ses pistes ne se lisent que du fichier ; les cards DÉRIVÉES dont le pointage recouvre la plage (⑧) attendent le lien de composition (T7) ; aucune interface | ①bis |
 | ②fonc | la COUPE portée par une entrée, sa matérialisation commune avant traitement, l'export du Converter (⑱) | ①ter ✅ ; la table des entrées (décidée le 2026-11-25, à construire par la session « valeur d'un port ») |
-| ③fonc ✅ (2026-11-25) | le producteur automatique de plans (⑲). Livré : les pistes automatiques d'un média au commun (`common/utils/media_marks.py` : producteurs inscrits par leur app, piste rangée une fois par fichier par le cycle des pics fins — `derived_json` —, lue par le lecteur commun), le producteur `converter.shots` (ffmpeg), l'outil `get_file_marks`. ⏳ restes : la piste montrée sur une card (avec ②fonc), la justesse sur un film monté, les parties d'un morceau (un producteur à modèle) | ①bis |
+| ③fonc ✅ (2026-11-25) | le producteur automatique de plans (⑲). Livré : les pistes automatiques d'un média au commun (`common/utils/media_marks.py` : producteurs inscrits par leur app, piste rangée une fois par fichier par le cycle des pics fins — `derived_json` —, lue par le lecteur commun), le producteur `converter.shots` (ffmpeg), l'outil `get_file_marks`. ⏳ restes : la piste montrée sur une card (avec ②fonc), la justesse sur un film monté, la confirmation des candidates par les formes (mesurée, ⑲), les parties d'un morceau (le modèle est déjà au catalogue et sa structure jetée, ⑲), la cartographie de ce qui se découpe déjà (㉑) | ①bis |
 | ④fonc | le résumé d'un lot sur ses cards filtrées, les facettes déclarées (T3, T4) | — |
 | ⑤fonc | les préalables du monde Data (T5 : participant, assemblage d'un lot) | décisions du monde Data |
 | puis | les maquettes ; la zone temporelle ; la barre de lot ; le Data Analyzer ; la page d'édition commune ; le film | le fonctionnel ci-dessus |
