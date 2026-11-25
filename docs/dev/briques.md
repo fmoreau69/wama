@@ -1914,13 +1914,18 @@ Chaque étape d'outil porte son verdict (`ok`) et sa durée (`seconds`), écrits
 
 ### Le champ qui garde la valeur d'un port
 
-Où se range la valeur d'un port d'entrée sur un élément : `register_port_fields` au `ready()` de l'app, rejoué dans celui des jumelles par `apps_gen` (les seuls écarts hérités, liste qui ne doit que baisser), sinon le champ HOMONYME du port (les apps nées d'un manifeste), sinon aucun. `port_value` : un champ partagé par deux ports (l'avatar, photo OU objet 3D) rend le fichier au port que sa nature désigne (`input_match.work_token_for`). Un consommateur ne nomme plus de colonne. Un port SANS colonne garde ses fichiers dans la table commune des entrées (`ElementInput`, 2026-11-25 : un rang par fichier, `store_port_inputs` / `port_files`), libérés au retrait, recopiés à la duplication, suivis au transfert
+Où se range la valeur d'un port d'entrée sur un élément : `register_port_fields` au `ready()` de l'app, rejoué dans celui des jumelles par `apps_gen` (les seuls écarts hérités, liste qui ne doit que baisser), sinon le champ HOMONYME du port (les apps nées d'un manifeste), sinon aucun. `port_value` : un champ partagé par deux ports (l'avatar, photo OU objet 3D) rend le fichier au port que sa nature désigne (`input_match.work_token_for`). Un consommateur ne nomme plus de colonne. Un port SANS colonne garde ses fichiers dans la table commune des entrées (`ElementInput`, 2026-11-25 : un rang par fichier, `store_port_inputs` / `port_files`), libérés au retrait, recopiés à la duplication, suivis au transfert ; une app y DÉCLARE ses ports (`table=`) et lit en repli l'ancienne colonne d'un port qui l'a quittée (`legacy=`, vidée à l'écriture) ; `store_by_nature` range une entrée que plusieurs ports se disputent sur celui de sa nature (l'avatar : photo OU objet 3D), les autres vidés. `element_value` : un NOM de déclaration (spec du volet, aperçu, réglages surveillés) désigne un champ OU un port
 
 - **Domicile** : `wama/common/utils/port_fields.py` · **doc** : [docs/construction/ui/INPUT_MODEL_MATCHING.md](../construction/ui/INPUT_MODEL_MATCHING.md)
 - **Module** : OÙ SE RANGE LA VALEUR D'UN PORT — le lecteur commun des entrées d'un élément (2026-11-24).
-- **API publique** (11) :
-  - `register_port_fields(model, mapping: dict) -> None` — Déclare, pour le modèle d'élément `model` (classe, instance ou `'app.Modèle'`), le champ des
+- **API publique** (17) :
+  - `register_port_fields(model, mapping: dict, *, table=(), legacy: dict=None) -> None` — Déclare, pour le modèle d'élément `model` (classe, instance ou `'app.Modèle'`), le champ des
+  - `table_ports(model) -> tuple` — Les ports que le modèle déclare vivre dans la table commune des entrées (`table` / `legacy`).
+  - `registered_table() -> dict` — Les ports déclarés « dans la table », par étiquette de modèle (`_TABLE`).
   - `registered() -> dict` — Toutes les déclarations, par étiquette de modèle — ce que lisent l'extracteur et la garde.
+  - `registered_legacy() -> dict` — Les anciennes colonnes des ports passés dans la table, par étiquette de modèle (`_LEGACY`).
+  - `legacy_field(model, port: str) -> str` — L'ancienne colonne de `port` si elle existe encore sur le modèle, sinon ''.
+  - `element_value(element, name: str)` — La valeur que désigne `name` sur un élément : son ATTRIBUT (champ, propriété) — ou, quand
   - `port_field_map(model) -> dict` — `{port: champ}` que le modèle d'élément déclare (`register_port_fields`), ou {}.
   - `port_field(model, port: str) -> str` — Le champ du modèle d'élément `model` (classe ou instance) qui porte la valeur de `port` —
   - `ports_sharing(model, field: str) -> list` — Les ports que le modèle range dans le MÊME champ `field` (déclarés), dans l'ordre déclaré.
@@ -1928,6 +1933,7 @@ Où se range la valeur d'un port d'entrée sur un élément : `register_port_fie
   - `input_rows(element, port=None) -> list` — Les lignes de la table commune des entrées de cette card (d'un port, ou de tous), par port
   - `port_files(element, port: str) -> list` — Les fichiers de `port` sur `element` : celui de sa colonne quand il en a une (0 ou 1 fichier,
   - `store_port_inputs(element, port: str, received) -> int` — Range sur `element` (déjà créé) ce qu'il a REÇU sur `port` — des `ReceivedInput`
+  - `store_by_nature(element, ports, received) -> str` — UNE entrée que plusieurs ports se disputent (l'avatar : photo OU objet 3D) : `received`
   - `release_inputs(element, port=None) -> int` — La card part (ou un port est remplacé) : ses lignes de la table s'oublient, et chacun de
   - `copy_inputs(source, target, *, own_files: bool=False) -> int` — La copie d'une card (`duplicate_instance`) porte les mêmes entrées : chaque ligne recopiée sur
 
