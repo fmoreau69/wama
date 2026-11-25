@@ -68,7 +68,7 @@ from __future__ import annotations
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from wama.common.catalog.data_types import CANONICAL_FIELDS, DataType, TypedFrame
-from wama.common.catalog.marks import DERIVED, Track, read_tracks
+from wama.common.catalog.marks import DERIVED, RESERVED, Track, read_tracks
 
 from .core.naming import TIME_AXES
 from .core.temporal import NEAREST, PREVIOUS, Signal, SignalMeta, TemporalReferential
@@ -335,7 +335,10 @@ def referential_tracks(ref: TemporalReferential) -> Tuple[Track, ...]:
         tracks.append(Track(
             key=name, label=name, kind=kind,
             source=_stream_rows(name, kind == DataType.SEGMENTS),
-            attributes=tuple(c for c in columns if c != ORIGIN_COLUMN),
+            # Une colonne qui porte un nom que le lecteur écrit (`source`, `parent`…) se lit sous
+            # ce nom suivi d'un souligné : aucune colonne du fichier n'est écrasée ni perdue.
+            attributes=tuple((f'{c}_', c) if c in RESERVED else c
+                             for c in columns if c != ORIGIN_COLUMN),
             origin_field=ORIGIN_COLUMN if ORIGIN_COLUMN in columns else '',
             gestures=MEASURED_GESTURES[kind], edits=DERIVED))
     return tuple(tracks)

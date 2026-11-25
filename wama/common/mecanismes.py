@@ -3399,7 +3399,7 @@ MECHANISMS = (
               "les rend (`read_tracks`) — `start`, `end` (absent = segment ouvert) ou `time`, "
               "`origin`, et `parent`, le rang de la marque parente : l'imbrication des marques, "
               "sans borne d'étages, écrite en document (`within`), par référence (`parent_ref`) ou "
-              "retrouvée par contenance ; une piste peut être DÉRIVÉE (`runs_of` : les tours de "
+              "retrouvée par contenance ; une piste peut être CALCULÉE (`runs_of` : les tours de "
               "parole, suites de phrases d'un locuteur). Aucun stockage ne change : le Transcriber "
               "garde `start_time`, le cam_analyzer `t_enter`. Ce qu'il rend a la forme que lisent "
               "les opérations du Segmenter (`within`, `overlapping`). Contraintes déclarées "
@@ -3415,7 +3415,19 @@ MECHANISMS = (
               "l'attribut qui colore ses marques et l'échelle (`color_by`, `scale`, `steps` : "
               "catégorie, sévérité, intensité), les gestes qu'elle permet (`gestures`) et où ils "
               "vont (`edits` : une piste dérivée, ou elle-même) — une marque mesurée d'un fichier "
-              "ne se déplace ni ne se supprime, ses gestes vont dans une piste dérivée",
+              "ne se déplace ni ne se supprime, ses gestes vont dans une piste dérivée. La PISTE "
+              "DÉRIVÉE (marche 1ter) : une piste source + la liste ordonnée des gestes faits dessus "
+              "(scinder, fusionner, masquer, étiqueter, ajouter ; retailler, déplacer, réordonner, "
+              "supprimer là où la piste le permet), REJOUÉE par le lecteur (`read_derived`, "
+              "`apply_edits`) — la source n'est jamais modifiée. Un geste désigne sa cible par sa "
+              "PLACE (`was`, ses bornes au moment du geste), au seuil de recouvrement des "
+              "corrections humaines de détections (`utils/detections.CORRECTION_MIN_IOU`, mesure "
+              "`utils/intervals.overlap_ratio`) : il survit à une piste remesurée ; le rejeu rend "
+              "un compte rendu des gestes SAUTÉS (cible disparue, geste non déclaré) et de ceux "
+              "faits sur une marque qui a bougé. Un geste entre dans la liste par `extend_edits`, "
+              "qui le refuse s'il ne peut pas se faire ; `effective_line` rend ce qui reste après "
+              "les masques, chaque segment à sa place. Aucun attribut ne se lit sous un nom que "
+              "le lecteur écrit (`RESERVED`)",
               'wama/common/catalog/marks.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.7',
               symbol='register_tracks'),
@@ -4077,7 +4089,7 @@ ASSUMED_LOCAL = {
     'wama/model_manager/services/format_converter.py': "conversion de formats de poids — plomberie chaîne modèles (avec format_policy)",
     # Triage du 2026-08-13 (les 3 dernières entrées du backlog) — aucun n'était mort, mes
     # « 0 apps » ne comptaient pas wama_lab :
-    'wama/common/utils/intervals.py': "algèbre d'intervalles — cam_analyzer (coverage) seul consommateur",
+    'wama/common/utils/intervals.py': "algèbre d'intervalles — cam_analyzer (couverture d'analyse) ; depuis le 2026-11-25 aussi le recouvrement de deux intervalles (`overlap_ratio`), par lequel une correction humaine désigne sa cible : passage de texte (`utils/detections`), segment d'une piste (`catalog/marks`)",
     'wama/common/utils/whisper_utils.py': "transcription d'un fichier pour les apps hors transcriber (describer, avatarizer) par le gestionnaire du transcriber — Whisper large-v3 sans clé, toute clé de catalogue de transcription sinon, découpage compris (13/10) ; plus de double chemin de chargement (13/08)",
     # 2026-08-27 : la page du registre `skills`. Le service ne porte AUCUN mécanisme propre — il
     # dérive `prompt_skills/*.md` × PROMPT_TARGETS × DOMAINES pour un seul gabarit. Les mécanismes

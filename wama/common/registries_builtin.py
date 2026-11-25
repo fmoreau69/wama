@@ -825,7 +825,7 @@ def _entries_tracks() -> dict:
     """Les pistes déclarées, par `app.modèle.piste` : ce que dit la déclaration (axe, famille,
     piste parente, contrainte, piste principale, couleur, gestes) et la façon dont ses lignes se
     trouvent (`rows` : `stored`, rangées par l'app ; `nested`, écrites dans la marque parente ;
-    `derived`, déduites d'une autre piste)."""
+    `computed`, calculées d'une autre piste — « dérivée » se dit d'une piste et de ses gestes)."""
     from .catalog.marks import registered
     out = {}
     for label, tracks in sorted(registered().items()):
@@ -834,7 +834,7 @@ def _entries_tracks() -> dict:
                 'app': label.partition('.')[0], 'model': label, 'label': track.label,
                 'kind': track.kind, 'axis': track.axis, 'parent': track.parent,
                 'constraint': track.constraint,
-                'rows': 'derived' if track.runs_of else 'nested' if track.within else 'stored',
+                'rows': 'computed' if track.runs_of else 'nested' if track.within else 'stored',
                 # Ce que l'écran et les gestes ont à savoir (`ROUTE §10.7.14`) : la piste de la
                 # ligne segmentée, sa couleur, ce qu'on peut y faire et où vont les gestes.
                 'main': track.main, 'color_by': track.color_by, 'scale': track.scale,

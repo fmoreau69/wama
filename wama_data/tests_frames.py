@@ -403,6 +403,60 @@ class TracksOfAReferentialTest(unittest.TestCase):
                                  {'split', 'merge'} & set(track.gestures),
                                  'an instant has nothing to split nor to merge')
 
+    def test_what_is_done_to_a_measured_track_is_replayed_aside_and_the_file_keeps_its_marks(self):
+        """The DERIVED track of a stream (`ROUTE §10.7.14 ⑰`) : the list of gestures is replayed by
+        the common reader over the marks the file states ; the stream itself is never written."""
+        from wama.common.catalog.marks import InvalidEdit, effective_line, extend_edits, read_derived
+        from .frames import read_referential_tracks, referential_tracks
+        ref = self._referential()
+        tracks = referential_tracks(ref)
+        phases = next(t for t in tracks if t.key == 'phases')
+        before = read_referential_tracks(ref)
+        edits = extend_edits(phases, before['phases'], [], 'mask', 0, by='coder')
+        edits = extend_edits(phases, before['phases'], edits, 'split', 1, at=20.0)
+        edits = extend_edits(phases, before['phases'], edits, 'label', 2, set={'name': 'late'})
+        derived, problems = read_derived(ref, 'phases', edits, tracks)
+        self.assertEqual([], problems)
+        self.assertEqual([(10.0, 13.0, 'a', True, 'coding'), (15.0, 20.0, 'b', None, 'around'),
+                          (20.0, None, 'late', None, 'around')],
+                         [(m['start'], m['end'], m['name'], m.get('masked'), m['origin'])
+                          for m in derived], 'session time, the origin each row traces, kept')
+        self.assertEqual([1, 2], [kept['rank'] for kept in effective_line(derived)])
+        self.assertEqual(before, read_referential_tracks(ref), 'the stream is as it was measured')
+        # Measured time is a fact : no list of gestures displaces, resizes or drops a mark.
+        for gesture, details in (('move', {'to': 0.0}), ('retime', {'end': 12.0}), ('delete', {}),
+                                 ('reorder', {'to': 1}), ('add', {'start': 1.0, 'end': 2.0})):
+            with self.subTest(gesture=gesture):
+                with self.assertRaises(InvalidEdit):
+                    extend_edits(phases, before['phases'], [], gesture,
+                                 None if gesture == 'add' else 0, **details)
+        beeps = next(t for t in tracks if t.key == 'beeps')
+        with self.assertRaises(InvalidEdit):
+            extend_edits(beeps, before['beeps'], [], 'split', 0, at=11.0)
+        self.assertEqual(1, len(extend_edits(beeps, before['beeps'], [], 'label', 0,
+                                             set={'label': 'start'})))
+
+    def test_a_column_named_like_what_the_reader_writes_is_kept_under_another_name(self):
+        """A file may name a column `source` or `masked` : the reader writes those names in a
+        mark, so the column is read as `source_` — never overwritten, in the track or its derived."""
+        from wama.common.catalog.marks import extend_edits, read_derived, validate
+        from .frames import read_referential_tracks, referential_tracks
+        ref = TemporalReferential('trial')
+        ref.add(_signal('shots', (0.0, 5.0), ends=[5.0, 9.0], data_type=DataType.SEGMENTS,
+                        rows=[{'source': 'front', 'masked': 'no', 'name': 'a'},
+                              {'source': 'rear', 'masked': 'no', 'name': 'b'}]))
+        tracks = referential_tracks(ref)
+        self.assertEqual([], validate(tracks))
+        read = read_referential_tracks(ref)['shots']
+        self.assertEqual([('front', 'no', 'a'), ('rear', 'no', 'b')],
+                         [(m['source_'], m['masked_'], m['name']) for m in read])
+        self.assertFalse({'source', 'masked'} & set(read[0]))
+        derived, problems = read_derived(ref, 'shots', extend_edits(tracks[0], read, [], 'mask', 1),
+                                         tracks)
+        self.assertEqual([], problems)
+        self.assertEqual([('front', [0], None), ('rear', [1], True)],
+                         [(m['source_'], m['source'], m.get('masked')) for m in derived])
+
     def test_the_marks_come_under_the_common_names_in_session_time(self):
         from .frames import read_referential_tracks
         read = read_referential_tracks(self._referential())

@@ -45,6 +45,16 @@ def subtract_intervals(base, holes, min_len=0.0):
     return [[a, b] for a, b in out if (b - a) >= min_len]
 
 
+def overlap_ratio(a, b) -> float:
+    """Le RECOUVREMENT de deux intervalles `[début, fin]` : intersection / union (0 = disjoints,
+    1 = les mêmes) — l'IoU d'une boîte, sur une dimension. C'est la mesure par laquelle une
+    correction humaine désigne ce qu'elle vise par sa PLACE : un passage de texte
+    (`utils/detections`), un segment sur un axe (`catalog/marks`)."""
+    inter = max(0, min(a[1], b[1]) - max(a[0], b[0]))
+    union = (a[1] - a[0]) + (b[1] - b[0]) - inter
+    return inter / union if union > 0 else 0.0
+
+
 def total_length(intervals):
     """Longueur cumulée d'une liste d'intervalles (après fusion)."""
     return sum(b - a for a, b in merge_intervals(intervals))

@@ -9299,7 +9299,8 @@ commune ; ⑥ le lien de composition en base, les pointages, les emplois, le fil
 | E2 | un ZOOM sur la zone temporelle de la card, pour plonger dans la ligne de temps et atteindre un segment trop petit — la ligne complète sert alors de repère de la fenêtre zoomée | ✅ Fabien (remplace « pas de zoom dans la file ») |
 | E3 | hors page d'édition : regarder, se placer, déclencher, masquer | ✅ Fabien |
 | E4 | monde Data : un geste produit une piste DÉRIVÉE, la piste mesurée intacte, chaque geste tracé | ✅ Fabien — précisé en ⑰ |
-| E5 | un plan employé deux fois avec des traitements différents | ⏳ explicité à Fabien, à trancher |
+| E5 | un plan employé deux fois avec des traitements différents : l'emploi ne porte que la COUPE ; un traitement différent (noir et blanc, ralenti) est une AUTRE card, dérivée — deux rendus, deux cards | ✅ Fabien, 2026-11-25 (« Ok pour E5 ») |
+| la coupe et la table des entrées | l'emploi d'un fichier par une card s'écrit dans la table commune des ENTRÉES (`INPUT_MODEL_MATCHING §6.13`) : c'est là que se range la coupe d'un fichier par une card | ✅ Fabien, 2026-11-25 (« Ok pour […] la table des entrées ») — la table elle-même est le chantier de la session « valeur d'un port » |
 
 **⑯ Ce qu'est une ligne de la zone temporelle.** Soit une PISTE de marques (les tours de parole,
 les séquences), soit les PLACEMENTS des cards filles sur l'axe de leur mère (les plans d'un film).
@@ -9333,9 +9334,10 @@ permet) sur l'axe de la source — ② (« une source, des pointages ») et ⑤ 
   traitement (une fois, au commun, jamais par app) ; le Converter, dont c'est le métier, exporte
   le média réagencé. Dans le monde Data c'est déjà la règle (« calculer sur la restriction »).
 - Le fichier source n'est jamais modifié ; retirer la coupe rend le média entier.
-⚠ Dépend d'une décision ouverte : où s'écrit l'emploi d'un fichier par une card — la table commune
-des ENTRÉES proposée en `INPUT_MODEL_MATCHING §6.13` en est le lieu naturel (une entrée = un
-fichier + sa coupe), même convention d'adresse que le lien de composition (10.7.11).
+✅ Décidé le 2026-11-25 : l'emploi d'un fichier par une card s'écrit dans la table commune des
+ENTRÉES (`INPUT_MODEL_MATCHING §6.13` : une entrée = un fichier + sa coupe), même convention
+d'adresse que le lien de composition (10.7.11). La coupe y est la LISTE DES GESTES d'une piste
+dérivée (⑰, marche ①ter) dont la source est la ligne complète du fichier — jamais des valeurs.
 
 **⑲ Les plans détectés automatiquement (⏳).** Un PRODUCTEUR de segments du monde Médias : l'analyse
 des changements de plan d'une vidéo remplit une piste « plans », sur laquelle on masque, on garde,
@@ -9362,9 +9364,9 @@ dessinées sur des marques réelles que le fonctionnel saura alors rendre.
 | marche | contenu | dépend de |
 |---|---|---|
 | ①bis ✅ (2026-11-24) | la DÉCLARATION d'une piste dit tout ce que l'écran et les gestes auront à savoir : piste principale (E1), échelle de couleur et attribut coloré (T8), gestes permis, édition dérivée ou en place (E3, E4) — Transcriber, cam_analyzer, pistes d'un `.wdat` ; registre et facette du manifeste. Livré : `Track.main`, `color_by` + `scale` + `steps` (catégorie, sévérité, intensité), `gestures`, `edits` (`common/catalog/marks.py`), contrôlés à l'enregistrement. ⏳ restes : la sévérité d'une phrase du Transcriber se calcule encore dans le script (`wama-segments.js:67-73`) ; la piste principale d'un `.wdat` n'est pas dite ; la jumelle du Transcriber à régénérer | rien — tout est décidé |
-| ①ter | la PISTE DÉRIVÉE : une source + une liste de gestes (scinder, fusionner, masquer, étiqueter, ajouter ; déplacer et réordonner là où c'est permis), rejouée par le lecteur commun ; la « ligne effective » (ce qui reste après les masques) | ①bis |
+| ①ter ✅ (2026-11-25) | la PISTE DÉRIVÉE : une source + une liste de gestes, rejouée par le lecteur commun ; la « ligne effective ». Livré (`common/catalog/marks.py`) : un geste est une DONNÉE (`gesture`, `was` — les bornes de sa cible au moment du geste, l'« avant » de la trace —, `mark` — le rang où elle était —, ce que le geste demande, et qui / quand) ; il désigne sa cible par sa PLACE, pas par un rang ni des bornes exactes — la règle que WAMA applique déjà aux corrections humaines de détections (`utils/detections.apply_corrections` : « vivre à part pour survivre à une détection relancée »), au même seuil de recouvrement (`CORRECTION_MIN_IOU`, mesure `utils/intervals.overlap_ratio`) : un geste survit donc à une piste remesurée ; `read_derived` / `apply_edits` rejouent la liste sans toucher à la source et rendent un COMPTE RENDU par geste qui ne s'est pas fait tel quel — SAUTÉ (sa marque n'est plus là, la piste ne le déclare pas), jamais fait à côté, ou fait sur une marque dont les bornes ont bougé (`was`, `now` : à montrer pour qu'on le revoie) ; `extend_edits` est la porte d'entrée d'un geste dans une liste (refusé s'il ne peut pas se faire) ; défaire = retirer de la liste ; une marque dérivée dit d'où elle vient (`source`), les gestes qui l'ont changée (`touched`), si elle est masquée ; `effective_line` rend ce qui reste après les masques, chaque segment à sa place ; `violations(…, edits=)` contrôle la contrainte sur la dérivée. Avec : aucun attribut ne se lit sous un nom que le lecteur écrit (`RESERVED`, contrôlé à la déclaration ; une colonne `source` d'un fichier de données se lit `source_`) ; un événement ne déclare ni scinder, ni fusionner, ni retailler ; « dérivée » réservé à source + gestes, les tours de parole sont une piste CALCULÉE (registre : `rows = computed`). ⏳ restes : OÙ se range la liste (la table des entrées pour une coupe ; le `.wdat` de travail d'une card du monde Data) ; les pistes FILLES d'une piste dérivée gardent les rangs de la source (`source` permet de les suivre, rien ne le fait encore) ; aucune interface | ①bis |
 | ①quater | la lecture d'une piste bornée à une plage (la plage active côté serveur) ; l'outil de l'assistant qui rend les marques d'une card | ①bis |
-| ②fonc | la COUPE portée par une entrée, sa matérialisation commune avant traitement, l'export du Converter (⑱) | la décision sur la table des entrées |
+| ②fonc | la COUPE portée par une entrée, sa matérialisation commune avant traitement, l'export du Converter (⑱) | ①ter ✅ ; la table des entrées (décidée le 2026-11-25, à construire par la session « valeur d'un port ») |
 | ③fonc | le producteur automatique de plans (⑲) | ①bis |
 | ④fonc | le résumé d'un lot sur ses cards filtrées, les facettes déclarées (T3, T4) | — |
 | ⑤fonc | les préalables du monde Data (T5 : participant, assemblage d'un lot) | décisions du monde Data |

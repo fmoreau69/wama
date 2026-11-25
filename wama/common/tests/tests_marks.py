@@ -99,7 +99,7 @@ class OneReaderTest(SimpleTestCase):
             self.assertEqual(read['words'], marks.read_track(card, 'words'))
         self.assertEqual([{'start': 0.0, 'end': 4.0, 'origin': 'runs', 'speaker': 'S1'},
                           {'start': 4.0, 'end': 6.0, 'origin': 'runs', 'speaker': 'S2'}],
-                         read['turns'], 'DERIVED : the runs of lines of one speaker')
+                         read['turns'], 'COMPUTED : the runs of lines of one speaker')
         self.assertEqual([0, 0, 1], [m['parent'] for m in read['lines']],
                          'by CONTAINMENT : the turn whose bounds hold its start')
         self.assertEqual([('a', 0, 'engine'), ('b', 0, 'estimated'), ('x', None, 'engine'),
@@ -248,6 +248,11 @@ class IncoherentStatementsTest(SimpleTestCase):
                                                              edits=marks.IN_PLACE),),
             'an unknown place to go': (Track('a', 'A', source='a', gestures=('mask',),
                                              edits='elsewhere'),),
+            'an attribute under a name the reader writes': (Track('a', 'A', source='a',
+                                                                  attributes=('source',)),),
+            'an instant that would be split': (Track('a', 'A', source='a', kind=DataType.EVENTS,
+                                                     gestures=('mask', 'split'),
+                                                     edits=marks.DERIVED),),
         }
         for case, tracks in bad.items():
             with self.subTest(case=case):
@@ -255,12 +260,15 @@ class IncoherentStatementsTest(SimpleTestCase):
                 with self.assertRaises(marks.InvalidTracks):
                     marks.register_tracks('t.bad', tracks)
         self.assertNotIn('t.bad', marks.registered(), 'nothing of it is kept')
-        # A derived track may stand ABOVE the track it groups : turns over the lines they are
+        # A computed track may stand ABOVE the track it groups : turns over the lines they are
         # the runs of — two chains, no loop.
         self.assertEqual([], marks.validate((
             Track('turns', 'T', runs_of='lines', by='speaker'),
             Track('lines', 'L', source='rows', parent='turns', constraint=INCLUSION))))
-        # A track that is only looked at, one that only gives cards, a derived one coloured by
+        # Read under another common name, a stored `source` is an attribute like any other.
+        self.assertEqual([], marks.validate((Track('a', 'A', source='a',
+                                                   attributes=(('camera', 'source'),)),)))
+        # A track that is only looked at, one that only gives cards, a computed one coloured by
         # the value it groups : all coherent.
         self.assertEqual([], marks.validate((
             Track('turns', 'T', runs_of='lines', by='speaker', color_by='speaker',
@@ -329,7 +337,7 @@ class EveryStatedTrackTest(SimpleTestCase):
                                   entry['constraint'], entry['label']))
                 self.assertEqual(key, f"{entry['model']}.{track.key}")
                 self.assertEqual(entry['app'], django_apps.get_model(entry['model'])._meta.app_label)
-                self.assertEqual('derived' if track.runs_of else 'nested' if track.within
+                self.assertEqual('computed' if track.runs_of else 'nested' if track.within
                                  else 'stored', entry['rows'])
                 self.assertEqual(
                     (track.main, track.color_by, track.scale, list(track.steps),
@@ -371,6 +379,264 @@ class EveryStatedTrackTest(SimpleTestCase):
                         self.assertIn('origin', mark)
                         if track.parent_ref:
                             self.assertEqual(0, mark['parent'], 'the rank its row names')
+
+
+class DerivedTrackTest(SimpleTestCase):
+    """A DERIVED track (`ROUTE §10.7.14 ⑰`, step 1ter) : a source track and the ordered list of
+    the gestures made on it. The list is what is kept ; the reader replays it, the source is
+    never changed, and a gesture that no longer finds its mark is skipped and SAID."""
+
+    CHANGING = tuple(sorted(marks.EDIT_DETAILS))
+
+    @staticmethod
+    def _track(gestures, kind=DataType.SEGMENTS, **more):
+        return Track('parts', 'Parts', source=lambda holder: holder['parts'], kind=kind,
+                     attributes=('name',), gestures=gestures, edits=marks.DERIVED, **more)
+
+    PARTS = [{'start': 0, 'end': 10, 'name': 'a'}, {'start': 10, 'end': 20, 'name': 'b'},
+             {'start': 20, 'end': 30, 'name': 'c'}]
+
+    def _made(self, track, rows, *gestures):
+        """The list of gestures, each one made on the track as it stands after the others."""
+        source = marks.read_track({'parts': rows}, 'parts', (track,))
+        edits = []
+        for gesture, mark, details in gestures:
+            edits = marks.extend_edits(track, source, edits, gesture, mark, **details)
+        return edits
+
+    def test_the_gestures_are_replayed_and_the_source_is_left_as_it_was(self):
+        track = self._track(('split', 'merge', 'mask', 'label'))
+        holder = {'parts': copy.deepcopy(self.PARTS)}
+        source = marks.read_track(holder, 'parts', (track,))
+        untouched = copy.deepcopy(source)
+        edits = self._made(track, self.PARTS,
+                           ('split', 0, {'at': 4, 'by': 'ada', 'on': '2026-11-25'}),
+                           ('merge', 1, {}),
+                           ('mask', 1, {}),
+                           ('label', 2, {'set': {'name': 'end', 'label': 'kept'}}))
+        self.assertEqual({'gesture': 'split', 'mark': 0, 'at': 4, 'by': 'ada', 'on': '2026-11-25',
+                          'was': {'start': 0.0, 'end': 10.0}}, edits[0],
+                         'a gesture is DATA : what it does, to which mark, what that mark was')
+        self.assertEqual({'start': 4.0, 'end': 10.0}, edits[1]['was'],
+                         'a merge names its first segment ; the next ones follow it')
+        derived, problems = marks.read_derived(holder, 'parts', edits, (track,))
+        self.assertEqual([], problems)
+        self.assertEqual([
+            {'start': 0.0, 'end': 4.0, 'name': 'a', 'origin': 'parts', 'source': [0], 'touched': [0]},
+            {'start': 4.0, 'end': 20.0, 'name': 'a', 'origin': 'parts', 'source': [0, 1],
+             'touched': [0, 1, 2], 'masked': True},
+            {'start': 20.0, 'end': 30.0, 'name': 'end', 'label': 'kept', 'origin': 'parts',
+             'source': [2], 'touched': [3]}], derived)
+        self.assertEqual(untouched, source, 'the marks given are not changed')
+        self.assertEqual(untouched, marks.read_track(holder, 'parts', (track,)),
+                         'the source track still reads as before')
+        self.assertEqual(self.PARTS, holder['parts'])
+        self.assertEqual((derived, []), marks.apply_edits(track, source, json.loads(json.dumps(edits))),
+                         'the list goes to JSON and back, and replays the same')
+        self.assertEqual(([dict(m, source=[i]) for i, m in enumerate(source)], []),
+                         marks.read_derived(holder, 'parts', [], (track,)),
+                         'no gesture : the marks of the source, each one saying where it comes from')
+
+    def test_a_gesture_finds_its_mark_by_its_place_and_says_when_it_moved_or_is_gone(self):
+        """The rule of the human corrections of WAMA (`utils/detections.apply_corrections`) on an
+        axis : a gesture names its mark by its PLACE, to outlive a track that is measured again."""
+        from wama.common.utils import detections
+        track = self._track(('split', 'merge', 'mask', 'label'))
+        edits = self._made(track, self.PARTS, ('split', 0, {'at': 4}), ('merge', 1, {}),
+                           ('mask', 1, {}), ('label', 2, {'set': {'name': 'end'}}))
+
+        def replayed(rows, kept=edits):
+            derived, reports = marks.read_derived({'parts': rows}, 'parts', kept, (track,))
+            return ([(m['start'], m['end'], m['name'], bool(m.get('masked'))) for m in derived],
+                    [(r['edit'], r['gesture'], r['applied']) for r in reports])
+
+        done = [(0.0, 4.0, 'a', False), (4.0, 20.0, 'a', True), (20.0, 30.0, 'end', False)]
+        self.assertEqual((done, []), replayed(self.PARTS))
+        # Measured again, the first boundary went from 10 to 9 : every gesture still finds its
+        # mark, and the two whose mark moved say so.
+        again = [dict(self.PARTS[0], end=9), dict(self.PARTS[1], start=9), self.PARTS[2]]
+        self.assertEqual((done, [(0, 'split', True), (1, 'merge', True)]), replayed(again))
+        report = marks.read_derived({'parts': again}, 'parts', edits, (track,))[1][0]
+        self.assertEqual(({'start': 0.0, 'end': 10.0}, {'start': 0.0, 'end': 9.0}),
+                         (report['was'], report['now']), 'what the mark was, what it is')
+        # Within the tolerance two bounds are the same : nothing to say.
+        close = [dict(self.PARTS[0], end=10.03), dict(self.PARTS[1], start=10.03), self.PARTS[2]]
+        self.assertEqual((done, []), replayed(close))
+        # Its mark is GONE (the first segment now ends at 3) : the gesture is skipped and said,
+        # never made on the neighbour ; the ones that still find their place are made.
+        gone = [dict(self.PARTS[0], end=3), dict(self.PARTS[1], start=3), self.PARTS[2]]
+        self.assertEqual(([(0.0, 3.0, 'a', False), (3.0, 20.0, 'b', True), (20.0, 30.0, 'end', False)],
+                          [(0, 'split', False), (1, 'merge', False), (2, 'mask', True)]),
+                         replayed(gone))
+        # The threshold is the one of the corrections of detections, read there.
+        self.assertIs(detections.CORRECTION_MIN_IOU, marks.CORRECTION_MIN_IOU)
+        mask = [marks.new_edit('mask', [{'start': 0.0, 'end': 10.0}], 0)]
+        for end, applied in ((5.2, [True]), (4.8, [False])):
+            reports = marks.apply_edits(track, [{'start': 0.0, 'end': end}], mask)[1]
+            self.assertEqual(applied, [r['applied'] for r in reports], end)
+        # A gesture taken out of the middle of the list : those after it are made where their
+        # marks now are, and say that these are not what they were.
+        self.assertEqual(([(0.0, 20.0, 'a', True), (20.0, 30.0, 'end', False)],
+                          [(0, 'merge', True), (1, 'mask', True)]), replayed(self.PARTS, edits[1:]))
+        # Lifting a mask is taking it out : nothing else moves, nothing to say.
+        self.assertEqual(([(0.0, 4.0, 'a', False), (4.0, 20.0, 'a', False), (20.0, 30.0, 'end', False)],
+                          []), replayed(self.PARTS, edits[:2] + edits[3:]))
+        # Two marks at the same place : the rank the gesture kept tells them apart.
+        twins = [{'start': 0, 'end': 5, 'name': 'x'}, {'start': 0, 'end': 5, 'name': 'y'}]
+        second = self._made(track, twins, ('mask', 1, {}))
+        self.assertEqual([('x', False), ('y', True)],
+                         [(name, masked) for _s, _e, name, masked in replayed(twins, second)[0]])
+        # A gesture that names no place names no mark.
+        self.assertEqual([(0, 'mask', False)],
+                         replayed(self.PARTS, [{'gesture': 'mask', 'mark': 0}])[1])
+
+    def test_only_what_the_track_states_is_done_and_a_gesture_that_cannot_be_never_enters(self):
+        rows = [self.PARTS[0], self.PARTS[1], {'start': 20, 'end': None, 'name': 'c'}]
+        every = self._track(self.CHANGING)
+        source = marks.read_track({'parts': rows}, 'parts', (every,))
+        cannot = [
+            ('split', 0, {'at': 10}), ('split', 0, {'at': 0.01}), ('split', 0, {}),
+            ('split', 7, {'at': 1}), ('split', True, {'at': 5}),
+            ('merge', 0, {'count': 1}), ('merge', 2, {}), ('merge', 0, {'count': True}),
+            ('label', 0, {'set': {'colour': 'red'}}), ('label', 0, {'set': {'start': 3}}),
+            ('label', 0, {}), ('retime', 0, {'start': 5, 'end': 4}), ('retime', 0, {}),
+            ('move', 0, {'to': 'x'}), ('reorder', 0, {'to': 0}), ('reorder', 0, {'to': 3}),
+            ('add', None, {'end': 4}), ('add', None, {'start': 1, 'end': 2, 'time': 1}),
+            ('add', 9, {'start': 1, 'end': 2}), ('add', None, {'start': 1, 'set': {'masked': 1}}),
+            ('mask', 0, {'at': 3}), ('extract', 0, {}), ('paint', 0, {}),
+        ]
+        for gesture, mark, details in cannot:
+            with self.subTest(gesture=gesture, mark=mark, details=details):
+                with self.assertRaises(marks.InvalidEdit):
+                    marks.extend_edits(every, source, [], gesture, mark, **details)
+                # Written by hand into a list, it is skipped, said, and changes nothing.
+                edit = marks.new_edit(gesture, source, mark, **details)
+                derived, reports = marks.apply_edits(every, source, [edit])
+                self.assertEqual([(0, gesture, False)],
+                                 [(r['edit'], r['gesture'], r['applied']) for r in reports])
+                self.assertEqual([dict(m, source=[i]) for i, m in enumerate(source)], derived)
+        # A merge takes segments that follow one another and are all kept, or all masked.
+        for first, wrong in ((('mask', 0, {}), 'masqué'), (('reorder', 2, {'to': 0}), 'suivent')):
+            with self.subTest(merge_after=first[0]):
+                edits = marks.extend_edits(every, source, [], first[0], first[1], **first[2])
+                with self.assertRaisesRegex(marks.InvalidEdit, wrong):
+                    marks.extend_edits(every, source, edits, 'merge', 0)
+        # A track states what may be done to it : nothing else is, whoever wrote the list.
+        looked_at = self._track(('mask',))
+        for gesture, details in (('split', {'at': 5}), ('delete', {}), ('move', {'to': 3})):
+            with self.subTest(not_stated=gesture):
+                with self.assertRaises(marks.InvalidEdit):
+                    marks.extend_edits(looked_at, source, [], gesture, 0, **details)
+                derived, problems = marks.apply_edits(
+                    looked_at, source, [marks.new_edit(gesture, source, 0, **details)])
+                self.assertIn('ne le permet pas', problems[0]['reason'])
+                self.assertEqual([m['start'] for m in source], [m['start'] for m in derived])
+        self.assertEqual(set(marks.GESTURES) - {marks.EXTRACT}, set(marks.EDIT_DETAILS),
+                         'every gesture that changes a track can be replayed, and only those')
+        # An instant has no length (a statement saying otherwise is turned down when registered).
+        beeps = Track('parts', 'Parts', source='x', kind=DataType.EVENTS,
+                      gestures=marks.SEGMENT_GESTURES, edits=marks.DERIVED)
+        self.assertTrue(marks.validate((beeps,)))
+        for gesture, details in (('split', {'at': 1}), ('merge', {}), ('retime', {'start': 0})):
+            with self.subTest(instant=gesture):
+                self.assertIn(gesture, marks.SEGMENT_GESTURES)
+                with self.assertRaisesRegex(marks.InvalidEdit, 'segment'):
+                    marks.extend_edits(beeps, [{'time': 1.0, 'origin': 'x'}], [], gesture, 0,
+                                       **details)
+
+    def test_every_gesture_does_what_it_says(self):
+        rows = [self.PARTS[0], self.PARTS[1], {'start': 20, 'end': None, 'name': 'c'}]
+        track = self._track(self.CHANGING)
+
+        def after(*gestures):
+            derived, problems = marks.read_derived({'parts': rows}, 'parts',
+                                                   self._made(track, rows, *gestures), (track,))
+            self.assertEqual([], problems)
+            return [(m['start'], m['end'], m.get('name'), m['source']) for m in derived]
+
+        a, b, c = (0.0, 10.0, 'a', [0]), (10.0, 20.0, 'b', [1]), (20.0, None, 'c', [2])
+        self.assertEqual([(0.0, 8.0, 'a', [0]), b, (22.0, None, 'c', [2])],
+                         after(('retime', 0, {'end': 8}), ('retime', 2, {'start': 22})))
+        self.assertEqual([(0.0, None, 'a', [0]), b, c], after(('retime', 0, {'end': None})),
+                         'an end that is given as absent opens the segment')
+        self.assertEqual([a, (12.0, 22.0, 'b', [1]), (25.0, None, 'c', [2])],
+                         after(('move', 1, {'to': 12}), ('move', 2, {'to': 25})),
+                         'a move keeps the length ; an open segment stays open')
+        self.assertEqual([c, a, b], after(('reorder', 2, {'to': 0})), 'the rank is a datum')
+        self.assertEqual([a, c], after(('delete', 1, {})))
+        self.assertEqual([a, (3.0, 5.0, 'new', []), b, c],
+                         after(('add', None, {'start': 3, 'end': 5, 'set': {'name': 'new'}})),
+                         'added at its place on the axis')
+        self.assertEqual([(40.0, None, None, []), a, b, c], after(('add', 0, {'start': 40})),
+                         'or at the rank that is asked')
+        self.assertEqual([(0.0, 10.0, None, [0]), b, c], after(('label', 0, {'set': {'name': ''}})),
+                         'an empty value takes the attribute away')
+        self.assertEqual([(0.0, 5.0, 'a', [0]), (5.0, 20.0, 'a', [0, 1]), c],
+                         after(('split', 0, {'at': 5}), ('merge', 1, {})))
+        self.assertEqual([(0.0, None, 'a', [0, 1, 2])], after(('merge', 0, {'count': 3})),
+                         'merged with an open segment, the result is open')
+        added = marks.read_derived({'parts': rows}, 'parts', self._made(
+            track, rows, ('add', None, {'start': 3, 'end': 5})), (track,))[0][1]
+        self.assertEqual((marks.ADDED, [0]), (added['origin'], added['touched']))
+        # Instants : moved, added, masked, labelled — the same list, the same reader.
+        beeps = self._track(('move', 'add', 'mask', 'label', 'delete', 'reorder'),
+                            kind=DataType.EVENTS)
+        ticks = [{'time': 1, 'name': 'go'}, {'time': 5, 'name': 'stop'}]
+        derived, problems = marks.read_derived({'parts': ticks}, 'parts', self._made(
+            beeps, ticks, ('move', 1, {'to': 6}), ('add', None, {'time': 3}), ('mask', 0, {})),
+            (beeps,))
+        self.assertEqual([], problems)
+        self.assertEqual([(1.0, True), (3.0, None), (6.0, None)],
+                         [(m['time'], m.get('masked')) for m in derived])
+
+    def test_the_effective_line_is_what_the_masks_leave_each_segment_at_its_place(self):
+        rows = [{'start': 0, 'end': 4}, {'start': 4, 'end': 20}, {'start': 20, 'end': 30},
+                {'start': 30, 'end': None}, {'start': 50, 'end': 60}]
+        track = self._track(('mask', 'reorder'))
+        edits = self._made(track, rows, ('mask', 1, {}))
+        derived = marks.read_derived({'parts': rows}, 'parts', edits, (track,))[0]
+        before = copy.deepcopy(derived)
+        line = marks.effective_line(derived)
+        self.assertEqual([(0, 0.0, 0.0), (2, 20.0, 4.0), (3, 30.0, 14.0), (4, 50.0, None)],
+                         [(kept['rank'], kept['mark']['start'], kept['at']) for kept in line],
+                         'the masked segment is jumped over ; after an open segment whose end '
+                         'nobody gave, nothing has a place')
+        self.assertEqual([0.0, 4.0, 14.0, 24.0],
+                         [kept['at'] for kept in marks.effective_line(derived, end=40)],
+                         'closed at the end of its holder, the open segment counts for its length')
+        self.assertEqual(5, len(derived), 'a masked mark stays in the track')
+        self.assertEqual(before, derived, 'the line is a reading, the marks are not changed')
+        self.assertIs(derived[2], line[1]['mark'], 'each kept mark as it is, nothing written in it')
+        # The order of the track is the order of the line : a reordered cut is a new sequence.
+        moved = marks.read_derived({'parts': rows[:3]}, 'parts', self._made(
+            track, rows[:3], ('reorder', 2, {'to': 0})), (track,))[0]
+        self.assertEqual([(20.0, 0.0), (0.0, 10.0), (4.0, 14.0)],
+                         [(kept['mark']['start'], kept['at']) for kept in marks.effective_line(moved)])
+        # Instants : the ones that are kept, with their rank and no place to compute.
+        self.assertEqual([{'rank': 1, 'mark': {'time': 2.0}}],
+                         marks.effective_line([{'time': 1.0, 'masked': True}, {'time': 2.0}]))
+
+    def test_a_mark_added_finds_its_parent_and_the_constraint_is_checked_on_the_derived_track(self):
+        tracks = (Track('up', 'Up', source=lambda holder: holder['up']),
+                  Track('down', 'Down', source=lambda holder: holder['down'], parent='up',
+                        constraint=INCLUSION, gestures=('add', 'retime', 'split', 'merge'),
+                        edits=marks.DERIVED))
+        holder = {'up': [{'start': 0, 'end': 10}, {'start': 10, 'end': 20}],
+                  'down': [{'start': 1, 'end': 3}, {'start': 12, 'end': 15}]}
+        source = marks.read_track(holder, 'down', tracks)
+        edits = marks.extend_edits(tracks[1], source, [], 'add', start=16, end=18)
+        edits = marks.extend_edits(tracks[1], source, edits, 'split', 0, at=2)
+        derived, problems = marks.read_derived(holder, 'down', edits, tracks)
+        self.assertEqual(([], [0, 0, 1, 1]), (problems, [m['parent'] for m in derived]),
+                         'the two halves keep their parent ; the added one is found by containment')
+        self.assertEqual([], marks.violations(holder, 'down', tracks=tracks, edits=edits))
+        out = marks.extend_edits(tracks[1], source, edits, 'retime', 1, end=11)
+        self.assertEqual(1, len(marks.violations(holder, 'down', tracks=tracks, edits=out)),
+                         'a segment resized out of its parent is seen on the derived track')
+        self.assertEqual([], marks.violations(holder, 'down', tracks=tracks),
+                         'the source track still holds its constraint')
+        with self.assertRaisesRegex(marks.InvalidEdit, 'parente'):
+            marks.extend_edits(tracks[1], source, [], 'merge', 0)
 
 
 DRAFT = Path(settings.BASE_DIR) / 'manifests' / 'app_drafts' / 'writer.json'

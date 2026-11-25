@@ -29,6 +29,8 @@ from __future__ import annotations
 import json
 import os
 
+from .intervals import overlap_ratio
+
 KIND = 'detections'
 VERSION = 1
 
@@ -127,10 +129,9 @@ def _iou(a, b) -> float:
 
 
 def _span_iou(a, b) -> float:
-    """Le recouvrement de deux passages `[start, end]` — l'IoU d'une boîte, sur une dimension."""
-    inter = max(0, min(a[1], b[1]) - max(a[0], b[0]))
-    union = (a[1] - a[0]) + (b[1] - b[0]) - inter
-    return inter / union if union > 0 else 0.0
+    """Le recouvrement de deux passages `[start, end]` — l'IoU d'une boîte, sur une dimension
+    (la brique des intervalles, que les marques d'un axe emploient aussi)."""
+    return overlap_ratio(a, b)
 
 
 def _same_place(entry: dict, removal: dict) -> bool:
