@@ -67,8 +67,19 @@ def caption_frames(input_path: str, options: dict = None, progress_callback=None
 
         if chosen and chosen != BLIP:
             return describe_frames_with(chosen, frames, progress, console,
-                                        sampling=sampling_of(options, 'vision_'))
-        return describe_frames(frames, progress, console)
+                                        sampling=sampling_of(options, 'vision_'),
+                                        interval=frame_interval)
+        return describe_frames(frames, progress, console, interval=frame_interval)
+
+
+def instant_of(rank: int, interval: float):
+    """L'INSTANT (secondes) de l'image de rang `rank` (depuis 0) tirée par `fps=1/interval` : le
+    MILIEU de son intervalle. Mesuré le 2026-11-25 sur une vidéo dont la luminance dit le temps —
+    pour 1 image toutes les 2 s puis toutes les 5 s, ffmpeg rend l'image de (rang + ½) × intervalle,
+    à une image près. Les légendes annonçaient `rang × 10` : 5 s trop tôt dans le cas courant, et
+    sans rapport avec la vidéo dès que l'intervalle s'allonge (au-delà de 3 min)."""
+    value = (rank + 0.5) * interval
+    return int(value) if value == int(value) else round(value, 1)
 
 
 def describe_video(input_path: str, options: dict = None,
@@ -215,8 +226,9 @@ def extract_frames(file_path: str, interval: int, max_frames: int, dest_dir: str
     return frames
 
 
-def describe_frames(frames: list, progress=None, console=None) -> list:
-    """Describe each frame using BLIP."""
+def describe_frames(frames: list, progress=None, console=None, interval: float = 10) -> list:
+    """Describe each frame using BLIP. `interval` : les secondes entre deux images tirées, pour
+    dater chaque légende (`instant_of`)."""
     if not frames:
         return []
     progress = progress or _noop
@@ -240,7 +252,7 @@ def describe_frames(frames: list, progress=None, console=None) -> list:
                 caption = blip.process(image=image, max_new_tokens=50, num_beams=3)
                 descriptions.append({
                     'frame': i + 1,
-                    'time': i * 10,  # Approximate time in seconds
+                    'time': instant_of(i, interval),
                     'description': caption.strip()
                 })
 
@@ -271,7 +283,7 @@ def has_audio(file_path: str) -> bool:
 
 
 def describe_frames_with(model: str, frames: list, progress=None, console=None,
-                         sampling=None) -> list:
+                         sampling=None, interval: float = 10) -> list:
     """Légende chaque image-clé avec le modèle de vision Ollama DÉSIGNÉ — même forme que
     `describe_frames` (BLIP). Une image sans réponse est sautée, comme BLIP ; aucune réponse du
     tout est une erreur dite (un modèle désigné n'est jamais remplacé en silence). `sampling` :
@@ -292,7 +304,8 @@ def describe_frames_with(model: str, frames: list, progress=None, console=None,
         if not caption:
             logger.warning(f"{model} : aucune légende pour l'image {i}")
             continue
-        descriptions.append({'frame': i + 1, 'time': i * 10, 'description': caption.strip()})
+        descriptions.append({'frame': i + 1, 'time': instant_of(i, interval),
+                             'description': caption.strip()})
     if not descriptions:
         raise RuntimeError(f"Le modèle de vision désigné « {model} » n'a décrit aucune image "
                            "(Ollama joignable ? modèle installé ?).")

@@ -32932,3 +32932,44 @@ la session de la table des entrées l'ayant rendu (elle n'a rien en cours dans `
   crée pas — ses domaines se désignent par le mode, pas par un fichier ; les gestes nocturnes de l'assistant
   sur un serveur relancé (le code tourne dans les tests, pas encore dans le service en marche). Copie de test de
   `enhancer_01` (`tests_panel_memory`, non versionnée) alignée sur sa source.
+
+---
+
+## §PALIER — 2026-11-25 (nuit), AUTO-SEGMENTATION : la forme commune DÉCIDÉE, première marche — deux pistes déjà gardées, déclarées (Describer, cam_analyzer)
+
+> Décisions de Fabien du soir, consignées en `ROUTE §10.7.14 ㉑` : l'analyse appartient au FICHIER,
+> c'est son EMPLOI par une card qui est optionnel, activé par défaut ; curseur rapide (règle) /
+> qualité (modèle spécialisé) ; ordre validé (déclarer ce qui est gardé, garder ce qui est jeté —
+> la structure musicale d'abord —, la confirmation des plans, une brique pour la découpe
+> technique, puis les emplois « par plans ») ; SongFormer écarté tant qu'on peut faire sans (la
+> question des licences non commerciales est portée par une autre session).
+
+**Livré (aucun stockage changé) :**
+- **Describer, piste `captions` « Images décrites »** — les légendes des images d'une vidéo, en
+  événements datés (`describer/apps.py`). ⚠ **Un défaut corrigé dans le même geste** : l'instant
+  d'une légende était `rang × 10` s. Mesuré sur une vidéo dont la luminance dit le temps : ffmpeg
+  (`fps=1/intervalle`) rend l'image du MILIEU de chaque intervalle, donc (rang + ½) × intervalle.
+  L'ancien instant était 5 s trop tôt dans le cas courant, et sans rapport avec la vidéo au-delà
+  de 3 minutes, où l'intervalle s'allonge (`video_backend.instant_of`, intervalle passé aux deux
+  lecteurs d'images). Mesuré en base : aucune légende n'y est rangée aujourd'hui, rien à reprendre.
+  Manifeste réexporté (facette `tracks`), jumelle `describer_01` régénérée (hors dépôt).
+- **cam_analyzer, piste `lane_passes` « Passages par voie »** — rangés par caméra (`LaneEvent`),
+  lus pour la session entière dans l'ordre du temps (`AnalysisSession.lane_events`, une propriété,
+  aucune migration), chacun nommant sa fenêtre par son rang.
+
+**Mesuré sur les cinq sessions réelles (lecture seule)** : 28 148 passages, jusqu'à 11 532 par
+session, tous dans l'ordre du temps, 0 dont le milieu sort de la fenêtre nommée ; l'index des
+pistes d'une session passe d'environ 0,1 s à 0,2 s.
+
+**Pas déclarés, avec leur raison** (`ROUTE ㉑`) : mots chantés et mesures du Composer (deux audios
+sur une même card : il faut d'abord dire quelle entrée pose l'axe) ; tables d'insertion et de
+dépassement (trois instants par ligne) ; pages, paragraphes, sections (non rangés en lignes).
+
+**Vérifié** : voir le message du commit (tests du périmètre, contre-épreuves).
+**Non vérifié** : la suite large ; HEAD dans un worktree ; `get_item_marks` sur ces deux pistes
+dans une conversation réelle (servies après relance de gunicorn, des workers, de la passerelle et
+du serveur MCP) ; une vraie description de vidéo de plus de 3 minutes rejouée de bout en bout.
+
+**🔚 Suite, dans l'ordre validé** : garder ce que SheetSage2 calcule déjà (parties, mesures,
+tonalité) — demande de dire quelle entrée pose l'axe d'une card à plusieurs audios, ou de le
+ranger au FICHIER (`media_marks`) ; puis la confirmation des plans par les formes.

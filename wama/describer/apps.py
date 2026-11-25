@@ -58,3 +58,16 @@ class DescriberConfig(AppConfig):
             # rendait n'est plus ouverte par rien. Description, Résumé et Cohérence sont les
             # FACES de la visionneuse commune, une par process (`function_specs.PIPELINE`).
         })
+
+        # Les MARQUES d'une description dans le vocabulaire temporel commun (`ROUTE §10.7.14 ㉑`,
+        # 2026-11-25 : déclarer ce qui est déjà gardé — aucun stockage ne change). Les images
+        # décrites d'une vidéo sont des ÉVÉNEMENTS : une légende à l'instant de son image
+        # (`video_backend.instant_of`). C'est la seule ligne de marques de la card. ⏳ Quand le
+        # process `frames` saura décrire une image PAR PLAN (l'emploi « par plans » de ㉑), ces
+        # marques deviendront des segments aux bornes du plan.
+        from wama.common.catalog.data_types import DataType
+        from wama.common.catalog.marks import Track, register_tracks
+        register_tracks(Description, (
+            Track('captions', 'Images décrites', source='frame_captions', kind=DataType.EVENTS,
+                  attributes=('description', 'frame'), origin='frames', main=True),
+        ))

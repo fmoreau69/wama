@@ -327,6 +327,12 @@ class AnalysisSession(models.Model):
     def __str__(self):
         return f"{self.name or 'Session'} ({self.id})"
 
+    @property
+    def lane_events(self):
+        """Les passages par voie de TOUTES les caméras de la session, dans l'ordre du temps — la
+        source de la piste `lane_passes` (`apps.py`). Ils sont rangés par caméra (`LaneEvent`)."""
+        return LaneEvent.objects.filter(camera__session=self).order_by('t_enter', 'camera_id', 'id')
+
 
 class CameraView(models.Model):
     """A camera assigned to a position within a session."""

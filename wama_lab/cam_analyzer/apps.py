@@ -49,6 +49,17 @@ class CamAnalyzerConfig(AppConfig):
                   attributes=(('type', 'conflict_type'), 'severity', 'track_id'),
                   parent='windows', parent_ref='intersection_window_idx', origin='conflicts',
                   color_by='severity', scale=SEVERITY, steps=('info', 'warn', 'critical')),
+            # Les PASSAGES PAR VOIE (`LaneEvent`, `ROUTE §10.7.14 ㉑`, 2026-11-25 : déjà gardés,
+            # déclarés) : le temps qu'un objet suivi reste dans une voie, sur une caméra — ce
+            # dont les conflits sont tirés. Rangés par caméra, lus pour la session entière dans
+            # l'ordre du temps (`AnalysisSession.lane_events`) ; chacun nomme sa fenêtre par son
+            # rang, comme un conflit. Mesuré sur les sessions réelles : 28 148 passages, jusqu'à
+            # 11 532 par session, aucun rang hors des fenêtres de sa session.
+            Track('lane_passes', 'Passages par voie', source='lane_events',
+                  fields=(('start', 't_enter'), ('end', 't_exit')),
+                  attributes=('track_id', ('lane', 'lane_id'), 'in_shuttle_lane',
+                              ('object', 'class_name'), ('camera', 'camera_id')),
+                  parent='windows', parent_ref='intersection_window_idx', origin='lane_events'),
             Track('situations', 'Situations', source='segments',
                   fields=(('start', 'start_time'), ('end', 'end_time')),
                   attributes=(('type', 'segment_type'),), origin='temporal_segments',

@@ -301,6 +301,44 @@ class ModelChoiceTest(SimpleTestCase):
                 self.assertEqual(expected, image_backend.vision_candidates(options))
 
 
+class CaptionInstantsTest(SimpleTestCase):
+    """A caption is dated at the instant of ITS frame : ffmpeg (`fps=1/interval`) gives the frame
+    of the middle of each interval (measured 2026-11-25). They used to say `rank × 10`."""
+
+    def test_the_frame_of_a_rank_is_the_middle_of_its_interval(self):
+        from wama.describer.backends.video_backend import instant_of
+        self.assertEqual([5, 15, 25], [instant_of(rank, 10) for rank in range(3)])
+        self.assertEqual([16.5, 49.5], [instant_of(rank, 33) for rank in range(2)])
+
+    def test_a_long_video_dates_its_captions_on_the_interval_it_was_sampled_at(self):
+        """Beyond 3 minutes the interval stretches (18 frames at most) : six minutes are sampled
+        every 20 s, and the captions say 10 s, 30 s — not 0 s, 10 s."""
+        from wama.describer.backends import image_backend, video_backend
+        sampled = []
+
+        def frames(path, interval, max_frames, dest_dir=None):
+            sampled.append(interval)
+            return ['f1.jpg', 'f2.jpg']
+
+        with mock.patch.object(video_backend, 'extract_frames', frames), \
+                mock.patch.object(image_backend, '_describe_with_ollama_vision', return_value='a road'):
+            captions = video_backend.caption_frames(
+                '/nowhere/long.mp4', {'vision_model': 'ollama:gemma4:e4b'}, duration=360)
+        self.assertEqual([20], sampled)
+        self.assertEqual([(1, 10), (2, 30)], [(c['frame'], c['time']) for c in captions])
+
+    def test_the_captions_of_a_card_are_its_marks_under_the_common_names(self):
+        from wama.common.catalog import marks
+        card = SimpleNamespace(_meta=Description._meta, frame_captions=[
+            {'frame': 1, 'time': 5, 'description': 'a road'},
+            {'frame': 2, 'time': 15, 'description': 'a roundabout'},
+            {'frame': 3, 'description': 'undated : not a mark'}])
+        self.assertEqual(
+            [{'time': 5.0, 'description': 'a road', 'frame': 1, 'origin': 'frames'},
+             {'time': 15.0, 'description': 'a roundabout', 'frame': 2, 'origin': 'frames'}],
+            marks.read_track(card, 'captions'))
+
+
 class DesignatedVisionModelTest(TestCase):
 
     def setUp(self):

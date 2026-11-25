@@ -949,7 +949,23 @@
         "file_field": "input_file",
         "user_field": "user"
       },
-      "preview_registered": true
+      "preview_registered": true,
+      "tracks": {
+        "Description": [
+          {
+            "attributes": {
+              "description": "description",
+              "frame": "frame"
+            },
+            "key": "captions",
+            "kind": "events",
+            "label": "Images décrites",
+            "main": true,
+            "origin": "frames",
+            "source": "frame_captions"
+          }
+        ]
+      }
     },
     "models": {
       "catalog_keys": [

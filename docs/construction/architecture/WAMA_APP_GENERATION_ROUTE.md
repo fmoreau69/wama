@@ -9451,7 +9451,7 @@ sous une card mère, l'ordre de la file faisant le montage (la loi d'agencement 
 place dérivée de l'ordre). Les deux ensemble donnent l'édition simple : la ligne de temps découpe,
 la file réordonne.
 
-**㉑ Ce qui se découpe déjà tout seul dans WAMA — cartographie du 2026-11-25 (⏳ rien de porté).**
+**㉑ Ce qui se découpe déjà tout seul dans WAMA — cartographie du 2026-11-25 (🔄 forme décidée, première marche commencée).**
 📜 Fabien : *« intégrer ça dans toute application qui traite des médias temporels […] pour le
 Translator, le découpage des phrases et des paragraphes […] cartographier tout ce qui existe
 actuellement pour envisager l'universalité et l'uniformité de tous ces mécanismes
@@ -9476,12 +9476,15 @@ Ce que la lecture montre encore : **huit conventions de bornes** (`start`/`end`,
 plage de caractères, des paires de synchronisation) — la déclaration d'une piste sait déjà les
 ramener aux noms communs ; **cinq moments de calcul** (dans la tâche de la card, à l'ouverture
 d'une page, à la demande de l'assistant, dans la requête, dans le navigateur) ; des réglages
-presque toujours écrits en constantes, sauf au monde Data. Un défaut vu au passage, ⏳ à corriger :
-le Describer date ses légendes `i × 10` secondes même quand il a étiré l'intervalle au-delà de
-10 s (`describer/backends/video_backend.py:47-48` contre `:243` et `:295`) — sur une vidéo de plus
-de 3 minutes, ses instants sont faux.
+presque toujours écrits en constantes, sauf au monde Data. Un défaut vu au passage, ✅ corrigé le
+soir même avec la déclaration de la piste (plus bas) : le Describer datait ses légendes
+`rang × 10` secondes, même quand il avait étiré l'intervalle au-delà de 10 s.
 
-**Proposé, ⏳ décision de Fabien — une seule forme pour tout ce qui découpe :**
+**✅ Décidé par Fabien le 2026-11-25 (soir) — une seule forme pour tout ce qui découpe**
+(📜 *« c'est l'usage que l'on rend optionnel et ça suffit, activé par défaut comme tu le
+recommandes »* ; l'ordre ci-dessous validé le même soir ; SongFormer écarté tant qu'on peut faire
+sans — *« on ne se rajoute pas de boulot inutile »* —, la question des licences non commerciales
+étant portée par une autre session) **:**
 - **L'analyse appartient au FICHIER, pas à la card** (⑲) : faite une fois, hors du travail de la
   card, donc sans allonger aucun traitement. Une règle sur le processeur (les plans : moins d'une
   seconde par minute de vidéo) peut tourner dès l'arrivée du fichier, par défaut, désactivable ; un
@@ -9500,8 +9503,31 @@ de 3 minutes, ses instants sont faux.
   texte par le sens pour le Translator et le Writer.
 - **L'annotation automatique d'une vidéo** (le Detector, `ROADMAP §17bis`) est alors la somme de
   pistes du même fichier : plans, présence de chaque objet (famille B), situations, légendes.
-- **Ordre proposé** : déclarer la famille A ; garder la famille B ; la règle en deux temps des
-  plans (⑲) ; une brique pour la famille C ; puis les emplois « par plans ».
+- **Ordre validé** : déclarer la famille A ; garder la famille B (la structure musicale d'abord) ;
+  la règle en deux temps des plans (⑲) ; une brique pour la famille C ; puis les emplois « par
+  plans ».
+
+**Première marche de cet ordre — la famille A, 🔄 commencée le 2026-11-25 (deux pistes
+déclarées, aucun stockage changé) :**
+- **Describer — `captions`, « Images décrites »** (`describer/apps.py`) : les légendes des images
+  d'une vidéo, en ÉVÉNEMENTS datés. ⚠ Leur instant était faux, corrigé dans le même geste : ffmpeg
+  (`fps=1/intervalle`) rend l'image du MILIEU de chaque intervalle — mesuré sur une vidéo dont la
+  luminance dit le temps, pour 2 s puis 5 s d'intervalle : (rang + ½) × intervalle, à une image
+  près. Les légendes annonçaient `rang × 10` : 5 s trop tôt dans le cas courant, sans rapport avec
+  la vidéo au-delà de 3 minutes (`video_backend.instant_of`). Aucune légende n'est rangée en base
+  aujourd'hui (mesuré) : rien à reprendre. Manifeste réexporté, jumelle `describer_01` régénérée.
+- **cam_analyzer — `lane_passes`, « Passages par voie »** (`cam_analyzer/apps.py`) : le temps
+  qu'un objet suivi reste dans une voie, rangé par caméra (`LaneEvent`) et lu pour la session
+  entière dans l'ordre du temps (`AnalysisSession.lane_events`), chaque passage nommant sa fenêtre
+  par son rang. Lu sur les cinq sessions réelles : 28 148 passages (jusqu'à 11 532 par session),
+  tous dans l'ordre, aucun rang hors de la fenêtre nommée ; l'index des pistes d'une session passe
+  d'environ 0,1 s à 0,2 s. Les deux pistes se lisent par `get_item_marks`.
+- **⏳ Pas déclarés, et pourquoi** : les mots chantés datés et les mesures du Composer portent sur
+  DEUX audios de la même card (la source et le rendu) — une piste ne dit pas encore sur quel média
+  elle court (c'est « quelle entrée pose l'axe », ⑲, avec la table des entrées) ; les tables
+  d'insertion et de dépassement du cam_analyzer ont trois instants par ligne, pas deux bornes ;
+  les pages, lignes et paragraphes d'un document et les sections du Writer ne sont pas rangés en
+  lignes (recalculés, ou écrits dans le rendu) — ils relèvent de la famille B.
 
 **L'ordre, revu à la demande de Fabien — le fonctionnel d'abord.** Les questions restées ouvertes
 après 10.7.13 étaient des questions de MODÈLE (ce qu'est une ligne, dérivée ou niveau en dessous,
