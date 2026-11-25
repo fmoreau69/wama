@@ -384,6 +384,26 @@ class DrawAndBlurTest(SimpleTestCase):
         self.assertTrue((shaped[2:6, 2:6] == original[2:6, 2:6]).all(), 'the contour does not')
         self.assertFalse((shaped[28:36, 28:36] == original[28:36, 28:36]).all())
 
+    def test_a_mode_covers_the_zone_and_the_inversion_everything_but_it(self):
+        """2026-11-25 (`ROADMAP §17quater` C) : pixelate, plain mask, and the inversion — all
+        but the selection, the same zone ; an image without object is covered whole."""
+        plate = [dets.detection(box=[8, 8, 40, 40], label='plate')]
+        original = _stripes()
+        inside, outside = (slice(10, 38), slice(10, 38)), (slice(48, 60), slice(48, 60))
+        finish = dict(blur_ratio=15, rounded_edges=0, progressive_blur=0)
+        masked = blur_detections(_stripes(), plate, mode='mask', **finish)
+        self.assertTrue((masked[inside] == 0).all(), 'a plain black mask')
+        self.assertTrue((masked[outside] == original[outside]).all(), 'nothing else')
+        pixels = blur_detections(_stripes(), plate, mode='pixelate', **finish)
+        self.assertEqual(1, len(np.unique(pixels[8:16, 8:16].reshape(-1, 3), axis=0)),
+                         'one block of 32 // (15 // 2) = 4 per side : 8 px, one colour')
+        self.assertFalse((pixels[inside] == original[inside]).all())
+        inverted = blur_detections(_stripes(), plate, mode='mask', invert=True, **finish)
+        self.assertTrue((inverted[inside] == original[inside]).all(), 'the selection stays sharp')
+        self.assertTrue((inverted[outside] == 0).all(), 'everything else is covered')
+        self.assertTrue((blur_detections(_stripes(), [], mode='mask', invert=True, **finish) == 0)
+                        .all(), 'no object : the whole image')
+
     def test_a_deduced_box_outside_the_image_is_skipped(self):
         out = blur_detections(_stripes(), [{'box': [200, 200, 300, 300], 'label': 'face',
                                             'interpolated': True}], blur_ratio=15)
@@ -763,6 +783,14 @@ class QualificationTest(SimpleTestCase):
         self.assertEqual(['small', 'medium', 'large'], dets.sizes(out), 'the tiny face is small')
         self.assertEqual(['foreground', 'background'], dets.planes(out))
         self.assertEqual(['color', 'size', 'depth'], out['qualified'])
+        for frame in doc['frames']:
+            for det in frame['d']:
+                det.pop('track', None)
+        untracked = attributes.qualify(doc, ((i, image) for i in (0, 1, 2)), depth=depth_of,
+                                       depth_every=2)
+        self.assertEqual(['foreground', 'background'],
+                         [d['attrs']['plane'] for d in untracked['frames'][1]['d']],
+                         'without a track, the chain of its links carries the plane (SEQ08-01)')
 
     def test_a_selection_drops_the_unticked_values_and_never_what_carries_none(self):
         from wama.common.services.process_runs import OUTPUT_PROPERTIES
@@ -870,3 +898,23 @@ class QualificationTest(SimpleTestCase):
         unmeasured = dets.within_request(doc, [{'concept': 'face', 'by': ['k'], 'rank': 'nearest'}])
         self.assertEqual(3, len([d for d in unmeasured['frames'][0]['d'] if d['label'] == 'face']),
                          'one face without depth : nothing is ranked')
+
+    def test_a_rank_follows_the_object_not_a_noisy_image(self):
+        """With a track, or without (the chain of its links, `object_keys` — SEQ08-01 has none)."""
+        asked = [{'concept': 'face', 'by': ['k'], 'rank': 'nearest'}]
+        for tracks in ((1, 2), (None, None)):
+            doc = dets.new_document(media='video', width=300, height=200, fps=25)
+            for index, (depth_a, depth_b) in enumerate(((2.0, 5.0), (2.0, 5.0), (6.0, 3.0))):
+                a = dets.detection(box=[0, 0, 50, 50], label='face', track=tracks[0])
+                b = dets.detection(box=[100, 0, 150, 50], label='face', track=tracks[1])
+                a['attrs'], b['attrs'] = {'depth': depth_a}, {'depth': depth_b}
+                dets.add(doc, index, [a, b])
+            with self.subTest(tracks=tracks):
+                nearest = dets.within_request(doc, asked)
+                self.assertEqual([[0], [0], [0]], [[d['box'][0] for d in f['d']]
+                                                   for f in nearest['frames']],
+                                 'the left face is the nearest by its median, even on the image '
+                                 'where it measures farther')
+                loose = dets.within_request({**doc, 'frames': doc['frames'][2:]}, asked)
+                self.assertEqual([100], [d['box'][0] for d in loose['frames'][0]['d']],
+                                 'alone on its image, the measure of the image decides')

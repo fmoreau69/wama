@@ -59,6 +59,13 @@ _VISUALLY_LOSSLESS = {
     'mpeg4':      {'qscale': '2'},
 }
 _RENDER_FALLBACK_VCODEC = {'libxvid': 'mpeg4'}
+#: L'encodeur du GPU qui rend la MÊME qualité qu'un codec logiciel, et ses options — employé par un
+#: rendu quand il s'ouvre (`video_render`), sinon le codec logiciel. Mesuré le 2026-11-25 sur
+#: SEQ08-01 (813 images 1280×720) : x264 slow crf 18 → 23,3 s, 33,5 Mo, PSNR 36,7 dB ; NVENC p5
+#: cq 19 → 4,1 s, 32,6 Mo, 36,7 dB (x264 medium 15,9 s ; veryfast 8,6 s, 35,9 dB).
+_GPU_EQUIVALENT = {
+    'libx264': ('h264_nvenc', {'preset': 'p5', 'rc': 'vbr', 'cq': '19', 'b': '0'}),
+}
 
 
 def rendering_encoding(fmt: str, source_audio_codec: str = ''):
@@ -81,8 +88,13 @@ def rendering_encoding(fmt: str, source_audio_codec: str = ''):
     copyable = _AUDIO_COPYABLE.get(key, set())
     codec = (source_audio_codec or '').lower()
     extra = list(preset.get('extra') or [])
+    gpu = _GPU_EQUIVALENT.get(vcodec)
     return {'format': preset['container'], 'vcodec': vcodec,
             'video_options': dict(_VISUALLY_LOSSLESS.get(vcodec, {})),
+            # L'encodeur du GPU de même qualité, s'il y en a un (`_GPU_EQUIVALENT`) : le rendu
+            # l'essaie d'abord.
+            'gpu_vcodec': gpu[0] if gpu else None,
+            'gpu_video_options': dict(gpu[1]) if gpu else {},
             'pix_fmt': 'yuv420p',
             'acodec': preset['acodec'],
             'audio_copy': bool(codec) and (copyable is None or codec in copyable),

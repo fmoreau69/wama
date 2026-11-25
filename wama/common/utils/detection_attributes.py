@@ -129,13 +129,12 @@ def size_of(det: dict, width: int, height: int) -> dict:
 
 def depth_of(depth_map, det: dict, scene_depth: float) -> dict:
     """La profondeur médiane sous l'objet et son plan, par rapport à la médiane de la scène
-    (`scene_depth`) — `{}` quand la carte ne dit rien sous lui."""
-    mask = _mask_of(det, depth_map.shape)
-    values = np.asarray(depth_map)[mask]
-    values = values[np.isfinite(values)]
-    if not len(values):
+    (`scene_depth`) — `{}` quand la carte ne dit rien sous lui. La mesure est la brique commune
+    du monde Data (`depth_geometry.masked_depth`, à côté du contact au sol du cam_analyzer)."""
+    from wama_data.functions.geometry.depth_geometry import masked_depth
+    depth = masked_depth(depth_map, _mask_of(det, depth_map.shape))
+    if depth is None:
         return {}
-    depth = float(np.median(values))
     return {'depth': round(depth, 2),
             'plane': 'foreground' if depth < float(scene_depth) else 'background'}
 
@@ -146,15 +145,18 @@ def qualify(doc: dict, frames, *, color: bool = True, size: bool = True, depth=N
     attributs (`attrs`). `frames` rend `(index, image BGR)` des images qui portent des
     détections, dans l'ordre (`iter_frames`). `depth` : une fonction image → carte de profondeur
     (même taille ou non : le masque se pose sur la carte), appelée une image sur `depth_every`
-    (une vidéo : une par seconde suffit à dire un plan) ; sur les autres, un objet SUIVI (`track`)
-    reprend la profondeur mesurée de sa piste, les autres n'en ont pas."""
+    (une vidéo : une par seconde suffit à dire un plan) ; sur les autres, l'objet (sa piste, ou la
+    chaîne de ses maillons sans piste : `detections.object_keys`) reprend la profondeur mesurée
+    ailleurs sur lui ; un objet jamais mesuré n'en a pas."""
+    from wama.common.utils.detections import object_keys
     out = {**doc, 'frames': [{**frame, 'd': [dict(d) for d in frame.get('d') or []]}
                              for frame in doc.get('frames') or []]}
     out.pop('_index', None)
+    object_of = object_keys(out) if depth is not None else {}
     by_index = {frame['i']: frame for frame in out['frames']}
     width, height = doc.get('width') or 0, doc.get('height') or 0
     step = max(1, int(depth_every or 1))
-    track_depths = {}
+    object_depths = {}
     for index, image in frames:
         frame = by_index.get(index)
         if frame is None or image is None:
@@ -170,14 +172,14 @@ def qualify(doc: dict, frames, *, color: bool = True, size: bool = True, depth=N
             if depth_map is not None:
                 found = depth_of(depth_map, det, scene)
                 attrs.update(found)
-                if found and det.get('track'):
-                    track_depths.setdefault(det['track'], []).append(found)
+                if found:
+                    object_depths.setdefault(object_of.get(id(det)), []).append(found)
             if attrs:
                 det['attrs'] = attrs
-    if track_depths:
+    if object_depths:
         for frame in out['frames']:
             for det in frame['d']:
-                measured = track_depths.get(det.get('track'))
+                measured = object_depths.get(object_of.get(id(det)))
                 if measured and 'plane' not in (det.get('attrs') or {}):
                     planes = [m['plane'] for m in measured]
                     det['attrs'] = {**(det.get('attrs') or {}),

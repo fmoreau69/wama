@@ -163,6 +163,21 @@ class AnonymizerTaskOnSkeletonTest(TestCase):
         self.assertNotEqual(before['blur'], after['blur'])
         self.assertFalse((first == self._output_pixels()).all(), 'a lighter blur is written')
 
+    def test_a_render_mode_and_the_inversion_blur_again_without_detecting(self):
+        """2026-11-25 (`ROADMAP §17quater` C) : a plain mask, then all but the selection — the
+        settings reach the blur, which alone runs again."""
+        self._run()
+        before, original = self._started(), cv2.imread(str(self.input))
+        inside = (slice(BOX[1] + 4, BOX[3] - 4), slice(BOX[0] + 4, BOX[2] - 4))
+        _outcome, detected = self._run(blur_mode='mask', progressive_blur=0, rounded_edges=0)
+        detected.assert_not_called()
+        self.assertEqual(before['detect'], self._started()['detect'])
+        self.assertTrue((self._output_pixels()[inside] == 0).all(), 'the face is masked')
+        self._run(blur_invert=True)
+        painted = self._output_pixels()
+        self.assertTrue((painted[inside] == original[inside]).all(), 'the face stays sharp')
+        self.assertTrue((painted[50:, 50:] == 0).all(), 'all the rest is masked')
+
     def test_a_qualified_card_blurs_from_the_qualified_objects_and_a_colour_can_stay_sharp(self):
         """2026-11-24 (`ROADMAP §17quater` B) : with the qualification on, each object gets its
         attributes, the blur reads THAT document (the nearest upstream, `upstream_output`) ;
@@ -188,19 +203,22 @@ class AnonymizerTaskOnSkeletonTest(TestCase):
         """2026-11-25 (`ROADMAP §17quater` B) : « red face » understood — the dedicated detector
         looks for the face, the launch switches the qualification on BEFORE it chooses its steps,
         and the face found (black and white stripes) is not the one asked : it stays sharp. Asked
-        « black face », the same face is blurred."""
-        def understood(text):
-            return {'prompt': text, 'original': text, 'enriched': True, 'translated': False}
+        « black face », the same face is blurred. The description was never understood before :
+        it is understood at the start of the task, so the FIRST ▶ qualifies."""
+        def understood(text, original=None):
+            return {'prompt': text, 'original': original or text, 'enriched': True,
+                    'translated': False}
 
         Media.objects.filter(pk=self.media.pk).update(
-            target_mode='description', sam3_prompt='le visage rouge', sam3_prompt_processed='red face')
+            target_mode='description', sam3_prompt='le visage rouge', sam3_prompt_processed='')
         with mock.patch('wama.common.utils.app_metadata.process_prompt_for',
-                        return_value=understood('red face')), \
+                        return_value=understood('red face', 'le visage rouge')), \
                 mock.patch.object(tasks, 'check_sam3_installed', return_value=False):
             self._run()
         self.assertEqual('SUCCESS', self.media.status, self.media.error_message)
         self.assertEqual((True, False), (self.media.qualify_objects, self.media.qualify_depth),
                          'the request switches the qualification on, no plane asked : no depth')
+        self.assertEqual('red face', self.media.sam3_prompt_processed, 'understood and kept')
         self.assertEqual({'detect': 'SUCCESS', 'qualify': 'SUCCESS', 'blur': 'SUCCESS',
                           'output': 'SUCCESS'}, self._states())
         doc = detections.read(os.path.join(self.root, self.media.detections_file.name))

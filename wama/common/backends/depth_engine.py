@@ -53,6 +53,10 @@ DEPTH_MODELS = {
         'metric_scale': False, 'estimates_focal': False, 'source_sizes': True, 'fp16_on_cuda': False,
     },
 }
+#   Revérifié pour l'anonymizer le 2026-11-25 (qualification : plan et rang, un CLASSEMENT) sur
+#   ses images (visages en foule, rue SEQ08-01), arbitre = taille apparente d'objets de même
+#   classe : paires bien classées ZoeDepth 96,2 % (1,1 s/image GPU), Depth Pro 96,3 % (6,7 s),
+#   DA-V2 Small 93,1 % (0,3 s). Depth Pro ne s'impose que pour des MÈTRES (« à environ 10 m »).
 DEFAULT_DEPTH_MODEL = 'zoedepth-kitti'
 
 # keep_loaded : un modèle de profondeur est coûteux à charger et identique pour toutes les

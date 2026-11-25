@@ -15,6 +15,32 @@ d'app : `cv2`, `numpy`, et la géométrie de `bounds`.
 import cv2
 import numpy as np
 from .bounds import Bounds
+from .detections import RENDER_MODES  # noqa: F401  (déclarés là : un modèle les lit sans OpenCV)
+
+
+def cover(region, blur_ratio, mode='blur'):
+    """Ce qui remplace les pixels de `region` : un flou gaussien de noyau `blur_ratio` ; une
+    PIXELLISATION en blocs de la moitié de ce noyau (le même réglage d'intensité : plus fort, plus
+    gros) ; un MASQUE plein, noir. Un mode inconnu (une valeur d'avant) floute."""
+    blur_ratio = normalize_blur_ratio(blur_ratio)
+    if mode == 'mask':
+        return np.zeros_like(region)
+    if mode == 'pixelate':
+        height, width = region.shape[:2]
+        block = max(2, blur_ratio // 2)
+        small = cv2.resize(region, (max(1, width // block), max(1, height // block)),
+                           interpolation=cv2.INTER_AREA)
+        return cv2.resize(small, (width, height), interpolation=cv2.INTER_NEAREST)
+    return cv2.GaussianBlur(region, (blur_ratio, blur_ratio), 0)
+
+
+def _covered(im0, x0, y0, x1, y1, blur_ratio, mode):
+    """Les pixels qui remplacent la zone [x0:x1, y0:y1] de `im0` : `cover` selon le mode, ou —
+    `mode` étant une IMAGE — ceux de cette image au même endroit : l'INVERSION remet la
+    sélection d'origine sur une image couverte, avec les mêmes finitions (`blur_detections`)."""
+    if isinstance(mode, np.ndarray):
+        return mode[y0:y1, x0:x1]
+    return cover(im0[y0:y1, x0:x1], blur_ratio, mode)
 
 
 def _shape_alpha(polygons, shape, *, enlargement, grow, feather, margin):
@@ -46,12 +72,15 @@ def _shape_alpha(polygons, shape, *, enlargement, grow, feather, margin):
                                                           (2 * grow + 1, 2 * grow + 1)))
     alpha = mask.astype(np.float32) / 255.0
     if feather:
-        alpha = np.maximum(alpha, cv2.GaussianBlur(alpha, (feather, feather), 0))
+        # `stackBlur` (2026-11-25) : un coût par pixel CONSTANT quelle que soit la taille du noyau.
+        # Le flou gaussien de noyau 101 (flou progressif 100) prenait la moitié de la peinture
+        # (SEQ08-01 : 12 ms par image pour le seul fondu des formes).
+        alpha = np.maximum(alpha, cv2.stackBlur(alpha, (feather, feather)))
     return x0, y0, alpha
 
 
 def blur_shapes(im0, shapes, *, blur_ratio, rounded_edges=0, progressive_blur=0,
-                roi_enlargement=1.0):
+                roi_enlargement=1.0, mode='blur'):
     """Floute les FORMES des détections segmentées d'une image (`shapes` : une liste de
     polygones par détection) — avec les MÊMES finitions qu'un rectangle : l'agrandissement
     multiplie l'aire (`Bounds.scale`), les bords élargissent de `rounded_edges` pixels (en
@@ -88,13 +117,16 @@ def blur_shapes(im0, shapes, *, blur_ratio, rounded_edges=0, progressive_blur=0,
         window = alpha[y - y0:y - y0 + piece.shape[0], x - x0:x - x0 + piece.shape[1]]
         np.maximum(window, piece, out=window)
     region = im0[y0:y1, x0:x1]
-    blurred = cv2.GaussianBlur(region, (blur_ratio, blur_ratio), 0)
-    alpha = alpha[:, :, None]
-    im0[y0:y1, x0:x1] = (blurred * alpha + region * (1.0 - alpha)).astype(np.uint8)
+    blurred = _covered(im0, x0, y0, x1, y1, blur_ratio, mode)
+    # Composé là où une forme couvre (2026-11-25) : la boîte qui réunit des formes éloignées est
+    # surtout vide, et la composer en flottants prenait la moitié de la peinture (SEQ08-01).
+    touched = alpha > 0
+    weight = alpha[touched][:, None]
+    region[touched] = (blurred[touched] * weight + region[touched] * (1.0 - weight)).astype(np.uint8)
     return im0
 
 
-def apply_progressive_blur(im0, bounds, blur_ratio, progressive_blur):
+def apply_progressive_blur(im0, bounds, blur_ratio, progressive_blur, mode='blur'):
     """
     Apply progressive blur with elliptical gradient mask.
     The blur is stronger at the center and fades at the edges.
@@ -138,8 +170,8 @@ def apply_progressive_blur(im0, bounds, blur_ratio, progressive_blur):
     # Convert smoothed mask into 3 channels
     smooth_mask_3ch = cv2.merge([smooth_mask] * 3)
 
-    # Blur the image in the relevant area
-    blurred = cv2.GaussianBlur(blur_area, (blur_ratio, blur_ratio), 0)
+    # Blur the image in the relevant area (or pixelate, mask : `cover`)
+    blurred = _covered(im0, x, y, x + w, y + h, blur_ratio, mode)
 
     # Apply the progressive mask
     blended = (blurred * (smooth_mask_3ch / 255.0) + blur_area * (1 - smooth_mask_3ch / 255.0)).astype(np.uint8)
@@ -148,7 +180,7 @@ def apply_progressive_blur(im0, bounds, blur_ratio, progressive_blur):
     return im0
 
 
-def apply_simple_blur(im0, bounds, blur_ratio):
+def apply_simple_blur(im0, bounds, blur_ratio, mode='blur'):
     """
     Apply simple Gaussian blur to a region.
 
@@ -176,9 +208,8 @@ def apply_simple_blur(im0, bounds, blur_ratio):
         print(f"[apply_simple_blur] Empty blur area")
         return im0
 
-    # Apply Gaussian blur
-    blurred = cv2.GaussianBlur(blur_area, (blur_ratio, blur_ratio), 0)
-    im0[y:y + h, x:x + w] = blurred
+    # Apply Gaussian blur (or pixelate, mask : `cover`)
+    im0[y:y + h, x:x + w] = _covered(im0, x, y, x + w, y + h, blur_ratio, mode)
 
     return im0
 
@@ -201,7 +232,8 @@ def normalize_blur_ratio(blur_ratio):
     return blur_ratio
 
 
-def blur_detection(im0, detection_box, label, blur_ratio, rounded_edges, progressive_blur, roi_enlargement):
+def blur_detection(im0, detection_box, label, blur_ratio, rounded_edges, progressive_blur, roi_enlargement,
+                   mode='blur'):
     """
     Blur a single detection on the image.
 
@@ -256,9 +288,9 @@ def blur_detection(im0, detection_box, label, blur_ratio, rounded_edges, progres
     # Apply appropriate blur type
     try:
         if label in ['face', 'person'] and progressive_blur > 0:
-            im0 = apply_progressive_blur(im0, bounds, blur_ratio, progressive_blur)
+            im0 = apply_progressive_blur(im0, bounds, blur_ratio, progressive_blur, mode)
         else:
-            im0 = apply_simple_blur(im0, bounds, blur_ratio)
+            im0 = apply_simple_blur(im0, bounds, blur_ratio, mode)
     except Exception as e:
         print(f"[blur_detection] Error applying blur: {e}")
         return im0
@@ -361,22 +393,32 @@ def blur_detections_inside(im0, detections, *, intensity, rounded_edges, progres
 
 
 def blur_detections(im0, detections, *, blur_ratio, rounded_edges=5, progressive_blur=0,
-                    roi_enlargement=1.0):
+                    roi_enlargement=1.0, mode='blur', invert=False):
     """Floute, sur UNE image, les détections d'un document `detections` (`common/utils/
     detections.py`) : à la FORME quand la détection en porte une (segmentation, `blur_shapes`),
     au rectangle sinon — les mêmes finitions dans les deux cas. Une détection DÉDUITE
     (interpolée, prolongée) a son rectangle ramené dans l'image d'abord.
 
     C'est le second temps de l'anonymisation depuis le 2026-10-04 : la détection est un process
-    à part, ce floutage repart de ce qu'elle a écrit."""
+    à part, ce floutage repart de ce qu'elle a écrit.
+
+    `mode` (2026-11-25, `RENDER_MODES`) : flou, pixellisation ou masque plein. `invert` : TOUT
+    SAUF les détections — l'image entière couverte, puis la sélection remise d'origine avec les
+    mêmes finitions (une image sans détection est donc couverte en entier : l'appelant la peint
+    aussi, `rewrite_media(..., paint_empty=True)`)."""
     from .detections import valid_box
     blur_ratio = normalize_blur_ratio(blur_ratio)
+    if invert:
+        original = im0.copy()
+        im0[:] = cover(im0, blur_ratio, mode)
+        mode = original
     # Les FORMES d'abord, toutes ensemble et toutes classes (le fondu va vers l'extérieur, il ne
     # découvre jamais l'objet — contrairement à l'ellipse d'un rectangle, d'où la règle « visage,
     # personne » qui reste celle des rectangles).
     im0 = blur_shapes(im0, [det['polygons'] for det in detections or [] if det.get('polygons')],
                       blur_ratio=blur_ratio, rounded_edges=rounded_edges,
-                      progressive_blur=progressive_blur, roi_enlargement=roi_enlargement)
+                      progressive_blur=progressive_blur, roi_enlargement=roi_enlargement,
+                      mode=mode)
     for det in detections or []:
         if det.get('polygons'):
             continue
@@ -384,5 +426,5 @@ def blur_detections(im0, detections, *, blur_ratio, rounded_edges=5, progressive
         if box is None:
             continue
         im0 = blur_detection(im0, box, det.get('label', ''), blur_ratio, rounded_edges,
-                             progressive_blur, roi_enlargement)
+                             progressive_blur, roi_enlargement, mode)
     return im0

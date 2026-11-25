@@ -7,6 +7,7 @@ from wama.settings import BASE_DIR, AI_MODELS_DIR
 from wama.common.models import (JOB_STATUS_CHOICES, NativeOutputsMixin, ProcessingTimeMixin,
                                 ScopedManager, ScopedVisibility)
 from wama.common.utils.media_paths import upload_to_user_input, upload_to_user_output
+from wama.common.utils.detections import render_mode_choices
 import os
 
 # Model path - now points to centralized AI-models directory
@@ -130,6 +131,12 @@ class Media(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
     rounded_edges = models.IntegerField(default=5)
     roi_enlargement = models.FloatField(default=1.05)
     progressive_blur = models.IntegerField(default=25)
+    # Le MODE de rendu (2026-11-25, `ROADMAP §17quater` C) : flou, pixellisation ou masque plein
+    # (`detections.RENDER_MODES`, choix lus à la demande) ; et l'INVERSION : tout sauf ce qui est
+    # sélectionné. `db_default` : le code d'avant le rechargement crée des médias sans eux.
+    blur_mode = models.CharField(max_length=10, choices=render_mode_choices, default='blur',
+                                 db_default='blur')
+    blur_invert = models.BooleanField(default=False, db_default=False)
     detection_threshold = models.FloatField(default=0.25)
     # La DÉCIMATION de l'analyse d'une vidéo (2026-11-19, Fabien) : une image analysée sur N — la
     # décimation du monde Data. 0 = « auto » : chaque détecteur sa cadence déclarée

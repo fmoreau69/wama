@@ -578,6 +578,46 @@
             },
             {
               "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "choices": {
+                  "expr": "wama.common.utils.detections.render_mode_choices",
+                  "imports": [
+                    "import wama.common.utils.detections"
+                  ]
+                },
+                "db_default": {
+                  "expr": "'blur'",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "'blur'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "10",
+                  "imports": []
+                }
+              },
+              "name": "blur_mode"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.BooleanField",
+              "kwargs": {
+                "db_default": {
+                  "expr": "False",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "False",
+                  "imports": []
+                }
+              },
+              "name": "blur_invert"
+            },
+            {
+              "args": [],
               "class": "django.db.models.FloatField",
               "kwargs": {
                 "default": {
@@ -2047,6 +2087,129 @@
             "cap_from": null,
             "chip": false,
             "chip_label": "",
+            "choices": [
+              [
+                "blur",
+                "Flou"
+              ],
+              [
+                "pixelate",
+                "Pixellisation"
+              ],
+              [
+                "mask",
+                "Masque plein"
+              ]
+            ],
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": "blur",
+            "default_from": null,
+            "display_format": "",
+            "dom_id": "",
+            "empty_label": "",
+            "group": "comment",
+            "help": "Flou, pixellisation ou masque plein (noir) : la zone, ses bords et son fondu restent les mêmes.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-shapes",
+            "inline": true,
+            "keywords": null,
+            "label": "Rendu",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "blur_mode",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_from": null,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "remember": null,
+            "section": "settings",
+            "show_if": null,
+            "stales": [
+              "blur"
+            ],
+            "step": null,
+            "stores_unchecked": false,
+            "type": "radio",
+            "unit": "",
+            "write_from": null
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": false,
+            "default_from": null,
+            "display_format": "",
+            "dom_id": "",
+            "empty_label": "",
+            "group": "comment",
+            "help": "Anonymise toute l'image SAUF ce qui est sélectionné, qui reste net.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-circle-half-stroke",
+            "inline": false,
+            "keywords": null,
+            "label": "Inverser : tout sauf la sélection",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "blur_invert",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_from": null,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "remember": null,
+            "section": "settings",
+            "show_if": null,
+            "stales": [
+              "blur"
+            ],
+            "step": null,
+            "stores_unchecked": false,
+            "type": "toggle",
+            "unit": "",
+            "write_from": null
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
             "choices": null,
             "contexts": [
               "item",
@@ -2061,7 +2224,7 @@
             },
             "empty_label": "",
             "group": "comment",
-            "help": "Taille du noyau gaussien (impaire).",
+            "help": "Taille du noyau gaussien (impaire) ; en pixellisation, des blocs de sa moitié.",
             "help_fallback": null,
             "help_html": "",
             "help_source": null,
@@ -3183,6 +3346,8 @@
             "blur_skip_colors",
             "blur_skip_sizes",
             "blur_skip_planes",
+            "blur_mode",
+            "blur_invert",
             "blur_ratio",
             "rounded_edges",
             "roi_enlargement",
@@ -3491,7 +3656,9 @@
       "descriptions": {
         "add_to_anonymizer": {
           "args": {
-            "blur_ratio": "range — Taille du noyau gaussien (impaire). [1–99] (défaut : 75)",
+            "blur_invert": "toggle — Anonymise toute l'image SAUF ce qui est sélectionné, qui reste net. (défaut : False)",
+            "blur_mode": "radio — Flou, pixellisation ou masque plein (noir) : la zone, ses bords et son fondu restent les mêmes. (choix : blur | pixelate | mask) (défaut : 'blur')",
+            "blur_ratio": "range — Taille du noyau gaussien (impaire) ; en pixellisation, des blocs de sa moitié. [1–99] (défaut : 75)",
             "blur_skip_colors": "multiselect — Décocher une couleur laisse net les objets de cette couleur. (défaut : [])",
             "blur_skip_labels": "multiselect — Ce que la détection a trouvé sur ce média. Décocher ce qu'on veut laisser net : seul le floutage est refait, sans redétecter. (défaut : [])",
             "blur_skip_planes": "multiselect — foreground : plus proche que le milieu de la scène ; background : au-delà. (défaut : [])",

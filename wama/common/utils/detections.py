@@ -35,6 +35,18 @@ KIND = 'detections'
 VERSION = 1
 
 
+#: Les MODES de rendu d'une zone à anonymiser (2026-11-25, `ROADMAP §17quater` C) : ce qui
+#: REMPLACE ses pixels (`blur_utils.cover`). La zone, ses bords arrondis, son agrandissement et son
+#: fondu restent ceux du floutage, quel que soit le mode. Déclarés ici, module sans OpenCV : le
+#: champ d'un modèle les lit sans charger la peinture.
+RENDER_MODES = {'blur': 'Flou', 'pixelate': 'Pixellisation', 'mask': 'Masque plein'}
+
+
+def render_mode_choices():
+    """Les choix d'un champ de modèle qui garde un mode (Django les lit à la demande)."""
+    return list(RENDER_MODES.items())
+
+
 def new_document(*, media: str, width: int, height: int, fps: float = 0.0,
                  frame_count: int = 1, engine: str = '', models=(), classes=(),
                  prompt: str = '') -> dict:
@@ -379,13 +391,41 @@ def _belongs(det: dict, frame_dets, labels, of) -> bool:
     return not holders or any(compatible(o.get('attrs'), of.get('attrs')) for o in holders)
 
 
-def _ranked_first(candidates, rank: str) -> list:
+def _object_measures(doc: dict) -> dict:
+    """{id(détection): {mesure: médiane}} des mesures qui classent un rang
+    (`detection_attributes.RANKS`), sur toutes les images où son OBJET les porte (`object_keys`)
+    — le rang d'une vidéo se juge par objet, pas image par image (2026-11-25) : sinon « la plus
+    proche » passe d'un objet à l'autre au gré d'une mesure bruitée, et l'objet visé reste net
+    sur les images où il perd."""
+    from statistics import median
+    from wama.common.utils.detection_attributes import RANKS
+    keys = {key for key, _ in RANKS.values()}
+    object_of = object_keys(doc)
+    seen, members = {}, {}
+    for frame in doc.get('frames') or []:
+        for det in frame.get('d') or []:
+            obj = object_of.get(id(det))
+            members.setdefault(obj, []).append(id(det))
+            attrs = det.get('attrs') or {}
+            for key in keys:
+                if attrs.get(key) is not None:
+                    seen.setdefault(obj, {}).setdefault(key, []).append(attrs[key])
+    medians = {obj: {key: median(values) for key, values in measured.items()}
+               for obj, measured in seen.items()}
+    return {det_id: medians[obj] for obj, ids in members.items() if obj in medians
+            for det_id in ids}
+
+
+def _ranked_first(candidates, rank: str, objects: dict = None) -> list:
     """Le premier des `candidates` selon le rang (`detection_attributes.RANKS`) — tous les ex
-    aequo ; TOUS quand l'un ne porte pas la mesure (pas de profondeur sur cette image) : on ne
-    classe pas ce qu'on n'a pas mesuré."""
+    aequo ; TOUS quand l'un ne porte pas la mesure (pas de profondeur sur son objet) : on ne
+    classe pas ce qu'on n'a pas mesuré. Chacun est classé par la médiane de son objet
+    (`objects`, `_object_measures`), à défaut par sa mesure sur l'image."""
     from wama.common.utils.detection_attributes import RANKS
     key, highest = RANKS[rank]
-    values = [(d.get('attrs') or {}).get(key) for d in candidates]
+    objects = objects or {}
+    values = [(objects.get(id(d)) or {}).get(key, (d.get('attrs') or {}).get(key))
+              for d in candidates]
     if any(v is None for v in values):
         return list(candidates)
     best = max(values) if highest else min(values)
@@ -398,7 +438,7 @@ def within_request(doc: dict, plan=None) -> dict:
     quelque chose reste s'il répond à l'une de ses demandes : ses attributs
     (`detection_attributes.compatible`, « red car »), l'objet auquel il appartient (`of`, « face
     of red person » : `_belongs`), et parmi ceux qui y répondent, le premier selon le rang
-    (`rank`, « nearest » : `_ranked_first`). Un objet cherché pour relier seulement (`owner`)
+    (`rank`, « nearest » : `_ranked_first`, chacun classé sur toute la vidéo par son objet). Un objet cherché pour relier seulement (`owner`)
     n'est pas flouté. Rien n'est écarté sans preuve : non qualifié, sans contenant vu, sans
     mesure pour classer, il reste. Une copie, l'original intact, comme `without_labels`."""
     from wama.common.utils.detection_attributes import compatible
@@ -407,6 +447,8 @@ def within_request(doc: dict, plan=None) -> dict:
         return doc
     out = dict(doc)
     out['frames'] = []
+    objects = _object_measures(doc) if any(a.get('rank') for asks in wanted.values()
+                                           for a in asks) else {}
     for frame in doc.get('frames') or []:
         dets = list(frame.get('d') or [])
         labels = [common_label(d.get('label') or '') for d in dets]
@@ -427,7 +469,7 @@ def within_request(doc: dict, plan=None) -> dict:
                 else:
                     keep.add(index)
         for (label, k), positions in ranked.items():
-            first = _ranked_first([dets[i] for i in positions], wanted[label][k]['rank'])
+            first = _ranked_first([dets[i] for i in positions], wanted[label][k]['rank'], objects)
             keep |= {i for i in positions if any(dets[i] is d for d in first)}
         kept = [det for index, det in enumerate(dets) if index in keep]
         if kept:
@@ -776,6 +818,29 @@ def _links(frames: dict, window: int, min_iou: float) -> tuple:
 MAX_CHAIN_GAP = 500
 
 
+def object_keys(doc: dict, *, max_gap: int = None, min_iou: float = 0.2) -> dict:
+    """{id(détection): clé de son OBJET} — le même objet d'une image à l'autre : sa piste quand le
+    détecteur en donne une, sinon la chaîne de ses maillons (`_links`, la règle de
+    l'interpolation et d'`object_chain`). `max_gap` : par défaut la décimation du document (les
+    images qu'il n'a pas analysées ne coupent pas un objet). Lu par la qualification (un attribut
+    mesuré une image sur N se reporte sur l'objet) et par le rang (un objet se classe par toutes
+    ses mesures) — 2026-11-25 : la vidéo SEQ08-01 (#2337) n'a AUCUNE piste, la profondeur d'une
+    image par seconde n'atteignait que 226 objets sur 5 498."""
+    frames = _frames_of(doc)
+    gap = int(doc.get('decimation') or 1) if max_gap is None else int(max_gap)
+    _all, _after, before = _links(frames, max(0, min(gap, MAX_CHAIN_GAP)), min_iou)
+    keys = {}
+    for index in sorted(frames):
+        for det in frames[index]:
+            if det.get('track') is not None:
+                keys[id(det)] = f"track:{det['track']}"
+            elif id(det) in before and id(before[id(det)][1]) in keys:
+                keys[id(det)] = keys[id(before[id(det)][1])]
+            else:
+                keys[id(det)] = f"object:{index}:{len(keys)}"
+    return keys
+
+
 def object_chain(doc: dict, frame: int, box, *, max_gap: int = 0, min_iou: float = 0.2) -> list:
     """L'OBJET sur toute la séquence (2026-11-15, la page de correction d'une vidéo : « un clic
     sur un objet agit sur toute la séquence ») : `[{'i', 'box', 'label'}]`, dans l'ordre du temps —
@@ -836,7 +901,7 @@ def max_gap_for(fps: float, wanted: int) -> int:
 
 # ── Rendu d'un média depuis ses détections ────────────────────────────────────────────────────
 def rewrite_media(source: str, frames: dict, apply, output_path: str, *, on_frame=None,
-                  progress=None) -> str:
+                  progress=None, paint_empty: bool = False) -> str:
     """Réécrit le média `source` en peignant chaque frame avec SES détections :
     `apply(image, détections) -> image` (le floutage, ou le dessin d'aperçu). Rend le chemin
     RÉELLEMENT écrit.
@@ -856,7 +921,9 @@ def rewrite_media(source: str, frames: dict, apply, output_path: str, *, on_fram
                  « pendant » de la tâche, qu'elle limite elle-même dans le temps ;
     `progress` : `callback(faites, total)`.
 
-    Une frame sans détection est écrite telle quelle (aucun calcul)."""
+    Une frame sans détection est écrite telle quelle (aucun calcul) — sauf `paint_empty` : une
+    peinture qui couvre ce qui n'est PAS détecté (l'inversion du floutage, 2026-11-25) la peint
+    aussi."""
     import cv2
     from .video_utils import is_image
     if is_image(source):
@@ -864,7 +931,7 @@ def rewrite_media(source: str, frames: dict, apply, output_path: str, *, on_fram
         if image is None:
             raise RuntimeError(f"Image illisible : {os.path.basename(source)}")
         found = frames.get(0, [])
-        painted = apply(image.copy(), found) if found else image
+        painted = apply(image.copy(), found) if found or paint_empty else image
         ext = os.path.splitext(output_path)[1].lower()
         params = ([cv2.IMWRITE_JPEG_QUALITY, 95] if ext in ('.jpg', '.jpeg')
                   else [cv2.IMWRITE_PNG_COMPRESSION, 3] if ext == '.png' else [])
@@ -881,7 +948,7 @@ def rewrite_media(source: str, frames: dict, apply, output_path: str, *, on_fram
 
     def paint(index, image):
         found = frames.get(index, [])
-        return apply(image.copy(), found) if found else image
+        return apply(image.copy(), found) if found or paint_empty else image
 
     def said(index, original, painted):
         on_frame(index, original, painted, frames.get(index, []))

@@ -113,6 +113,8 @@
             "blur_skip_colors",
             "blur_skip_sizes",
             "blur_skip_planes",
+            "blur_mode",
+            "blur_invert",
             "blur_ratio",
             "rounded_edges",
             "roi_enlargement",

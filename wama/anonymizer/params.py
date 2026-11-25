@@ -65,6 +65,7 @@ PARAMS = derive_from_model(
         # ── Ce qu'on floute parmi ce qui est détecté ──
         "blur_skip_labels", "blur_skip_colors", "blur_skip_sizes", "blur_skip_planes",
         # ── Comment flouter ──
+        "blur_mode", "blur_invert",
         "blur_ratio", "rounded_edges", "roi_enlargement", "progressive_blur",
         # ── Temporel (vidéo) ──
         "interpolate_detections", "max_interpolation_frames", "max_extrapolation_frames",
@@ -224,10 +225,25 @@ PARAMS = derive_from_model(
         # min=1 ne produit que des valeurs RÉELLEMENT applicables. Le schéma s'aligne donc sur
         # le volet, et non l'inverse. `max` 49→100 (arbitrage Fabien : la borne 49 n'était pas
         # justifiée ; un noyau de 99 reste valide, seul le coût CPU croît).
+        # Le MODE de rendu (2026-11-25, `ROADMAP §17quater` C) — ses choix viennent de la brique
+        # commune (`detections.RENDER_MODES`, par le champ du modèle) ; l'intensité règle le flou
+        # comme la taille des blocs d'une pixellisation.
+        "blur_mode": dict(
+            type="radio", label="Rendu", icon="fa-shapes", inline=True, group="comment",
+            help="Flou, pixellisation ou masque plein (noir) : la zone, ses bords et son fondu "
+                 "restent les mêmes.",
+            stales=("blur",),
+        ),
+        "blur_invert": dict(
+            type="toggle", label="Inverser : tout sauf la sélection", icon="fa-circle-half-stroke",
+            group="comment",
+            help="Anonymise toute l'image SAUF ce qui est sélectionné, qui reste net.",
+            stales=("blur",),
+        ),
         "blur_ratio": dict(
             type="range", label="Intensité du flou", icon="fa-droplet",
             dom_id={"panel": "user_setting_blur_ratio"}, min=1, max=99, step=2,
-            help="Taille du noyau gaussien (impaire).",
+            help="Taille du noyau gaussien (impaire) ; en pixellisation, des blocs de sa moitié.",
             group="comment", stales=("blur",),
         ),
         "rounded_edges": dict(

@@ -216,7 +216,10 @@ sous `wama_data/functions/<domaine>/` — 4 sous-paquets : `io/` (parsing, ex. R
 > l'anonymizer) et `geometry/shapes.py` (`box_iou`, domicile unique de l'IoU de boîtes, même date ;
 `box_centre_inside`, « cet objet appartient à ce contenant » par son centre — la règle du banc de
 rappel du model_manager, qui la lit, et des relations d'une description de l'anonymizer,
-2026-11-25).
+2026-11-25) ; `geometry/depth_geometry.py` (`masked_depth`, la profondeur médiane sous un objet
+qui ne touche pas le sol — visage, plaque —, à côté du `contact_depth` du cam_analyzer, cataloguée
+elle ; lue par la qualification de l'anonymizer, 2026-11-25 : 96 % des paires bien classées contre
+90-93 % au contact, sur ses images).
 
 Deux `binding` cohabitent dans le MÊME `FUNCTION_CATALOG` :
 - **`pure`** — signature `(données_typées, params) → données_typées`, chaînable direct. Défaut pour

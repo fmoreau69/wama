@@ -13,6 +13,35 @@ Sans Django ni app : la Data et le Lab peuvent l'appeler.
 import os
 
 
+#: Ce que la sonde a dit de chaque encodeur du GPU, une fois par processus.
+_GPU_ENCODERS = {}
+
+
+def gpu_encoder_works(codec, width: int = 256, height: int = 256) -> bool:
+    """L'encodeur `codec` (`h264_nvenc`) s'ouvre-t-il et encode-t-il une image ICI ? Sondé une fois
+    par processus (une image noire, en mémoire) : un poste sans GPU, un pilote sans encodeur ou une
+    carte qui n'a plus de session libre répondent non, et le rendu garde le codec logiciel. Une taille
+    sous le minimum de l'encodeur (NVENC : 145 × 49) répond non sans sonder."""
+    if not codec or width < 160 or height < 64:
+        return False
+    if codec not in _GPU_ENCODERS:
+        try:
+            from fractions import Fraction
+
+            import av
+            import numpy as np
+            context = av.CodecContext.create(codec, 'w')
+            context.width, context.height, context.pix_fmt = 256, 256, 'yuv420p'
+            context.time_base = Fraction(1, 25)
+            frame = av.VideoFrame.from_ndarray(np.zeros((256, 256, 3), np.uint8), format='bgr24')
+            list(context.encode(frame.reformat(format='yuv420p')))
+            list(context.encode(None))
+            _GPU_ENCODERS[codec] = True
+        except Exception:
+            _GPU_ENCODERS[codec] = False
+    return _GPU_ENCODERS[codec]
+
+
 def render_video(source: str, paint, output_path: str, *, on_frame=None, progress=None) -> str:
     """Réécrit la vidéo `source` en passant chaque image par `paint(indice, image) -> image`, et
     rend le chemin RÉELLEMENT écrit.
@@ -126,11 +155,16 @@ def _write_timed_video(capture, source, stem, ext, paint, on_frame, progress) ->
                 # La taille se lit sur l'image PEINTE : OpenCV a appliqué la rotation déclarée, et
                 # un agrandissement (l'enhancer) change la taille de la sortie.
                 height, width = painted.shape[:2]
-                video_out = output.add_stream(encoding['vcodec'])
+                # L'encodeur du GPU de même qualité quand il s'ouvre ici (2026-11-25 : NVENC, 5,7×
+                # plus rapide que x264 slow à PSNR égal), sinon le codec logiciel de la table.
+                vcodec, options = encoding['vcodec'], encoding['video_options']
+                if gpu_encoder_works(encoding.get('gpu_vcodec'), width, height):
+                    vcodec, options = encoding['gpu_vcodec'], encoding['gpu_video_options']
+                video_out = output.add_stream(vcodec)
                 video_out.width, video_out.height = width, height
                 video_out.pix_fmt = encoding['pix_fmt']
                 video_out.codec_context.time_base = unit
-                video_out.codec_context.options = encoding['video_options']
+                video_out.codec_context.options = options
             # Le temps D'ORIGINE de cette image ; à défaut (conteneur qui n'en donne pas), la
             # suivante de la cadence moyenne. Toujours croissant : un encodeur l'exige.
             position = capture.get(cv2.CAP_PROP_POS_MSEC)

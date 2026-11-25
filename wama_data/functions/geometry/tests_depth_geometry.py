@@ -16,8 +16,9 @@ import math
 import numpy as np
 from django.test import SimpleTestCase
 
-from wama_data.functions.geometry.depth_geometry import (anchor_depth_scale, deproject_depth,
-                                                          fit_plane_ransac, ground_plane_from_depth,
+from wama_data.functions.geometry.depth_geometry import (anchor_depth_scale, contact_depth,
+                                                          deproject_depth, fit_plane_ransac,
+                                                          ground_plane_from_depth, masked_depth,
                                                           plane_pitch_height)
 
 W, H, FX, FY = 384, 248, 134.0, 210.0
@@ -108,3 +109,16 @@ class LargeCloudTest(SimpleTestCase):
         normal, offset, n_inl, _ = fit_plane_ransac(pts, min_inliers=100)
         self.assertGreater(n_inl, 60000)
         self.assertAlmostEqual(plane_pitch_height(normal, offset)[0], 22.0, delta=0.1)
+
+
+class ObjectDepthTest(SimpleTestCase):
+    def test_an_object_reads_the_median_under_its_mask_and_the_contact_its_bottom(self):
+        depth = np.full((40, 40), 20.0, dtype=np.float32)
+        depth[10:20, 10:20] = 3.0                   # a face, near
+        depth[19, 12] = np.nan                      # a hole in the map changes nothing
+        mask = np.zeros((40, 40), dtype=bool)
+        mask[10:20, 10:20] = True
+        self.assertEqual(3.0, masked_depth(depth, mask))
+        self.assertIsNone(masked_depth(depth, np.zeros((40, 40), dtype=bool)), 'nothing under it')
+        self.assertEqual(20.0, contact_depth(depth, [10, 10, 20, 24]),
+                         'the contact is read below the box : the ground, not the face')

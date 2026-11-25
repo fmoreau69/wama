@@ -171,10 +171,18 @@ def process_single_media(self, media_id, force_individual=False, process=None):
         known = Media.objects.filter(pk=media_id).first()
         if known is not None:
             forget_lost_generation(known, 'output_file', 'blur')
-            # Une description déjà comprise qui demande des attributs active la qualification
-            # AVANT que le lancement ne choisisse ses étapes (2026-11-25). Jamais bloquant.
+            # Une description qui demande des attributs active la qualification AVANT que le
+            # lancement ne choisisse ses étapes (2026-11-25) — comprise ici si la détection va
+            # jouer et qu'elle ne l'a jamais été : un texte libre qualifie dès le premier ▶.
+            # Jamais bloquant.
             try:
-                switch_requested_qualification(known)
+                plan = None
+                if (known.target_mode == 'description'
+                        and not (known.sam3_prompt_processed or '').strip()
+                        and 'detect' in [spec.key for spec in
+                                         PIPELINE.steps_to_run(known, only=process)]):
+                    plan = understood_plan(known, understand_description(known, known.user))
+                switch_requested_qualification(known, plan)
             except Exception:
                 logger.warning("[anonymizer] média %s : qualification demandée non lue",
                                media_id, exc_info=True)
@@ -305,15 +313,16 @@ def description_plan(media) -> list:
     return [{**step, 'by': [names.get(k) or k for k in step['by']]} for step in plan]
 
 
-def understood_plan(media) -> list:
+def understood_plan(media, understood: str = None) -> list:
     """`description_plan` sous les CLÉS de catalogue — ce que lisent la modale (noms en plus) et
-    le lancement (`switch_requested_qualification`)."""
+    le lancement (`switch_requested_qualification`). `understood` : la description que le
+    lancement vient de comprendre (`understand_description`), sinon celle que la card garde."""
     from wama.common.backends.detection_base import prompt_concepts
     from wama.common.services.detection_ensemble import route_concepts
     from .utils.yolo_utils import catalogue_key_for
     if media.target_mode != 'description':
         return []
-    concepts = prompt_concepts(getattr(media, 'sam3_prompt_processed', '') or '')
+    concepts = prompt_concepts(understood or getattr(media, 'sam3_prompt_processed', '') or '')
     if not concepts:
         # Rien de compris encore : une description faite des seuls termes PROPOSÉS (la palette,
         # le défaut) se comprend par la déclaration, sans LLM (`app_metadata.vocabulary_concepts`).
@@ -365,6 +374,27 @@ def switch_requested_qualification(media, plan=None) -> list:
     return switched
 
 
+def understand_description(media, user) -> str:
+    """La description de la card COMPRISE par la pipeline de prompts commune (concepts anglais).
+    La route de l'imager (`effective_prompt`) : ce qui a déjà été compris (gardé au dernier
+    lancement, posé par ✨, édité par l'utilisateur) part tel quel, sans seconde passe LLM ; sinon
+    la pipeline le comprend ici, et ce qu'elle a compris est GARDÉ pour être montré
+    (`keep_processed_prompt`, 2026-11-24). Appelée par la détection, et au départ de la tâche
+    quand la détection va jouer : la qualification qu'une description demande est alors réglée
+    avant que le lancement ne choisisse ses étapes (2026-11-25)."""
+    from wama.common.utils.app_metadata import (effective_prompt, keep_processed_prompt,
+                                                process_prompt_for)
+    already = bool((getattr(media, 'sam3_prompt_processed', '') or '').strip())
+    understood = process_prompt_for('anonymizer', 'sam3_prompt',
+                                    effective_prompt(media, 'sam3_prompt'),
+                                    instance=media, user=user, full=True,
+                                    enrich=False if already else None,
+                                    console=lambda m: _console(user.id, f"[SAM3] {m}"))
+    if not already:
+        keep_processed_prompt(media, 'sam3_prompt', understood)
+    return understood.get('prompt') or media.sam3_prompt
+
+
 def _detection_kwargs(media, user, ensure_model=None):
     """Ce que le détecteur reçoit, et les modèles qu'il emploiera (clés de catalogue) : choix du
     ou des modèles par la couverture des classes demandées, ou SAM3 pour une description.
@@ -383,21 +413,7 @@ def _detection_kwargs(media, user, ensure_model=None):
     # SAM3 = concepts EN → pipeline commune (§16.6) ; KIND déclaré dans app_metadata.
     # Bug d'origine : « Floute les visages » (FR) → 0 masque. process_prompt_for est fail-safe.
     if use_sam3 and sam3_prompt and sam3_prompt.strip():
-        # La route de l'imager (`effective_prompt`) : ce qui a déjà été compris (gardé au dernier
-        # lancement, posé par ✨, édité par l'utilisateur) part tel quel, sans seconde passe LLM ;
-        # sinon la pipeline le comprend ICI, et ce qu'elle a compris est GARDÉ pour être montré
-        # (`keep_processed_prompt`, 2026-11-24).
-        from wama.common.utils.app_metadata import (effective_prompt, keep_processed_prompt,
-                                                    process_prompt_for)
-        already = bool((getattr(media, 'sam3_prompt_processed', '') or '').strip())
-        understood = process_prompt_for('anonymizer', 'sam3_prompt',
-                                        effective_prompt(media, 'sam3_prompt'),
-                                        instance=media, user=user, full=True,
-                                        enrich=False if already else None,
-                                        console=lambda m: _console(user.id, f"[SAM3] {m}"))
-        sam3_prompt = understood.get('prompt') or sam3_prompt
-        if not already:
-            keep_processed_prompt(media, 'sam3_prompt', understood)
+        sam3_prompt = understand_description(media, user)
 
     _console(user.id, f"[DEBUG] SAM3 settings: use_sam3={use_sam3}, prompt='{sam3_prompt[:30] if sam3_prompt else ''}'")
 
@@ -863,9 +879,13 @@ def _blur(media, ctx):
         doc, interpolate=video and media.interpolate_detections,
         max_gap=detections.max_gap_for(doc.get('fps'), media.max_interpolation_frames),
         max_extrapolation=media.max_extrapolation_frames if video else 0)
+    # Le RENDU (2026-11-25, C) : flou, pixellisation, masque plein ; et l'inversion — tout sauf la
+    # sélection, les images sans objet comprises (`paint_empty`).
+    invert = bool(getattr(media, 'blur_invert', False))
     settings_ = {'blur_ratio': media.blur_ratio, 'rounded_edges': media.rounded_edges,
                  'progressive_blur': media.progressive_blur,
-                 'roi_enlargement': media.roi_enlargement}
+                 'roi_enlargement': media.roi_enlargement,
+                 'mode': getattr(media, 'blur_mode', None) or 'blur', 'invert': invert}
 
     def blur_frame(image, found):
         return blur_detections(image, found, **settings_)
@@ -883,7 +903,7 @@ def _blur(media, ctx):
     ctx.progress(2)
     try:
         written = detections.rewrite_media(
-            source, frames_map, blur_frame, target, on_frame=on_frame,
+            source, frames_map, blur_frame, target, on_frame=on_frame, paint_empty=invert,
             progress=lambda done, total: ctx.progress(min(99, int(done * 100 / max(total, 1)))))
     finally:
         if preview is not None:

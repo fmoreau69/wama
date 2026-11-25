@@ -2084,8 +2084,10 @@ MECHANISMS = (
               "non qualifié reste flouté) ; et la RELATION (« face of red person » : le centre de "
               "l'objet dans la boîte de l'autre, `box_centre_inside`, la règle du banc de rappel) "
               "et le RANG (« nearest » "
-              "par la profondeur, « largest » par la part de l'image), par image, jamais sans "
-              "preuve — `detection_attributes.read_request`",
+              "par la profondeur, « largest » par la part de l'image), par OBJET sur une vidéo, "
+              "jamais sans preuve — `detection_attributes.read_request` ; l'OBJET d'une vidéo, "
+              "sa piste ou sans piste la chaîne de ses maillons (`object_keys`) ; le RENDU d'une "
+              "zone — flou, pixellisation, masque plein, inversion (`blur_utils.cover`)",
               'wama/common/utils/detections.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6',
               annexes=('wama/common/utils/blur_utils.py',

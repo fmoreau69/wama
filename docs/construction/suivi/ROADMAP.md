@@ -4793,11 +4793,78 @@ sont souvent les mêmes »*) ; puis B.
   la couleur du contenant, la profondeur d'un rang de distance ; une relation sans attribut ne
   mesure rien — revérification : elle était d'abord écrite dans `anonymizer/tasks.py`). ⚠ Le rang est PAR IMAGE : sur une vidéo, « la plus
   proche » peut changer d'objet d'une image à l'autre — par piste, à décider avec D (suivi).
+- **B — fin** ✅ (même jour, question de Fabien : « as-tu regardé tout ce qui est en place dans le
+  cam analyzer ? » — en partie seulement : le moteur commun `depth_engine` et son défaut, pas
+  pourquoi ce défaut ni ses briques) :
+  - **le modèle, MESURÉ pour l'anonymizer** : le défaut ZoeDepth-KITTI avait été choisi au banc du
+    cam_analyzer (rig grand-angle derrière vitrage, `CAM_ANALYZER_CHANGELOG` du 2026-09-28) et
+    repris sans vérification. Banc en lecture seule sur ses images (visages en foule #1292/#1293,
+    #1436, rue SEQ08-01 #2337 ; 23 images, 1 221 paires d'objets de même classe ; arbitre = taille
+    apparente, le plus grand est le plus proche) : ZoeDepth **96,2 %** des paires bien classées en
+    1,1 s/image GPU, Depth Pro 96,3 % en 6,7 s, DA-V2 Small 93,1 % en 0,3 s. Le défaut tient pour
+    CLASSER (plan, rang) ; Depth Pro ne s'impose que pour des mètres (« à environ 10 m »).
+    Consigné au moteur (`depth_engine.DEFAULT_DEPTH_MODEL`) ;
+  - **la mesure d'un objet** à côté de celle du cam_analyzer : `depth_geometry.masked_depth`
+    (médiane sous l'objet, 96 %) près de `contact_depth` (contact au sol, 90-93 % sur ces objets
+    qui ne touchent pas le sol) — `detection_attributes.depth_of` y délègue ;
+  - **l'OBJET d'une vidéo** : SEQ08-01 n'a AUCUNE piste — la profondeur d'une image par seconde
+    n'atteignait que 226 objets sur 5 498, et « la plus proche » ne classait presque rien.
+    `detections.object_keys` dit le même objet par sa piste, sinon par la chaîne de ses maillons
+    (`_links`, la règle de l'interpolation et d'`object_chain`) : la qualification reporte la
+    profondeur sur l'objet (**4 541 / 5 498**), et le RANG se juge par objet (médiane de ses
+    mesures, `_object_measures`) — rejoué sur la vidéo : 30 changements de plaque retenue au lieu
+    de 34 sur 308 images ; 488 images gardent toutes leurs plaques (un objet jamais mesuré :
+    flouté, le côté sûr). Qualification de 813 images : 156 s ;
+  - **un texte libre qualifie dès le premier ▶** : la description est comprise au départ de la
+    tâche quand la détection va jouer (`tasks.understand_description`, celle de la détection),
+    avant que le lancement ne choisisse ses étapes.
+- **C — modes de rendu simples** ✅ (même jour) : ce qui REMPLACE les pixels d'une zone est une
+  seule fonction de la brique commune (`blur_utils.cover` ; les modes déclarés dans
+  `detections.RENDER_MODES`, module sans OpenCV que le champ de la card lit) — flou, pixellisation
+  (blocs de la moitié du noyau : le même réglage d'intensité), masque plein noir — que les trois
+  chemins du floutage appellent (forme, rectangle, ellipse progressive) : la zone, ses bords et
+  son fondu restent les mêmes. L'INVERSION (`blur_detections(..., invert=True)`) couvre l'image
+  entière puis remet la sélection d'origine avec les mêmes finitions ; une image sans objet est
+  couverte en entier (`detections.rewrite_media(..., paint_empty=True)`). Deux réglages de la card
+  (`blur_mode`, `blur_invert`, migration 0046 additive, `db_default`), qui ne périment que le
+  floutage. ⏳ l'inversion par la seule PROFONDEUR (« tout l'arrière-plan ») attend la carte de
+  profondeur gardée (ci-dessous) ; le Cam Analyzer (`blur_detections_inside`) ne prend pas encore
+  le mode.
+
+**Demandes de Fabien (2026-11-25, après C) — proposées, ordre à confirmer** :
+- la PROFONDEUR choisie comme tout modèle d'un sous-process (catalogue `depth-estimation`, « auto »
+  et curseur rapide/qualité — le motif du describer, `asr_model` + `quality_intent`) ; un curseur
+  à DEUX POIGNÉES (le plan à flouter, « celui du milieu ») — un type de réglage commun de
+  `WamaParams`, aucun n'existe ;
+- l'INVERSION PAR CATÉGORIE de réglage (libellés, couleurs, tailles, profondeur), à côté de
+  l'inversion d'ensemble livrée en C ;
+- « Quoi afficher » (`show_preview`, `show_boxes`, `show_labels`, `show_conf`) quitte les réglages
+  de la card : l'aperçu « Pendant » est toujours là, et boîtes / libellés / confiance deviennent
+  des options d'AFFICHAGE de l'aperçu quand il montre des boîtes ;
+- le SEUIL DE DÉTECTION au floutage (la détection garde ses boîtes avec leur confiance) — le
+  Cam Analyzer le fait déjà (`display_anonymization.confident`, seuil par classe, avant
+  l'interpolation) ;
+- tout réglage d'un process rapide (CPU, ou GPU court) RÉGLABLE EN DIRECT dans l'aperçu et la page
+  d'édition ; la page d'édition ouverte pendant le traitement, au moins aussi complète que
+  l'aperçu (Pendant, versions lisibles de la card et de sa card mère, comparaison
+  `media-preview.compareView`), tout en briques UI déclarées ;
+- la VITESSE : mesuré sur SEQ08-01 (813 images 1280×720, 13 854 formes) — sélection +
+  interpolation 0,3 s pour toute la vidéo ; peinture 36 ms/image (masque plein 34 : le flou n'y est
+  pour rien) ; fichier complet 65 s (décodage 3,6, peinture 29,5, encodage ~32). Profil : la moitié
+  de la peinture dans le fondu de chaque forme (un flou gaussien de noyau 101 par forme, au flou
+  progressif 100) et un tiers dans la composition sur la boîte qui RÉUNIT toutes les formes (l'image
+  entière, en flottants) — deux défauts d'algorithme, OpenCV est déjà en C++.
 
 **Restes nommés (2026-11-25)** : ✅ B : attributs tirés de la DESCRIPTION, relations et rang
-(ci-dessus) ; ⏳ le rang par PISTE sur une vidéo (avec D) ; ⏳ un texte libre jamais
-compris avant ne qualifie qu'au second ▶ ; jouer la qualification
-avec profondeur sur une vraie vidéo (non fait) ; ⏳ le compte 22 a enregistré une description VIDE
+(ci-dessus) ; ✅ le rang par objet sur une vidéo (sans attendre D : piste ou chaîne) ; ✅ un texte
+libre qualifie au premier ▶ ; ✅ qualification avec profondeur jouée sur une vraie vidéo (lecture
+seule) ; ⏳ un objet jamais mesuré laisse son image non classée — mesurer plus souvent quand un
+rang est demandé, si le besoin se montre ; ⏳ **réglage EN DIRECT dans la page d'édition**
+(proposé par Fabien le 2026-11-25 : curseur de profondeur, matrice de couleurs — tout est déjà
+gardé, seule la profondeur demande le GPU) : la page montre aujourd'hui le document brut, la
+sélection ne vit que dans la modale ; à faire en gardant la règle en Python (`within_request`),
+une profondeur relative à la scène (ZoeDepth n'est pas métrique) et la CARTE de profondeur gardée
+comme l'étage 1 du cam_analyzer (`DepthFrame`) — décision attendue ; ⏳ le compte 22 a enregistré une description VIDE
 en mode Description (réglage du volet, antérieur) : ses cards neuves ne décrivent rien — à lui
 dire, rien n'est touché ; ⏳ la jumelle `anonymizer_01` n'a ni les champs de la qualification ni
 le défaut (copies du 23/11, tests propres déjà cassés à l'import).
