@@ -32873,3 +32873,30 @@ technique, puis les emplois « par plans ».
 **Vérifié** : `check_docs` 0 cassée (1 périmée qui n'est pas d'ici, `PROJECT_STATUS:32181`) ; les
 5 tests du détecteur verts. **Scripts et séries de mesure** : scratchpad de la session
 (`adaptive_probe*.py`, `structure_probe.py`), non versionnés.
+
+## §PALIER 2026-11-25, « ADD_TO : les apps, les jumelles, l'assistant et le Studio mesurés ; une jumelle jugée sur la ligne de sa source » — commit local, non poussé — 🔚 le créateur unique de l'enhancer (décision de Fabien : qui le porte)
+
+Mesuré sur le catalogue réel (22 apps : 10 réelles, 10 jumelles, 2 nées d'un manifeste ; sonde en
+lecture seule) : chaque app a son `add_to_<app>` et son nœud du Studio. Une seule app sert un
+domaine par une AUTRE surface que la sienne : l'enhancer (10 extensions audio, qui entrent par
+`add_to_audio_enhancer` et non par `add_to_enhancer`).
+- ✅ `acd78bb29` : le geste nocturne `studio.node_ports_wired` était ROUGE chaque nuit depuis le
+  2026-10-30 (lendemain du jour où les jumelles ont reçu leur nœud) — leurs ports hérités étaient
+  « hors budget ». Une jumelle se juge sur la ligne de sa source (`sandbox.declaring_app`) ; rejoué
+  vert (14 ports restants, conformes). Feu vert de la session de la table des entrées.
+- 🔚 Le §PALIER 2026-11-24 « LES CRÉATEURS DE L'ASSISTANT » confiait le portage d'`add_to_audio_enhancer`
+  à la session de la table des entrées : elle le DÉCLINE (hors de son chantier, elle ne touche pas
+  aux créateurs). Il revient à cette session, sur décision de Fabien. 7ᵉ impact, mesuré ce jour :
+  la jumelle `enhancer_01` n'a AUCUN créateur pour son domaine audio — `_register_twin_creators`
+  re-cible `add_to_<source>` seul, et `add_to_audio_enhancer` écrit `'enhancer'` en dur
+  (`tool_api.py`, `_receive(…, 'enhancer', …)`, `surface_file_nature('enhancer', …)`,
+  `AudioEnhancement` importé du paquet réel) : ni l'assistant ni le Studio ne créent dans l'audio
+  d'enhancer_01. Consommateurs à porter avec : `wama-assistant-chat.js:51` (icône), tests qui
+  nomment l'outil (`tests_tool_api_coverage`, `tests_domain_arrival`, `tests_tool_item_contract`,
+  `enhancer/tests_panel_memory`, `gateway/tests`).
+- Rouges vus sur l'arbre du jour, pas à cette session : `tests_port_fields` ×2 (l'avatar de
+  l'avatarizer quitte sa colonne, travail en cours de la table des entrées) ;
+  `converter.tests.SauverCommeProfilTest` (`data-key` entré dans `wama-params.js` par `1c31cbd2f`,
+  session de l'anonymizer).
+- Reste de la session soldé ailleurs : `avatarizer_01.add` / `attach_lot` verts depuis `93048d88d`
+  (session de la table des entrées).
