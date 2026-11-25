@@ -306,11 +306,13 @@ class CapFromTest(SimpleTestCase):
             var item = window.WamaParams.resolvePageOptions(p, {media_type: ['image', 'video']}, 'item');
             var batch = window.WamaParams.resolvePageOptions(p, {media_type: 'image'}, 'batch');
             return {values: item.map(function (o) { return o.value; }), auto: item[0].label,
-                    batchEmpty: batch[0].label};
+                    batchEmpty: batch[0].label, batchValue: batch[0].value};
         })()""")
-        self.assertEqual(['', 'jpg', 'png', 'mp4'], list(out['values']))
+        # « Automatique » has its value, `auto` (2026-11-25 : a choice is never empty) ; in a batch
+        # modal the empty value stays « — inchangé — » : nothing chosen, nothing changed.
+        self.assertEqual(['auto', 'jpg', 'png', 'mp4'], list(out['values']))
         self.assertIn('Automatique', out['auto'])
-        self.assertEqual('— inchangé —', out['batchEmpty'])
+        self.assertEqual(('— inchangé —', ''), (out['batchEmpty'], out['batchValue']))
 
     def test_nothing_known_greys_nothing(self):
         """« auto » (no caps) or an undeclared capability: never grey on an absence of fact —
@@ -876,8 +878,9 @@ OWN_PANEL_SAVE = {
     # 2026-11-18 : anonymizer, describer, enhancer (whose save posted an EMPTY body), imager,
     # reader, synthesizer and transcriber brought back. 2026-11-19 : the converter, once its two
     # rules were in the common — what is outside the element's nature is not written
-    # (`param_schema.settings_outside_nature`), and an empty value is a choice where the app says
-    # so (`empty_is_value`). Its `options_json` dropped every empty value : none could be removed.
+    # (`param_schema.settings_outside_nature`), and an empty value is a choice where its TYPE says
+    # so (`param_schema.emptied_values`, 2026-11-25 ; an app list until then). Its `options_json`
+    # dropped every empty value : none could be removed.
 }
 
 

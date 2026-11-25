@@ -39,8 +39,12 @@ OUTPUT_QUALITY_CHOICES: List[Tuple[str, str]] = [(k, PRESET_LABELS[k]) for k in 
 #: silence (constat Fabien sur Supra2-IMG). Valeurs = celles de l'option `upscale` du converter
 #: (`CROSS_APP_OPTIONS`) : un seul vocabulaire. L'upscaler est TIRÉ du catalogue (tâche
 #: `upscale`, capacité `scale` = le facteur), jamais nommé ici.
+#: « Aucun » a sa vraie valeur, `none` (2026-11-25, décision de Fabien) : vide, la ⚙ l'écartait
+#: comme « non fourni » et l'agrandissement retiré n'était jamais enregistré.
+from wama.common.utils.param_schema import NONE  # noqa: E402
+
 OUTPUT_UPSCALE_CHOICES: List[Tuple[str, str]] = [
-    ("", "Aucun"),
+    (NONE, "Aucun"),
     ("x2", "×2"),
     ("x4", "×4"),
 ]
@@ -159,7 +163,7 @@ def output_format_params(domain, contexts=None, dom_id_format=None, dom_id_quali
         # Avant le format : l'agrandissement précède la conversion (ordre du process).
         params.append(
             Param(name="output_upscale", type="select", label="Agrandir la sortie", icon="fa-expand",
-                  choices=list(OUTPUT_UPSCALE_CHOICES), default="", contexts=ctx,
+                  choices=list(OUTPUT_UPSCALE_CHOICES), default=NONE, contexts=ctx,
                   dom_id=dom_id_upscale or "output_upscale", group=group,
                   help="Agrandissement par un modèle d'upscaling IA, appliqué après la génération.")
         )
@@ -259,7 +263,8 @@ def output_format_params_for_app(app_name: str, contexts=None, dom_id_format=Non
 
 
 def upscale_factor(value) -> int:
-    """`'x4'` → 4, `'x2'` → 2 ; 0 pour « aucun » ou une valeur illisible."""
+    """`'x4'` → 4, `'x2'` → 2 ; 0 pour « aucun » (`none`, ou le vide d'une ligne d'avant) ou une
+    valeur illisible."""
     try:
         return int(str(value or '').strip().lower().lstrip('x') or 0)
     except ValueError:

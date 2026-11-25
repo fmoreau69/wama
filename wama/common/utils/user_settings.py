@@ -120,12 +120,10 @@ def clear_user_app_settings(user, app, names):
 #                 et `clean` — {nom: fonction} qui assainit une valeur postée avant de la garder.
 # Toutes les fonctions acceptent la même déclaration (l'app la passe telle quelle, `**`).
 
-#: Types de param pour qui `''` EST une valeur (un prompt vidé, un choix remis sur « auto », une
-#: température, un top_p rendus au modèle, une graine rendue au hasard — `EMPTY_IS_NONE_TYPES`) ;
-#: pour les autres (nombres, interrupteurs), `''` veut dire « non fourni ».
-from wama.common.utils.param_schema import EMPTY_IS_NONE_TYPES  # noqa: E402 (feuille sans import)
-
-_EMPTY_IS_VALUE = ('text', 'textarea', 'select') + EMPTY_IS_NONE_TYPES
+#: Quand un `''` posté EST une valeur (un prompt vidé, un nombre sans défaut, une température
+#: rendue au modèle) : la règle par TYPE de `param_schema.emptied_values` — la même que la ⚙ d'une
+#: card ou d'un lot (2026-11-25 ; le volet tenait sa propre liste de types, `_EMPTY_IS_VALUE`, où un
+#: choix vide était toujours une valeur — même un choix dynamique où rien n'était choisi).
 
 
 def _storage(app, params, key, extra, domain):
@@ -169,7 +167,7 @@ def save_panel_settings(user, app, params, data, *, key=None, extra=None, clean=
     changé plus tard dans le schéma n'atteindrait plus personne (la base ne porte que ce que
     l'utilisateur a POSÉ — même règle que `param_schema.effective_settings`).
     Rend ce qui a été gardé, par clé de stockage."""
-    from wama.common.utils.param_schema import (_pget, coerce_schema_values,
+    from wama.common.utils.param_schema import (_pget, coerce_schema_values, emptied_values,
                                                 panel_prefs_from_post)
     key, stored_as = _storage(app, params, key, extra, domain)
     # Un formulaire posté (`request.POST`) se déplie en LISTES (`{**QueryDict}`) : un texte laissé
@@ -178,8 +176,9 @@ def save_panel_settings(user, app, params, data, *, key=None, extra=None, clean=
     if hasattr(data, 'getlist'):
         data = {name: (values[0] if len(values) == 1 else values)
                 for name in data if (values := data.getlist(name)) is not None}
-    typed = {**data, **coerce_schema_values(params, data)}
-    textual = {_pget(p, 'name') for p in params if _pget(p, 'type') in _EMPTY_IS_VALUE}
+    emptied = emptied_values(params, data)
+    typed = {**data, **coerce_schema_values(params, data), **emptied}
+    textual = set(emptied)
     prefs = {}
     for p in params:
         for k, v in panel_prefs_from_post(typed, [p], key=key).items():
@@ -277,7 +276,7 @@ def inputs_by_port(app_id, *received) -> dict:
 
 def new_element_settings(user, app, params, model, *, post=None, context=None, key=None,
                          extra=None, clean=None, options_field=None, preset=None,
-                         empty_is_value=(), inputs=None, domain=None) -> dict:
+                         inputs=None, domain=None) -> dict:
     """Les colonnes de réglage d'un élément NAISSANT — il naît complet (`ROADMAP §23.2quater`),
     et sa tâche ne lit plus que ses colonnes.
 
@@ -292,22 +291,25 @@ def new_element_settings(user, app, params, model, *, post=None, context=None, k
     `preset` : la couche PRÉRÉGLAGE de la cascade (`effective_settings` : défauts ← préréglage ←
     posé) — p. ex. les défauts DÉCLARÉS du modèle choisi (imager), qui priment sur ceux du schéma
     sans écraser un choix de l'auteur.
-    `empty_is_value` : noms pour qui une valeur postée VIDE est un choix — même mot-clé, même sens
-    que `batch_views.read_settings_payload` (la graine vide de l'imager = aléatoire) : elle écarte
-    la préférence retenue, et le défaut du schéma joue.
+    Une valeur postée VIDE que le TYPE du réglage fait valeur (`param_schema.emptied_values` : un
+    texte vidé, un nombre sans défaut, une graine rendue au hasard) l'emporte sur la
+    préférence retenue, comme tout choix posté — la règle de la ⚙ (2026-11-25 ; une liste par app,
+    `empty_is_value`, la tenait jusque-là).
     `inputs` : `{port: fichier reçu}` (2026-10-29) — la couche PROPOSÉE D'APRÈS L'ENTRÉE
     (`input_proposals`, `Param.default_from`), entre les préférences du volet et ce qui est posté :
     un PDF sans texte coche l'OCR même si le volet le gardait décoché ; un choix POSTÉ l'emporte,
     comme côté client (une valeur changée par l'utilisateur reste la sienne)."""
     from wama.common.utils.param_schema import (_pget, coerce_schema_values, effective_settings,
-                                                invalid_choice_values, panel_values_by_name)
+                                                emptied_values, invalid_choice_values,
+                                                panel_values_by_name)
     # Ce que l'auteur a POSÉ, rien d'autre (2026-10-18) : `read_panel_settings` complète par les
     # défauts du volet, que la cascade prenait pour des choix — un préréglage ne pouvait alors
     # jamais jouer, ni un `show_if` écarter un défaut. Les défauts viennent d'`effective_settings`.
     key, stored_as = _storage(app, params, key, extra, domain)
     posed = _read(user, app, list(_panel_defaults(params, key, extra, stored_as)))
     prefs = panel_values_by_name(posed, params, key=key)
-    posted = coerce_schema_values(params, post) if post is not None else {}
+    posted = ({**coerce_schema_values(params, post), **emptied_values(params, post)}
+              if post is not None else {})
     proposed = {name: p['value'] for name, p in input_proposals(params, inputs).items()} if inputs else {}
     given = {**prefs, **proposed, **posted}
     # Une valeur HORS des choix déclarés n'est jamais écrite — une préférence gardée avant qu'un
@@ -316,12 +318,6 @@ def new_element_settings(user, app, params, model, *, post=None, context=None, k
     # existant, ici pour un élément qui naît (2026-10-18).
     for name in invalid_choice_values(params, given):
         given.pop(name)
-    # Un réglage de TIRAGE posté vide (`EMPTY_IS_NONE_TYPES`) n'a rien à faire ici : la coercition
-    # le rend `None`, et ce choix posté l'emporte sur la préférence retenue (2026-10-22 — la graine de
-    # l'imager se déclarait dans `empty_is_value` parce qu'elle était un `number`).
-    for name in empty_is_value:
-        if post is not None and name in post and post.get(name) in (None, ''):
-            given.pop(name, None)
     values = effective_settings(params, posees=given, preset=preset, contexte=context)
     # Réglages HORS schéma : ceux de l'auteur, leur défaut déclaré sinon (aucun dépôt ne les poste).
     values.update({name: posed.get(stored_as[name], default)

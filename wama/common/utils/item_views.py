@@ -385,9 +385,10 @@ def make_item_views(*, work_model, app_id: str, task=None, task_for=None,
         item_settings   : callable(élément, réglages)->champs touchés | None — l'écrivain de la
                           route d'UN élément quand elle pose PLUS que la ⚙ de lot (transcriber :
                           titre, date, intervenants, propres à une card). Défaut : celui du lot.
-        item_empty_is_value : les réglages pour qui `''` EST une valeur sur la route d'un élément,
-                          quand ce n'est pas le cas au lot (converter : format vide = automatique).
-                          Défaut : ceux du lot.
+        item_empty_is_value : PLUS LU depuis le 2026-11-25 — le vide qui est une valeur se lit du
+                          TYPE du réglage (`param_schema.emptied_values`) ; le format « Automatique »
+                          du converter vaut `auto`. Gardé à la signature pour les jumelles pas
+                          encore régénérées (`REMOVAL_LEDGER`) ; ne plus le passer.
         settings_file   : le champ FICHIER qu'un enregistrement de réglages peut recevoir, téléversé
                           ou désigné (synthesizer : `voice_reference`) — refusé, rien n'est écrit ;
                           reçu, il remplace l'ancien, qui est LIBÉRÉ.
@@ -611,8 +612,7 @@ def make_item_views(*, work_model, app_id: str, task=None, task_for=None,
             if not received and received.refusal:
                 return JsonResponse({'error': received.refusal}, status=400)
         before = columns_snapshot(item)               # en cours compris : seules les colonnes changées
-        empty = found['empty_is_value'] if item_empty_is_value is None else item_empty_is_value
-        data = read_settings_payload(request, schema, names, empty, found['list_settings'])
+        data = read_settings_payload(request, schema, names, found['list_settings'])
         data.pop(settings_file, None)                 # le fichier passe par `received_inputs` seul
         try:
             (item_settings or found['write'])(item, data)

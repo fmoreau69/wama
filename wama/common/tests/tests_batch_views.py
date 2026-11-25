@@ -896,13 +896,25 @@ class SettingsPayloadTest(TestCase):
         self.assertNotIn('note', data, "un champ du schéma laissé vide veut dire « ne pas toucher »")
         self.assertIn('steps2', data, 'un champ HORS schéma passe tel quel')
 
-    def test_a_declared_field_keeps_its_empty_value(self):
-        """reader : `language` vide = auto-détection voulue (leçon du 17/08 : test de présence,
-        jamais `or`) — déclaré par `empty_is_value`, `''` traverse ; les autres vides tombent."""
-        req = RequestFactory().post('/x/', {'language': '', 'note': ''})
-        data = read_settings_payload(req, [{'name': 'language', 'type': 'text'}, {'name': 'note', 'type': 'text'}],
-                                     ('language', 'note'), empty_is_value=('language',))
-        self.assertEqual(data, {'language': ''})
+    def test_an_empty_value_is_kept_only_where_its_type_makes_it_one(self):
+        """2026-11-25 (`param_schema.emptied_values`) : the reader's `language` emptied = auto
+        detection, a prompt emptied is cleared — read from the TYPE, no app lists them any more (the
+        twins lost those lists). A number without a default is unset ; everything else left empty
+        says « do not touch » : a number with a default, a switch, a choice that does not offer the
+        empty value (a dynamic one : nothing was chosen)."""
+        schema = [{'name': 'language', 'type': 'text'}, {'name': 'prompt', 'type': 'textarea'},
+                  {'name': 'width', 'type': 'number'}, {'name': 'steps', 'type': 'number', 'default': 30},
+                  {'name': 'mirror', 'type': 'toggle'},
+                  {'name': 'twin_upscale', 'type': 'select', 'choices': [('', 'Aucun'), ('x2', '×2')]},
+                  {'name': 'upscale', 'type': 'select', 'choices': [('none', 'Aucun'), ('x2', '×2')]},
+                  {'name': 'model', 'type': 'select', 'options_source': 'catalog'}]
+        names = tuple(p['name'] for p in schema)
+        req = RequestFactory().post('/x/', {n: '' for n in names})
+        data = read_settings_payload(req, schema, names)
+        self.assertEqual({'language': '', 'prompt': '', 'width': None, 'twin_upscale': ''}, data)
+        # Counter-proof : a value posted is taken as it is, the neutral choice included.
+        req = RequestFactory().post('/x/', {'upscale': 'none', 'steps': '12'})
+        self.assertEqual({'upscale': 'none', 'steps': 12}, read_settings_payload(req, schema, names))
 
     def test_json_payload_is_read_from_the_body(self):
         req = RequestFactory().post('/x/', data=json.dumps({'steps': 5}), content_type='application/json')

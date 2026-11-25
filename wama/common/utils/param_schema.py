@@ -1364,6 +1364,71 @@ def coerce_schema_values(schema, data, only_present: bool = True) -> dict:
     return out
 
 
+# ── Le VIDE et le NEUTRE (2026-11-25, décision de Fabien) ─────────────────────────────────────
+# « Quand le choix du modèle est sur auto ou que la qualité de sortie est inchangée, c'est un
+# choix… mais ce n'est pas vide. Ça ne devrait pas l'être. » Le choix qui ne change rien — « Aucun »,
+# « Inchangée », « Auto » — a une VRAIE valeur, les mots que WAMA employait déjà : `auto`
+# (`auto_model.AUTO`), `original` (`output_formats.ORIGINAL`) et `none`. Le vide reste ce qu'il est
+# partout : « non fourni » — sauf là où le TYPE du réglage dit qu'il est une valeur
+# (`emptied_values`). Plus aucune liste par app (`empty_is_value`, six apps, que les jumelles
+# perdaient) : la règle se lit du schéma.
+
+#: « Aucun » : aucune transformation (rotation, agrandissement…).
+NONE = 'none'
+
+
+def neutral_choices() -> tuple:
+    """Les valeurs d'un choix NEUTRE — chacune lue chez son domicile, jamais recopiée."""
+    from wama.common.utils.auto_model import AUTO
+    from wama.common.utils.output_formats import ORIGINAL
+    return (AUTO, ORIGINAL, NONE)
+
+
+def is_neutral(value) -> bool:
+    """Cette valeur ne demande-t-elle RIEN au moteur ? Le vide et `None` (non réglé, ou une donnée
+    d'avant la valeur explicite) et les choix neutres. Pour un lecteur qui traduit des réglages en
+    options de moteur (le converter : `-b:a`, `-ar`…) — un sélecteur de modèle, lui, résout `auto`."""
+    return value is None or value == '' or (isinstance(value, str) and value in neutral_choices())
+
+
+def without_neutral(values: dict) -> dict:
+    """`values` sans ce qui ne demande rien au moteur (`is_neutral`) — ce qu'un moteur à options
+    reçoit : il ne voit jamais `-b:a auto` ni une rotation `none`."""
+    return {k: v for k, v in (values or {}).items() if not is_neutral(v)}
+
+
+def emptied_values(schema, data) -> dict:
+    """{nom: valeur} des réglages postés VIDES pour qui le vide EST une valeur — la règle par TYPE,
+    lue du schéma, la même pour une card, un lot, le volet, une naissance, un outil :
+      • un texte vidé est vidé (`text`, `textarea`) : un prompt négatif effacé, des paroles retirées ;
+      • un nombre SANS défaut vidé n'est plus réglé (`None`) : la largeur, le CRF du converter ;
+        un nombre à défaut reste « non fourni » — un champ vide n'y dit rien, sa colonne nulle se
+        lit déjà comme le défaut (ou celui du modèle, que le défaut du schéma écraserait) ;
+      • un réglage de tirage (`EMPTY_IS_NONE_TYPES`) : `None`, celui du modèle (`coerce_schema_values`) ;
+        le curseur rapide/qualité (`intent`) aussi : vidé, il n'est plus réglé sur l'élément et la
+        cascade retombe sur celui de l'utilisateur (`auto_model.posted_quality_intent`) ;
+      • un choix vide ne vaut que si le schéma PROPOSE le vide parmi ses choix — une jumelle générée
+        avant la valeur explicite des choix neutres. Un choix dynamique (catalogue, formats) vide :
+        rien n'était choisi, « non fourni » (la ⚙ d'un lot : « — inchangé — »).
+    Tout autre vide reste « non fourni » (interrupteur, liste). Seules les clés PRÉSENTES et vides
+    de `data` sont lues : une clé absente n'est jamais une valeur."""
+    get = data.get if hasattr(data, 'get') else (lambda k, d=None: d)
+    out = {}
+    for p in schema or ():
+        name, ptype = _pget(p, 'name'), _pget(p, 'type')
+        if name is None or get(name) != '':
+            continue
+        if ptype in ('text', 'textarea'):
+            out[name] = ''
+        elif ptype in EMPTY_IS_NONE_TYPES or ptype == 'intent':
+            out[name] = None
+        elif ptype in NUMERIC_TYPES and _pget(p, 'default') is None:
+            out[name] = None
+        elif ptype in ('select', 'radio') and '' in choice_values(p):
+            out[name] = ''
+    return out
+
+
 # ── La PORTE d'un réglage reçu : refuser ce qu'aucune coercition ne rend applicable ──────────
 # `coerce_schema_values` TYPE et BORNE ; elle ne REFUSE rien. Trois cas ne se corrigent pas sans
 # mentir, et se refusent en nommant la valeur : un choix hors liste (`invalid_choice_values`), un

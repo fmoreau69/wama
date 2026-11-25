@@ -1491,7 +1491,7 @@
     // `formats` : formats de sortie du converter par type de média — la table de conversion de
     // la plateforme (`CONVERTER_OUTPUT_FORMATS`), pas une donnée d'app. Même rendu que le
     // resolver historique du converter (`converter.js`) : l'option vide puis « .PNG ».
-    // L'option VIDE (2026-10-18) : « Automatique (selon l'entrée) » — le format de la nature,
+    // La PREMIÈRE option (2026-10-18) : « Automatique (selon l'entrée) » — le format de la nature,
     // résolu par le serveur (`format_router.output_format_for`) au dépôt, sur un nœud du Studio,
     // à l'« Envoyer vers » ; dans une modale de LOT elle reste « — inchangé — » (vide = ne pas
     // toucher, la règle de `read_settings_payload`).
@@ -1519,8 +1519,11 @@
           });
         });
       }
-      var empty = ctx === 'batch' ? '— inchangé —' : 'Automatique (selon l’entrée)';
-      return [{ value: '', label: empty }].concat(liste.map(function (f) {
+      // « Automatique » a sa VRAIE valeur, `auto` (2026-11-25, décision de Fabien : un choix n'est
+      // jamais vide) ; au LOT, le vide reste « — inchangé — » : rien n'est choisi, rien ne change.
+      var first = ctx === 'batch' ? { value: '', label: '— inchangé —' }
+                                  : { value: 'auto', label: 'Automatique (selon l’entrée)' };
+      return [first].concat(liste.map(function (f) {
         return { value: f, label: '.' + String(f).toUpperCase() };
       }));
     },

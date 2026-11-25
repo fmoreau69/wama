@@ -445,7 +445,7 @@
                   "imports": []
                 },
                 "default": {
-                  "expr": "''",
+                  "expr": "'none'",
                   "imports": []
                 },
                 "max_length": {
@@ -501,11 +501,11 @@
                   "imports": []
                 },
                 "db_default": {
-                  "expr": "''",
+                  "expr": "'original'",
                   "imports": []
                 },
                 "default": {
-                  "expr": "''",
+                  "expr": "'original'",
                   "imports": []
                 },
                 "max_length": {
@@ -569,7 +569,7 @@
                   "imports": []
                 },
                 "default": {
-                  "expr": "''",
+                  "expr": "'auto'",
                   "imports": []
                 },
                 "max_length": {
@@ -588,7 +588,7 @@
                   "imports": []
                 },
                 "default": {
-                  "expr": "''",
+                  "expr": "'original'",
                   "imports": []
                 },
                 "max_length": {
@@ -607,11 +607,11 @@
                   "imports": []
                 },
                 "default": {
-                  "expr": "''",
+                  "expr": "'original'",
                   "imports": []
                 },
                 "max_length": {
-                  "expr": "4",
+                  "expr": "8",
                   "imports": []
                 }
               },
@@ -637,7 +637,7 @@
                   "imports": []
                 },
                 "default": {
-                  "expr": "''",
+                  "expr": "'none'",
                   "imports": []
                 },
                 "max_length": {
@@ -1430,7 +1430,7 @@
             "chip_label": "",
             "choices": [
               [
-                "",
+                "none",
                 "Aucune"
               ],
               [
@@ -1451,7 +1451,7 @@
               "batch",
               "panel"
             ],
-            "default": null,
+            "default": "none",
             "default_from": null,
             "display_format": "",
             "dom_id": "",
@@ -1688,7 +1688,7 @@
             "chip_label": "",
             "choices": [
               [
-                "",
+                "original",
                 "Inchangée"
               ],
               [
@@ -1713,7 +1713,7 @@
               "batch",
               "panel"
             ],
-            "default": null,
+            "default": "original",
             "default_from": null,
             "display_format": "",
             "dom_id": "",
@@ -1941,7 +1941,7 @@
             "chip_label": "",
             "choices": [
               [
-                "",
+                "auto",
                 "Auto"
               ],
               [
@@ -1974,7 +1974,7 @@
               "batch",
               "panel"
             ],
-            "default": null,
+            "default": "auto",
             "default_from": null,
             "display_format": "",
             "dom_id": "",
@@ -2028,7 +2028,7 @@
             "chip_label": "",
             "choices": [
               [
-                "",
+                "original",
                 "Inchangée"
               ],
               [
@@ -2049,7 +2049,7 @@
               "batch",
               "panel"
             ],
-            "default": null,
+            "default": "original",
             "default_from": null,
             "display_format": "",
             "dom_id": "",
@@ -2103,7 +2103,7 @@
             "chip_label": "",
             "choices": [
               [
-                "",
+                "original",
                 "Inchangés"
               ],
               [
@@ -2120,7 +2120,7 @@
               "batch",
               "panel"
             ],
-            "default": null,
+            "default": "original",
             "default_from": null,
             "display_format": "",
             "dom_id": "",
@@ -2232,7 +2232,7 @@
             "chip_label": "",
             "choices": [
               [
-                "",
+                "none",
                 "Aucun"
               ],
               [
@@ -2249,7 +2249,7 @@
               "batch",
               "panel"
             ],
-            "default": null,
+            "default": "none",
             "default_from": null,
             "display_format": "",
             "dom_id": "",
@@ -2616,9 +2616,9 @@
       "descriptions": {
         "add_to_converter": {
           "args": {
-            "audio_bitrate": "select — Débit audio (choix :  | 128k | 160k | 192k | 224k | 256k | 320k)",
+            "audio_bitrate": "select — Débit audio (choix : auto | 128k | 160k | 192k | 224k | 256k | 320k) (défaut : 'auto')",
             "audio_enhance": "toggle — Post-traitement IA via l'app enhancer — appliqué après la conversion (charge un modèle GPU).",
-            "channels": "select — Canaux (choix :  | 1 | 2)",
+            "channels": "select — Canaux (choix : original | 1 | 2) (défaut : 'original')",
             "denoise": "toggle — Post-traitement IA via l'app enhancer — appliqué après la conversion (charge un modèle GPU).",
             "file_path": "str (requis) — plusieurs fichiers arrivés ensemble : une LISTE de chemins, un élément par fichier, rangés en un lot comme un dépôt de plusieurs fichiers sur la card",
             "flip_h": "toggle — Miroir horizontal",
@@ -2634,10 +2634,10 @@
             "quality_preset": "str (défaut : 'balanced')",
             "resize_h": "number — Vide = suit la largeur (proportions gardées) ; les deux vides = inchangé. [0–None]",
             "resize_w": "number — Vide = suit la hauteur (proportions gardées) ; les deux vides = inchangé. [0–None]",
-            "resolution_cap": "select — Réduit la vidéo à cette définition (côté court), sans jamais l'agrandir. (choix :  | 1080 | 720 | 540 | 480)",
-            "rotation": "select — Rotation (choix :  | 90 | 180 | 270)",
-            "sample_rate": "select — Fréquence d'échantillonnage (choix :  | 22050 | 44100 | 48000)",
-            "upscale": "select — Post-traitement IA via l'app enhancer — appliqué après la conversion (charge un modèle GPU). (choix :  | x2 | x4)",
+            "resolution_cap": "select — Réduit la vidéo à cette définition (côté court), sans jamais l'agrandir. (choix : original | 1080 | 720 | 540 | 480) (défaut : 'original')",
+            "rotation": "select — Rotation (choix : none | 90 | 180 | 270) (défaut : 'none')",
+            "sample_rate": "select — Fréquence d'échantillonnage (choix : original | 22050 | 44100 | 48000) (défaut : 'original')",
+            "upscale": "select — Post-traitement IA via l'app enhancer — appliqué après la conversion (charge un modèle GPU). (choix : none | x2 | x4) (défaut : 'none')",
             "video_quality": "number — 0 = sans perte, 23 = défaut, 51 = pire qualité. [0–51]"
           },
           "description": "Ajoute un élément à la file d'attente de Converter (Conversion de formats : image, vidéo, audio, documents, archives) et renvoie son item_id."

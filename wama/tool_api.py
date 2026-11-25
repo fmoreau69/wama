@@ -1221,7 +1221,7 @@ def convert_file(
     from pathlib import Path
     from django.apps import apps as django_apps
     from wama.converter.utils.format_router import (detect_media_type, output_format_for,
-                                                    remember_output_format)
+                                                    remember_output_format, requested_format)
     from wama.converter.utils.quality_presets import PRESET_CHOICES, DEFAULT_PRESET
 
     # Désigné, pointé, provenance posée (2026-09-28) — cf. `add_to_enhancer`. Le chemin était
@@ -1243,7 +1243,7 @@ def convert_file(
     # pour cette nature ; absent, le format AUTOMATIQUE (dernier employé, sinon défaut de la
     # nature). Un nœud Converter du Studio passe ici : le format n'est plus obligatoire, et un
     # format CHOISI sur le nœud devient le dernier employé, comme au dépôt d'une card.
-    chosen = (output_format or '').strip().lower()
+    chosen = requested_format(output_format)
     try:
         out_fmt = output_format_for(user, media_type, chosen)
     except ValueError as refusal:

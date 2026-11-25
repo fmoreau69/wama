@@ -149,6 +149,74 @@ class ItemSettingsRouteContractTest(TestCase):
                 self.assertEqual(getattr(item, name), before, f'`{name}` took a value outside its choices')
 
 
+#: Texts an app refuses to empty — the INPUT of the work itself, kept when posted empty. The gap :
+#: the refusal is silent (the ⚙ answers 200 and keeps the text) ; it should be SAID, which needs a
+#: « required » setting the schema does not declare yet (consigned 2026-11-25, `MODES_QUEUE_UX`).
+#: A list that can only go down ; an entry no longer needed fails the test.
+DECLARED_GAPS = {
+    ('avatarizer', 'text_content'): "the text a « pipeline » job speaks (`_apply_job_settings`)",
+    ('composer', 'prompt'): 'the description the music is generated from (`_apply_generation_settings`)',
+}
+
+
+class EmptyAndNeutralSettingsTest(TestCase):
+    """The EMPTY value and the NEUTRAL choice (2026-11-25, decision of Fabien : « quand le choix est
+    sur auto ou que la qualité est inchangée, c'est un choix… mais ce n'est pas vide ») — measured
+    the day before : in the imager's ⚙, « Aucun » upscaling and an emptied negative prompt were
+    never saved, and the twins lost the per-app lists that rescued the others."""
+
+    _login_for = ItemSettingsRouteContractTest._login_for
+
+    def test_no_choice_of_an_app_offers_the_empty_value(self):
+        """A choice that changes nothing has its value (`param_schema.neutral_choices`) : empty,
+        the ⚙ reads it as « not given »."""
+        from wama.common.utils.param_schema import choice_values
+        for app, _model, schema in _surfaces():
+            empty = [p['name'] for p in schema if p.get('type') in ('select', 'radio')
+                     and '' in choice_values(p)]
+            with self.subTest(app=app):
+                self.assertEqual([], empty, 'a choice whose value is EMPTY')
+
+    def test_an_emptied_text_and_a_neutral_choice_are_written(self):
+        from wama.common.utils.param_schema import choice_values, neutral_choices
+        measured, gaps_seen = 0, set()
+        for app, model, schema in _surfaces():
+            columns = {f.name: f for f in model._meta.concrete_fields}
+            for p in schema:
+                f = columns.get(p.get('name'))
+                if f is None or 'item' not in (p.get('contexts') or ()) or f.choices:
+                    continue
+                if p.get('type') in ('text', 'textarea') and isinstance(f, (models.CharField,
+                                                                              models.TextField)):
+                    before, posted = 'kept', ''     # short : a language column holds 16 characters
+                elif p.get('type') == 'select' and isinstance(f, models.CharField):
+                    values = choice_values(p)
+                    neutral = next((v for v in values if v in neutral_choices()), None)
+                    other = next((v for v in values if v != neutral and len(v) <= f.max_length), None)
+                    if neutral is None or other is None:
+                        continue
+                    before, posted = other, neutral
+                else:
+                    continue
+                with self.subTest(app=app, setting=p['name']):
+                    user = self._login_for(app)
+                    item = _instance(model, user)
+                    type(item).objects.filter(pk=item.pk).update(**{p['name']: before})
+                    r = self.client.post(reverse(f'{app}:update_settings', args=[item.pk]),
+                                         {p['name']: posted})
+                    self.assertEqual(200, r.status_code, r.content[:300])
+                    item.refresh_from_db()
+                    written = (getattr(item, p['name']) or '') == posted
+                    if (app, p['name']) in DECLARED_GAPS:
+                        gaps_seen.add((app, p['name']))
+                        self.assertFalse(written, 'a listed gap is closed : remove it from DECLARED_GAPS')
+                    else:
+                        self.assertTrue(written, f"`{p['name']}` : {posted!r} not written")
+                    measured += 1
+        self.assertGreater(measured, 10, 'non-vacuity : the texts and neutral choices of the fleet')
+        self.assertEqual(set(DECLARED_GAPS), gaps_seen, 'a listed gap is no longer measured')
+
+
 class AnOverrideNamesAnExposedSettingTest(TestCase):
     """An override whose field `include` does not list rendered nothing, silently : « Transcrire
     l'audio préparé » had one, and neither the ⚙ modal nor the route knew the setting (2026-10-22).

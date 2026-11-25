@@ -139,12 +139,14 @@ def _convert(job, ctx):
     # (jobs d'avant la bascule, ou nés incomplets) : ils ne peuvent plus rien écraser
     # puisque tout geste écrit. L'ancienne cascade au lancement (défauts ← preset ← posé,
     # 01/09) est REMPLACÉE — ses tests ont été recalés le même jour.
-    from wama.common.utils.param_schema import effective_settings
+    from wama.common.utils.param_schema import effective_settings, without_neutral
     from .params import PARAMS_JSON
-    eff_opts = effective_settings(
+    # Sans les choix NEUTRES (2026-11-25) : les défauts du schéma en portent (« Aucune », « Auto »),
+    # que le moteur ne doit jamais recevoir comme option.
+    eff_opts = without_neutral(effective_settings(
         PARAMS_JSON,
         posees=job.options,
-        contexte={'media_type': job.media_type})
+        contexte={'media_type': job.media_type}))
 
     # Aperçu « PENDANT » (brique commune, 2026-08-13) : hors in-place, ffmpeg écrit la sortie
     # progressivement sous MEDIA — l'URL partielle est lisible PENDANT la conversion pour les

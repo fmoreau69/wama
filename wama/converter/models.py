@@ -2,6 +2,9 @@ from django.db import models
 from django.contrib.auth.models import User
 from wama.common.models import QueueOrderMixin, BatchMixin, ProcessingTimeMixin, ScopedManager, ScopedVisibility, JOB_STATUS_CHOICES
 from wama.common.utils.media_paths import UploadToUserPath
+from wama.common.utils.auto_model import AUTO
+from wama.common.utils.output_formats import ORIGINAL
+from wama.common.utils.param_schema import NONE
 
 
 class ConversionProfile(models.Model):
@@ -102,24 +105,27 @@ class ConversionJob(ProcessingTimeMixin, ScopedVisibility):
     #
     # Les toggles font exception au `null` : `False` == non coché == absent du JSON d'avant
     # — les deux se confondent sans conséquence (aucun préréglage ne pose un miroir).
+    # Un CHOIX neutre a sa vraie valeur (2026-11-25, décision de Fabien) : `none`, `original`,
+    # `auto` (`param_schema.neutral_choices`), posée par défaut et par la migration 0016 sur les
+    # lignes d'avant. Le vide reste LISIBLE comme neutre (`_reglages`), jamais écrit.
     quality        = models.IntegerField(null=True, blank=True)   # image, 1-100
     resize_w       = models.IntegerField(null=True, blank=True)   # image, 0 = inchangé
     resize_h       = models.IntegerField(null=True, blank=True)
-    rotation       = models.CharField(max_length=8, blank=True, default='')   # '', 90, 180, 270
+    rotation       = models.CharField(max_length=8, blank=True, default=NONE)   # none, 90, 180, 270
     flip_h         = models.BooleanField(default=False)
     flip_v         = models.BooleanField(default=False)
     video_quality  = models.IntegerField(null=True, blank=True)   # CRF 0-51
-    # Plafond de définition, côté court ('' = inchangée ; 1080/720/540/480) — 2026-11-19.
-    resolution_cap = models.CharField(max_length=8, blank=True, default='', db_default='')
+    # Plafond de définition, côté court (original = inchangée ; 1080/720/540/480) — 2026-11-19.
+    resolution_cap = models.CharField(max_length=8, blank=True, default=ORIGINAL, db_default=ORIGINAL)
     fps            = models.IntegerField(null=True, blank=True)
     gif_fps        = models.IntegerField(null=True, blank=True)
     gif_width      = models.IntegerField(null=True, blank=True)
-    audio_bitrate  = models.CharField(max_length=16, blank=True, default='')
-    sample_rate    = models.CharField(max_length=16, blank=True, default='')
-    channels       = models.CharField(max_length=4, blank=True, default='')
+    audio_bitrate  = models.CharField(max_length=16, blank=True, default=AUTO)
+    sample_rate    = models.CharField(max_length=16, blank=True, default=ORIGINAL)
+    channels       = models.CharField(max_length=8, blank=True, default=ORIGINAL)
     normalize      = models.BooleanField(default=False)
     # Post-traitement cross-app (enhancer inline) — appliqué APRÈS la conversion.
-    upscale        = models.CharField(max_length=8, blank=True, default='')
+    upscale        = models.CharField(max_length=8, blank=True, default=NONE)
     denoise        = models.BooleanField(default=False)
     audio_enhance  = models.BooleanField(default=False)
 
@@ -137,12 +143,15 @@ class ConversionJob(ProcessingTimeMixin, ScopedVisibility):
     CHAMPS_CROSS_APP = ('upscale', 'denoise', 'audio_enhance')
 
     def _reglages(self, champs) -> dict:
-        """{nom: valeur} des seuls réglages POSÉS — reproduit à l'identique ce que les JSON
-        contenaient : ni `None`, ni `''`, ni un interrupteur décoché (absent d'avant)."""
+        """{nom: valeur} des seuls réglages POSÉS qui demandent quelque chose au moteur —
+        reproduit ce que les JSON contenaient : ni `None`, ni `''`, ni un interrupteur décoché
+        (absent d'avant), ni un choix NEUTRE (`param_schema.is_neutral`, 2026-11-25 : « Aucune »,
+        « Inchangée », « Auto » n'ajoutent aucune option ffmpeg ni Pillow)."""
+        from wama.common.utils.param_schema import is_neutral
         out = {}
         for nom in champs:
             v = getattr(self, nom, None)
-            if v is None or v == '' or v is False:
+            if v is False or is_neutral(v):
                 continue
             out[nom] = v
         return out

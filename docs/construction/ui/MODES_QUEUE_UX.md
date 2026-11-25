@@ -540,7 +540,17 @@ l'avatarizer) — toujours pas un domaine ni un mode.
   test_setting_names_are_read_never_copied` — une liste figée dérive au premier réglage ajouté).
   La forme qui la respecte : la propriété se DÉCLARE au schéma (le `Param`), que la jumelle reçoit
   par son `params.py` et que les fabriques lisent à l'exécution — à proposer à Fabien (six apps à
-  porter pour le vide). `list_settings`, lui, se dérive déjà du type `multiselect`
+  porter pour le vide). ✅ **Soldé le 2026-11-25 autrement, sans rien déclarer** (décision de
+  Fabien : « quand le choix est sur auto ou que la qualité est inchangée, c'est un choix… mais ce
+  n'est pas vide ») : mesurées, les listes mélangeaient trois cas. Un choix qui ne change rien a sa
+  vraie valeur, comme dans les huit autres apps (`none` / `original` / `auto`,
+  `param_schema.neutral_choices` : six choix du converter, l'agrandissement commun de l'imager,
+  le format « Automatique ») ; un texte vidé est vidé et un nombre sans défaut n'est plus réglé, par
+  le TYPE (`param_schema.emptied_values`, lu par `read_settings_payload`, le volet et la
+  naissance). Les six listes sont retirées (`R248`) : la jumelle n'a plus rien à porter. Un vide
+  qui n'est pas une valeur reste « ne pas toucher » (un choix dynamique, la ⚙ d'un lot). Gardes :
+  `tests_item_settings_contract.EmptyAndNeutralSettingsTest`, `tests_batch_views.SettingsPayloadTest`.
+  `list_settings`, lui, se dérive déjà du type `multiselect`
   (`read_settings_payload`) : il disparaît quand les classes à flouter, aujourd'hui HORS schéma
   (`anonymizer/params.py:295`), y entrent — le type est né le 2026-11-19 pour elles. La règle de nature, au commun, vaut déjà pour les jumelles. La liste, qui ne peut que baisser (vide depuis), est
   `tests_cap_from_js.OWN_PANEL_SAVE` ; une jumelle de bac à sable n'y est pas jugée (copie figée,

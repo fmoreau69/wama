@@ -168,9 +168,10 @@
                 const seedInput = document.getElementById('seed');
                 if (seedInput) seedInput.value = '';
 
-                // Reset de l'agrandissement de sortie (select commun `output_upscale`)
+                // Reset de l'agrandissement de sortie (select commun `output_upscale`) : sur
+                // « Aucun », dont la valeur est `none` depuis le 2026-11-25 (`OUTPUT_UPSCALE_CHOICES`).
                 const upscaleSelect = document.getElementById('output_upscale');
-                if (upscaleSelect) upscaleSelect.value = '';
+                if (upscaleSelect) upscaleSelect.value = 'none';
             });
         }
 

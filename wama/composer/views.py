@@ -629,8 +629,7 @@ from wama.common.utils.item_views import make_item_views  # noqa: E402
 
 _iv = make_item_views(work_model=ComposerGeneration, app_id='composer', task_for=_task_for,
                       reset_on_start=_reset_for_relaunch,
-                      pending={'status__in': ('PENDING', 'FAILURE')}, batch_model=ComposerBatch,
-                      item_empty_is_value=('lyrics',))
+                      pending={'status__in': ('PENDING', 'FAILURE')}, batch_model=ComposerBatch)
 start = _iv['start']
 start_all = _iv['start_all']
 clear_all = _iv['clear_all']
@@ -717,8 +716,8 @@ def _apply_generation_settings(gen, data):
     # `tests_item_settings_contract`) — jamais écrite.
     if data.get('vocals') in vocals.VALUES:
         gen.vocals = data['vocals']
-    # Paroles de la card (2026-10-04) : posées, corrigées ou EFFACÉES (le vide est une valeur —
-    # `empty_is_value` à la lecture). Non postées (lot, inspecteur) : intactes.
+    # Paroles de la card (2026-10-04) : posées, corrigées ou EFFACÉES (le vide d'un texte est une
+    # valeur — `param_schema.emptied_values` à la lecture). Non postées (lot, inspecteur) : intactes.
     if 'lyrics' in data:
         gen.lyrics = str(data.get('lyrics') or '').strip()
     # Prompt éditable (modale complète P1) — on ne l'écrase pas s'il est vide. Champ à DEUX ÉTATS

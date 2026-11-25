@@ -8657,8 +8657,10 @@ Mesuré sur la présentation (37 pages) : Rapide **10,2 Mo** (vidéo 6,8 Mo) · 
 32,7 Mo, PLUS lourde que la source de 32,1 Mo : ce cran garde la pleine définition en CRF 20) ·
 Qualité 51,6 Mo. ✅ Décision de Fabien le même jour : l'export part de « Rapide » (`page_pdf.export_params`
 déclare `default='web'` à la fabrique commune, dont le défaut reste « Équilibré » partout ailleurs) —
-le bouton de la page de présentation, qui exporte sans modale, aussi. ⏳ Le bouton PDF de la page de présentation elle-même (page autonome, sans Bootstrap ni
-`WamaParams`) exporte au défaut, sans modale.
+le bouton de la page de présentation, qui exporte sans modale, aussi. Constat (corrigé le 2026-11-25, ce n'est pas un reste à faire) : le
+bouton PDF de la page de présentation elle-même (page autonome, sans Bootstrap ni `WamaParams`)
+exporte au cran « Rapide », sans fenêtre de choix — c'est la décision ci-dessus ; le choix de la
+qualité reste offert depuis les pages de WAMA (`data-wama-export-options`).
 
 **31.7 La PERSONNALISATION, cartographiée puis alignée** ⏳ — à ouvrir APRÈS le travail en cours
 (Fabien, 2026-11-19 : « On ne le fait pas maintenant […] quand on aura terminé le travail en cours »).

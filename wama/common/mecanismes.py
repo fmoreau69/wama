@@ -2150,7 +2150,8 @@ MECHANISMS = (
               "déclaration que l'app donne à sa fabrique de lot (`batch_views.element_declaration`) : "
               "la copie rangée par `batch_common.place_copy`, le résultat servi comme son ZIP "
               "l'écrit (`ResultArchive`) — les dix apps le 2026-11-02, leurs spécificités "
-              "déclarées (`on_stop`, `item_settings`, `item_empty_is_value`, `settings_file`) ; "
+              "déclarées (`on_stop`, `item_settings`, `settings_file` ; le vide qui est une valeur "
+              "se lit du type du réglage depuis le 2026-11-25, `param_schema.emptied_values`) ; "
               "et la card rendue seule (`make_card_view`), avec les clés que la file lui donne",
               'wama/common/utils/item_views.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §11',
@@ -2494,7 +2495,13 @@ MECHANISMS = (
               "(`EMPTY_IS_NONE_TYPES`), la graine de l'imager comprise. Un réglage posté HORS de la "
               "nature de l'élément — sa condition ne lit que des porteurs cachés — n'est pas écrit "
               "(`settings_outside_nature`, lu par `read_settings_payload`, 2026-11-19 : jumeau à "
-              "l'écriture d'`applicable_defaults`)",
+              "l'écriture d'`applicable_defaults`). Le VIDE posté (2026-11-25, décision de Fabien) : "
+              "une valeur là où le TYPE le dit — un texte vidé, un nombre sans défaut, un tirage ou "
+              "le curseur rendus à la cascade, un choix qui propose le vide (`emptied_values`, lu "
+              "par la ⚙ d'une card et d'un lot, le volet, la naissance) —, « non fourni » ailleurs ; "
+              "un choix qui ne change rien a sa VRAIE valeur, `none` / `original` / `auto` "
+              "(`neutral_choices`, `is_neutral`, `without_neutral` pour un moteur à options). Plus "
+              "aucune liste par app (`empty_is_value`, R248)",
               'wama/common/utils/param_schema.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/static/common/js/wama-params.js',
                        'wama/common/templates/common/_settings_modal_footer.html')),

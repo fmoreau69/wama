@@ -429,7 +429,7 @@ Une app ne déclare que ce qu'elle a de PROPRE, et jamais une vue de plus :
 |---|---|---|
 | `on_stop` | ce que l'app oublie d'un élément arrêté, hors de sa progression | anonymizer : ses verrous ; transcriber : son message d'état |
 | `item_settings` | la ⚙ d'une card pose PLUS que celle du lot | transcriber : titre, date, intervenants |
-| `item_empty_is_value` | `''` est une valeur sur la card, pas au lot | converter : format vide = automatique ; composer : paroles vidées |
+| ~~`item_empty_is_value`~~ | ~~`''` est une valeur sur la card, pas au lot~~ — **retiré le 2026-11-25** (`R248`) : le vide qui est une valeur se lit du TYPE du réglage (`param_schema.emptied_values` : un texte vidé est vidé, un nombre sans défaut n'est plus réglé), et un choix qui ne change rien a sa vraie valeur (`none` / `original` / `auto`, `param_schema.neutral_choices` — le format « Automatique » du converter vaut `auto`). Mot-clé gardé à la signature, non lu, pour les jumelles pas encore régénérées | — |
 | `settings_file` | un fichier arrive avec les réglages | synthesizer : la voix de référence (refusée : rien n'est écrit) |
 | à `make_batch_views` : `list_settings` | un réglage est une LISTE, lue entière par la card ET le lot | anonymizer : les classes à flouter |
 

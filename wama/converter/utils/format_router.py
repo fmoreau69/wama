@@ -162,11 +162,22 @@ def last_output_format(user, media_type: str, app: str = 'converter') -> str:
     return value if value in get_output_formats(media_type) else ''
 
 
+def requested_format(raw) -> str:
+    """Le format DEMANDÉ, en minuscules — '' quand c'est « Automatique » (`auto`, ou rien) : la
+    lecture de toutes les voies, celle qui décide aussi qu'un format se RETIENT (un format résolu
+    automatiquement ne se retient pas, `remember_output_format`)."""
+    from wama.common.utils.auto_model import AUTO
+    fmt = str(raw or '').strip().lower()
+    return '' if fmt == AUTO else fmt
+
+
 def output_format_for(user, media_type: str, requested: str = '', app: str = 'converter') -> str:
     """Le format de sortie d'un élément de cette nature : le choix EXPLICITE s'il est offert pour
     elle, sinon le dernier format employé, sinon le défaut de la nature. Lève `ValueError` sur un
-    choix explicite qui n'est pas offert (jamais remplacé en silence par un autre)."""
-    fmt = (requested or '').strip().lower()
+    choix explicite qui n'est pas offert (jamais remplacé en silence par un autre).
+    « Automatique » se dit `auto` (le choix de la ⚙ et du volet, 2026-11-25) ; le vide (un appel
+    sans format : dépôt, nœud du Studio, outil) le vaut toujours (`requested_format`)."""
+    fmt = requested_format(requested)
     if fmt:
         if fmt not in get_output_formats(media_type):
             raise ValueError(f"Format de sortie '{fmt}' invalide pour {media_type or 'cette nature'}. "

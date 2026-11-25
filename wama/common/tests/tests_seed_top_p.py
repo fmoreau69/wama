@@ -53,9 +53,13 @@ class TheTwoSettingsTest(SimpleTestCase):
         self.assertEqual({}, coerce_schema_values([{'name': 'n', 'type': 'number'}], {'n': ''}))
 
     def test_the_rule_is_shared_by_the_panel_and_the_imager_lost_its_own(self):
-        from wama.common.utils import user_settings
+        """The panel, the ⚙ and a birth read ONE rule (`param_schema.emptied_values`, 2026-11-25) :
+        a sampling setting emptied is the model's."""
+        from wama.common.utils.param_schema import emptied_values
         from wama.imager import views as imager_views
-        self.assertTrue(set(EMPTY_IS_NONE_TYPES) <= set(user_settings._EMPTY_IS_VALUE))
+        schema = [{'name': name, 'type': name} for name in EMPTY_IS_NONE_TYPES]
+        self.assertEqual({name: None for name in EMPTY_IS_NONE_TYPES},
+                         emptied_values(schema, {name: '' for name in EMPTY_IS_NONE_TYPES}))
         self.assertFalse(hasattr(imager_views, 'SETTINGS_EMPTY_IS_VALUE'))
 
     def test_an_item_reads_as_three_settings_and_an_engine_gets_the_set_ones(self):

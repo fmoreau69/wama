@@ -296,7 +296,7 @@ def new_reading_settings(user, model=None, app='reader', post=None, inputs=None)
     from wama.common.utils.user_settings import new_element_settings
     from wama.reader.params import PARAMS_JSON
     return new_element_settings(user, app, PARAMS_JSON, model or ReadingItem, post=post,
-                                inputs=inputs, empty_is_value=SETTINGS_EMPTY_IS_VALUE)
+                                inputs=inputs)
 
 
 def _deposit_settings(user, post, inputs=None):
@@ -445,8 +445,6 @@ def _output_stem(r):
 # (`quality_intent`) est un réglage d'app de l'utilisateur, pas une colonne : écarté.
 SETTINGS_FIELDS = tuple(p['name'] for p in _SCHEMA
                         if p['name'] in {f.name for f in ReadingItem._meta.concrete_fields})
-#: `language` vide EST une valeur (auto-détection) — lu par la route d'élément et par la fabrique.
-SETTINGS_EMPTY_IS_VALUE = ('language',)
 
 
 def _apply_reading_settings(item, data):
@@ -465,7 +463,7 @@ _bv = make_batch_views(
     work_model=ReadingItem, batch_model=BatchReadingItem, get_user=_get_user,
     task=read_document_task,
     output_fields=(),
-    schema=_SCHEMA, empty_is_value=SETTINGS_EMPTY_IS_VALUE,
+    schema=_SCHEMA,
     apply_settings=_apply_reading_settings,
     item_model=BatchReadingItemLink, fk_name='reading',
     reset_on_start=_reset_for_relaunch,

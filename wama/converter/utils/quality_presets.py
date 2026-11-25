@@ -21,9 +21,14 @@ _PRESETS = {
         # « Rapide (web) » vraiment léger depuis le 2026-11-19 (décision de Fabien) : 720p en CRF 28.
         # Mesuré sur la vidéo des gestes nocturnes (1080p, 2 min, 32,1 Mo) : 6,7 Mo, contre 25,9 Mo
         # en pleine définition au CRF 23 d'avant.
+        # « Équilibré » et « Qualité » DISENT « Inchangée » (`original`, 2026-11-25) : un geste du
+        # curseur vers eux remet le plafond posé par « Rapide », la colonne n'est jamais vide.
+        # Le mot est `output_formats.ORIGINAL`, qu'on ne peut importer ici (cette table est lue à
+        # son chargement) : la garde de chaque cran du curseur (`converter.tests`) rougit s'ils
+        # divergent — la valeur ne serait plus un choix du schéma.
         'web':      {'video_quality': 28, 'preset': 'medium', 'resolution_cap': '720'},
-        'balanced': {'video_quality': 20, 'preset': 'slow'},
-        'max':      {'video_quality': 16, 'preset': 'slow'},
+        'balanced': {'video_quality': 20, 'preset': 'slow', 'resolution_cap': 'original'},
+        'max':      {'video_quality': 16, 'preset': 'slow', 'resolution_cap': 'original'},
     },
     'audio': {
         'web':      {'audio_bitrate': '160k'},
@@ -159,7 +164,9 @@ def resolve_options(media_type: str, preset: str, base_options: dict | None = No
     ⚠ Ne pas l'utiliser pour un job de la file : la cascade complète est
     `param_schema.effective_settings` (elle ajoute les défauts du schéma SOUS le preset).
     """
+    from wama.common.utils.param_schema import without_neutral
     base_options = dict(base_options or {})
     merged = preset_values(media_type, preset)
     merged.update(base_options)  # explicit values override preset defaults
-    return merged
+    # Ce que le moteur reçoit : sans les choix NEUTRES (« Inchangée » du plafond, 2026-11-25).
+    return without_neutral(merged)

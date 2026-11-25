@@ -225,8 +225,7 @@ def new_enhancement_settings(user, model=None, app='enhancer', post=None, inputs
     from wama.common.utils.user_settings import new_element_settings
     from wama.enhancer.params import MEDIA_PARAMS_JSON
     values = new_element_settings(user, app, MEDIA_PARAMS_JSON, model or Enhancement, post=post,
-                                  inputs=inputs,
-                                  empty_is_value=SETTINGS_EMPTY_IS_VALUE)
+                                  inputs=inputs)
     if 'upscale_factor' in values:
         values['upscale_factor'] = _factor_posted(values, 4)
     return values
@@ -259,8 +258,7 @@ def new_audio_settings(user, model=None, app='enhancer', post=None, inputs=None)
     from wama.common.utils.user_settings import new_element_settings
     from wama.enhancer.params import AUDIO_PARAMS_JSON
     return new_element_settings(user, app, AUDIO_PARAMS_JSON, model or AudioEnhancement, post=post,
-                                inputs=inputs,
-                                empty_is_value=SETTINGS_EMPTY_IS_VALUE)
+                                inputs=inputs)
 
 
 def _audio_deposit_settings(user, post, inputs=None):
@@ -465,11 +463,6 @@ audio_progress, audio_global_progress = _apv['progress'], _apv['global_progress'
 download_all = _pv['download_all']
 
 
-#: Réglages pour lesquels une valeur postée VIDE est une valeur (curseur effacé) — lus par la
-#: route d'un élément ET par la fabrique de lots : une seule déclaration pour les deux.
-SETTINGS_EMPTY_IS_VALUE = ('quality_intent',)
-
-
 def _apply_enhancement_settings(e, data):
     """Applique les réglages d'un Enhancement (sans save). Les colonnes simples passent par la
     brique COMMUNE (valeur hors choix ignorée) ; restent ici le facteur (×2/×4) et le curseur,
@@ -655,7 +648,7 @@ _bv = make_batch_views(
     progress_of=lambda e: cache.get(f"enhancer_progress_{e.id}", e.progress or 0),
     item_label=lambda e: e.get_input_filename() or e.source_url,
     on_delete=lambda e: cache.delete(f"enhancer_progress_{e.id}"),
-    schema=_MEDIA_SCHEMA, empty_is_value=SETTINGS_EMPTY_IS_VALUE,
+    schema=_MEDIA_SCHEMA,
     apply_settings=_apply_enhancement_settings,
 )
 batch_start = _bv['batch_start']
@@ -895,7 +888,7 @@ _abv = make_batch_views(
     progress_of=lambda ae: cache.get(f"audio_enhancer_progress_{ae.id}", ae.progress or 0),
     item_label=lambda ae: ae.get_input_filename() or ae.source_url,
     on_delete=lambda ae: cache.delete(f"audio_enhancer_progress_{ae.id}"),
-    schema=_AUDIO_SCHEMA, empty_is_value=SETTINGS_EMPTY_IS_VALUE,
+    schema=_AUDIO_SCHEMA,
     apply_settings=_apply_audio_settings,
 )
 audio_batch_start = _abv['batch_start']

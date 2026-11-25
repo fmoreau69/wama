@@ -437,8 +437,7 @@ _iv = make_item_views(work_model=Transcript, app_id='transcriber',
                       pending={}, pending_exclude={'status': 'SUCCESS'},
                       batch_model=BatchTranscript,
                       on_stop=lambda t: cache.delete(f"transcriber_status_msg_{t.id}"),
-                      item_settings=lambda t, data: _apply_transcript_settings(t, data),
-                      item_empty_is_value=('title',))
+                      item_settings=lambda t, data: _apply_transcript_settings(t, data))
 start = _iv['start']
 start_all = _iv['start_all']
 clear_all = _iv['clear_all']

@@ -215,7 +215,7 @@ class ImageTaskOnSkeletonTest(_OnSkeleton):
         self.assertEqual('FAILURE', generation.status)
         self.assertIn('no upscaler', generation.error_message)
         self.assertEqual({'generate': 'SUCCESS', 'output': 'FAILURE'}, self._states(generation))
-        self._relaunch(generation, output_upscale='')
+        self._relaunch(generation, output_upscale='none')     # « Aucun » (2026-11-25)
         self.assertEqual('SUCCESS', generation.status, generation.error_message)
         self.assertEqual(1, _FakeImageBackend.generated, 'only the output was played again')
 

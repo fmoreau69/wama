@@ -495,11 +495,6 @@ def _mark_customised(media):
     return ['MSValues_customised']
 
 
-#: Champs du schéma pour qui `''` EST une valeur : un prompt vidé s'efface, un modèle vidé revient
-#: au choix automatique — lu par la route d'élément ET par la fabrique de lot.
-SETTINGS_EMPTY_IS_VALUE = ('sam3_prompt', 'model_to_use')
-
-
 def _apply_media_settings(media, data):
     """LES réglages d'un média, posés sans sauver — rend les champs touchés. La route d'un élément
     (`update_settings`) ET la fabrique des vues de lot passent ici, comme au reader : le lot ne
@@ -593,7 +588,7 @@ _bv = make_batch_views(
     # vide elle-même (`AppPipeline.produced_fields`, 2026-10-21) — `output_file` est déclaré par le
     # floutage et l'occultation depuis le 2026-11-02 (le lister ici le disait deux fois).
     read_lookup=_read_batch,
-    schema=_media_schema, empty_is_value=SETTINGS_EMPTY_IS_VALUE,
+    schema=_media_schema,
     list_settings=(CLASSES_SETTING,),
     apply_settings=_apply_media_settings, after_update=_mark_customised,
     item_model=BatchAnonymizerItem, fk_name='media', **PROGRESS,

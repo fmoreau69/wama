@@ -28,7 +28,7 @@ from django.db import transaction
 
 from .models import ConversionJob, ConversionProfile, ConversionBatch
 from .utils.format_router import (SUPPORTED_CONVERSIONS, detect_media_type, get_output_formats,
-                                  output_format_for, remember_output_format)
+                                  output_format_for, remember_output_format, requested_format)
 from ..accounts.views import get_or_create_anonymous_user
 # Le chemin d'un fichier d'app se COMPOSE (`get_relative_media_path`), il ne
 # s'écrit pas — préalable au domicile unique par utilisateur (2026-09-11).
@@ -196,7 +196,7 @@ def apply_birth_settings(job, media_type, options=None, inputs=None) -> list:
 def upload(request):
     """Accept a file upload and create a ConversionJob (PENDING)."""
     user        = request.user
-    output_fmt  = request.POST.get('output_format', '').strip().lower()
+    output_fmt  = requested_format(request.POST.get('output_format'))
 
     # Note : l'import par URL depuis la card d'entrée NE passe PAS par ici. Il
     # réutilise le formalisme batch commun (URL = batch d'1 ligne → batch_preview
@@ -294,20 +294,17 @@ start_process = login_required(make_process_start_view(
 # saute — la règle de `batch_start`. La file est celle de la barre (sans les jobs éphémères).
 from wama.common.utils.item_views import make_item_views  # noqa: E402
 
-#: Les réglages pour qui une valeur postée VIDE est un choix (2026-11-19, le volet rejoint
-#: l'enregistrement commun) : chaque colonne de réglage — rotation « Aucune », définition
-#: « Inchangée », débit « Auto », un nombre vidé — revient à « non réglé » (`poser_reglages`).
-#: Le blob `options_json` les écartait tous : aucun ne pouvait être retiré.
-SETTINGS_EMPTY_IS_VALUE = ConversionJob.CHAMPS_OPTIONS + ConversionJob.CHAMPS_CROSS_APP
-
+# Retirer un réglage (2026-11-25) : un choix neutre a sa valeur (« Aucune » = `none`, « Inchangée » =
+# `original`, « Auto » = `auto`, le format « Automatique » = `auto`) et un nombre vidé n'est plus
+# réglé — la règle par TYPE de la lecture commune (`param_schema.emptied_values`). La liste qui
+# vivait ici (`SETTINGS_EMPTY_IS_VALUE`, toutes les colonnes) n'a plus d'objet.
 _iv = make_item_views(
     work_model=ConversionJob, app_id='converter', task_for=lambda job: _task_for(job),
     get_user=lambda request: request.user, reset_on_start=_reset_for_relaunch,
     startable=lambda job: bool(job.output_format),
     unstartable_message="Format de sortie non défini — le choisir dans ⚙ Paramètres avant de lancer.",
     queryset=lambda user: ConversionJob.objects.filter(user=user, ephemeral=False),
-    batch_model=ConversionBatch,
-    item_empty_is_value=('output_format',) + SETTINGS_EMPTY_IS_VALUE)
+    batch_model=ConversionBatch)
 start = login_required(_iv['start'])
 start_all = login_required(_iv['start_all'])
 clear_all = login_required(_iv['clear_all'])
@@ -369,7 +366,7 @@ def _apply_job_settings(job, data) -> list:
     touched = []
     output_fmt = str(data.get('output_format') or '').strip().lower()
     if output_fmt or 'output_format' in data:
-        # Présent et vide = « Automatique » : la cascade de toutes les voies
+        # « Automatique » (`auto`, 2026-11-25 ; avant, le vide) : la cascade de toutes les voies
         # (`format_router.output_format_for`) ; un format qui n'est pas offert lève.
         job.output_format = output_format_for(job.user, job.media_type, output_fmt)
         touched.append('output_format')
@@ -657,7 +654,6 @@ _bv = make_batch_views(
     batch_extra=lambda lot: {'media_type': lot.media_type},
     zip_name=lambda lot: f'converter_batch_{lot.id}.zip',
     schema=_BATCH_SCHEMA, apply_settings=_apply_job_settings,
-    empty_is_value=SETTINGS_EMPTY_IS_VALUE,
 )
 batch_start = login_required(_bv['batch_start'])
 batch_delete = login_required(_bv['batch_delete'])
@@ -816,8 +812,8 @@ def quick_convert(request):
     from .tasks import convert_media_task
 
     file_path_str = request.POST.get('file_path', '').strip()
-    output_fmt    = (request.POST.get('output_format', '') or '').strip().lower()
-    gesture = {k: request.POST.get(k) for k in ('quality_intent', 'quality_preset')
+    output_fmt    = requested_format(request.POST.get('output_format'))
+    gesture ={k: request.POST.get(k) for k in ('quality_intent', 'quality_preset')
                if (request.POST.get(k) or '').strip()}
 
     if not file_path_str:
@@ -891,7 +887,11 @@ def _decorate_job(job):
     mesuré 31/08 en chippant quality/upscale). Même assiette que la property `gear_data`."""
     from wama.common.utils.card_chips import chips_by_section
     from wama.converter.params import PARAMS_JSON
-    valeurs = {**(job.options or {}), **(job.cross_app_options or {})}
+    # Chaque colonne de réglage est donnée, vide quand elle ne demande rien (2026-11-25) : un choix
+    # NEUTRE (« Aucune », « Inchangée », « Auto ») est écarté des options (`_reglages`), et sans lui
+    # la card relisait la colonne — un chip « Aucune » sur chaque card.
+    valeurs = {**{name: '' for name in job.CHAMPS_OPTIONS + job.CHAMPS_CROSS_APP},
+               **(job.options or {}), **(job.cross_app_options or {})}
     # Legacy : le neutre de rotation était "0" (option « Aucune ») jusqu'au 31/08 ; les jobs
     # enregistrés avant portent encore cette valeur, qui ne correspond plus à aucune option
     # → chip « 0 » sur des cards sans rotation (R6, audit 31/08). Normalisée À LA LECTURE —

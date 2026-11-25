@@ -176,10 +176,11 @@ class QualityIntentWritesTheColumnsTest(TestCase):
         for media in ('image', 'video', 'audio'):
             for notch in range(0, 101):
                 for name, value in values_for_intent(media, notch).items():
-                    if name in choices:     # None = non réglé : le choix vide de la liste
-                        self.assertIn('' if value is None else value, choices[name],
-                                      (media, notch, name))
+                    # Jamais vide ni « non réglé » (2026-11-25) : « Inchangée » est un choix, `original`.
+                    if name in choices:
+                        self.assertIn(value, choices[name], (media, notch, name))
         self.assertEqual(values_for_intent('audio', 30)['audio_bitrate'], '192k')
+        self.assertEqual(values_for_intent('video', 85)['resolution_cap'], 'original')
 
     def test_moving_the_slider_writes_the_encoding_and_leaves_both_traces(self):
         from django.test import Client
@@ -257,10 +258,17 @@ class PanelSavesTheFlatSettingsTest(TestCase):
         job.refresh_from_db()
         return job
 
-    def test_an_empty_choice_an_emptied_number_and_an_unticked_mirror_are_saved(self):
+    def test_a_neutral_choice_an_emptied_number_and_an_unticked_mirror_are_saved(self):
+        # « Aucune », « Inchangée » : un choix qui a sa vraie valeur (2026-11-25), pas le vide.
         job = self._post(self._job(rotation='90', fps=30, flip_h=True, resolution_cap='720'),
-                         rotation='', fps='', flip_h='false', resolution_cap='')
-        self.assertEqual(('', None, False, ''), (job.rotation, job.fps, job.flip_h, job.resolution_cap))
+                         rotation='none', fps='', flip_h='false', resolution_cap='original')
+        self.assertEqual(('none', None, False, 'original'),
+                         (job.rotation, job.fps, job.flip_h, job.resolution_cap))
+        self.assertNotIn('rotation', job.options, 'a neutral choice asks nothing of the engine')
+        self.assertNotIn('resolution_cap', job.options)
+        # Counter-proof : an EMPTY choice is « not given » — the column keeps its value.
+        job = self._post(self._job(rotation='90'), rotation='')
+        self.assertEqual('90', job.rotation)
 
     def test_the_maximum_definition_is_a_column_the_task_reads(self):
         job = self._post(self._job(), resolution_cap='540')
@@ -271,11 +279,11 @@ class PanelSavesTheFlatSettingsTest(TestCase):
         # The image panel also carries the video and audio fields, hidden : what is shown is posted.
         job = self._post(self._job(media_type='image', input_filename='x.png', output_format='jpg'),
                          quality='77', gif_fps='12', gif_width='480', audio_bitrate='192k')
-        self.assertEqual((77, None, None, ''), (job.quality, job.gif_fps, job.gif_width, job.audio_bitrate))
+        self.assertEqual((77, None, None, 'auto'), (job.quality, job.gif_fps, job.gif_width, job.audio_bitrate))
 
     def test_the_slider_is_not_undone_by_the_fields_posted_unchanged(self):
         job = self._post(self._job(video_quality=20, quality_intent=50),
-                         quality_intent='15', video_quality='20', resolution_cap='')
+                         quality_intent='15', video_quality='20', resolution_cap='original')
         self.assertEqual((28, '720', 15), (job.video_quality, job.resolution_cap, job.quality_intent))
         # A field CHANGED in the same sending still wins over the slider (the fine gesture).
         job = self._post(job, quality_intent='15', video_quality='24', resolution_cap='720')
@@ -285,9 +293,9 @@ class PanelSavesTheFlatSettingsTest(TestCase):
         # The `params` of a Studio node (`write_element_settings`) : the SAME reading as a request.
         from wama.common.utils.batch_views import write_element_settings
         job = self._job(media_type='image', input_filename='x.png', output_format='jpg', rotation='90')
-        write_element_settings(job, {'media_type': 'image', 'rotation': '', 'gif_fps': '12'})
+        write_element_settings(job, {'media_type': 'image', 'rotation': 'none', 'gif_fps': '12'})
         job.refresh_from_db()
-        self.assertEqual(('', None), (job.rotation, job.gif_fps))
+        self.assertEqual(('none', None), (job.rotation, job.gif_fps))
 
     def test_the_batch_settings_follow_the_same_rules(self):
         from django.test import Client
@@ -298,11 +306,11 @@ class PanelSavesTheFlatSettingsTest(TestCase):
         client = Client()
         client.force_login(batch.user)
         r = client.post(f'/converter/batch/{batch.id}/update/',
-                        {'media_type': 'image', 'rotation': '', 'gif_fps': '12'})
+                        {'media_type': 'image', 'rotation': 'none', 'gif_fps': '12'})
         self.assertEqual(r.status_code, 200, r.content)
         for job in jobs:
             job.refresh_from_db()
-            self.assertEqual(('', None), (job.rotation, job.gif_fps))
+            self.assertEqual(('none', None), (job.rotation, job.gif_fps))
 
 
 class QuickConvertTakesTheCommonSliderTest(TestCase):

@@ -95,16 +95,22 @@ class NewElementSettingsTest(TestCase):
                          "the author's choice is never overwritten by a preset")
         self.assertEqual(90, self._born(model, preset={'quality': 60}, post={'quality': '90'})['quality'])
 
-    def test_an_empty_post_declared_as_a_value_drops_the_remembered_one(self):
-        schema = SCHEMA + [{'name': 'seed', 'type': 'number', 'default': None,
-                            'dom_id': 'sd', 'contexts': ['panel', 'item']}]
-        model = _model('quality', 'flip', 'seed')
+    def test_an_empty_post_drops_the_remembered_value_where_its_type_makes_empty_a_value(self):
+        """2026-11-25 : the rule is read from the TYPE (`param_schema.emptied_values`), no app lists
+        it any more — a number without a default emptied is unset, a text emptied is empty."""
+        schema = SCHEMA + [{'name': 'width', 'type': 'number', 'default': None,
+                            'dom_id': 'w', 'contexts': ['panel', 'item']},
+                           {'name': 'note', 'type': 'text', 'default': '',
+                            'dom_id': 'n', 'contexts': ['panel', 'item']}]
+        model = _model('quality', 'flip', 'width', 'note')
         born = lambda **kw: user_settings.new_element_settings(self.user, self.app, schema, model, **kw)
-        user_settings.save_panel_settings(self.user, self.app, schema, {'seed': '42'})
-        self.assertEqual(42, born(post={})['seed'])
-        self.assertEqual(42, born(post={'seed': ''})['seed'], 'an empty number says nothing…')
-        self.assertIsNone(born(post={'seed': ''}, empty_is_value=('seed',)).get('seed'),
-                          '…unless the app declares that empty IS a choice (a random seed)')
+        user_settings.save_panel_settings(self.user, self.app, schema,
+                                          {'width': '640', 'note': 'kept', 'quality': '70'})
+        self.assertEqual((640, 'kept', 70), tuple(born(post={})[k] for k in ('width', 'note', 'quality')))
+        emptied = born(post={'width': '', 'note': '', 'quality': ''})
+        self.assertIsNone(emptied.get('width'), 'a number without a default, emptied, is unset')
+        self.assertIn(emptied.get('note'), ('', None), 'a text emptied is empty')
+        self.assertEqual(70, emptied['quality'], 'a number WITH a default, left empty, says nothing')
 
     def test_a_default_the_author_never_set_does_not_bypass_a_show_if(self):
         """The defect the avatarizer showed: the panel's DEFAULTS were read as the author's

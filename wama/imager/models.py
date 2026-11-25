@@ -13,6 +13,7 @@ from wama.common.models import (
     ScopedVisibility,
 )
 from wama.common.utils.media_paths import UploadToUserPath
+from wama.common.utils.param_schema import NONE
 
 
 # =============================================================================
@@ -296,11 +297,12 @@ class ImageGeneration(ProcessingTimeMixin, NativeOutputsMixin, PromptScoped, Sco
     # Format de sortie (conversion inline via Converter) — 'original' = PNG/MP4 natif
     output_format = models.CharField(max_length=20, default='original')
     output_quality = models.CharField(max_length=20, default='balanced')
-    # Agrandissement de sortie ('' / 'x2' / 'x4'), post-traitement COMMUN appliqué après tout
+    # Agrandissement de sortie ('none' / 'x2' / 'x4'), post-traitement COMMUN appliqué après tout
     # backend (`output_formats.apply_output_settings`). Remplace le booléen `upscale` (2026-09-30),
     # que seul le backend diffusers générique appliquait — les backends dédiés l'ignoraient.
-    output_upscale = models.CharField(max_length=8, blank=True, default='',
-                                      help_text="Agrandissement de la sortie : '', 'x2' ou 'x4'")
+    # « Aucun » vaut `none` depuis le 2026-11-25 (migration 0027 pour les lignes d'avant).
+    output_upscale = models.CharField(max_length=8, blank=True, default=NONE,
+                                      help_text="Agrandissement de la sortie : 'none', 'x2' ou 'x4'")
 
     # Status and progress
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')

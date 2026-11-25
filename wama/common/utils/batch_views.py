@@ -59,7 +59,7 @@ def default_reset(progress_field: str = 'progress') -> dict:
     return {(progress_field if key == 'progress' else key): value for key, value in DEFAULT_RESET.items()}
 
 
-def read_settings_payload(request, schema=None, schema_names=(), empty_is_value=(), list_names=()):
+def read_settings_payload(request, schema=None, schema_names=(), list_names=()):
     """Les RÉGLAGES postés à une vue d'édition — JSON ou formulaire, coercés selon le schéma.
 
     `list_names` : les réglages qui sont une LISTE (anonymizer : les classes à flouter, cases à
@@ -72,9 +72,10 @@ def read_settings_payload(request, schema=None, schema_names=(), empty_is_value=
     ⚠ COERCER selon le schéma AVANT tout `setattr` (défaut vécu le 02/09) : le FormData d'une
     modale poste TOUTES ses valeurs, VIDES comprises — `''` sur une colonne Integer plante au
     save. `coerce_schema_values` type ('640'→640, 'true'→True) ; un champ du schéma laissé VIDE
-    veut dire « ne pas toucher », jamais « effacer » — il est retiré… SAUF les champs nommés
-    dans `empty_is_value`, pour qui `''` EST une valeur (reader : `language` vide =
-    auto-détection voulue — « test de présence, jamais `or` », leçon du 17/08).
+    veut dire « ne pas toucher », jamais « effacer » — il est retiré… SAUF quand le TYPE du
+    réglage dit que le vide est une valeur (`param_schema.emptied_values`, 2026-11-25 : un texte
+    vidé est vidé, un nombre sans défaut n'est plus réglé). La liste par app (`empty_is_value`) est
+    retirée : elle ne se lisait pas du schéma, et les jumelles la perdaient.
     Un réglage posté hors de la NATURE de l'élément est retiré (`settings_outside_nature`,
     2026-11-19) : la ⚙ et le volet le cachent, leur lecture le poste.
     """
@@ -93,19 +94,22 @@ def read_settings_payload(request, schema=None, schema_names=(), empty_is_value=
                                      if _pget(p, 'type') == 'multiselect'}
     data = {k: (v if k in lists else (v[0] if v else '')) if isinstance(v, list) else v
             for k, v in data.items()}
-    return settings_from_values(data, schema, schema_names, empty_is_value)
+    return settings_from_values(data, schema, schema_names)
 
 
-def settings_from_values(data: dict, schema=None, schema_names=(), empty_is_value=()) -> dict:
+def settings_from_values(data: dict, schema=None, schema_names=()) -> dict:
     """La lecture des réglages une fois REÇUS — d'une requête (`read_settings_payload`) ou d'ailleurs
     (les `params` d'un nœud du Studio, `make_batch_views._write_outside_request`) : coercés selon le
     schéma, retirés s'ils sortent de la NATURE de l'élément, un champ de `schema_names` laissé vide
-    retiré sauf s'il est dans `empty_is_value`. Une lecture : la seconde, écrite dans la fabrique,
-    n'avait pas la règle de nature (revérification du 2026-11-19)."""
+    retiré sauf si son TYPE fait du vide une valeur (`param_schema.emptied_values`). Une lecture :
+    la seconde, écrite dans la fabrique, n'avait pas la règle de nature (revérification du
+    2026-11-19)."""
+    emptied = {}
     if schema:
         try:
-            from wama.common.utils.param_schema import coerce_schema_values
-            data = {**data, **coerce_schema_values(schema, data)}
+            from wama.common.utils.param_schema import coerce_schema_values, emptied_values
+            emptied = emptied_values(schema, data)
+            data = {**data, **coerce_schema_values(schema, data), **emptied}
         except Exception:
             pass    # schéma inexploitable : les données brutes restent (comportement d'avant)
         # Ce qui sort de la NATURE de l'élément n'est pas un de ses réglages (2026-11-19) : la ⚙ et
@@ -113,7 +117,7 @@ def settings_from_values(data: dict, schema=None, schema_names=(), empty_is_valu
         from wama.common.utils.param_schema import settings_outside_nature
         outside = settings_outside_nature(schema, data)
         data = {k: v for k, v in data.items() if k not in outside}
-    names = set(schema_names or ()) - set(empty_is_value or ())
+    names = set(schema_names or ()) - set(emptied)
     return {k: v for k, v in data.items() if not (v == '' and k in names)}
 
 
@@ -539,8 +543,10 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
         on_delete       : callable(élément) appelé AVANT `item.delete()` dans `batch_delete`
                           (describer : purge du cache de progression). La révocation de la tâche
                           Celery est faite par la fabrique (`terminate=False`, idiome mesuré).
-        empty_is_value  : champs pour lesquels `''` posté EST une valeur à écrire (reader :
-                          `language` vide = auto-détection) — cf. `read_settings_payload`.
+        empty_is_value  : PLUS LU depuis le 2026-11-25 — le vide qui est une valeur se lit du TYPE
+                          du réglage (`param_schema.emptied_values`), jamais d'une liste d'app.
+                          Gardé à la signature pour les jumelles pas encore régénérées
+                          (`REMOVAL_LEDGER`) ; ne plus le passer.
         task_for        : callable(élément)->tâche, quand la tâche dépend de l'élément
                           (transcriber : avec ou sans pré-traitement selon `preprocess_audio`) ;
                           prime sur `task`.
@@ -690,7 +696,7 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
         item_schema = _schema_of(item)
         names = tuple(p.get('name') for p in (item_schema or [])
                       if isinstance(p, dict) and p.get('name'))
-        return read_settings_payload(request, item_schema, names, empty_is_value, list_settings)
+        return read_settings_payload(request, item_schema, names, list_settings)
 
     def _write_one(item, data):
         """Pose `data` sur UN élément, sans sauver — LA règle de réglage de l'app : sa fonction
@@ -714,10 +720,11 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
         """L'écrivain inscrit pour `write_element_settings` : des valeurs venues d'ailleurs qu'un
         formulaire (les `params` d'un nœud du Studio) passent par la MÊME lecture que la requête —
         coercées par le schéma de l'élément, un champ du schéma laissé vide = « ne pas toucher »
-        (sauf `empty_is_value`) —, puis par `_write_one`."""
+        (sauf quand son type en fait une valeur, `param_schema.emptied_values`) —, puis par
+        `_write_one`."""
         item_schema = schema(item) if callable(schema) else schema
         names = {p.get('name') for p in (item_schema or []) if isinstance(p, dict)}
-        return _write_one(item, settings_from_values(dict(data), item_schema, names, empty_is_value))
+        return _write_one(item, settings_from_values(dict(data), item_schema, names))
 
     if (caller == owner or caller.startswith(owner + '.')) and '.tests' not in caller:
         _SETTINGS_WRITERS[work_model] = _write_outside_request
@@ -726,7 +733,7 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
             'batch_extra': batch_extra,
             'reset_on_duplicate': dup_reset, 'output_fields': tuple(output_fields),
             'on_delete': on_delete, 'zip': zip_declaration,
-            'schema': schema, 'empty_is_value': tuple(empty_is_value or ()),
+            'schema': schema,
             'list_settings': tuple(list_settings or ()), 'write': _write_one}
 
     def _apply_to_elements(request, b, data_for, *, skip=(), scope=batch_settings.KEEP_OWN,
@@ -832,8 +839,7 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
     def batch_update(request, pk):
         b = _batch_edit(request, pk, trace='regle')
         shared = (None if callable(schema)
-                  else read_settings_payload(request, schema, schema_names, empty_is_value,
-                                             list_settings))
+                  else read_settings_payload(request, schema, schema_names, list_settings))
         scope, replace = _gesture(request, batch_settings.KEEP_OWN)
         written, refusal = _apply_to_elements(
             request, b, lambda item: _settings_only(

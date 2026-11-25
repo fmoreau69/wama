@@ -12,8 +12,9 @@ résolu côté JS depuis `FORMATS[media_type].output`).
 Rendu par `WamaParams.render(body, PARAMS_JSON, {context:'item', values, optionsResolver})` dans
 converter.js (remplace l'ancien buildModalFormHTML/readModalForm). Lu par `WamaParams.read(body)`.
 """
-from wama.common.utils.auto_model import intent_param
-from wama.common.utils.param_schema import Param, ParamGroup, groups_to_dicts, schema_to_dicts
+from wama.common.utils.auto_model import AUTO, intent_param
+from wama.common.utils.output_formats import ORIGINAL
+from wama.common.utils.param_schema import NONE, Param, ParamGroup, groups_to_dicts, schema_to_dicts
 
 # ── Descriptif moteur (brique wama-model-help via WamaParams : chip + help_fallback) ──
 # Construit depuis SUPPORTED_CONVERSIONS — source unique des formats (format_router).
@@ -119,12 +120,14 @@ PARAMS = [
           help="Vide = suit la largeur (proportions gardées) ; les deux vides = inchangé."),
 
     # ── Transformations (image OU vidéo) ──────────────────────────────────────
-    # Neutre = "" (et plus "0") : un chip ne se rend que pour une valeur POSÉE — avec "0",
-    # « Aucune » se chippait sur toute card passée par la modale. Les backends tolèrent ""
-    # (`int(options.get('rotation', 0) or 0)`, image_backend:122 / video_backend:167).
+    # Le choix NEUTRE a une vraie valeur (2026-11-25, décision de Fabien : « ce n'est pas vide, ça
+    # ne devrait pas l'être ») — `none`, `original`, `auto` (`param_schema.neutral_choices`). Il
+    # était "" depuis le 31/08 (avant : "0", qui se chippait « Aucune » sur toute card) : la ⚙
+    # écartait ce vide comme « non fourni », et seule une liste d'app (`empty_is_value`) le
+    # rattrapait. Un neutre n'atteint pas le moteur (`ConversionJob._reglages`) ni la card.
     Param(name="rotation", group="transform", type="select", label="Rotation", icon="fa-rotate", show_if=IMG_VID,
-          contexts=ITEM_BATCH, chip=True,
-          choices=[("", "Aucune"), ("90", "90° horaire"), ("180", "180°"), ("270", "90° anti-horaire")]),
+          contexts=ITEM_BATCH, chip=True, default=NONE,
+          choices=[(NONE, "Aucune"), ("90", "90° horaire"), ("180", "180°"), ("270", "90° anti-horaire")]),
     Param(name="flip_h", group="transform", type="toggle", label="Miroir horizontal", icon="fa-left-right",
           show_if=IMG_VID, contexts=ITEM_BATCH, chip=True, chip_label="Miroir H"),
     Param(name="flip_v", group="transform", type="toggle", label="Miroir vertical", icon="fa-up-down",
@@ -140,7 +143,8 @@ PARAMS = [
     # retouchable ici ; une taille explicite (`resize_w` / `resize_h`) prime.
     Param(name="resolution_cap", group="video", type="select", label="Définition maximale",
           icon="fa-down-left-and-up-right-to-center", show_if=VID, contexts=ITEM_BATCH,
-          choices=[("", "Inchangée"), ("1080", "1080p"), ("720", "720p"), ("540", "540p"),
+          default=ORIGINAL,
+          choices=[(ORIGINAL, "Inchangée"), ("1080", "1080p"), ("720", "720p"), ("540", "540p"),
                    ("480", "480p")],
           help="Réduit la vidéo à cette définition (côté court), sans jamais l'agrandir."),
     Param(name="fps", group="video", type="number", label="Images/s (FPS)", icon="fa-video",
@@ -157,19 +161,19 @@ PARAMS = [
 
     # ── Audio ─────────────────────────────────────────────────────────────────
     Param(name="audio_bitrate", group="audio", type="select", label="Débit audio", icon="fa-music", show_if=AUD,
-          contexts=ITEM_BATCH, chip=True,
+          contexts=ITEM_BATCH, chip=True, default=AUTO,
           # 160k et 224k : les débits des positions « Rapide » et « Équilibré » du curseur
           # (`quality_presets`), que la liste ne proposait pas — la ⚙ affichait « Auto » sur un
           # débit réellement posé (décision de Fabien, 2026-11-25 : les ajouter).
-          choices=[("", "Auto"), ("128k", "128 kbps"), ("160k", "160 kbps"), ("192k", "192 kbps"),
+          choices=[(AUTO, "Auto"), ("128k", "128 kbps"), ("160k", "160 kbps"), ("192k", "192 kbps"),
                    ("224k", "224 kbps"), ("256k", "256 kbps"), ("320k", "320 kbps")]),
     Param(name="sample_rate", group="audio", type="select", label="Fréquence d'échantillonnage", icon="fa-wave-square",
-          show_if=AUD, contexts=ITEM_BATCH, chip=True,
-          choices=[("", "Inchangée"), ("22050", "22 050 Hz"), ("44100", "44 100 Hz"),
+          show_if=AUD, contexts=ITEM_BATCH, chip=True, default=ORIGINAL,
+          choices=[(ORIGINAL, "Inchangée"), ("22050", "22 050 Hz"), ("44100", "44 100 Hz"),
                    ("48000", "48 000 Hz")]),
     Param(name="channels", group="audio", type="select", label="Canaux", icon="fa-headphones",
-          show_if=AUD, contexts=ITEM_BATCH, chip=True,
-          choices=[("", "Inchangés"), ("1", "Mono"), ("2", "Stéréo")]),
+          show_if=AUD, contexts=ITEM_BATCH, chip=True, default=ORIGINAL,
+          choices=[(ORIGINAL, "Inchangés"), ("1", "Mono"), ("2", "Stéréo")]),
     Param(name="normalize", group="audio", type="toggle", label="Normaliser le volume", icon="fa-wave-square",
           show_if=AUD, contexts=ITEM_BATCH, chip=True, chip_label="Normalisation"),
 ]
@@ -209,8 +213,8 @@ def _cross_app_params():
             out.append(Param(name=_oid, type="select", label=o['label'],
                              icon="fa-wand-magic-sparkles", show_if=show, contexts=ITEM_BATCH,
                              group="posttraitement",
-                             chip=True,
-                             choices=[("", "Aucun")] + list(o['choices']), help=_help))
+                             chip=True, default=NONE,
+                             choices=[(NONE, "Aucun")] + list(o['choices']), help=_help))
         else:  # checkbox → toggle
             out.append(Param(name=_oid, type="toggle", label=o['label'],
                              icon="fa-wand-magic-sparkles", show_if=show, contexts=ITEM_BATCH,
