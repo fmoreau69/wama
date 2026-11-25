@@ -32973,3 +32973,79 @@ du serveur MCP) ; une vraie description de vidéo de plus de 3 minutes rejouée 
 **🔚 Suite, dans l'ordre validé** : garder ce que SheetSage2 calcule déjà (parties, mesures,
 tonalité) — demande de dire quelle entrée pose l'axe d'une card à plusieurs audios, ou de le
 ranger au FICHIER (`media_marks`) ; puis la confirmation des plans par les formes.
+
+---
+
+## §CLÔTURE — 2026-11-25, « LICENCES ET DÉPÔT : présentation + document de travail » — livré, commité, en service — 🔚 décisions de Fabien après sa discussion juridique
+
+**Demande** (Fabien) : un support clair sur la licence de WAMA, le non-commercial et le dépôt, pour
+une discussion avec un juriste — en diapositives ET en document plus rédigé, l'un renvoyant à
+l'autre, avec les pages qui portent les faits. Puis revérification, commit, clôture.
+
+**Livré** (`ee8e9aa20`, 19 fichiers ; domicile de la politique : `LICENSING.md`, son §10 dit les
+deux pages) :
+- `/licensing/` — 19 étapes sur le canvas des présentations ; chiffres calculés à l'affichage
+  (`license_audit.briefing`) ; la constellation des licences intégrée telle quelle, pour qui peut
+  l'ouvrir (`scenes.openable_url`).
+- `/reports/licensing/` — rapport généré (`scripts/reports/build_licensing_report.py`), déclaré
+  sans app dans `common/reports.py` (rapport transversal). Aucun média d'utilisateur n'y est nommé.
+- `cc-by-nc-sa-3.0` classée « non commerciale » (21 médias étaient « à qualifier »).
+- Aides communes des générateurs de rapports dans `shell_page.py` ; les deux autres générateurs
+  rendent la même page avant et après.
+- La garde des exports PDF (`tests_access_cases.PageExportTests`) était en erreur depuis le
+  2026-11-19 (son faux moteur ignorait le réglage de qualité) : réparée.
+
+**Réponse donnée à la question de Fabien** (lecture d'ingénieur, pas un avis juridique) : l'AGPL
+n'est pas « non commerciale » ; le non-commercial pèse sur les résultats, la redistribution et une
+valorisation, pas sur la recherche ; passer WAMA en CC BY-NC n'est ni possible sans retirer les
+composants AGPL (36 modèles, 3 librairies), ni utile. Détail : `LICENSING.md §10` et le rapport.
+
+**Mesuré dans cette session**
+- Inventaire (registres réels) : 459 éléments, 391 licences établies, 68 inconnues ; familles :
+  permissive 248, copyleft faible 54, copyleft fort 40, non commerciale 42, à qualifier 6,
+  interdite 1 (`hunyuan-image-2.1`, toujours au catalogue).
+- Tests, état commité, sous WSL : **280 tests, OK** (`tests_license_audit`, `tests_app_about`,
+  `tests_access_cases`, `tests_scenes`, `tests_theme`, `tests_identifier_language`,
+  `tests_docs_catalog`, `tests_test_layout`, `tests_install_route`, `tests_account_pages`,
+  `tests_tool_api_coverage`).
+- Contre-épreuves en processus : 10 mutations, 10 rouges. L'une est d'abord restée VERTE (la garde
+  déclarée par la scène n'était distinguée de rien) : cas ajouté au test, puis rouge.
+- Navigateur, sur le service relancé par Fabien : 19 étapes, aucune erreur de console, scène montée
+  pour un compte admis (47 licences, 7 familles, 10 apps), refus DIT pour un compte refusé, les
+  deux exports PDF produits.
+- `check_redundancy` : 116 trouvailles au total, aucune dans les fichiers de la session.
+  `check_docs` : 2 cassées, 1 périmée — aucune de cette session (deux viennent d'un bloc non commité
+  d'une autre session, la troisième d'un renvoi de ce journal vers un gabarit du converter).
+  `doc_facts --check` : deux blocs périmés, tous deux par le travail non commité d'autres sessions
+  (les outils de l'assistant dans la ROUTE ; la doc dérivée des briques, dont mes deux fonctions
+  sont commitées).
+
+**Limites de ce que la session a construit** (à elle)
+- Références NON relues sur le texte officiel, les sites ayant refusé la lecture automatique : la
+  liste des licences admises pour le code des administrations (CRPA, art. D323-2-1 — la présence
+  nominative de l'AGPL-3.0 est à confirmer, `LICENSING.md §1` point 3 la dit acquise), la foire aux
+  questions de Creative Commons, l'article de compatibilité de CeCILL 2.1, les tarifs du dépôt
+  probatoire et de l'enveloppe Soleau. Le rapport les marque « à confirmer ». Relus mot pour mot :
+  les articles D532-2 à D532-6 du Code de la recherche.
+- Le rapport est une photo datée : il se régénère par son script quand l'inventaire bouge. Les
+  diapositives, elles, se recalculent seules.
+- Le menu « Présentations & annexes » de l'accueil reçoit une quatrième entrée écrite à la main,
+  comme les trois autres présentations ; seuls les rapports s'y listent depuis leur déclaration.
+- La ligne du mécanisme « Rapports publiés » (`mecanismes.py`) ne dit pas qu'un rapport peut être
+  transversal : le fichier est en cours d'édition par une autre session, non touché. Le domicile du
+  mécanisme (`WAMA_QUALITE`) le dit.
+- Le service tourne avec le code d'AVANT les trois remaniements de la revérification (même
+  comportement, vérifié par les tests) : une relance de gunicorn le mettra au code commité, sans
+  urgence. Aucun worker à relancer.
+
+**Pendings hérités, inchangés** (`ROADMAP §20`, `LICENSING.md §7`) : déclarer WAMA à la valorisation
+de l'établissement ; retirer ou désactiver le modèle interdit dans l'UE ; dépôt en archive ouverte ;
+marque ; lien « Source » de l'interface (AGPL art. 13) ; l'historique du dépôt, à aborder de vive
+voix (éléments hors dépôt).
+
+**Artefacts de session** : sondes de rendu, script des contre-épreuves, captures et copies PDF dans
+le scratchpad de session (jetables) ; le serveur jetable de vérification a été arrêté par son PID.
+Le compte de test élevé le temps des sondes a été rétabli à son niveau (vérifié en sortie de sonde).
+
+**🔚 Point d'entrée** : ce que la discussion juridique aura tranché se reporte dans `LICENSING.md §7`
+(et son §1 point 3 si la liste officielle ne nomme pas l'AGPL), puis le rapport se régénère.

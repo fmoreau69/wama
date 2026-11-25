@@ -363,6 +363,15 @@ mais c'est défaire son geste dans son dos.
   le voit pas quand le commit d'autrui touche un fichier qui est aussi le mien.
   ⭐ *Charger ce skill coûte une lecture ; ne pas le charger a coûté une preuve sur quinze commits.*
 
+- ⚠ **2026-11-25 — sous Git Bash, `grep -P` REFUSE de tourner** (« -P supports only unibyte and
+  UTF-8 locales ») : une garde `grep -qP "^13\t0\t<fichier>$"` sur le `numstat` indexé a arrêté
+  deux fois un index CORRECT, juste avant le commit (rien de cassé — l'arrêt précède le
+  `commit-tree`). ✅ Lire le `numstat` par colonnes, sans expression régulière :
+  `[ "$(awk -v f="<fichier>" '$3 == f { print $1 "/" $2 }' staged.txt)" = "13/0" ]`.
+  Et un fichier DÉRIVÉ (`docs/dev/briques.md`) peut déjà porter SES lignes dans l'arbre sans
+  qu'on l'ait régénéré : une autre session l'a fait, sur l'arbre qui portait mon code — les
+  chercher par leur symbole (`git diff -U0 -- <doc> | grep <symbole>`) et les prendre par numéro.
+
 ## 4. Docs générées
 
 Un bloc régénéré (`doc_facts`) projette le REGISTRE tel qu'il est dans l'arbre, WIP d'autrui

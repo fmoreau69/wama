@@ -113,6 +113,15 @@ vivant ? »), où WAMA la prend-il déjà ?** — greper le geste voisin (une au
 un autre lecteur du même cache), puis le lire ; et comparer le neuf à ce qu'il REMPLACE
 (l'ancien suivi avait un `onGiveUp` : le neuf n'en avait plus).
 
+🔴 **Vécu le 2026-11-25 — une aide « identique » dans trois scripts ne l'était pas, à un caractère
+INVISIBLE près.** Trois générateurs de rapports portaient chacun `nb()` (les milliers séparés) ; en
+les ramenant à une aide commune, l'un s'est révélé utiliser une espace fine insécable (U+202F) là
+où les deux autres écrivent une espace — vu parce que l'édition « du même texte » échouait, pas à
+la lecture. ✅ Une recopie ramenée à son domicile se prouve par la SORTIE, avant et après, sur les
+entrées réelles (ici : chaque générateur rejoué sans écrire, version de HEAD contre version portée,
+pages comparées à l'octet) — jamais par la ressemblance du code. Ce qui diffère se garde là où il
+est, avec sa raison.
+
 ## 2. Testé — lancer, garder, prouver
 
 🔴 **AUCUNE RÉGRESSION ADMISE — ON NE PERD RIEN, ON NE CASSE RIEN** (Fabien, 2026-11-25, à

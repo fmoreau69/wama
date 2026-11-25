@@ -40,6 +40,14 @@ le RENDU RÉEL, pas la structure du code.
     atterrit dans le `/tmp` de l'hôte et laisse WSL dire `No such file or directory`.
     ✅ `wsl.exe -e bash -lc 'cd /mnt/d/WAMA/... && venv_linux/bin/python "/mnt/c/Users/<…>/scratchpad/<sonde>.py"'`
     — et ne PAS déposer la sonde dans le dépôt pour contourner (elle y resterait).
+    ⚠ Une sonde du scratchpad qui fait `django.setup()` se lance avec `PYTHONPATH=<racine du
+    dépôt>` : Python met en tête le dossier du SCRIPT, pas le dossier courant (`ModuleNotFoundError:
+    No module named 'wama'`, un serveur jetable lancé pour rien le 2026-11-25).
+  - ⚠ **Une page INTÉGRÉE en iframe se regarde sous un compte REFUSÉ aussi** (2026-11-25, la
+    constellation des licences dans une présentation) : la page hôte répondait 200, aucune erreur
+    de console, et le cadre montrait… l'accueil, vers lequel le refus de la page intégrée
+    redirige. Seule la CAPTURE lue l'a montré. Jouer les deux comptes (le compte de test ordinaire,
+    puis un compte admis — `_admin_session()` ci-dessous) et lire les deux captures.
 - Navigateurs installés **côté WSL2** (`~/.cache/ms-playwright`, chromium-1228), `playwright`
   importable dans `venv_linux` **et** `venv_win` → lancer le script sous WSL2, là où tourne aussi
   le serveur.
