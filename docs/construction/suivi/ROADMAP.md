@@ -6636,9 +6636,13 @@ que le chantier reprendra.
   serveur étale déjà en réglages d'encodage (`_quality_spread`) ; déclarer `quality_preset`,
   `preset` ou `optimize` n'est pas possible : le schéma ne les porte pas (relevé par la garde
   ci-dessous à sa première exécution).
-- ⚠ **Constat converter, non corrigé** : les préréglages audio écrivent `audio_bitrate` `160k` et
+- ~~⚠ **Constat converter, non corrigé** : les préréglages audio écrivent `audio_bitrate` `160k` et
   `224k`, que le select du schéma ne propose pas (128/192/256/320) — la modale affiche « Auto » sur
-  une valeur réellement posée.
+  une valeur réellement posée.~~ ✅ **Corrigé le 2026-11-25** (décision de Fabien : ajouter les
+  débits manquants) : 160k et 224k aux choix, et une valeur INTERPOLÉE entre deux positions du
+  curseur (187k…) prend le choix le plus proche, lu au schéma (`quality_presets._on_schema_choices`).
+  La garde à reprendre ci-dessous est posée pour le converter
+  (`test_every_notch_of_the_slider_lands_on_a_choice_of_the_schema`, chaque cran de 0 à 100).
 - `ConversionProfile` : **0 ligne** en base live (mesuré le 2026-09-26), aucun `ConversionJob`
   ne pointe un profil — la migration de données est gratuite.
 - **Garde à reprendre** : pour toute app qui déclare des profils système, chaque valeur doit être

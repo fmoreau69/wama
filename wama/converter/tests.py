@@ -165,6 +165,22 @@ class QualityIntentWritesTheColumnsTest(TestCase):
         self.assertEqual(values_for_intent('image', 100)['quality'], 98)      # au-delà de la dernière
         self.assertEqual(values_for_intent('video', 85)['preset'], 'slow')    # non numérique : la plus proche
 
+    def test_every_notch_of_the_slider_lands_on_a_choice_of_the_schema(self):
+        # Un réglage À CHOIX reçoit une valeur de sa liste, à chaque cran (2026-11-25) : le débit
+        # audio des positions « Rapide » (160k) et « Équilibré » (224k), puis les débits
+        # interpolés entre deux positions, tombaient hors de la liste — la ⚙ affichait « Auto ».
+        from wama.converter.params import PARAMS
+        from wama.converter.utils.quality_presets import values_for_intent
+        choices = {p.name: {value for value, _label in p.choices}
+                   for p in PARAMS if p.type == 'select' and p.choices}
+        for media in ('image', 'video', 'audio'):
+            for notch in range(0, 101):
+                for name, value in values_for_intent(media, notch).items():
+                    if name in choices:     # None = non réglé : le choix vide de la liste
+                        self.assertIn('' if value is None else value, choices[name],
+                                      (media, notch, name))
+        self.assertEqual(values_for_intent('audio', 30)['audio_bitrate'], '192k')
+
     def test_moving_the_slider_writes_the_encoding_and_leaves_both_traces(self):
         from django.test import Client
         import json as _j

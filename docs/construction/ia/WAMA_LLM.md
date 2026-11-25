@@ -3089,11 +3089,18 @@ Fabien. Mesuré d'abord :
    menu (« mirrors format_router.py »), servie désormais par la page
    (`converter_input_extensions_json`, `SUPPORTED_CONVERSIONS`, lu aussi par `detect_media_type`). Garde :
    `converter.tests.QuickConvertTakesTheCommonSliderTest`, `tests_status_ui` (aucun script ne
-   compare un état à un mot retiré). ⏳ **Décision de Fabien** : à la NAISSANCE d'un élément (dépôt,
-   import, lot, outil), le curseur est une trace sans effet sur l'encodage (`apply_birth_settings`,
-   garde `test_l_element_nait_COMPLET…` : qualité 85 du schéma) ; l'y appliquer changerait
-   l'encodage de tous les dépôts (mesuré : image 85 → 90, vidéo CRF d'ffmpeg → 20 `slow`, audio
-   Auto → 224k, valeur hors des choix du schéma).
+   compare un état à un mot retiré). À la NAISSANCE d'un élément (dépôt, import, lot, outil), le
+   curseur est une trace sans effet sur l'encodage (`apply_birth_settings`, garde
+   `test_l_element_nait_COMPLET…` : qualité 85 du schéma) ; l'y appliquer change l'encodage de tous
+   les dépôts (mesuré : image 85 → 90, vidéo CRF d'ffmpeg → 20 `slow`, audio Auto → 224k).
+   ✅ **Décidé par Fabien le 2026-11-25, ⏳ à faire** : le curseur S'APPLIQUE à la naissance, et
+   l'utilisateur est TOUJOURS informé des réglages posés automatiquement, pour lancer en
+   connaissance de cause ; un réglage qui ne lui convient pas se SURCHARGE par son geste, dans
+   l'accordéon avancé (`ROADMAP §31.7`, premier point) — « un comportement universel et uniforme,
+   et l'utilisateur sait toujours ce qu'il est en train de faire ». ✅ Le même jour, les débits
+   160k et 224k entrent aux choix du schéma, et toute valeur interpolée prend le choix le plus
+   proche (`quality_presets._on_schema_choices`, garde
+   `converter.tests…test_every_notch_of_the_slider_lands_on_a_choice_of_the_schema`).
 
 8. **L'AUTO-DIAGNOSTIC : la trace des outils devient une mesure** (même jour, demande de Fabien :
    « améliorer l'auto-diagnostic de WAMA […] qu'il sache débuguer lui-même sous la supervision de

@@ -116,7 +116,29 @@ def values_for_intent(media_type: str, intent) -> dict:
     out = {}
     for key in sorted(set(table.get(lo, {})) | set(table.get(hi, {}))):
         out[key] = _blend(table.get(lo, {}).get(key), table.get(hi, {}).get(key), t)
-    return out
+    return _on_schema_choices(out)
+
+
+def _on_schema_choices(values: dict) -> dict:
+    """Une valeur interpolée pour un réglage À CHOIX prend le choix du schéma le plus proche
+    (2026-11-25) : entre deux positions, le débit audio tombait sur `'187k'`, qu'aucune liste ne
+    propose — la ⚙ affichait « Auto » sur un débit réellement posé. Les choix se lisent dans le
+    schéma de l'app (`params.PARAMS`), jamais recopiés ici."""
+    from wama.converter.params import PARAMS
+    choices = {p.name: [value for value, _label in p.choices]
+               for p in PARAMS if p.type == 'select' and p.choices}
+    for key, value in values.items():
+        options = choices.get(key)
+        if not options or value in options or not isinstance(value, str):
+            continue
+        wanted = re.match(r'^(\d+)(\D*)$', value)
+        if not wanted:
+            continue
+        numeric = [(int(m.group(1)), option) for option in options
+                   if (m := re.match(r'^(\d+)(\D*)$', option)) and m.group(2) == wanted.group(2)]
+        if numeric:
+            values[key] = min(numeric, key=lambda c: abs(c[0] - int(wanted.group(1))))[1]
+    return values
 
 
 def preset_values(media_type: str, preset: str) -> dict:

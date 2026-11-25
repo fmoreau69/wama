@@ -494,6 +494,29 @@
             },
             {
               "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "db_default": {
+                  "expr": "''",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "''",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "8",
+                  "imports": []
+                }
+              },
+              "name": "resolution_cap"
+            },
+            {
+              "args": [],
               "class": "django.db.models.IntegerField",
               "kwargs": {
                 "blank": {
@@ -1030,6 +1053,7 @@
             "help_source": null,
             "icon": "",
             "inline": false,
+            "keywords": null,
             "label": "",
             "max": null,
             "max_label": "",
@@ -1121,6 +1145,7 @@
             "help_source": null,
             "icon": "fa-file-export",
             "inline": false,
+            "keywords": null,
             "label": "Format de sortie",
             "max": null,
             "max_label": "",
@@ -1179,6 +1204,7 @@
             "help_source": null,
             "icon": "fa-gauge-high",
             "inline": false,
+            "keywords": null,
             "label": "Rapide ↔ Qualité",
             "max": 100,
             "max_label": "",
@@ -1240,6 +1266,7 @@
             "help_source": null,
             "icon": "fa-gauge",
             "inline": false,
+            "keywords": null,
             "label": "Qualité d'encodage",
             "max": 100,
             "max_label": "",
@@ -1290,13 +1317,14 @@
             "display_format": "",
             "dom_id": "",
             "empty_label": "",
-            "group": "image",
+            "group": "transform",
             "help": "Vide = suit la hauteur (proportions gardées) ; les deux vides = inchangé.",
             "help_fallback": null,
             "help_html": "",
             "help_source": null,
             "icon": "fa-arrows-left-right",
             "inline": false,
+            "keywords": null,
             "label": "Largeur (px)",
             "max": null,
             "max_label": "",
@@ -1319,8 +1347,11 @@
             "remember": null,
             "section": "settings",
             "show_if": {
-              "equals": "image",
-              "field": "media_type"
+              "field": "media_type",
+              "in": [
+                "image",
+                "video"
+              ]
             },
             "stales": [
               "convert"
@@ -1347,13 +1378,14 @@
             "display_format": "",
             "dom_id": "",
             "empty_label": "",
-            "group": "image",
+            "group": "transform",
             "help": "Vide = suit la largeur (proportions gardées) ; les deux vides = inchangé.",
             "help_fallback": null,
             "help_html": "",
             "help_source": null,
             "icon": "fa-arrows-up-down",
             "inline": false,
+            "keywords": null,
             "label": "Hauteur (px)",
             "max": null,
             "max_label": "",
@@ -1376,8 +1408,11 @@
             "remember": null,
             "section": "settings",
             "show_if": {
-              "equals": "image",
-              "field": "media_type"
+              "field": "media_type",
+              "in": [
+                "image",
+                "video"
+              ]
             },
             "stales": [
               "convert"
@@ -1428,6 +1463,7 @@
             "help_source": null,
             "icon": "fa-rotate",
             "inline": false,
+            "keywords": null,
             "label": "Rotation",
             "max": null,
             "max_label": "",
@@ -1488,6 +1524,7 @@
             "help_source": null,
             "icon": "fa-left-right",
             "inline": false,
+            "keywords": null,
             "label": "Miroir horizontal",
             "max": null,
             "max_label": "",
@@ -1548,6 +1585,7 @@
             "help_source": null,
             "icon": "fa-up-down",
             "inline": false,
+            "keywords": null,
             "label": "Miroir vertical",
             "max": null,
             "max_label": "",
@@ -1608,6 +1646,7 @@
             "help_source": null,
             "icon": "fa-film",
             "inline": false,
+            "keywords": null,
             "label": "Qualité vidéo (CRF)",
             "max": 51,
             "max_label": "",
@@ -1647,6 +1686,85 @@
             "cap_from": null,
             "chip": false,
             "chip_label": "",
+            "choices": [
+              [
+                "",
+                "Inchangée"
+              ],
+              [
+                "1080",
+                "1080p"
+              ],
+              [
+                "720",
+                "720p"
+              ],
+              [
+                "540",
+                "540p"
+              ],
+              [
+                "480",
+                "480p"
+              ]
+            ],
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": null,
+            "default_from": null,
+            "display_format": "",
+            "dom_id": "",
+            "empty_label": "",
+            "group": "video",
+            "help": "Réduit la vidéo à cette définition (côté court), sans jamais l'agrandir.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-down-left-and-up-right-to-center",
+            "inline": false,
+            "keywords": null,
+            "label": "Définition maximale",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "resolution_cap",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_from": null,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "remember": null,
+            "section": "settings",
+            "show_if": {
+              "equals": "video",
+              "field": "media_type"
+            },
+            "stales": [
+              "convert"
+            ],
+            "step": null,
+            "stores_unchecked": false,
+            "type": "select",
+            "unit": "",
+            "write_from": null
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
             "choices": null,
             "contexts": [
               "item",
@@ -1665,6 +1783,7 @@
             "help_source": null,
             "icon": "fa-video",
             "inline": false,
+            "keywords": null,
             "label": "Images/s (FPS)",
             "max": 120,
             "max_label": "",
@@ -1722,6 +1841,7 @@
             "help_source": null,
             "icon": "fa-images",
             "inline": false,
+            "keywords": null,
             "label": "FPS du GIF",
             "max": 50,
             "max_label": "",
@@ -1779,6 +1899,7 @@
             "help_source": null,
             "icon": "fa-arrows-left-right",
             "inline": false,
+            "keywords": null,
             "label": "Largeur du GIF (px)",
             "max": 1920,
             "max_label": "",
@@ -1828,8 +1949,16 @@
                 "128 kbps"
               ],
               [
+                "160k",
+                "160 kbps"
+              ],
+              [
                 "192k",
                 "192 kbps"
+              ],
+              [
+                "224k",
+                "224 kbps"
               ],
               [
                 "256k",
@@ -1857,6 +1986,7 @@
             "help_source": null,
             "icon": "fa-music",
             "inline": false,
+            "keywords": null,
             "label": "Débit audio",
             "max": null,
             "max_label": "",
@@ -1931,6 +2061,7 @@
             "help_source": null,
             "icon": "fa-wave-square",
             "inline": false,
+            "keywords": null,
             "label": "Fréquence d'échantillonnage",
             "max": null,
             "max_label": "",
@@ -2001,6 +2132,7 @@
             "help_source": null,
             "icon": "fa-headphones",
             "inline": false,
+            "keywords": null,
             "label": "Canaux",
             "max": null,
             "max_label": "",
@@ -2058,6 +2190,7 @@
             "help_source": null,
             "icon": "fa-wave-square",
             "inline": false,
+            "keywords": null,
             "label": "Normaliser le volume",
             "max": null,
             "max_label": "",
@@ -2128,6 +2261,7 @@
             "help_source": null,
             "icon": "fa-wand-magic-sparkles",
             "inline": false,
+            "keywords": null,
             "label": "Upscaling IA (Real-ESRGAN)",
             "max": null,
             "max_label": "",
@@ -2185,6 +2319,7 @@
             "help_source": null,
             "icon": "fa-wand-magic-sparkles",
             "inline": false,
+            "keywords": null,
             "label": "Débruitage IA (Real-ESRGAN)",
             "max": null,
             "max_label": "",
@@ -2242,6 +2377,7 @@
             "help_source": null,
             "icon": "fa-wand-magic-sparkles",
             "inline": false,
+            "keywords": null,
             "label": "Enhancement audio (DeepFilterNet)",
             "max": null,
             "max_label": "",
@@ -2436,6 +2572,7 @@
             "flip_h",
             "flip_v",
             "video_quality",
+            "resolution_cap",
             "fps",
             "gif_fps",
             "gif_width",
@@ -2479,11 +2616,11 @@
       "descriptions": {
         "add_to_converter": {
           "args": {
-            "audio_bitrate": "select — Débit audio (choix :  | 128k | 192k | 256k | 320k)",
+            "audio_bitrate": "select — Débit audio (choix :  | 128k | 160k | 192k | 224k | 256k | 320k)",
             "audio_enhance": "toggle — Post-traitement IA via l'app enhancer — appliqué après la conversion (charge un modèle GPU).",
             "channels": "select — Canaux (choix :  | 1 | 2)",
             "denoise": "toggle — Post-traitement IA via l'app enhancer — appliqué après la conversion (charge un modèle GPU).",
-            "file_path": "str (requis)",
+            "file_path": "str (requis) — plusieurs fichiers arrivés ensemble : une LISTE de chemins, un élément par fichier, rangés en un lot comme un dépôt de plusieurs fichiers sur la card",
             "flip_h": "toggle — Miroir horizontal",
             "flip_v": "toggle — Miroir vertical",
             "fps": "number — Vide = inchangé. [1–120]",
@@ -2497,6 +2634,7 @@
             "quality_preset": "str (défaut : 'balanced')",
             "resize_h": "number — Vide = suit la largeur (proportions gardées) ; les deux vides = inchangé. [0–None]",
             "resize_w": "number — Vide = suit la hauteur (proportions gardées) ; les deux vides = inchangé. [0–None]",
+            "resolution_cap": "select — Réduit la vidéo à cette définition (côté court), sans jamais l'agrandir. (choix :  | 1080 | 720 | 540 | 480)",
             "rotation": "select — Rotation (choix :  | 90 | 180 | 270)",
             "sample_rate": "select — Fréquence d'échantillonnage (choix :  | 22050 | 44100 | 48000)",
             "upscale": "select — Post-traitement IA via l'app enhancer — appliqué après la conversion (charge un modèle GPU). (choix :  | x2 | x4)",

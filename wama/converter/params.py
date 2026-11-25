@@ -158,8 +158,11 @@ PARAMS = [
     # ── Audio ─────────────────────────────────────────────────────────────────
     Param(name="audio_bitrate", group="audio", type="select", label="Débit audio", icon="fa-music", show_if=AUD,
           contexts=ITEM_BATCH, chip=True,
-          choices=[("", "Auto"), ("128k", "128 kbps"), ("192k", "192 kbps"),
-                   ("256k", "256 kbps"), ("320k", "320 kbps")]),
+          # 160k et 224k : les débits des positions « Rapide » et « Équilibré » du curseur
+          # (`quality_presets`), que la liste ne proposait pas — la ⚙ affichait « Auto » sur un
+          # débit réellement posé (décision de Fabien, 2026-11-25 : les ajouter).
+          choices=[("", "Auto"), ("128k", "128 kbps"), ("160k", "160 kbps"), ("192k", "192 kbps"),
+                   ("224k", "224 kbps"), ("256k", "256 kbps"), ("320k", "320 kbps")]),
     Param(name="sample_rate", group="audio", type="select", label="Fréquence d'échantillonnage", icon="fa-wave-square",
           show_if=AUD, contexts=ITEM_BATCH, chip=True,
           choices=[("", "Inchangée"), ("22050", "22 050 Hz"), ("44100", "44 100 Hz"),
