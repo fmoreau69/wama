@@ -221,7 +221,13 @@ def gesture_config(found, item, user) -> dict:
     gabarit (`ctx.run`), la case qui ACTIVE chaque étape optionnelle, les étapes que l'élément exclut
     et la card d'origine d'une card dérivée, et le droit d'écrire. Le JS : `WamaSurface` `gestures`."""
     app, pk = found.app, item.pk
+    from wama.common.services.process_pipeline import item_thresholds
+    from wama.common.utils.detections import threshold_payload
+    thresholds = item_thresholds(app, item)
     return {
+        # Les SEUILS de floutage que la card déclare (2026-11-25) : une brique qui dessine des
+        # détections montre ce qui est sous eux en pointillé (`WamaPreviewOverlay.belowThreshold`).
+        'thresholds': threshold_payload(*thresholds) if thresholds is not None else None,
         'settings_url': _settings_url(app, pk) if found.page_settings() else '',
         # Lancer une AUTRE étape que celle qu'« Appliquer » rejoue (2026-11-17, « Rendre le
         # mixage ») : la route du ▶ d'une étape, l'étape en gabarit (`ctx.run`), et la case qui

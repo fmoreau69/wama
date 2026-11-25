@@ -219,15 +219,22 @@
                             img.naturalHeight * view.scale);
             }
             var selected = ctx.selected();
+            var overlay = global.WamaPreviewOverlay;
             objects.forEach(function (o) {
                 if (o.id === selected) return;
                 var r = screenBox(o.box);
+                // Sous le seuil de floutage de sa classe (2026-11-25) : montrée, pas floutée —
+                // en pointillé fin et estompée (un retrait garde son trait rouge).
+                var below = !o.removed && o.origin === 'detected' && overlay && overlay.belowThreshold
+                    && overlay.belowThreshold(o, ctx.config.thresholds);
                 g.lineWidth = 1.5;
-                g.setLineDash(o.removed ? [4, 3] : []);
+                g.setLineDash(o.removed ? [4, 3] : (below ? [2, 3] : []));
+                g.globalAlpha = below ? 0.6 : 1;
                 g.strokeStyle = o.removed ? COLORS.removed : COLORS[o.origin];
                 g.strokeRect(r[0], r[1], r[2], r[3]);
             });
             g.setLineDash([]);
+            g.globalAlpha = 1;
             var sel = byId(selected);
             if (sel) {
                 var box = drag && drag.obj && drag.obj.id === sel.id && drag.box ? drag.box : sel.box;

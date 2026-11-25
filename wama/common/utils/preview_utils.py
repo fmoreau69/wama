@@ -664,6 +664,13 @@ def _overlay_face(app_name, instance, request, base, url, data_type, label):
     data['name'] = f"{label} — {base.get('name', '')}"
     data['overlay'] = {'kind': data_type, 'url': request.build_absolute_uri(_versioned(url)),
                        **PreviewRegistry.overlay_options(app_name, instance)}
+    # Les SEUILS de floutage que la card déclare (2026-11-25) : tout se dessine, ce qui est sous
+    # eux en pointillé (`WamaPreviewOverlay.belowThreshold`).
+    from wama.common.services.process_pipeline import item_thresholds
+    thresholds = item_thresholds(app_name, instance)
+    if thresholds is not None:
+        from wama.common.utils.detections import threshold_payload
+        data['overlay']['thresholds'] = threshold_payload(*thresholds)
     return data
 
 

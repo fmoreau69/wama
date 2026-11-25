@@ -287,18 +287,28 @@ def output_lost(row) -> bool:
 
 #: Ce qu'une sortie de DÉTECTIONS a trouvé, par libellé (`{libellé: objets}`, 2026-11-19).
 FOUND_KEY = 'found'
+#: …et leurs objets rangés par cran de meilleure confiance (`detections.found_confidences`,
+#: 2026-11-25) : la bande dit ce qui sera FLOUTÉ au seuil de la card, sans relire le document.
+FOUND_CONF_KEY = 'found_conf'
 
 
-def found_by_label(output_type: str, output_ref: str):
-    """`{libellé: nombre d'objets}` d'une sortie dont le TYPE déclaré est `detections` — le
-    document relu une fois, quand la ligne passe en succès (`task_skeleton._line_summary`) ; None
-    pour un autre type, un fichier absent ou illisible. Commun à toute app qui rend des
-    détections (images, vidéos, passages d'un texte) : `detections.objects_by_label`."""
+def found_summary(output_type: str, output_ref: str):
+    """`{FOUND_KEY: {libellé: objets}, FOUND_CONF_KEY: {libellé: {cran: objets}}}` d'une sortie
+    dont le TYPE déclaré est `detections` — le document relu une fois, quand la ligne passe en
+    succès (`task_skeleton._line_summary`) ; None pour un autre type, un fichier absent ou
+    illisible. Commun à toute app qui rend des détections (images, vidéos, passages d'un texte)."""
     doc = _read_detections(output_type, output_ref)
     if doc is None:
         return None
     from wama.common.utils import detections
-    return detections.objects_by_label(doc)
+    return {FOUND_KEY: detections.objects_by_label(doc),
+            FOUND_CONF_KEY: detections.found_confidences(doc)}
+
+
+def found_by_label(output_type: str, output_ref: str):
+    """`{libellé: nombre d'objets}` d'une sortie de détections (`found_summary`), ou None."""
+    summary = found_summary(output_type, output_ref)
+    return None if summary is None else summary[FOUND_KEY]
 
 
 def _read_detections(output_type: str, output_ref: str):
@@ -320,25 +330,37 @@ def _read_detections(output_type: str, output_ref: str):
 #: neuve se déclare ici, jamais dans une app.
 #: Les attributs d'une qualification (couleur, taille, plan — `detection_attributes`, 2026-11-24)
 #: se lisent comme les libellés : un réglage les choisit parmi ce qui a été qualifié.
-OUTPUT_PROPERTIES = {'detections': ('labels', 'colors', 'sizes', 'planes')}
+#: `found_confidences` (2026-11-25) : les objets par cran de confiance, `{libellé: {cran: n}}` — ce
+#: qui dit combien d'objets d'un libellé dépassent son seuil (« Ce qu'on floute » les compte).
+OUTPUT_PROPERTIES = {'detections': ('labels', 'colors', 'sizes', 'planes', 'found_confidences')}
 
 
-def output_property(output_type: str, output_ref: str, prop: str) -> list:
+def output_property(output_type: str, output_ref: str, prop: str):
     """La propriété `prop` de la sortie `output_ref` (relative à `MEDIA_ROOT`) d'un type déclaré —
-    `[]` si ce type ne la déclare pas ou si le fichier manque."""
+    une liste (un dictionnaire pour une propriété qui en est un), `[]` si ce type ne la déclare pas
+    ou si le fichier manque."""
     if prop not in OUTPUT_PROPERTIES.get(output_type, ()):
         return []
     doc = _read_detections(output_type, output_ref)
     if doc is None:
         return []
     from wama.common.utils import detections
-    return list(getattr(detections, prop)(doc))
+    value = getattr(detections, prop)(doc)
+    return value if isinstance(value, dict) else list(value)
 
 
-def found_rows(summary) -> list:
+def found_rows(summary, thresholds=None) -> list:
     """Ce que la bande d'une card écrit de `summary[FOUND_KEY]` : `[{label, count}]`, les plus
-    nombreux d'abord — vide sans rien de trouvé."""
-    found = (summary or {}).get(FOUND_KEY) or {}
+    nombreux d'abord — vide sans rien de trouvé. `thresholds` (`(seuil commun, {classe: seuil})`,
+    ceux que la card DÉCLARE, `process_pipeline.declared_thresholds`, 2026-11-25) : seuls les
+    objets au-dessus du seuil de leur classe comptent — ce qui sera flouté, pas le bruit du
+    plancher. Une ligne d'avant les crans de confiance garde son compte entier."""
+    from wama.common.utils import detections
+    steps = (summary or {}).get(FOUND_CONF_KEY)
+    if thresholds is not None and steps is not None:
+        found = detections.found_above(steps, thresholds[0], thresholds[1])
+    else:
+        found = (summary or {}).get(FOUND_KEY) or {}
     return [{'label': label, 'count': int(n)}
             for label, n in sorted(found.items(), key=lambda kv: (-int(kv[1]), kv[0]))]
 

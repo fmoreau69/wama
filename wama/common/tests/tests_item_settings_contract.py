@@ -12,7 +12,7 @@ a witness element built from its model and fields chosen from its schema — no 
 import json
 
 from django.db import models
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 from django.urls import NoReverseMatch, reverse
 
 from wama.common.tests.tests_queue_delete_contract import _instance
@@ -71,12 +71,18 @@ def _writable_fields(model, schema):
         elif p.get('type') == 'multiselect' and isinstance(f, models.JSONField):
             # A LIST of choices (2026-11-19): the modal posts it as the JSON of its hidden field.
             out.append((f.name, [['wama contract a'], ['wama contract b', 'wama contract c']]))
+        elif (p.get('type') == 'mapping' and p.get('numeric_values')
+              and isinstance(f, models.JSONField)):
+            # NUMBERS per key (2026-11-25, a blur threshold per class): bounded by the setting.
+            low = float(p.get('min') or 0)
+            out.append((f.name, [{'wama contract a': round(low + 0.2, 3)},
+                                 {'wama contract b': round(low + 0.1, 3), 'wama contract c': 1.0}]))
     return out
 
 
 def _posted(value):
     """A value as the ⚙ modal's FormData carries it."""
-    if isinstance(value, list):
+    if isinstance(value, (list, dict)):
         return json.dumps(value)
     return ('true' if value else 'false') if isinstance(value, bool) else value
 
@@ -438,3 +444,23 @@ class OutsideTheRequestTheSettingsFollowTheItemRouteTest(TestCase):
                                      _settings_of(by_writer, model, schema))
                 measured.append(app)
         self.assertGreaterEqual(len(set(measured)), 10, sorted(set(measured)))
+
+
+class NumericMappingCoercionTest(SimpleTestCase):
+    """`param_schema._coerce_mapping` with `numeric_values` (2026-11-25) : numbers bounded by the
+    setting, what is not a number dropped, an empty value is a value (« no own threshold »)."""
+
+    SCHEMA = [{'name': 'levels', 'type': 'mapping', 'numeric_values': True, 'min': 0.1, 'max': 1},
+              {'name': 'names', 'type': 'mapping'}]
+
+    def test_numbers_are_bounded_and_the_rest_dropped(self):
+        from wama.common.utils.param_schema import coerce_schema_values
+        out = coerce_schema_values(self.SCHEMA, {'levels': json.dumps(
+            {'a': 1.7, 'b': 'x', ' ': 0.3, 'c': '0.04', 'd': 0.35})})
+        self.assertEqual({'a': 1.0, 'c': 0.1, 'd': 0.35}, out['levels'])
+        self.assertEqual({}, coerce_schema_values(self.SCHEMA, {'levels': '{}'})['levels'])
+
+    def test_counterproof_a_text_mapping_keeps_its_texts(self):
+        from wama.common.utils.param_schema import coerce_schema_values
+        self.assertEqual({'S0': 'Ana'}, coerce_schema_values(self.SCHEMA, {'names': {'S0': ' Ana ', 'S1': ''}})['names'])
+        self.assertIsNone(coerce_schema_values(self.SCHEMA, {'names': '{}'})['names'])

@@ -48,39 +48,15 @@ class OutsideWindowsTest(unittest.TestCase):
 
 
 class ConfidenceFloorTest(unittest.TestCase):
-    """Le seuil du floutage (2026-10-26) : ce qui passe sous lui n'est plus flouté."""
+    """Le seuil du floutage (2026-10-26) : ce qui passe sous lui n'est plus flouté. La RÈGLE est
+    commune depuis le 2026-11-25 (`detections.confident`, gardée par
+    `wama/common/tests/tests_detections.BlurThresholdTest`) ; ici, ce que le profil en déclare."""
 
-    def test_detections_under_the_floor_are_dropped_and_empty_frames_with_them(self):
-        doc = {'kind': 'detections', 'frames': [
-            {'i': 1, 'd': [{'label': 'plate', 'conf': 0.10}, {'label': 'face', 'conf': 0.60}]},
-            {'i': 2, 'd': [{'label': 'plate', 'conf': 0.12}]},
-            {'i': 3, 'd': [{'label': 'plate'}]}]}
-        kept = anon.confident(doc, 0.25)
-        self.assertEqual([f['i'] for f in kept['frames']], [1, 3])
-        self.assertEqual(kept['frames'][0]['d'], [{'label': 'face', 'conf': 0.60}])
-        self.assertEqual(kept['frames'][1]['d'], [{'label': 'plate'}],
-                         "une détection sans confiance est gardée")
-        self.assertEqual(len(doc['frames']), 3, "le document lu n'est pas modifié")
-
-    def test_a_floor_of_zero_keeps_everything(self):
-        doc = {'frames': [{'i': 1, 'd': [{'conf': 0.0}, {'conf': 0.10}]}]}
-        self.assertEqual(anon.confident(doc, 0.0), doc)
-
-    def test_each_class_has_its_own_floor_under_the_detector_name(self):
-        """Un seuil par classe (2026-10-28) : relever les plaques ne touche pas aux visages. La
-        détection se nomme comme son jeu de poids (`license_plate`), le seuil comme le profil
-        (`plate`) ; une classe sans seuil propre prend le seuil commun."""
-        doc = {'frames': [{'i': 1, 'd': [{'label': 'license_plate', 'conf': 0.40},
-                                         {'label': 'face', 'conf': 0.30},
-                                         {'label': 'person', 'conf': 0.30}]}]}
-        kept = anon.confident(doc, 0.35, {'plate': 0.50, 'face': 0.25})
-        self.assertEqual([d['label'] for d in kept['frames'][0]['d']], ['face'])
-
-    def test_counterproof_without_class_floors_the_common_floor_applies_to_all(self):
+    def test_the_display_blur_uses_the_common_rule(self):
+        from wama.common.utils import detections as dets
         doc = {'frames': [{'i': 1, 'd': [{'label': 'license_plate', 'conf': 0.40},
                                          {'label': 'face', 'conf': 0.30}]}]}
-        self.assertEqual([d['label'] for d in anon.confident(doc, 0.35)['frames'][0]['d']],
-                         ['license_plate'])
+        self.assertEqual(anon.confident(doc, 0.35, {'face': 0.2}), dets.confident(doc, 0.35, {'face': 0.2}))
 
     def test_class_floors_fall_back_on_the_common_floor(self):
         profile = SimpleNamespace(anonymize_min_confidence=0.25, anonymize_classes=['face', 'plate'],

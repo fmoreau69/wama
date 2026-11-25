@@ -1641,8 +1641,30 @@ class PreviewOverlayTest(SimpleTestCase):
         """`syncVideos` recalled the compared video on the reference beyond 120 ms only : measured on
         the bench, a one-frame gap could last a whole playback, and at rest. Retired on 2026-11-05 —
         the two videos follow ONE axis (`WamaMediaPreview.compareView`), the only clock."""
-        self.assertEqual(['attach', 'contentRect', 'follow', 'frameAt', 'presentedFrameAt'],
+        self.assertEqual(['attach', 'belowThreshold', 'contentRect', 'follow', 'frameAt',
+                          'presentedFrameAt'],
                          sorted(self.v8.eval('Object.keys(window.WamaPreviewOverlay)')))
+
+    def test_under_the_threshold_reads_the_same_in_the_browser_and_on_the_server(self):
+        """2026-11-25 (a blur threshold per class) : the preview and the edit page show every
+        detection, the ones under the threshold of their class dotted — the browser's rule is the
+        twin of `detections.threshold_of`, under any name of the class."""
+        import json
+        from wama.common.utils import detections as dets
+        common, own = 0.25, {'plate': 0.5, 'human face': 0.15}
+        payload = json.dumps(dets.threshold_payload(common, own))
+        cases = [{'label': 'License_Plate', 'conf': 0.4}, {'label': 'license-plate', 'conf': 0.55},
+                 {'label': 'face', 'conf': 0.2}, {'label': 'Face', 'conf': 0.1},
+                 {'label': 'person', 'conf': 0.24}, {'label': 'person', 'conf': 0.25}]
+        for case in cases:
+            with self.subTest(case):
+                browser = self.v8.eval('window.WamaPreviewOverlay.belowThreshold(%s, %s)'
+                                       % (json.dumps(case), payload))
+                self.assertEqual(case['conf'] < dets.threshold_of(case, common, own), browser)
+        self.assertFalse(self.v8.eval("window.WamaPreviewOverlay.belowThreshold({label: 'face'}, %s)" % payload),
+                         'a detection with no confidence is never under it')
+        self.assertFalse(self.v8.eval("window.WamaPreviewOverlay.belowThreshold({label: 'face', conf: 0.01}, null)"),
+                         'without thresholds, nothing is dotted')
 
 
 class PreviewModalTest(SimpleTestCase):

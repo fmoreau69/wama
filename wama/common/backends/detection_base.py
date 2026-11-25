@@ -218,6 +218,7 @@ class FrameDetectionBackend(DetectionBackend):
             doc = dets.new_document(media='image', width=width, height=height,
                                     classes=classes, **meta)
             doc['tag'] = self.output_tag()
+            doc['conf_floor'] = round(float(threshold), 3)
             found = _batch(0, [image])[0]
             dets.add(doc, 0, found)
             if on_frame:
@@ -236,6 +237,8 @@ class FrameDetectionBackend(DetectionBackend):
             fps=capture.get(cv2.CAP_PROP_FPS) or 25.0, frame_count=total,
             classes=classes, **meta)
         doc['tag'] = self.output_tag()
+        # Le PLANCHER réellement appliqué (2026-11-25) : sous lui, rien n'a été gardé.
+        doc['conf_floor'] = round(float(threshold), 3)
         # Une image sur `step` est ANALYSÉE (la décimation) ; les autres sont lues sans être
         # décodées (`grab`) et le document le dit, pour que le floutage les déduise.
         step = self.decimation_for(**{**kwargs, 'fps': doc.get('fps') or 0.0})

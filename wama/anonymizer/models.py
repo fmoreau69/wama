@@ -88,6 +88,12 @@ class Media(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
     # et un objet qu'une détection relancée trouve en plus l'est aussi. Le changer ne périme que le
     # floutage (`stales`). `db_default` : le code d'avant le rechargement crée des médias sans lui.
     blur_skip_labels = models.JSONField(blank=True, default=list, db_default=[])
+    # Le SEUIL de floutage PROPRE à une classe (2026-11-25, `ROADMAP §17quater`, décision de
+    # Fabien : « pour les visages et les plaques un seuil commun n'est pas idéal ») —
+    # `{libellé: confiance}`, réglé à côté de « Ce qu'on floute » ; une classe absente prend
+    # `detection_threshold`. La détection descend au plancher commun
+    # (`detections.DETECTION_FLOOR`) : changer un seuil ne refait que le floutage.
+    blur_class_thresholds = models.JSONField(blank=True, default=dict, db_default={})
     # La QUALIFICATION des objets détectés (2026-11-24, `ROADMAP §17quater` B, décision de Fabien :
     # « couleur et profondeur d'abord ») — une étape OPTIONNELLE entre la détection et le
     # floutage (`function_specs`, process `qualify`) : couleur majoritaire et taille de chaque
@@ -137,6 +143,9 @@ class Media(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
     blur_mode = models.CharField(max_length=10, choices=render_mode_choices, default='blur',
                                  db_default='blur')
     blur_invert = models.BooleanField(default=False, db_default=False)
+    # Le SEUIL DE FLOUTAGE commun (depuis le 2026-11-25 — avant : le seuil de la DÉTECTION) : une
+    # détection sous lui n'est pas floutée, sauf seuil propre de sa classe (`blur_class_thresholds`).
+    # Nom gardé : c'est la valeur que les cards, les lots et l'assistant écrivent déjà.
     detection_threshold = models.FloatField(default=0.25)
     # La DÉCIMATION de l'analyse d'une vidéo (2026-11-19, Fabien) : une image analysée sur N — la
     # décimation du monde Data. 0 = « auto » : chaque détecteur sa cadence déclarée

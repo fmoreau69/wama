@@ -248,6 +248,13 @@ class Param:
                                                 # part COCHÉE : ce qu'on n'a pas vu n'est jamais écarté.
     empty_label: str = ""                       # `multiselect` sans aucun choix : ce que le champ dit
                                                 # à la place d'une liste vide muette.
+    numeric_values: bool = False                # `mapping` : des NOMBRES bornés par `min`/`max`/`step`
+                                                # (2026-11-25 : un seuil par classe du floutage de
+                                                # l'anonymizer), un curseur par clé ; ses clés lues sur
+                                                # la sortie comme les choix (`options_from`), une clé
+                                                # sans valeur propre montrant celle de `default_field`.
+    default_field: str = ""                     # `mapping` à nombres : le réglage dont la valeur vaut
+                                                # pour une clé qui n'a pas la sienne.
     write_from: Optional[dict] = None           # Un champ texte que le LLM sait ÉCRIRE à la demande
                                                 # (2026-11-08, Fabien : « demander à générer les paroles dans
                                                 # le champ depuis la modale ») : `{"app", "target": "<champ de
@@ -1269,23 +1276,39 @@ def _coerce_date(raw):
         return None
 
 
-def _coerce_mapping(raw):
+def _coerce_mapping(raw, bounds=None):
     """`{clé: texte}` assaini — un objet, ou son JSON posté par un formulaire ; les valeurs vides
-    sortent (une clé sans texte n'est pas nommée). None si rien ne reste."""
+    sortent (une clé sans texte n'est pas nommée). None si rien ne reste.
+
+    `bounds` (`(min, max)`, 2026-11-25 : les seuils PAR CLASSE du floutage de l'anonymizer) : une
+    correspondance de NOMBRES — le réglage la déclare (`numeric_values`, bornes `min`/`max`) —,
+    chaque valeur bornée,
+    une valeur qui n'est pas un nombre retirée ; `{}` quand rien ne reste (« aucune valeur
+    propre », une valeur à part entière)."""
     import json
     if isinstance(raw, str):
         try:
             raw = json.loads(raw or '{}')
         except ValueError:
-            return None
+            return {} if bounds else None
     if not isinstance(raw, dict):
-        return None
+        return {} if bounds else None
     out = {}
     for key, value in list(raw.items())[:MAPPING_MAX_KEYS]:
+        name = str(key).strip()[:MAPPING_MAX_CHARS]
+        if not name:
+            continue
+        if bounds:
+            try:
+                number = float(value)
+            except (TypeError, ValueError):
+                continue
+            out[name] = round(max(float(bounds[0]), min(float(bounds[1]), number)), 3)
+            continue
         text = str(value if value is not None else '').strip()[:MAPPING_MAX_CHARS]
-        if str(key).strip() and text:
-            out[str(key).strip()[:MAPPING_MAX_CHARS]] = text
-    return out or None
+        if text:
+            out[name] = text
+    return out if bounds else (out or None)
 
 
 #: Plafonds d'un réglage `multiselect` : des choix, pas un document.
@@ -1339,7 +1362,8 @@ def coerce_schema_values(schema, data, only_present: bool = True) -> dict:
             out[name] = _coerce_date(raw)       # vide EFFACE la date (« pas de date »)
             continue
         if ptype == 'mapping' and raw is not None:
-            out[name] = _coerce_mapping(raw)
+            out[name] = _coerce_mapping(raw, (_pget(p, 'min'), _pget(p, 'max'))
+                                        if _pget(p, 'numeric_values') else None)
             continue
         if ptype == 'multiselect' and raw is not None:
             out[name] = _coerce_list(raw)

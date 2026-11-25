@@ -816,9 +816,9 @@ def _line_summary(res: dict, spec=None, item=None, pipeline=None):
     # de sortie déclaré, pour toute app : la bande de la card l'écrit à côté de l'étape.
     if spec is not None and pipeline is not None and res.get('output_ref'):
         from wama.common.services import process_runs
-        found = process_runs.found_by_label(pipeline.output_type(spec), res['output_ref'])
+        found = process_runs.found_summary(pipeline.output_type(spec), res['output_ref'])
         if found is not None:
-            summary[process_runs.FOUND_KEY] = found
+            summary.update(found)
     if res.get('output_fingerprint'):
         summary['fingerprint'] = str(res['output_fingerprint'])
     # La TABLE où la sortie est rangée quand `output_ref` désigne un conteneur de plusieurs tables

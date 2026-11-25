@@ -395,6 +395,29 @@ def understand_description(media, user) -> str:
     return understood.get('prompt') or media.sam3_prompt
 
 
+def blur_thresholds(media) -> tuple:
+    """`(seuil commun, {classe: seuil propre})` du floutage de la card (2026-11-25) — le seuil
+    commun est `detection_threshold`, nom gardé ; ceux des classes, `blur_class_thresholds`."""
+    common = float(media.detection_threshold if media.detection_threshold is not None else 0.0)
+    own = {}
+    for label, value in (getattr(media, 'blur_class_thresholds', None) or {}).items():
+        try:
+            own[str(label)] = float(value)
+        except (TypeError, ValueError):
+            continue
+    return common, own
+
+
+def detection_floor(media) -> float:
+    """La confiance DEMANDÉE au détecteur (2026-11-25) : le plancher commun
+    (`detections.DETECTION_FLOOR`), plus bas seulement quand un seuil de floutage de la card l'est
+    — une card réglée avant le plancher. Un détecteur qui garde son seuil propre (SAM3) le dit
+    dans son document (`conf_floor`)."""
+    from wama.common.utils.detections import DETECTION_FLOOR
+    common, own = blur_thresholds(media)
+    return round(min([DETECTION_FLOOR, common, *own.values()]), 3)
+
+
 def _detection_kwargs(media, user, ensure_model=None):
     """Ce que le détecteur reçoit, et les modèles qu'il emploiera (clés de catalogue) : choix du
     ou des modèles par la couverture des classes demandées, ou SAM3 pour une description.
@@ -428,7 +451,9 @@ def _detection_kwargs(media, user, ensure_model=None):
         # dans des listes de classes (médias 220/221/225 constatés le 2026-08-17) — une
         # classe est un nom, jamais true/false/none/vide.
         'classes2blur': sane_classes(media.classes2blur),
-        'detection_threshold': media.detection_threshold,
+        # Le PLANCHER commun (2026-11-25), pas le seuil de la card : le floutage choisit ensuite,
+        # classe par classe, sans redétecter (`blur_thresholds`).
+        'detection_threshold': detection_floor(media),
         # La DÉCIMATION d'une vidéo (2026-11-19) : 0 = « auto », chaque détecteur sa cadence
         # déclarée (`DetectionBackend.decimation_for`).
         'detection_decimation': getattr(media, 'detection_decimation', 0) or 0,
@@ -859,6 +884,20 @@ def _blur(media, ctx):
         _console(media.user_id, "Floutage : objets non qualifiés — tous les "
                                 + ', '.join(f"« {label} »" for label in asked)
                                 + " sont floutés.", 'warning')
+    # Le SEUIL de floutage, un par classe (2026-11-25, `ROADMAP §17quater`) : la détection est
+    # descendue au plancher, ce qui est flouté se choisit ici — avant la demande, pour qu'un rang
+    # (« la voiture la plus proche ») se juge parmi ce qui sera flouté.
+    common, own = blur_thresholds(media)
+    floor = detections.floor_of(doc)
+    lowest = min([common, *own.values()])
+    # Un document d'avant le plancher commun ne dit pas le sien : celui d'alors était le seuil de la
+    # card, 0,25 par défaut.
+    reached = floor if floor is not None else Media._meta.get_field('detection_threshold').default
+    if lowest < reached:
+        _console(media.user_id, f"Floutage : seuil {lowest:g} sous celui de cette détection "
+                 f"({reached:g}{'' if floor is not None else ', détectée avant le plancher commun'})"
+                 " — relancer la détection pour voir en dessous.", 'warning')
+    doc = detections.confident(doc, common, own)
     doc = detections.within_request(doc)
     # « Ce qu'on floute » (2026-11-19) : les libellés décochés restent nets — choisis parmi ce que
     # la détection a trouvé, sans la refaire. Une zone ajoutée à la main suit sa classe.

@@ -28,6 +28,7 @@ voir le commentaire au-dessus de GROUPS.
 from wama.common.utils.app_metadata import keywords_palette
 from wama.common.utils.app_modes import options_mode_for
 from wama.common.utils.auto_model import intent_param
+from wama.common.utils.detections import DETECTION_FLOOR
 from wama.common.utils.output_formats import output_format_params
 from wama.common.utils.param_schema import (
     ParamGroup, derive_from_model, groups_to_dicts, schema_to_dicts,
@@ -59,11 +60,12 @@ PARAMS = derive_from_model(
         # ── Quoi détecter ──
         "target_mode", "sam3_prompt", "model_to_use",
         # ── Réglage de détection ──
-        "precision_level", "detection_threshold", "detection_decimation",
+        "precision_level", "detection_decimation",
         # ── Qualification des objets (couleur, taille, profondeur — 2026-11-24) ──
         "qualify_objects", "qualify_depth",
-        # ── Ce qu'on floute parmi ce qui est détecté ──
-        "blur_skip_labels", "blur_skip_colors", "blur_skip_sizes", "blur_skip_planes",
+        # ── Ce qu'on floute parmi ce qui est détecté, et à partir de quelle confiance ──
+        "blur_skip_labels", "detection_threshold", "blur_class_thresholds",
+        "blur_skip_colors", "blur_skip_sizes", "blur_skip_planes",
         # ── Comment flouter ──
         "blur_mode", "blur_invert",
         "blur_ratio", "rounded_edges", "roi_enlargement", "progressive_blur",
@@ -201,10 +203,30 @@ PARAMS = derive_from_model(
             help="foreground : plus proche que le milieu de la scène ; background : au-delà.",
             stales=("blur",),
         ),
+        # Le SEUIL DE FLOUTAGE (2026-11-25, `ROADMAP §17quater`, décision de Fabien : « tout
+        # détecter, filtrer à l'affichage », un seuil par classe à côté de « Ce qu'on floute ») :
+        # la détection descend au plancher commun (`detections.DETECTION_FLOOR`, le bas du
+        # curseur) ; ce seuil choisit ce qui est flouté, sans redétecter. Le nom du champ reste.
         "detection_threshold": dict(
-            type="range", label="Seuil de détection", icon="fa-crosshairs",
-            dom_id={"panel": "user_setting_detection_threshold"}, min=0, max=1, step=0.05,
-            group="comment", stales=("detect",),
+            type="range", label="Seuil de floutage", icon="fa-crosshairs",
+            dom_id={"panel": "user_setting_detection_threshold"}, min=DETECTION_FLOOR, max=1,
+            step=0.05, group="mode", stales=("blur",),
+            help="Confiance à partir de laquelle un objet détecté est flouté (toutes classes, "
+                 "sauf seuil propre ci-dessous). Le changer ne refait que le floutage.",
+        ),
+        # …et le seuil PROPRE à une classe (2026-11-25) : un curseur par libellé trouvé (les
+        # choix de « Ce qu'on floute », `options_from`), une classe sans valeur propre suivant
+        # le seuil commun (`default_field`).
+        "blur_class_thresholds": dict(
+            type="mapping", label="Seuil par classe", icon="fa-sliders", group="mode",
+            contexts=("item",), default={}, numeric_values=True,
+            min=DETECTION_FLOOR, max=1, step=0.05, default_field="detection_threshold",
+            # `role` : ce sont les SEUILS de ce port — la bande « trouvé » et les choix de « Ce
+            # qu'on floute » ne comptent que ce qui les dépasse (`declared_thresholds`).
+            options_from={"port": "detections", "property": "labels", "role": "threshold"},
+            help="Une plaque et un visage n'ont pas la même confiance : un seuil propre à une "
+                 "classe remplace le seuil commun pour elle.",
+            stales=("blur",),
         ),
         # La DÉCIMATION de l'analyse d'une vidéo (2026-11-19, décision de Fabien : « un réglage
         # atteignable et modifiable par l'utilisateur », adapté par modèle) : la forme du monde

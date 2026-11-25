@@ -93,6 +93,13 @@ def canonical_class(name: str) -> str:
     return n
 
 
+def canonical_names() -> dict:
+    """`{écriture normalisée: nom commun}` de chaque groupe d'alias — la table que lit un dessin
+    dans le navigateur pour ranger une détection sous sa classe (`detections.threshold_payload`,
+    2026-11-25) ; une écriture absente est son propre nom une fois normalisée."""
+    return {form: group[0] for group in _ALIAS_CLASSES for form in group}
+
+
 def reads_prompt(m) -> bool:
     """Le modèle LIT-IL une description (`inputs_required` porte `prompt` : SAM3, LocateAnything) ?
     Un tel modèle cherche n'importe quelle classe NOMMÉE — ce que la couverture ne sait pas dire

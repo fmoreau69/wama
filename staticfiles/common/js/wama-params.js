@@ -739,10 +739,46 @@
   // caché qui porte le nom), que le serveur assainit (`param_schema._coerce_mapping`). Les clés
   // viennent de qui rend : une brique qui les connaît (les locuteurs des segments) les pose dans
   // la valeur, vides si besoin.
+  // Une correspondance de NOMBRES (`numeric_values`, 2026-11-25 : le seuil PAR CLASSE du floutage de
+  // l'anonymizer) : un curseur par clé — les clés de la valeur, plus les CHOIX lus sur la sortie de
+  // la card (`options_from`, les libellés trouvés). Une clé sans valeur propre montre celle de
+  // `default_field` (le seuil commun) en retrait et la suit ; la bouger lui en donne une, ↺ la
+  // rend au commun. La valeur postée ne garde que les valeurs PROPRES.
+  function _numericMappingHtml(p, api, v) {
+    var keys = api.options(p).map(function (o) { return { value: String(o.value), label: o.label }; });
+    Object.keys(v).forEach(function (k) {
+      if (!keys.some(function (o) { return o.value === k; })) keys.push({ value: k, label: k });
+    });
+    var hidden = '<input type="hidden" id="' + api.id + '" ' + api.idAttr + ' value="' +
+      esc(JSON.stringify(v)) + '">';
+    if (!keys.length) {
+      return '<div class="small text-muted">' + esc(p.empty_label || 'Aucune classe pour l’instant') +
+        '</div>' + hidden;
+    }
+    var bounds = ' min="' + esc(p.min != null ? p.min : 0) + '" max="' + esc(p.max != null ? p.max : 1) +
+      '" step="' + esc(p.step || 0.05) + '"';
+    var rows = keys.map(function (o) {
+      var own = Object.prototype.hasOwnProperty.call(v, o.value);
+      var value = own ? v[o.value] : (p.min != null ? p.min : 0);
+      return '<div class="wama-param-mapping-row d-flex align-items-center gap-2" data-mapping-row="' +
+        esc(o.value) + '" data-own="' + (own ? '1' : '0') + '">' +
+        '<span class="wama-param-mapping-key">' + esc(o.label) + '</span>' +
+        '<input type="range" class="form-range"' + bounds + ' data-mapping-key="' + esc(o.value) +
+        '" value="' + esc(value) + '" style="flex: 1 1 auto;">' +
+        '<output class="small" style="min-width: 2.5rem;">' + esc(own ? value : '') + '</output>' +
+        '<button type="button" class="btn btn-link btn-sm p-0" data-mapping-reset' +
+        ' title="Suivre le seuil commun"' + (own ? '' : ' hidden') + '>↺</button></div>';
+    }).join('');
+    return '<div class="wama-param-mapping" data-mapping-for="' + api.id + '" data-numeric="1"' +
+      (p.default_field ? ' data-default-field="' + esc(p.default_field) + '"' : '') + '>' + rows +
+      '</div>' + hidden;
+  }
+
   registerRenderer('mapping', function (p, api) {
     var v = api.value;
     if (typeof v === 'string') { try { v = JSON.parse(v || '{}'); } catch (e) { v = {}; } }
     v = (v && typeof v === 'object' && !Array.isArray(v)) ? v : {};
+    if (p.numeric_values) return _numericMappingHtml(p, api, v);
     var rows = Object.keys(v).map(function (k) {
       return '<div class="wama-param-mapping-row"><span class="wama-param-mapping-key">' + esc(k) + '</span>' +
         '<input type="text" class="form-control form-control-sm" data-mapping-key="' + esc(k) +
@@ -752,12 +788,56 @@
       '<input type="hidden" id="' + api.id + '" ' + api.idAttr + ' value="' + esc(JSON.stringify(v)) + '">';
   });
 
+  /** Correspondance de nombres : un curseur bougé devient une valeur PROPRE de sa clé, ↺ la rend
+   *  au réglage commun (`data-default-field`), dont les clés sans valeur propre suivent la valeur. */
+  function _bindNumericMapping(container, box, hidden) {
+    var name = box.getAttribute('data-default-field');
+    var common = name ? container.querySelector('[name="' + name + '"],[data-param="' + name + '"]') : null;
+    function write() {
+      var out = {};
+      box.querySelectorAll('[data-mapping-row]').forEach(function (row) {
+        if (row.getAttribute('data-own') === '1') {
+          out[row.getAttribute('data-mapping-row')] = parseFloat(row.querySelector('input').value);
+        }
+      });
+      hidden.value = JSON.stringify(out);
+    }
+    function follow() {
+      if (!common) return;
+      box.querySelectorAll('[data-mapping-row][data-own="0"]').forEach(function (row) {
+        row.querySelector('input').value = common.value;
+        row.querySelector('output').textContent = '';
+        row.querySelector('input').title = 'Seuil commun : ' + common.value;
+      });
+    }
+    box.addEventListener('input', function (e) {
+      var row = e.target.closest('[data-mapping-row]');
+      if (!row) return;
+      row.setAttribute('data-own', '1');
+      row.querySelector('output').textContent = e.target.value;
+      row.querySelector('[data-mapping-reset]').hidden = false;
+      write();
+    });
+    box.addEventListener('click', function (e) {
+      var reset = e.target.closest('[data-mapping-reset]');
+      if (!reset) return;
+      var row = reset.closest('[data-mapping-row]');
+      row.setAttribute('data-own', '0');
+      reset.hidden = true;
+      follow();
+      write();
+    });
+    if (common) common.addEventListener('input', follow);
+    follow();
+  }
+
   /** Une ligne de correspondance éditée réécrit le JSON du champ caché que `read()` lit. */
   function _bindMapping(container) {
     container.querySelectorAll('[data-mapping-for]').forEach(function (box) {
       var hidden = document.getElementById(box.getAttribute('data-mapping-for'));
       if (!hidden || box._wpMapping) return;
       box._wpMapping = true;
+      if (box.getAttribute('data-numeric') === '1') { _bindNumericMapping(container, box, hidden); return; }
       box.addEventListener('input', function () {
         var out = {};
         box.querySelectorAll('input[data-mapping-key]').forEach(function (inp) { out[inp.getAttribute('data-mapping-key')] = inp.value; });

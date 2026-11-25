@@ -274,6 +274,25 @@
             },
             {
               "args": [],
+              "class": "django.db.models.JSONField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "db_default": {
+                  "expr": "{}",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "dict",
+                  "imports": []
+                }
+              },
+              "name": "blur_class_thresholds"
+            },
+            {
+              "args": [],
               "class": "django.db.models.BooleanField",
               "kwargs": {
                 "db_default": {
@@ -1338,6 +1357,7 @@
               "panel"
             ],
             "default": false,
+            "default_field": "",
             "default_from": {
               "port": "work_file",
               "property": "needs_ocr"
@@ -1359,6 +1379,7 @@
             "min": null,
             "min_label": "",
             "name": "ocr_scanned_pages",
+            "numeric_values": false,
             "option_groups": null,
             "options_abilities": false,
             "options_auto": false,
@@ -1405,6 +1426,7 @@
               "panel"
             ],
             "default": "description",
+            "default_field": "",
             "default_from": null,
             "display_format": "",
             "dom_id": "",
@@ -1423,6 +1445,7 @@
             "min": null,
             "min_label": "",
             "name": "target_mode",
+            "numeric_values": false,
             "option_groups": null,
             "options_abilities": false,
             "options_auto": false,
@@ -1460,6 +1483,7 @@
               "panel"
             ],
             "default": "visages, plaques d'immatriculation, textes, logos, écrans",
+            "default_field": "",
             "default_from": null,
             "display_format": "",
             "dom_id": {
@@ -1485,6 +1509,7 @@
             "min": null,
             "min_label": "",
             "name": "sam3_prompt",
+            "numeric_values": false,
             "option_groups": null,
             "options_abilities": false,
             "options_auto": false,
@@ -1525,6 +1550,7 @@
               "panel"
             ],
             "default": "auto",
+            "default_field": "",
             "default_from": null,
             "display_format": "",
             "dom_id": {
@@ -1545,6 +1571,7 @@
             "min": null,
             "min_label": "",
             "name": "model_to_use",
+            "numeric_values": false,
             "option_groups": null,
             "options_abilities": false,
             "options_auto": true,
@@ -1588,6 +1615,7 @@
               "panel"
             ],
             "default": 50,
+            "default_field": "",
             "default_from": null,
             "display_format": "",
             "dom_id": {
@@ -1608,6 +1636,7 @@
             "min": 0,
             "min_label": "",
             "name": "precision_level",
+            "numeric_values": false,
             "option_groups": null,
             "options_abilities": false,
             "options_auto": false,
@@ -1634,63 +1663,6 @@
             "write_from": null
           },
           {
-            "advanced": false,
-            "cap_from": null,
-            "chip": false,
-            "chip_label": "",
-            "choices": null,
-            "contexts": [
-              "item",
-              "batch",
-              "panel"
-            ],
-            "default": 0.25,
-            "default_from": null,
-            "display_format": "",
-            "dom_id": {
-              "panel": "user_setting_detection_threshold"
-            },
-            "empty_label": "",
-            "group": "comment",
-            "help": "",
-            "help_fallback": null,
-            "help_html": "",
-            "help_source": null,
-            "icon": "fa-crosshairs",
-            "inline": false,
-            "keywords": null,
-            "label": "Seuil de détection",
-            "max": 1,
-            "max_label": "",
-            "min": 0,
-            "min_label": "",
-            "name": "detection_threshold",
-            "option_groups": null,
-            "options_abilities": false,
-            "options_auto": false,
-            "options_cloud": false,
-            "options_from": null,
-            "options_group": "",
-            "options_mode": null,
-            "options_ports": false,
-            "options_query": null,
-            "options_resolution": null,
-            "options_source": null,
-            "pills": [],
-            "radio_name": "",
-            "remember": null,
-            "section": "settings",
-            "show_if": null,
-            "stales": [
-              "detect"
-            ],
-            "step": 0.05,
-            "stores_unchecked": false,
-            "type": "range",
-            "unit": "",
-            "write_from": null
-          },
-          {
             "advanced": true,
             "cap_from": null,
             "chip": false,
@@ -1702,6 +1674,7 @@
               "panel"
             ],
             "default": 0,
+            "default_field": "",
             "default_from": null,
             "display_format": "",
             "dom_id": "",
@@ -1720,6 +1693,7 @@
             "min": 0,
             "min_label": "",
             "name": "detection_decimation",
+            "numeric_values": false,
             "option_groups": null,
             "options_abilities": false,
             "options_auto": false,
@@ -1757,6 +1731,7 @@
               "panel"
             ],
             "default": false,
+            "default_field": "",
             "default_from": null,
             "display_format": "",
             "dom_id": "",
@@ -1775,6 +1750,7 @@
             "min": null,
             "min_label": "",
             "name": "qualify_objects",
+            "numeric_values": false,
             "option_groups": null,
             "options_abilities": false,
             "options_auto": false,
@@ -1812,6 +1788,7 @@
               "panel"
             ],
             "default": false,
+            "default_field": "",
             "default_from": null,
             "display_format": "",
             "dom_id": "",
@@ -1830,6 +1807,7 @@
             "min": null,
             "min_label": "",
             "name": "qualify_depth",
+            "numeric_values": false,
             "option_groups": null,
             "options_abilities": false,
             "options_auto": false,
@@ -1868,6 +1846,7 @@
               "item"
             ],
             "default": [],
+            "default_field": "",
             "default_from": null,
             "display_format": "",
             "dom_id": "",
@@ -1886,6 +1865,7 @@
             "min": null,
             "min_label": "",
             "name": "blur_skip_labels",
+            "numeric_values": false,
             "option_groups": null,
             "options_abilities": false,
             "options_auto": false,
@@ -1921,9 +1901,127 @@
             "chip_label": "",
             "choices": null,
             "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": 0.25,
+            "default_field": "",
+            "default_from": null,
+            "display_format": "",
+            "dom_id": {
+              "panel": "user_setting_detection_threshold"
+            },
+            "empty_label": "",
+            "group": "mode",
+            "help": "Confiance à partir de laquelle un objet détecté est flouté (toutes classes, sauf seuil propre ci-dessous). Le changer ne refait que le floutage.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-crosshairs",
+            "inline": false,
+            "keywords": null,
+            "label": "Seuil de floutage",
+            "max": 1,
+            "max_label": "",
+            "min": 0.1,
+            "min_label": "",
+            "name": "detection_threshold",
+            "numeric_values": false,
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_from": null,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "remember": null,
+            "section": "settings",
+            "show_if": null,
+            "stales": [
+              "blur"
+            ],
+            "step": 0.05,
+            "stores_unchecked": false,
+            "type": "range",
+            "unit": "",
+            "write_from": null
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item"
+            ],
+            "default": {},
+            "default_field": "detection_threshold",
+            "default_from": null,
+            "display_format": "",
+            "dom_id": "",
+            "empty_label": "",
+            "group": "mode",
+            "help": "Une plaque et un visage n'ont pas la même confiance : un seuil propre à une classe remplace le seuil commun pour elle.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-sliders",
+            "inline": false,
+            "keywords": null,
+            "label": "Seuil par classe",
+            "max": 1,
+            "max_label": "",
+            "min": 0.1,
+            "min_label": "",
+            "name": "blur_class_thresholds",
+            "numeric_values": true,
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_from": {
+              "port": "detections",
+              "property": "labels"
+            },
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "remember": null,
+            "section": "settings",
+            "show_if": null,
+            "stales": [
+              "blur"
+            ],
+            "step": 0.05,
+            "stores_unchecked": false,
+            "type": "mapping",
+            "unit": "",
+            "write_from": null
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
               "item"
             ],
             "default": [],
+            "default_field": "",
             "default_from": null,
             "display_format": "",
             "dom_id": "",
@@ -1942,6 +2040,7 @@
             "min": null,
             "min_label": "",
             "name": "blur_skip_colors",
+            "numeric_values": false,
             "option_groups": null,
             "options_abilities": false,
             "options_auto": false,
@@ -1980,6 +2079,7 @@
               "item"
             ],
             "default": [],
+            "default_field": "",
             "default_from": null,
             "display_format": "",
             "dom_id": "",
@@ -1998,6 +2098,7 @@
             "min": null,
             "min_label": "",
             "name": "blur_skip_sizes",
+            "numeric_values": false,
             "option_groups": null,
             "options_abilities": false,
             "options_auto": false,
@@ -2036,6 +2137,7 @@
               "item"
             ],
             "default": [],
+            "default_field": "",
             "default_from": null,
             "display_format": "",
             "dom_id": "",
@@ -2054,6 +2156,7 @@
             "min": null,
             "min_label": "",
             "name": "blur_skip_planes",
+            "numeric_values": false,
             "option_groups": null,
             "options_abilities": false,
             "options_auto": false,
@@ -2107,6 +2210,7 @@
               "panel"
             ],
             "default": "blur",
+            "default_field": "",
             "default_from": null,
             "display_format": "",
             "dom_id": "",
@@ -2125,6 +2229,7 @@
             "min": null,
             "min_label": "",
             "name": "blur_mode",
+            "numeric_values": false,
             "option_groups": null,
             "options_abilities": false,
             "options_auto": false,
@@ -2162,6 +2267,7 @@
               "panel"
             ],
             "default": false,
+            "default_field": "",
             "default_from": null,
             "display_format": "",
             "dom_id": "",
@@ -2180,6 +2286,7 @@
             "min": null,
             "min_label": "",
             "name": "blur_invert",
+            "numeric_values": false,
             "option_groups": null,
             "options_abilities": false,
             "options_auto": false,
@@ -2217,6 +2324,7 @@
               "panel"
             ],
             "default": 75,
+            "default_field": "",
             "default_from": null,
             "display_format": "",
             "dom_id": {
@@ -2237,6 +2345,7 @@
             "min": 1,
             "min_label": "",
             "name": "blur_ratio",
+            "numeric_values": false,
             "option_groups": null,
             "options_abilities": false,
             "options_auto": false,
@@ -2274,6 +2383,7 @@
               "panel"
             ],
             "default": 5,
+            "default_field": "",
             "default_from": null,
             "display_format": "",
             "dom_id": "",
@@ -2292,6 +2402,7 @@
             "min": 0,
             "min_label": "",
             "name": "rounded_edges",
+            "numeric_values": false,
             "option_groups": null,
             "options_abilities": false,
             "options_auto": false,
@@ -2329,6 +2440,7 @@
               "panel"
             ],
             "default": 1.05,
+            "default_field": "",
             "default_from": null,
             "display_format": "",
             "dom_id": {
@@ -2349,6 +2461,7 @@
             "min": 0.75,
             "min_label": "",
             "name": "roi_enlargement",
+            "numeric_values": false,
             "option_groups": null,
             "options_abilities": false,
             "options_auto": false,
@@ -2386,6 +2499,7 @@
               "panel"
             ],
             "default": 25,
+            "default_field": "",
             "default_from": null,
             "display_format": "",
             "dom_id": {
@@ -2406,6 +2520,7 @@
             "min": 0,
             "min_label": "",
             "name": "progressive_blur",
+            "numeric_values": false,
             "option_groups": null,
             "options_abilities": false,
             "options_auto": false,
@@ -2443,6 +2558,7 @@
               "panel"
             ],
             "default": true,
+            "default_field": "",
             "default_from": null,
             "display_format": "",
             "dom_id": "",
@@ -2461,6 +2577,7 @@
             "min": null,
             "min_label": "",
             "name": "interpolate_detections",
+            "numeric_values": false,
             "option_groups": null,
             "options_abilities": false,
             "options_auto": false,
@@ -2498,6 +2615,7 @@
               "panel"
             ],
             "default": 15,
+            "default_field": "",
             "default_from": null,
             "display_format": "",
             "dom_id": "",
@@ -2516,6 +2634,7 @@
             "min": 1,
             "min_label": "",
             "name": "max_interpolation_frames",
+            "numeric_values": false,
             "option_groups": null,
             "options_abilities": false,
             "options_auto": false,
@@ -2556,6 +2675,7 @@
               "panel"
             ],
             "default": 5,
+            "default_field": "",
             "default_from": null,
             "display_format": "",
             "dom_id": "",
@@ -2574,6 +2694,7 @@
             "min": 0,
             "min_label": "",
             "name": "max_extrapolation_frames",
+            "numeric_values": false,
             "option_groups": null,
             "options_abilities": false,
             "options_auto": false,
@@ -2611,6 +2732,7 @@
               "panel"
             ],
             "default": true,
+            "default_field": "",
             "default_from": null,
             "display_format": "",
             "dom_id": "",
@@ -2629,6 +2751,7 @@
             "min": null,
             "min_label": "",
             "name": "use_segmentation",
+            "numeric_values": false,
             "option_groups": null,
             "options_abilities": false,
             "options_auto": false,
@@ -2666,6 +2789,7 @@
               "panel"
             ],
             "default": true,
+            "default_field": "",
             "default_from": null,
             "display_format": "",
             "dom_id": "",
@@ -2684,6 +2808,7 @@
             "min": null,
             "min_label": "",
             "name": "show_preview",
+            "numeric_values": false,
             "option_groups": null,
             "options_abilities": false,
             "options_auto": false,
@@ -2719,6 +2844,7 @@
               "panel"
             ],
             "default": true,
+            "default_field": "",
             "default_from": null,
             "display_format": "",
             "dom_id": "",
@@ -2737,6 +2863,7 @@
             "min": null,
             "min_label": "",
             "name": "show_boxes",
+            "numeric_values": false,
             "option_groups": null,
             "options_abilities": false,
             "options_auto": false,
@@ -2772,6 +2899,7 @@
               "panel"
             ],
             "default": true,
+            "default_field": "",
             "default_from": null,
             "display_format": "",
             "dom_id": "",
@@ -2790,6 +2918,7 @@
             "min": null,
             "min_label": "",
             "name": "show_labels",
+            "numeric_values": false,
             "option_groups": null,
             "options_abilities": false,
             "options_auto": false,
@@ -2825,6 +2954,7 @@
               "panel"
             ],
             "default": true,
+            "default_field": "",
             "default_from": null,
             "display_format": "",
             "dom_id": "",
@@ -2843,6 +2973,7 @@
             "min": null,
             "min_label": "",
             "name": "show_conf",
+            "numeric_values": false,
             "option_groups": null,
             "options_abilities": false,
             "options_auto": false,
@@ -2878,6 +3009,7 @@
               "panel"
             ],
             "default": "original",
+            "default_field": "",
             "default_from": null,
             "display_format": "",
             "dom_id": {
@@ -2898,6 +3030,7 @@
             "min": null,
             "min_label": "",
             "name": "output_format",
+            "numeric_values": false,
             "option_groups": [
               [
                 "Conserver",
@@ -3022,6 +3155,7 @@
               "panel"
             ],
             "default": "balanced",
+            "default_field": "",
             "default_from": null,
             "display_format": "",
             "dom_id": {
@@ -3042,6 +3176,7 @@
             "min": null,
             "min_label": "",
             "name": "output_quality",
+            "numeric_values": false,
             "option_groups": null,
             "options_abilities": false,
             "options_auto": false,
@@ -3338,11 +3473,12 @@
             "sam3_prompt",
             "model_to_use",
             "precision_level",
-            "detection_threshold",
             "detection_decimation",
             "qualify_objects",
             "qualify_depth",
             "blur_skip_labels",
+            "detection_threshold",
+            "blur_class_thresholds",
             "blur_skip_colors",
             "blur_skip_sizes",
             "blur_skip_planes",
@@ -3656,6 +3792,7 @@
       "descriptions": {
         "add_to_anonymizer": {
           "args": {
+            "blur_class_thresholds": "mapping — Une plaque et un visage n'ont pas la même confiance : un seuil propre à une classe remplace le seuil commun pour elle. [0.1–1] (défaut : {})",
             "blur_invert": "toggle — Anonymise toute l'image SAUF ce qui est sélectionné, qui reste net. (défaut : False)",
             "blur_mode": "radio — Flou, pixellisation ou masque plein (noir) : la zone, ses bords et son fondu restent les mêmes. (choix : blur | pixelate | mask) (défaut : 'blur')",
             "blur_ratio": "range — Taille du noyau gaussien (impaire) ; en pixellisation, des blocs de sa moitié. [1–99] (défaut : 75)",
@@ -3665,12 +3802,13 @@
             "blur_skip_sizes": "multiselect — small : moins de 1 % de l'image ; large : au moins 10 %. (défaut : [])",
             "classes": "list",
             "detection_decimation": "number — Une image analysée sur N d'une vidéo (1 : toutes). 0 : automatique — chaque modèle sa cadence (LocateAnything : une image par seconde ; YOLO, SAM3 : toutes). Les images sautées sont déduites des images analysées voisines. [0–250] (défaut : 0)",
-            "detection_threshold": "range — Seuil de détection [0–1] (défaut : 0.25)",
+            "detection_threshold": "range — Confiance à partir de laquelle un objet détecté est flouté (toutes classes, sauf seuil propre ci-dessous). Le changer ne refait que le floutage. [0.1–1] (défaut : 0.25)",
             "file_path": "str (requis) — plusieurs fichiers arrivés ensemble : une LISTE de chemins, un élément par fichier, rangés en un lot comme un dépôt de plusieurs fichiers sur la card",
             "interpolate_detections": "toggle — Interpoler les détections manquantes (défaut : True)",
             "max_extrapolation_frames": "number — Un objet reste flouté ce nombre d'images avant sa première détection et après sa dernière (il entre ou sort du champ), à sa vitesse. 0 : jamais. [0–30] (défaut : 5)",
             "max_interpolation_frames": "number — Un trou de détection d'au plus ce nombre d'images est comblé, entre deux détections du même objet (même piste, ou même place). [1–60] (défaut : 15)",
             "model_to_use": "select — Automatique : choisi au lancement selon le curseur et les classes. (défaut : 'auto')",
+            "ocr_scanned_pages": "toggle — Lit par OCR les pages d'un PDF qui n'ont pas de texte (un scan) et le texte dessiné dans ses images, pour y trouver les données personnelles et les occulter à leur place. Coché d'office quand le document a des pages scannées — décochable ; à cocher pour lire le texte de ses images. (défaut : False)",
             "output_format": "select — « Original » : le format du fichier déposé. (défaut : 'original')",
             "output_quality": "select — Appliquée à la conversion vers le format choisi. (choix : web | balanced | max) (défaut : 'balanced')",
             "precision_level": "intent — 5 paliers effectifs (n/s/m/l/x) ; à partir de 50, segmentation fine. [0–100] (défaut : 50)",

@@ -1320,6 +1320,23 @@ classes et les descriptions (SAM3, LocateAnything).
   DÉTECTER, reste hors schéma (sa modale à cases) : le type existe désormais pour l'y faire entrer.
   Tenu par `tests_process_pipeline.WhatTheCardShowsTest` et le contrat générique des réglages d'un
   élément (`tests_item_settings_contract`, une liste écrite par la modale et par l'inspecteur).
+- **Une VALEUR par choix — `mapping` à `numeric_values` (2026-11-25, `ROADMAP §17quater` étape 2a ;
+  Fabien : « un seuil par classe, à côté de ce qu'on floute »)** : les clés lues sur la sortie comme
+  les choix (`options_from`), un curseur par clé borné par `min`/`max`/`step` (`WamaParams`) ; une
+  clé sans valeur propre montre et SUIT celle de `default_field` (le seuil commun), ↺ l'y rend ; la
+  valeur ne garde que les valeurs propres, bornées au serveur (`param_schema._coerce_mapping`,
+  `bounds`). `options_from.role = "threshold"` dit que ce sont les SEUILS du port
+  (`process_pipeline.declared_thresholds`) : la bande « trouvé » et les choix de la liste ne
+  comptent que ce qui les dépasse (`detections.found_above`, « face · 0 » dit qu'il faut baisser),
+  l'aperçu et la page d'édition montrent tout, le reste en pointillé
+  (`WamaPreviewOverlay.belowThreshold`). Pilote : `blur_class_thresholds` de l'anonymizer, à côté de
+  `detection_threshold` devenu le seuil de FLOUTAGE commun (la détection descend au plancher,
+  `detections.DETECTION_FLOOR`). Tenu par `tests_wama_params_fields`, `tests_item_settings_contract`
+  (`NumericMappingCoercionTest` et le contrat d'écriture), `tests_process_pipeline`
+  (`test_a_declared_blur_threshold_counts_only_what_will_be_blurred`) et la jumelle navigateur ↔
+  serveur de `tests_cap_from_js.PreviewOverlayTest`. ⏳ Le cam_analyzer garde sa forme propre
+  (profil `anonymize_class_min_confidence`, sa règle déléguée au commun) — l'y rallier est à sa
+  session ; le Composer (`remix_levels`, bornes déclarées, valeurs en texte) pourrait la prendre.
 
 ---
 

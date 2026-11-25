@@ -66,6 +66,30 @@ class WamaParamsFieldsTest(SimpleTestCase):
         self.assertIn('<input type="number"', html)
         self.assertNotIn('step=', html)
 
+    def test_a_numeric_mapping_has_one_slider_per_found_class_and_keeps_own_values_only(self):
+        """2026-11-25 (a blur threshold per class, next to « Ce qu'on floute ») : one slider per
+        CHOICE read on the card's output and per key of the value ; a class with its own value is
+        marked so, the others follow the common setting ; the posted value holds the own ones."""
+        param = {'name': 'blur_class_thresholds', 'type': 'mapping', 'numeric_values': True,
+                 'min': 0.1, 'max': 1, 'step': 0.05, 'default_field': 'detection_threshold',
+                 'choices': [['face', 'face'], ['license plate', 'license plate']]}
+        html = self._render(param, {'blur_class_thresholds': {'face': 0.4, 'logo': 0.3}})
+        self.assertEqual(3, html.count('type="range"'), 'two found classes and one kept key')
+        self.assertIn('data-mapping-row="face" data-own="1"', html)
+        self.assertIn('data-mapping-row="license plate" data-own="0"', html)
+        self.assertIn('data-default-field="detection_threshold"', html)
+        self.assertIn('min="0.1" max="1" step="0.05"', html)
+        self.assertIn(json.dumps({'face': 0.4, 'logo': 0.3}, separators=(',', ':')).replace('"', '&quot;'),
+                      html, 'the hidden field posts the own values')
+
+    def test_a_text_mapping_keeps_its_text_rows(self):
+        """Counter-proof : a mapping without `numeric_values` (the transcriber's speakers) is
+        unchanged — text inputs, no slider."""
+        html = self._render({'name': 'speaker_map', 'type': 'mapping'},
+                            {'speaker_map': {'SPEAKER_00': 'Ana'}})
+        self.assertIn('type="text"', html)
+        self.assertNotIn('type="range"', html)
+
     def test_a_media_field_carries_its_path_like_any_field(self):
         html = self._render({'name': 'asset_path', 'type': 'media_picker', 'label': 'Média'},
                             {'asset_path': 'users/1/trace.csv'})

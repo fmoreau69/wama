@@ -1570,6 +1570,45 @@ class WhatTheCardShowsTest(TestCase):
         process_runs.fail(item, 'plan', 'boom')
         self.assertEqual([], pipeline.card_rows(item)[0]['found'], 'a failed line found nothing')
 
+    def test_a_declared_blur_threshold_counts_only_what_will_be_blurred(self):
+        """2026-11-25 (Fabien : the strip and the choices of « Ce qu'on floute » count only what
+        is above the threshold) : the app DECLARES its thresholds (a numeric mapping whose
+        `options_from` says `role: threshold`, its common one in `default_field`) ; the strip and
+        the choices read them on the element — the steps kept with the line, no document read."""
+        from types import SimpleNamespace
+        from wama.common.catalog.function_catalog import PortSpec
+        from wama.common.services import process_pipeline as pp
+        from wama.common.utils import detections as dets
+        doc = dets.new_document(media='image', width=10, height=10)
+        dets.add(doc, 0, [dets.detection(box=[1, 1, 4, 4], label='face', conf=0.9),
+                          dets.detection(box=[5, 5, 9, 9], label='logo', conf=0.2),
+                          dets.detection(box=[1, 5, 4, 9], label='face', conf=0.3)])
+        dets.write(os.path.join(self.tmp, 'found.json'), doc)
+        pipeline = AppPipeline('demo_pipeline', (
+            ProcessSpec('plan', label='Détection', outputs=('found_file',)),), label='Demo')
+        APP_PIPELINES['demo_pipeline'] = pipeline
+        self.addCleanup(APP_PIPELINES.pop, 'demo_pipeline', None)
+        item = _Element(status=JOB_SUCCESS, found_file=SimpleNamespace(name='found.json'),
+                        threshold=0.5, own={'logo': 0.15})
+        schema = [{'name': 'skip', 'type': 'multiselect',
+                   'options_from': {'port': 'detections', 'property': 'labels'}}]
+        process_runs.start(item, 'plan')
+        process_runs.succeed(item, 'plan', output_summary=process_runs.found_summary('detections', 'found.json'))
+        with mock.patch.object(AppPipeline, '_ports', return_value=([], [PortSpec('detections', 'detections')])):
+            self.assertEqual([{'label': 'face', 'count': 2}, {'label': 'logo', 'count': 1}],
+                             pipeline.card_rows(item)[0]['found'], 'nothing declared : all is counted')
+            with mock.patch.object(pp, 'declared_thresholds', return_value=('own', 'threshold')):
+                self.assertEqual([{'label': 'face', 'count': 1}, {'label': 'logo', 'count': 1}],
+                                 pipeline.card_rows(item)[0]['found'])
+                self.assertEqual([['face', 'face · 1'], ['logo', 'logo · 1']],
+                                 pp.item_schema_choices(schema, item)[0]['choices'])
+                item.own = {}
+                self.assertEqual([['face', 'face · 1'], ['logo', 'logo · 0']],
+                                 pp.item_schema_choices(schema, item)[0]['choices'],
+                                 'a class with nothing above stays offered, its threshold can go down')
+        self.assertEqual(('blur_class_thresholds', 'detection_threshold'), pp.declared_thresholds('anonymizer'),
+                         'the anonymizer declares its thresholds')
+
     def test_the_requested_model_is_declared_once_and_read_by_the_card(self):
         """Each app told the strip, the progress view and the ▶ of a process which model the
         card asks for (2026-10-04). It is declared ONCE (`model_of`) ; `card_view` reads it when

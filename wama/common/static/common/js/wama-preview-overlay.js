@@ -69,12 +69,30 @@
 
   var SEEN = '#ffc800';
 
+  // Une détection SOUS le seuil de floutage de sa classe (2026-11-25) — la jumelle de
+  // `detections.threshold_of` : `thresholds` = `detections.threshold_payload` ({threshold, classes,
+  // names}), servi avec la surcouche ou la page. Sans seuils, ou sans confiance : jamais sous lui.
+  function commonLabel(label, names) {
+    var n = String(label || '').trim().toLowerCase().replace(/[_\-]+/g, ' ');
+    return (names && names[n]) || n;
+  }
+  function belowThreshold(d, thresholds) {
+    if (!thresholds || !d || d.conf == null) return false;
+    var own = (thresholds.classes || {})[commonLabel(d.label, thresholds.names)];
+    var limit = own != null ? own : (thresholds.threshold || 0);
+    return Number(d.conf) < limit - 1e-9;
+  }
+
   function draw(ctx, found, rect, opts) {
     ctx.lineWidth = 2;
     ctx.strokeStyle = SEEN;
     ctx.fillStyle = 'rgba(255, 200, 0, 0.25)';
     ctx.font = '12px sans-serif';
     (found || []).forEach(function (d) {
+      // Ce qui ne sera pas flouté reste montré (sa confiance aussi), en pointillé et estompé.
+      var below = belowThreshold(d, opts.thresholds);
+      if (ctx.setLineDash) ctx.setLineDash(below ? [3, 3] : []);
+      ctx.globalAlpha = below ? 0.55 : 1;
       (d.polygons || []).forEach(function (poly) {
         if (!poly.length) return;
         ctx.beginPath();
@@ -100,6 +118,8 @@
         ctx.fillStyle = 'rgba(255, 200, 0, 0.25)';
       }
     });
+    if (ctx.setLineDash) ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
   }
 
   /**
@@ -214,6 +234,6 @@
 
   global.WamaPreviewOverlay = {
     attach: attach, follow: follow, frameAt: frameAt, presentedFrameAt: presentedFrameAt,
-    contentRect: contentRect,
+    contentRect: contentRect, belowThreshold: belowThreshold,
   };
 })(window);

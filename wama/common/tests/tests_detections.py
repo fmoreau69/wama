@@ -716,6 +716,69 @@ class CorrectionsTest(SimpleTestCase):
         self.assertEqual('logo', dets.common_label('Logo'), 'a name with no alias is only normalised')
 
 
+class BlurThresholdTest(SimpleTestCase):
+    """`confident` / `threshold_of` — the blur threshold, one per class (2026-11-25, carried over
+    from the cam_analyzer, whose display blur delegates to it)."""
+
+    def test_detections_under_the_threshold_are_dropped_and_empty_frames_with_them(self):
+        doc = {'kind': 'detections', 'frames': [
+            {'i': 1, 'd': [{'label': 'plate', 'conf': 0.10}, {'label': 'face', 'conf': 0.60}]},
+            {'i': 2, 'd': [{'label': 'plate', 'conf': 0.12}]},
+            {'i': 3, 'd': [{'label': 'plate'}]}]}
+        kept = dets.confident(doc, 0.25)
+        self.assertEqual([f['i'] for f in kept['frames']], [1, 3])
+        self.assertEqual(kept['frames'][0]['d'], [{'label': 'face', 'conf': 0.60}])
+        self.assertEqual(kept['frames'][1]['d'], [{'label': 'plate'}],
+                         'a detection with no confidence is kept')
+        self.assertEqual(len(doc['frames']), 3, 'the document read is left untouched')
+
+    def test_a_threshold_of_zero_keeps_everything(self):
+        doc = {'frames': [{'i': 1, 'd': [{'conf': 0.0}, {'conf': 0.10}]}]}
+        self.assertEqual(dets.confident(doc, 0.0), doc)
+
+    def test_each_class_has_its_own_threshold_under_any_of_its_names(self):
+        """Raising plates leaves faces alone ; a detector writes `license_plate`, the setting
+        `plate` ; a class without its own threshold takes the common one."""
+        doc = {'frames': [{'i': 1, 'd': [{'label': 'license_plate', 'conf': 0.40},
+                                         {'label': 'face', 'conf': 0.30},
+                                         {'label': 'person', 'conf': 0.30}]}]}
+        kept = dets.confident(doc, 0.35, {'plate': 0.50, 'human face': 0.25})
+        self.assertEqual([d['label'] for d in kept['frames'][0]['d']], ['face'])
+        self.assertEqual(0.5, dets.threshold_of({'label': 'License_Plate'}, 0.35, {'plate': 0.5}))
+        self.assertEqual(0.35, dets.threshold_of({'label': 'person'}, 0.35, {'plate': 0.5}))
+
+    def test_counterproof_without_class_thresholds_the_common_one_applies_to_all(self):
+        doc = {'frames': [{'i': 1, 'd': [{'label': 'license_plate', 'conf': 0.40},
+                                         {'label': 'face', 'conf': 0.30}]}]}
+        self.assertEqual([d['label'] for d in dets.confident(doc, 0.35)['frames'][0]['d']],
+                         ['license_plate'])
+
+    def test_found_objects_count_at_their_best_confidence(self):
+        """The card says what will be BLURRED (2026-11-25) : a video object counts once, at the
+        best confidence it had ; the count at a threshold is read from steps of 0.05, without the
+        document ; a class with nothing above its threshold disappears."""
+        doc = dets.new_document(media='video', width=200, height=200, fps=5.0, frame_count=6)
+        for i, conf in enumerate((0.12, 0.62, 0.2)):
+            dets.add(doc, i, [dets.detection(box=[10 + i, 10, 40 + i, 40], label='face', conf=conf),
+                              dets.detection(box=[120, 120, 160, 140], label='License_Plate', conf=0.18)])
+        self.assertEqual([('face', 0.62), ('license plate', 0.18)], dets.found_objects(doc))
+        self.assertEqual({'face': 1, 'license plate': 1}, dets.objects_by_label(doc))
+        steps = dets.found_confidences(doc)
+        self.assertEqual({'face': {'0.60': 1}, 'license plate': {'0.15': 1}}, steps)
+        self.assertEqual({'face': 1}, dets.found_above(steps, 0.25))
+        self.assertEqual({'face': 1, 'license plate': 1}, dets.found_above(steps, 0.25, {'plate': 0.15}))
+        self.assertEqual({}, dets.found_above(steps, 0.65), 'nothing above : nothing found')
+        self.assertEqual({'face': 1}, dets.found_above(steps, 0.6), 'a threshold on a step is exact')
+
+    def test_the_floor_of_a_union_is_the_highest_of_its_detectors(self):
+        """Under the highest floor one detector kept nothing (SAM3 keeps its own threshold) ; a
+        document that does not say its own floor leaves the union without one."""
+        a = dict(dets.new_document(media='image', width=10, height=10), conf_floor=0.1)
+        b = dict(dets.new_document(media='image', width=10, height=10), conf_floor=0.3)
+        self.assertEqual(0.3, dets.floor_of(dets.merge([a, b])))
+        self.assertIsNone(dets.floor_of(dets.merge([a, dets.new_document(media='image', width=10, height=10)])))
+
+
 class AgreementTest(SimpleTestCase):
     """`boxes_at` + `support` — l'accord géométrique entre sorties (M2/M6, 2026-10-16)."""
 
@@ -804,7 +867,8 @@ class QualificationTest(SimpleTestCase):
         self.assertEqual([2], [f['i'] for f in kept['frames'] if any(
             d['label'] == 'face' for d in f['d'])])
         self.assertIs(out, dets.without_attributes(out, {'color': []}), 'nothing unticked')
-        self.assertEqual(('labels', 'colors', 'sizes', 'planes'), OUTPUT_PROPERTIES['detections'],
+        self.assertEqual(('labels', 'colors', 'sizes', 'planes', 'found_confidences'),
+                         OUTPUT_PROPERTIES['detections'],
                          'the attributes are read like the labels (`options_from`)')
 
     def test_a_concept_is_read_with_the_attributes_the_vocabularies_name(self):

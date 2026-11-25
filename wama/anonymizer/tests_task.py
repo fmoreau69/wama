@@ -272,11 +272,31 @@ class AnonymizerTaskOnSkeletonTest(TestCase):
 
     def test_a_detection_setting_detects_again(self):
         self._run()
-        outcome, detected = self._run(detection_threshold=0.6)
+        outcome, detected = self._run(precision_level=90)
         detected.assert_called_once()
-        self.assertEqual(0.6, detected.call_args.kwargs['detection_threshold'])
         self.assertEqual({'detect': 'SUCCESS', 'blur': 'SUCCESS', 'output': 'SUCCESS'},
                          self._states())
+
+    def test_the_detection_runs_at_the_floor_and_a_threshold_only_blurs_again(self):
+        """2026-11-25 (Fabien : « tout détecter, filtrer à l'affichage », a threshold per class next
+        to « Ce qu'on floute ») : the detector is asked the common floor whatever the card's
+        threshold ; raising a class's own threshold above the face's 0.9 leaves it sharp without
+        detecting again, and the common threshold applies to the other classes."""
+        from wama.common.utils.detections import DETECTION_FLOOR
+        original = cv2.imread(str(self.input))
+        inside = (slice(BOX[1] + 4, BOX[3] - 4), slice(BOX[0] + 4, BOX[2] - 4))
+        outcome, detected = self._run(detection_threshold=0.6)
+        self.assertEqual(DETECTION_FLOOR, detected.call_args.kwargs['detection_threshold'])
+        self.assertGreater(np.abs(original[inside].astype(int) - self._output_pixels()[inside]).mean(), 20,
+                           'the face (0.9) is above the common 0.6 : blurred')
+        outcome, detected = self._run(blur_class_thresholds={'human face': 0.95})
+        detected.assert_not_called()
+        self.assertEqual({'detect': 'SUCCESS', 'blur': 'SUCCESS', 'output': 'SUCCESS'}, self._states())
+        self.assertTrue((original[inside] == self._output_pixels()[inside]).all(),
+                        'its own threshold, under another name of the class, leaves it sharp')
+        outcome, detected = self._run(blur_class_thresholds={'plate': 0.95})
+        self.assertGreater(np.abs(original[inside].astype(int) - self._output_pixels()[inside]).mean(), 20,
+                           "counter-proof : another class's threshold does not touch the face")
 
     def test_a_display_setting_makes_nothing_stale(self):
         """What the preview shows (`show_*`) changes no file : no process goes stale — a launch
@@ -374,7 +394,7 @@ class AnonymizerTaskOnSkeletonTest(TestCase):
         self._run()
         old = os.path.join(self.root, self.media.detections_file.name)
         outcome, detected = self._run(engine=lambda **kw: _document(tag='sam3'),
-                                      detection_threshold=0.5)
+                                      precision_level=90)
         self.assertIn('detections_sam3', self.media.detections_file.name)
         self.assertFalse(os.path.exists(old))
 

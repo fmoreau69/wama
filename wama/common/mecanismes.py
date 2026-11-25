@@ -2087,7 +2087,14 @@ MECHANISMS = (
               "par la profondeur, « largest » par la part de l'image), par OBJET sur une vidéo, "
               "jamais sans preuve — `detection_attributes.read_request` ; l'OBJET d'une vidéo, "
               "sa piste ou sans piste la chaîne de ses maillons (`object_keys`) ; le RENDU d'une "
-              "zone — flou, pixellisation, masque plein, inversion (`blur_utils.cover`)",
+              "zone — flou, pixellisation, masque plein, inversion (`blur_utils.cover`). "
+              "2026-11-25 (`ROADMAP §17quater` étape 2a) : le SEUIL DE FLOUTAGE par classe "
+              "(`confident`, `threshold_of`, porté du cam_analyzer, qui y délègue) ; la détection "
+              "descend au PLANCHER commun (`DETECTION_FLOOR`, gardé `conf_floor`, l'union au plus "
+              "haut de ses détecteurs) ; les objets trouvés comptés à leur meilleure confiance "
+              "(`found_objects`, `found_confidences`, `found_above` : la bande et « Ce qu'on "
+              "floute » ne comptent que ce qui sera flouté) ; les seuils servis au dessin "
+              "(`threshold_payload`, jumeau navigateur `WamaPreviewOverlay.belowThreshold`)",
               'wama/common/utils/detections.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6',
               annexes=('wama/common/utils/blur_utils.py',

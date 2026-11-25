@@ -276,7 +276,7 @@ UNE ligne par (élément, nœud du pipeline, clé d'instance) : état du process
 
 - **Domicile** : `wama/common/services/process_runs.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Lignes d'exécution des process — la pièce du MOTEUR COMMUN de pipeline qui dit « tel process, pour telle card, dans tel état ». Doc : `WAMA_APP_GENERATION_ROUTE.md §10.6` points 4.1 à 4.5 (marche P3).
-- **API publique** (30) :
+- **API publique** (31) :
   - `address(item) -> dict` — Adresse d'un élément : `{app, object_type, object_id}` — dérivée de l'élément SEUL, pour
   - `lines(item)` — Les lignes d'exécution d'un élément (une requête, ordonnée par nœud).
   - `lines_by_item(items) -> dict` — `{pk (texte): [lignes]}` des éléments d'UN même modèle — UNE requête pour toute une page
@@ -290,9 +290,10 @@ UNE ligne par (élément, nœud du pipeline, clé d'instance) : état du process
   - `await_resources(item, node_id: str=MAIN_NODE, *, process_key: str='', instance_key: str='', task_id: str='')` — Le tour du process est venu, la VRAM libre ne suffit pas : la ligne le dit, sans effacer
   - `succeed(item, node_id: str=MAIN_NODE, *, instance_key: str='', output_ref: str='', output_summary: dict | None=None, model_key: str | None=None, process_key: s…` — Le process a RENDU son résultat : `SUCCESS`, durée mesurée depuis `start`.
   - `output_lost(row) -> bool` — La ligne désigne une sortie FICHIER (`output_ref`, relatif à `MEDIA_ROOT`) que le disque ne
-  - `found_by_label(output_type: str, output_ref: str)` — `{libellé: nombre d'objets}` d'une sortie dont le TYPE déclaré est `detections` — le
-  - `output_property(output_type: str, output_ref: str, prop: str) -> list` — La propriété `prop` de la sortie `output_ref` (relative à `MEDIA_ROOT`) d'un type déclaré —
-  - `found_rows(summary) -> list` — Ce que la bande d'une card écrit de `summary[FOUND_KEY]` : `[{label, count}]`, les plus
+  - `found_summary(output_type: str, output_ref: str)` — `{FOUND_KEY: {libellé: objets}, FOUND_CONF_KEY: {libellé: {cran: objets}}}` d'une sortie
+  - `found_by_label(output_type: str, output_ref: str)` — `{libellé: nombre d'objets}` d'une sortie de détections (`found_summary`), ou None.
+  - `output_property(output_type: str, output_ref: str, prop: str)` — La propriété `prop` de la sortie `output_ref` (relative à `MEDIA_ROOT`) d'un type déclaré —
+  - `found_rows(summary, thresholds=None) -> list` — Ce que la bande d'une card écrit de `summary[FOUND_KEY]` : `[{label, count}]`, les plus
   - `annotate(item, node_id: str=MAIN_NODE, *, instance_key: str='', **values)` — Ajoute `values` à ce que la ligne retient de sa sortie (`output_summary`), sans toucher à
   - `fail(item, node_id: str=MAIN_NODE, message: str='', *, instance_key: str='', process_key: str='')` — Le process a ÉCHOUÉ — le message est gardé sur la ligne ; la sortie précédente, elle,
   - `close_open(item, to_status: str=JOB_FAILURE, message: str='') -> int` — Referme les lignes OUVERTES d'un élément qu'on arrête ou qu'on réconcilie : une tâche
@@ -358,7 +359,7 @@ Une app DÉCLARE les process de sa card (`ProcessSpec` : amonts, réglages surve
 
 - **Domicile** : `wama/common/services/process_pipeline.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Pipeline DÉCLARÉ d'une app — la pièce du moteur commun qui dit « cette card porte PLUSIEURS process, dans cet ordre, et voici lesquels sont à (re)jouer ». Doc : `WAMA_APP_GENERATION_ROUTE.md §10.6` points 3.2, 4.3 à 4.5 (marche P3, palier B) et décision n°11.
-- **API publique** (19) :
+- **API publique** (21) :
   - `words_segments(words, gap: float=1.2, longest: int=14) -> list` — Des MOTS HORODATÉS (`[{word, start, end}]`, les paroles d'une chanson, un alignement) en
   - `segments_text(segments) -> str` — Des SEGMENTS de parole (`result_format='segments'` : `[{speaker, time_range, text}]`) en
   - `preload(items) -> None` — Lit en UNE requête les lignes d'exécution de tous ces éléments (même modèle) et les pose
@@ -366,6 +367,8 @@ Une app DÉCLARE les process de sa card (`ProcessSpec` : amonts, réglages surve
   - `class ProcessSpec` — Un process d'un pipeline d'app — les champs de `pass_tracking.Pass` qui ne sont pas
   - `output_fingerprint(ref: str) -> str` — Empreinte de la sortie d'un process (chemin relatif à MEDIA_ROOT) : celle de la brique
   - `declared_stales(app: str) -> dict` — `{process: [réglages]}` — ce que chaque réglage du schéma de `app` déclare périmer
+  - `declared_thresholds(app: str)` — `(réglage des seuils par classe, réglage du seuil commun)` que le schéma de `app` DÉCLARE
+  - `item_thresholds(app: str, item)` — `(seuil commun, {classe: seuil})` de l'élément, d'après `declared_thresholds` ; None.
   - `class AppPipeline` — Le pipeline déclaré d'une app : ses `ProcessSpec`, et ce qui s'en dérive.
   - `register_app_pipeline(app: str, specs, *, label: str, description: str='', source_ref: str='', model_of=None) -> AppPipeline` — Déclare le pipeline d'une app et l'inscrit comme source de manifeste `pipeline` sous la
   - `process_of_function(function_key: str)` — `(pipeline, ProcessSpec)` de l'ÉTAPE de card qu'est la fonction `function_key` — le process
@@ -599,10 +602,11 @@ Choisit un ENSEMBLE de modèles couvrant des classes (couverture ou spécialisat
 
 - **Domicile** : `wama/common/services/model_coverage.py`
 - **Module** : Couverture multi-modèles : quelle COMBINAISON de modèles couvre un ensemble de classes.
-- **API publique** (11) :
+- **API publique** (12) :
   - `normaliser_classe(nom: str) -> str` — 'License_Plate' → 'license plate' · 'FACE' → 'face'.
   - `formes_equivalentes(nom: str) -> set` — Toutes les écritures normalisées équivalentes à `nom` (lui-même si aucun alias connu).
   - `canonical_class(name: str) -> str` — Le nom COMMUN d'une classe, quelle que soit son écriture : celui de son groupe d'alias
+  - `canonical_names() -> dict` — `{écriture normalisée: nom commun}` de chaque groupe d'alias — la table que lit un dessin
   - `reads_prompt(m) -> bool` — Le modèle LIT-IL une description (`inputs_required` porte `prompt` : SAM3, LocateAnything) ?
   - `classes_couvertes(m, voulues) -> set` — Accès PUBLIC à l'appariement d'alias : sous-ensemble de `voulues` (vocabulaire de
   - `size_of_name(name: str) -> str` — Accès PUBLIC à la lecture de taille (chantier C, 2026-09-20) : un appelant qui affiche ou
@@ -2162,11 +2166,12 @@ Le rôle `backend` (wama-dev-ai/run_backend.py) écrit le backend d'un modèle i
 
 ### Document de détections (type `detections` sur disque)
 
-Les objets détectés d'un média, frame par frame (boîte, contour en polygones, piste) — le type de donnée commun `detections` écrit sur disque (2026-10-04, décision de Fabien : détection et floutage séparés dans l'anonymizer). Écrit par un process « Détection », relu par le floutage (`blur_utils.blur_detections` ; les formes segmentées toutes ensemble, `blur_shapes`, mêmes finitions qu'un rectangle ; réécriture image par image `rewrite_media`) et par l'aperçu (`draw`) ; interpolation des trous d'un objet à la lecture (`by_frame`, la forme suit la boîte déduite) — même objet par la piste OU par une position plausible, le réglage seul pour limite, le centre comblé en COURBE (2026-10-05, card #1026) ; et PROLONGÉ de quelques images avant sa première détection et après sa dernière (`max_extrapolation`, réglage séparé). Recouvrement, courbe et extrapolation sont les primitives communes de `wama_data/functions` (`box_iou`, `hermite_gap`, `extrapolate_speed_accel`), celles du cam_analyzer. Sans Django ni app : la Data et le Lab peuvent le lire. 2026-11-24 (`ROADMAP §17quater` B) : les ATTRIBUTS d'un objet — couleur majoritaire, taille, plan par la profondeur — rangés dans le document (`attrs`, `detection_attributes.qualify`), lus comme les libellés (`colors`, `sizes`, `planes`) et choisis sans redétecter (`without_attributes`). 2026-11-25 : les mêmes attributs DEMANDÉS par une description (« red car » → `detection_attributes.read_concept`) ; le routeur commun cherche la classe nue et garde l'attribut dans son plan, la sélection le suit (`within_request`, un objet non qualifié reste flouté) ; et la RELATION (« face of red person » : le centre de l'objet dans la boîte de l'autre, `box_centre_inside`, la règle du banc de rappel) et le RANG (« nearest » par la profondeur, « largest » par la part de l'image), par OBJET sur une vidéo, jamais sans preuve — `detection_attributes.read_request` ; l'OBJET d'une vidéo, sa piste ou sans piste la chaîne de ses maillons (`object_keys`) ; le RENDU d'une zone — flou, pixellisation, masque plein, inversion (`blur_utils.cover`)
+Les objets détectés d'un média, frame par frame (boîte, contour en polygones, piste) — le type de donnée commun `detections` écrit sur disque (2026-10-04, décision de Fabien : détection et floutage séparés dans l'anonymizer). Écrit par un process « Détection », relu par le floutage (`blur_utils.blur_detections` ; les formes segmentées toutes ensemble, `blur_shapes`, mêmes finitions qu'un rectangle ; réécriture image par image `rewrite_media`) et par l'aperçu (`draw`) ; interpolation des trous d'un objet à la lecture (`by_frame`, la forme suit la boîte déduite) — même objet par la piste OU par une position plausible, le réglage seul pour limite, le centre comblé en COURBE (2026-10-05, card #1026) ; et PROLONGÉ de quelques images avant sa première détection et après sa dernière (`max_extrapolation`, réglage séparé). Recouvrement, courbe et extrapolation sont les primitives communes de `wama_data/functions` (`box_iou`, `hermite_gap`, `extrapolate_speed_accel`), celles du cam_analyzer. Sans Django ni app : la Data et le Lab peuvent le lire. 2026-11-24 (`ROADMAP §17quater` B) : les ATTRIBUTS d'un objet — couleur majoritaire, taille, plan par la profondeur — rangés dans le document (`attrs`, `detection_attributes.qualify`), lus comme les libellés (`colors`, `sizes`, `planes`) et choisis sans redétecter (`without_attributes`). 2026-11-25 : les mêmes attributs DEMANDÉS par une description (« red car » → `detection_attributes.read_concept`) ; le routeur commun cherche la classe nue et garde l'attribut dans son plan, la sélection le suit (`within_request`, un objet non qualifié reste flouté) ; et la RELATION (« face of red person » : le centre de l'objet dans la boîte de l'autre, `box_centre_inside`, la règle du banc de rappel) et le RANG (« nearest » par la profondeur, « largest » par la part de l'image), par OBJET sur une vidéo, jamais sans preuve — `detection_attributes.read_request` ; l'OBJET d'une vidéo, sa piste ou sans piste la chaîne de ses maillons (`object_keys`) ; le RENDU d'une zone — flou, pixellisation, masque plein, inversion (`blur_utils.cover`). 2026-11-25 (`ROADMAP §17quater` étape 2a) : le SEUIL DE FLOUTAGE par classe (`confident`, `threshold_of`, porté du cam_analyzer, qui y délègue) ; la détection descend au PLANCHER commun (`DETECTION_FLOOR`, gardé `conf_floor`, l'union au plus haut de ses détecteurs) ; les objets trouvés comptés à leur meilleure confiance (`found_objects`, `found_confidences`, `found_above` : la bande et « Ce qu'on floute » ne comptent que ce qui sera flouté) ; les seuils servis au dessin (`threshold_payload`, jumeau navigateur `WamaPreviewOverlay.belowThreshold`)
 
 - **Domicile** : `wama/common/utils/detections.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Les DÉTECTIONS d'un média, sur disque — le type de donnée commun `detections` (`common/catalog/data_types.DataType.DETECTIONS` : objets détectés par frame — frame, bbox, classe, piste).
-- **API publique** (35) :
+- **API publique** (42) :
+  - `floor_of(doc: dict)` — Le plancher auquel le document a été détecté (`conf_floor`), ou None pour un document
   - `render_mode_choices()` — Les choix d'un champ de modèle qui garde un mode (Django les lit à la demande).
   - `new_document(*, media: str, width: int, height: int, fps: float=0.0, frame_count: int=1, engine: str='', models=(), classes=(), prompt: str='') -> dict` — Un document vide, prêt à recevoir ses frames (`add`).
   - `detection(*, box, label: str='', conf: float=1.0, track=None, polygons=None) -> dict` — Une détection au format du document : entiers pour les pixels, confiance arrondie.
@@ -2183,6 +2188,9 @@ Les objets détectés d'un média, frame par frame (boîte, contour en polygones
   - `common_label(label: str) -> str` — Le nom COMMUN d'un libellé de détection (`model_coverage.canonical_class`) : le nom de
   - `labels(doc: dict) -> list` — Les LIBELLÉS que porte le document, sous leur nom COMMUN (`common_label`), dans l'ordre où
   - `without_labels(doc: dict, skip) -> dict` — Le document SANS les détections dont le libellé est dans `skip` — une copie, l'original
+  - `threshold_of(det: dict, threshold: float, floors: dict | None=None) -> float` — Le SEUIL de floutage qui juge `det` : celui de sa classe dans `floors`, sinon `threshold`.
+  - `threshold_payload(threshold: float, floors: dict | None=None) -> dict` — Les seuils de floutage tels qu'un DESSIN du navigateur les lit (2026-11-25 : l'aperçu et la
+  - `confident(doc: dict, threshold: float, floors: dict | None=None) -> dict` — Le document sans les détections sous le seuil de LEUR classe (`floors`, au nom commun),
   - `colors(doc: dict) -> list` — Les COULEURS majoritaires des objets qualifiés (2026-11-24, `ROADMAP §17quater` B).
   - `sizes(doc: dict) -> list` — Les TAILLES des objets qualifiés (petit, moyen, grand).
   - `planes(doc: dict) -> list` — Les PLANS des objets qualifiés (premier plan, arrière-plan).
@@ -2190,6 +2198,9 @@ Les objets détectés d'un média, frame par frame (boîte, contour en polygones
   - `requested_targets(plan) -> tuple` — Ce qu'un plan du routeur (`detection_ensemble.route_concepts`) DEMANDE, par libellé
   - `within_request(doc: dict, plan=None) -> dict` — Le document SANS les objets que la DEMANDE écarte (2026-11-25, `ROADMAP §17quater` B) — le
   - `objects_by_label(doc: dict, *, window: int=None) -> dict` — {libellé: nombre d'OBJETS} — ce que la card dit avoir trouvé (2026-11-19, Fabien : « voir
+  - `found_objects(doc: dict, *, window: int=None) -> list` — `[(libellé commun, meilleure confiance)]`, un par OBJET — ce que `objects_by_label` compte
+  - `found_confidences(doc: dict, *, window: int=None) -> dict` — `{libellé: {cran: objets}}` — les objets trouvés rangés par cran de leur meilleure
+  - `found_above(confidences: dict, threshold: float, floors: dict | None=None) -> dict` — `{libellé: objets}` de `found_confidences` à partir du seuil de floutage de chaque classe
   - `mask_to_polygons(mask, epsilon: float=1.0, min_area: float=4.0) -> list` — Contours d'un masque (H×W, 0-1 ou 0-255) en polygones entiers, simplifiés à `epsilon`
   - `points_to_polygons(points, epsilon: float=1.0) -> list` — Un contour donné en points (ultralytics `masks.xy`) → polygones entiers simplifiés.
   - `polygons_to_mask(polygons, shape) -> 'object'` — Le masque (uint8, 0/255) que dessinent des polygones sur une image de forme `shape`.

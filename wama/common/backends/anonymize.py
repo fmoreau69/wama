@@ -333,6 +333,8 @@ class Anonymize(DetectionBackend):
             frame_count=total, engine='yolo', models=[m['name'] for m in self.models],
             classes=wanted)
         doc['tag'] = self._get_model_suffix()
+        # Le PLANCHER réellement demandé (2026-11-25) : sous lui, rien n'a été gardé.
+        doc['conf_floor'] = round(threshold, 3)
         # La DÉCIMATION de la card (`DetectionBackend.decimation_for`, 2026-11-19) : ultralytics
         # analyse une image sur `step` (`vid_stride`), le suivi reste sur les images analysées ; le
         # document le dit, le floutage déduit les autres. YOLO n'en déclare aucune par défaut.

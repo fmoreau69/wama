@@ -37,6 +37,7 @@ déduit à qui veut l'afficher, ce module ne l'écrit pas dans `status`.
 from __future__ import annotations
 
 import os
+from functools import lru_cache
 from dataclasses import dataclass
 from typing import Callable
 
@@ -392,6 +393,35 @@ def declared_stales(app: str) -> dict:
             for process in (_pget(param, 'stales') or ()):
                 out.setdefault(process, []).append(name)
     return out
+
+
+@lru_cache(maxsize=None)
+def declared_thresholds(app: str):
+    """`(réglage des seuils par classe, réglage du seuil commun)` que le schéma de `app` DÉCLARE
+    (2026-11-25) — une correspondance de nombres (`numeric_values`) dont `options_from` porte
+    `role: threshold`, son seuil commun étant son `default_field` ; None sans elle. Lu une fois
+    par app : le schéma ne change pas pendant la vie du processus."""
+    from wama.common.utils.param_schema import _pget, declared_param_schemas
+    for schema in ((declared_param_schemas(app) or {}).get('schemas') or {}).values():
+        for param in schema:
+            source = _pget(param, 'options_from') or {}
+            if _pget(param, 'numeric_values') and source.get('role') == 'threshold':
+                return _pget(param, 'name'), _pget(param, 'default_field') or ''
+    return None
+
+
+def item_thresholds(app: str, item):
+    """`(seuil commun, {classe: seuil})` de l'élément, d'après `declared_thresholds` ; None."""
+    declared = declared_thresholds(app)
+    if declared is None:
+        return None
+    own_name, common_name = declared
+    common = getattr(item, common_name, None) if common_name else None
+    own = getattr(item, own_name, None) or {}
+    try:
+        return (float(common or 0.0), {str(k): float(v) for k, v in dict(own).items()})
+    except (TypeError, ValueError):
+        return None
 
 
 #: Ce que la déclaration d'un process AJOUTÉ par une card ne peut pas porter (`AppPipeline.extended`) :
@@ -1544,6 +1574,7 @@ class AppPipeline:
         self.refresh(item)
         rows = self.rows(item)
         held = self._held(self._live_rows(item))
+        thresholds = item_thresholds(self.app, item)
         out = []
         for spec in self.ordered():
             row = rows.get(spec.key)
@@ -1614,7 +1645,8 @@ class AppPipeline:
                 'checks': list(summary.get('checks') or []) if row is not None else [],
                 # Ce qu'une étape de DÉTECTION a trouvé, par libellé (2026-11-19) : la bande
                 # l'écrit à côté d'elle — les classes d'un modèle comme les concepts d'un prompt.
-                'found': (process_runs.found_rows(summary)
+                # Au SEUIL de floutage que la card déclare (2026-11-25) : ce qui sera flouté.
+                'found': (process_runs.found_rows(summary, thresholds)
                           if row is not None and row.status == JOB_SUCCESS else []),
                 # Rendu, mais son fichier n'est plus sur le disque (`process_runs.output_lost`,
                 # 2026-10-27) : la bande le dit — il ne périme rien, son ▶ le refait.
@@ -1945,13 +1977,23 @@ def item_schema_choices(schema, item) -> list:
     if not any(source_of(p) for p in schema or ()):
         return schema
     pipeline = pipeline_of(item)
+    thresholds = item_thresholds(pipeline.app, item) if pipeline is not None else None
     out = []
     for p in schema:
         source = source_of(p)
         if source and pipeline is not None:
-            values = pipeline.output_property(item, source.get('port') or '',
-                                              source.get('property') or '')
-            p = dict(p if isinstance(p, dict) else p.to_dict(), choices=[[v, v] for v in values])
+            port = source.get('port') or ''
+            values = pipeline.output_property(item, port, source.get('property') or '')
+            choices = [[v, v] for v in values]
+            # Les LIBELLÉS d'une case à cocher comptent ce qui sera flouté (2026-11-25) : les
+            # objets au-dessus du seuil de leur classe — « face · 0 » dit qu'il faut le baisser.
+            if (thresholds is not None and source.get('property') == 'labels'
+                    and (p.get('type') if isinstance(p, dict) else getattr(p, 'type', '')) == 'multiselect'):
+                from wama.common.utils import detections
+                steps = pipeline.output_property(item, port, 'found_confidences') or {}
+                above = detections.found_above(steps, *thresholds)
+                choices = [[v, f"{v} · {above.get(v, 0)}"] for v in values]
+            p = dict(p if isinstance(p, dict) else p.to_dict(), choices=choices)
         out.append(p)
     return out
 

@@ -229,17 +229,14 @@ def confident(doc: dict, min_confidence: float, floors: dict | None = None) -> d
     le seuil de sa classe dans `floors` ({classe: seuil}, `class_floors`), sinon `min_confidence`.
     Filtré AVANT l'interpolation : une fausse détection écartée n'est plus prolongée en bande
     floutée, et un objet réel dont la confiance faiblit une image est comblé par ses voisines.
-    L'aperçu du volet trace la même règle (`index.js`, panneau « Anonymisé »)."""
-    from wama.common.services.model_coverage import normaliser_classe
-    default = float(min_confidence or 0.0)
-    by_form = {f: float(v) for c, v in (floors or {}).items() for f in class_forms([c])[c]}
-    frames = []
-    for frame in doc.get('frames') or []:
-        kept = [d for d in frame.get('d') or []
-                if float(d.get('conf', 1.0)) >= by_form.get(normaliser_classe(d.get('label')), default)]
-        if kept:
-            frames.append(dict(frame, d=kept))
-    return dict(doc, frames=frames)
+    L'aperçu du volet trace la même règle (`index.js`, panneau « Anonymisé »).
+
+    DÉLÈGUE depuis le 2026-11-25 à la règle COMMUNE (`common/utils/detections.confident`), portée
+    d'ici pour le floutage de l'Anonymizer : mêmes sorties, mesuré avant le déport sur les quatre
+    documents réels du cam_analyzer (117 182 boîtes, seuils des quatre profils) et 3 000 cas tirés
+    au hasard — aucune différence."""
+    from wama.common.utils.detections import confident as common_confident
+    return common_confident(doc, min_confidence, floors)
 
 
 #: Finitions du floutage d'AFFICHAGE — essai esthétique (Fabien, 2026-10-29), pris ICI seulement :

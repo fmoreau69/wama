@@ -4877,6 +4877,88 @@ sont souvent les mêmes »*) ; puis B.
   progressif 100) et un tiers dans la composition sur la boîte qui RÉUNIT toutes les formes (l'image
   entière, en flottants) — deux défauts d'algorithme, OpenCV est déjà en C++.
 
+**Décisions de Fabien (2026-11-25, soir) — plan validé, étape 1 livrée (`96bc87a39`)** :
+- **SEUIL au floutage, PAR CLASSE**, réglé à côté de « Ce qu'on floute », et dans l'aperçu et la
+  page d'édition partout où le changer a un sens. L'affichage montre tout, la confiance lisible,
+  ce qui est sous le seuil en pointillé (en attendant l'étape 5) ; la bande « trouvé » et les
+  choix de « Ce qu'on floute » ne comptent que ce qui sera flouté. Défauts : la meilleure valeur
+  MESURÉE par classe, 0,25 sans mesure (mesures existantes : plaques EgoBlur au seuil 0,1 —
+  `PROSPECTION_PIPELINE.md:2395` — et visages WIDER au seuil 0,25 — `:2517` —, chacune à UN seuil :
+  aucune courbe, à mesurer sur ces deux bancs). Une card déjà détectée garde son ancien plancher :
+  la relancer.
+- **Le PLANCHER de la détection** (question de Fabien : « pourquoi pas tout détecter et filtrer à
+  l'affichage ? ») : c'est le seuil le plus bas utile, MESURÉ (la courbe rappel/fausses alertes
+  qui s'aplatit), pas un choix — « tout » au sens strict, c'est des centaines de boîtes de bruit
+  par image (`MAX_DETECTIONS = 5000`, `anonymize.py:17`) que la qualification, le suivi et chaque
+  lecture paient. Le document le DIT (`conf_floor`) et c'est aussi le bas du curseur d'affichage.
+  Filtrer après coup rend exactement ce qu'aurait rendu la détection au seuil (la NMS garde la
+  boîte la plus sûre), sauf ce que le SUIVI jetait : ⚠ `ultralytics/trackers/track.py:96-97`
+  garde les seules boîtes associées par BoT-SORT (nouvelle piste ≥ 0,25, second appariement ≥ 0,1,
+  `botsort.yaml:7-9`).
+- **SUIVI COMMUN** (« profite-t-on du tracking comme dans le cam analyzer ? ») : aujourd'hui YOLO
+  suit par le BoT-SORT d'ultralytics réglé par défaut, les autres détecteurs (EgoBlur, RT-DETR,
+  SAM3 image, LocateAnything) ne suivent rien — d'où SEQ08-01 sans aucune piste et la chaîne de
+  maillons (`object_keys`). Proposé : un suivi a posteriori sur le DOCUMENT (après l'union des
+  modèles, tout détecteur), qui associe aussi les boîtes peu sûres ; puis le seuil jugé par
+  OBJET (un objet sûr une fois est flouté sur toute sa vie) ; les pièces du tracker du cam_analyzer
+  qui valent en espace image (recollage, doublons, vote de classe) passent au commun.
+- **ANONYMISATION D'IMAGES / VIDÉOS COMMUNE et VISION COMMUNE** : le texte a `common/privacy/`
+  (moteur + service préchauffé :8003). Pour l'image, les pièces sont déjà au commun (détecteurs,
+  `detection_ensemble`, document `detections`, qualification, `blur_utils`, `video_render`), mais
+  la CHAÎNE (comprendre → détecter → suivre → qualifier → choisir → peindre → encoder) vit dans
+  `anonymizer/tasks.py` et le cam_analyzer a la sienne. Le cam_analyzer est le second consommateur
+  attendu par §17bis : la chaîne s'extrait au commun, le Detector, le futur montage vidéo, le
+  Studio et le monde Data la consomment. Pas de processus résident (la GPU passe par les workers
+  et le gouverneur) ; le clic interactif a déjà le sien (`live_track_task`).
+- **Le direct pendant la lecture** : la cible de l'étape 5 est un aperçu peint dans le NAVIGATEUR
+  depuis le document gardé (aucun aller-retour serveur à chaque réglage) ; le fichier final est
+  rendu par le serveur avec les mêmes réglages. Hors du direct : changer de modèle de profondeur ou
+  détecter une classe nouvelle (GPU).
+- Cam_analyzer : les apports à remesurer de son côté sont consignés
+  (`CAM_ANALYZER_CHAINE_TRAITEMENT.md §Autres limites n°9`).
+- **Ordre du traitement** (question de Fabien, même soir : « le suivi, la profondeur, la couleur
+  devraient passer après le filtre du seuil ? ») : deux seuils. Le PLANCHER (à la détection) — sous
+  lui rien n'existe, rien n'est traité. Le SEUIL DE FLOUTAGE (par classe, réglable en direct) —
+  jugé par OBJET (sa meilleure confiance), il vient donc APRÈS le suivi, qui a besoin des boîtes
+  peu sûres pour prolonger un objet sûr (BYTETrack : `ultralytics/trackers/byte_tracker.py:292-294`,
+  une boîte faible ne fonde jamais une piste). La qualification se fait au-dessus du PLANCHER : la
+  profondeur est une carte PAR IMAGE quel que soit le nombre de boîtes
+  (`detection_attributes.py:164`), le reste quelques ms par boîte — sans quoi baisser le curseur
+  ferait apparaître des objets sans couleur ni plan, à requalifier au GPU. ⏳ surcoût à MESURER
+  (2b) ; s'il est réel, qualifier au-dessus du seuil choisi et le reste à la demande. Ordre :
+  détecter au plancher → suivre tout → confiance de l'objet → qualifier → choisir et afficher.
+- **Suivi : alignement anonymizer ↔ cam_analyzer** (Fabien : « s'appuyer sur ce que fait le cam
+  analyzer […] aligner pour ne pas traîner deux réécritures ; ne rien casser, ne rien perdre, ne
+  rien dégrader dans le cam analyzer ») : le commun a déjà une règle « même objet »
+  (`detections._links`, gloutonne, même libellé exigé) ; le cam_analyzer suit en deux étages —
+  BoT-SORT d'ultralytics par caméra pendant la détection (`cam_analyzer/tasks.py:1189`, à 0,10 :
+  le « stockage exhaustif » de `tasks.py:1039` ne l'est pas sous 0,25 pour un objet NOUVEAU,
+  `track.py:96-97`), puis le suivi global en repère monde (`multicam_tracker.annotate_global_tracks`)
+  dont quatre pièces valent en espace image : recollement un pour un (`one_to_one_stitches`),
+  doublons d'une même image (`duplicate_chain_merges`), vote de famille (`dominant_family`), boîte
+  distincte (`claims_distinct_box`). Plan (étape 2c) : ces pièces passent TELLES QUELLES dans
+  `wama_data/functions/kinematics/` (le cam_analyzer y prend déjà `hermite_gap`,
+  `trajectory_twins`) et le cam_analyzer les importe de là, prouvé par une comparaison
+  ancienne/nouvelle version sur ses vraies entrées ; un suivi COMMUN après détection sur le
+  document (le même traceur de la librairie, sur l'union des modèles, les boîtes non suivies
+  GARDÉES — il rend l'indice de chaque boîte, `byte_tracker.py:224`), puis ces pièces en pixels ;
+  `_links` lit ces pistes. Le cam_analyzer ne change pas de comportement : son adoption est une A/B
+  de sa session (n°9 c).
+- ✅ **Étape 2a livrée (2026-11-25, soir)** — le seuil de floutage PAR CLASSE :
+  `detections.confident` / `threshold_of` (portés du cam_analyzer, `display_anonymization.confident`
+  y DÉLÈGUE : mesuré avant le déport, 4 documents réels du cam_analyzer, 117 182 boîtes, les seuils
+  des 4 profils et 3 000 cas tirés, AUCUNE différence ; suites du cam_analyzer et de
+  `wama_data/functions` vertes, 798 tests) ; la détection au PLANCHER (`DETECTION_FLOOR` = 0,10,
+  provisoire, la confiance de stockage du cam_analyzer ; gardé `conf_floor` par chaque détecteur,
+  SAM3 garde le sien) ; `detection_threshold` devient le seuil de FLOUTAGE commun (`stales`
+  floutage), `blur_class_thresholds` le seuil propre d'une classe (curseurs sous « Ce qu'on
+  floute », forme commune `mapping` à `numeric_values`, `INPUT_MODEL_MATCHING §7ter`) ; bande
+  « trouvé » et choix comptés au seuil (`found_above`), aperçu et page d'édition en pointillé sous
+  lui. Une card détectée avant garde son seuil d'alors : la console le dit quand un seuil passe
+  dessous. ⏳ 2b mesure (plancher, défauts par classe), 2c suivi commun puis seuil jugé par OBJET
+  (aujourd'hui la bande compte l'objet à sa meilleure confiance, le floutage juge encore chaque
+  boîte).
+
 **Restes nommés (2026-11-25)** : ✅ B : attributs tirés de la DESCRIPTION, relations et rang
 (ci-dessus) ; ✅ le rang par objet sur une vidéo (sans attendre D : piste ou chaîne) ; ✅ un texte
 libre qualifie au premier ▶ ; ✅ qualification avec profondeur jouée sur une vraie vidéo (lecture

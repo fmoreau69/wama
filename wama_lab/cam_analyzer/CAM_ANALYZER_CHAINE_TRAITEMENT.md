@@ -515,6 +515,25 @@ section qui la concerne et dans le CHANGELOG.
    1-4 s — non couverts par `artifact_filter` (critère « statique en image ») → raffinement =
    analyse de transparence sur candidats (conf basse + bbox géante + fragments courts).
 8. « Fixer » la zone routière rose (road_mask) : non opérationnel, sémantique à préciser.
+9. ⏳ **À REPRENDRE — apports relevés par la session anonymizer (2026-11-25, demande de Fabien :
+   « si on peut améliorer la précision des positions/distances des objets, c'est un gros plus » ;
+   À REMESURER par l'instance qui portera ce travail, rien n'est changé dans le cam_analyzer)** :
+   (a) **Profondeur d'un objet** — banc de l'anonymizer (23 images, 1 221 paires d'objets, arbitre
+   = taille apparente, ZoeDepth-KITTI) : la **médiane de la carte sous l'objet**
+   (`wama_data/functions/geometry/depth_geometry.masked_depth`) ordonne **96,2 %** des paires, le
+   point de contact `contact_depth` (étage 1 de [E]) **90 à 93 %**. ⚠ Ce banc juge l'ORDRE des
+   profondeurs, pas la distance MÉTRIQUE : confronter d'abord aux références du cam (`placement_spread`,
+   `depth_distance_report`, stationnés ancrés, GPS) ; pistes — médiane sous le masque (limite n°3),
+   sous la moitié basse de la boîte, ou les deux en A/B derrière ⚑ `depth_estimation`.
+   (b) **Seuil de floutage par classe** — `display_anonymization.confident` passe au commun
+   (`common/utils/detections`) au chantier anonymizer `ROADMAP §17quater` étape 2 ; le cam y DÉLÈGUE.
+   (c) **Suivi** — un suivi commun a posteriori sur le document de détections (tout détecteur, pas
+   seulement YOLO) est en conception au même chantier ; les pièces du tracker [7] qui valent en
+   espace IMAGE (recollage de pistes coupées, fusion des doublons `duplicate_chain_merges`, vote de
+   classe `dominant_family`) sont candidates au commun, le MONDE (GPS, sol, navette) reste ici.
+   ⚠ Mesuré dans `ultralytics/trackers/track.py:96-97` : en `.track()`, une boîte que le BoT-SORT
+   n'associe pas est JETÉE (nouvelle piste ≥ `new_track_thresh` 0,25, second appariement ≥ 0,1,
+   `cfg/trackers/botsort.yaml:7-9`) — un seuil de détection plus bas que 0,25 n'agit qu'à moitié.
 
 ---
 

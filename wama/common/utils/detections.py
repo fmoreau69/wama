@@ -42,6 +42,25 @@ VERSION = 1
 RENDER_MODES = {'blur': 'Flou', 'pixelate': 'Pixellisation', 'mask': 'Masque plein'}
 
 
+#: Le PLANCHER d'une détection d'anonymisation (2026-11-25, `ROADMAP §17quater`, décision de
+#: Fabien : « tout détecter et filtrer à l'affichage ») : la confiance la plus basse qu'on DEMANDE
+#: au détecteur, puis le seuil de floutage de chaque classe choisit, sans redétecter (`confident`).
+#: Le document le garde (`conf_floor`) : c'est aussi le bas du curseur. 0,10 = la confiance de
+#: STOCKAGE du cam_analyzer (`cam_analyzer/tasks.py`, `_STORAGE_CONF`, ROADMAP §9.2.bis décision A)
+#: — PROVISOIRE : le plancher se MESURE (la courbe rappel / fausses alertes qui s'aplatit, sur les
+#: bancs des plaques et des visages, étape 2b).
+DETECTION_FLOOR = 0.10
+
+
+def floor_of(doc: dict):
+    """Le plancher auquel le document a été détecté (`conf_floor`), ou None pour un document
+    d'avant le plancher commun (détecté au seuil de la card d'alors, qu'il ne dit pas)."""
+    try:
+        return float(doc['conf_floor']) if doc.get('conf_floor') is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
 def render_mode_choices():
     """Les choix d'un champ de modèle qui garde un mode (Django les lit à la demande)."""
     return list(RENDER_MODES.items())
@@ -120,6 +139,11 @@ def merge(docs) -> dict:
     step = max(decimation_of(d) for d in docs)
     if step > 1:
         union['decimation'] = step
+    # Le PLANCHER de l'union (2026-11-25) : le plus HAUT de ses détecteurs — en dessous, l'un d'eux
+    # n'a rien gardé (SAM3 garde son seuil propre). Un document qui ne dit pas le sien : aucun.
+    floors = [floor_of(d) for d in docs]
+    if all(f is not None for f in floors):
+        union['conf_floor'] = max(floors)
     for d in docs:
         for frame in d.get('frames') or []:
             add(union, frame['i'], [dict(det) for det in frame.get('d') or []])
@@ -306,6 +330,46 @@ def without_labels(doc: dict, skip) -> dict:
     return out
 
 
+def _thresholds_by_label(floors) -> dict:
+    """{nom commun: seuil} de `floors` ({classe: seuil}, une classe sous n'importe quelle
+    écriture : `plate` règle aussi le `License_Plate` d'un modèle)."""
+    return {common_label(str(name)): float(value) for name, value in (floors or {}).items()}
+
+
+def threshold_of(det: dict, threshold: float, floors: dict | None = None) -> float:
+    """Le SEUIL de floutage qui juge `det` : celui de sa classe dans `floors`, sinon `threshold`."""
+    return _thresholds_by_label(floors).get(common_label(det.get('label') or ''),
+                                            float(threshold or 0.0))
+
+
+def threshold_payload(threshold: float, floors: dict | None = None) -> dict:
+    """Les seuils de floutage tels qu'un DESSIN du navigateur les lit (2026-11-25 : l'aperçu et la
+    page d'édition montrent tout, ce qui est sous le seuil en pointillé) — `{threshold, classes:
+    {nom commun: seuil}, names: {écriture normalisée: nom commun}}` ; la règle côté navigateur est
+    `WamaPreviewOverlay.belowThreshold`, la jumelle de `threshold_of`."""
+    from wama.common.services.model_coverage import canonical_names
+    return {'threshold': float(threshold or 0.0), 'classes': _thresholds_by_label(floors),
+            'names': canonical_names()}
+
+
+def confident(doc: dict, threshold: float, floors: dict | None = None) -> dict:
+    """Le document sans les détections sous le seuil de LEUR classe (`floors`, au nom commun),
+    sinon sous `threshold` — une copie, l'original intact ; une détection sans confiance est
+    gardée. LA règle du seuil de floutage (2026-11-25, `ROADMAP §17quater`, décision de Fabien :
+    « un seuil par classe, réglé à côté de ce qu'on floute ») : portée du cam_analyzer
+    (`display_anonymization.confident`, 2026-10-28), qui y délègue. Filtrée AVANT l'interpolation :
+    une fausse détection écartée n'est pas prolongée en bande floutée."""
+    default = float(threshold or 0.0)
+    by_label = _thresholds_by_label(floors)
+    frames = []
+    for frame in doc.get('frames') or []:
+        kept = [d for d in frame.get('d') or []
+                if float(d.get('conf', 1.0)) >= by_label.get(common_label(d.get('label') or ''), default)]
+        if kept:
+            frames.append(dict(frame, d=kept))
+    return dict(doc, frames=frames)
+
+
 def _attribute_values(doc: dict, name: str, order) -> list:
     """Les valeurs de l'attribut `name` (`detection_attributes`) que portent les détections, dans
     l'ordre du vocabulaire de l'attribut."""
@@ -484,22 +548,72 @@ def objects_by_label(doc: dict, *, window: int = None) -> dict:
     par la règle « c'est le même objet » de l'interpolation (`_links`), trous d'au plus `window`
     images franchis (défaut : une seconde de la cadence du document). Un compte, pas une mesure :
     un objet perdu puis retrouvé au-delà du trou compte deux fois."""
+    found = {}
+    for label, _best in found_objects(doc, window=window):
+        found[label] = found.get(label, 0) + 1
+    return found
+
+
+def found_objects(doc: dict, *, window: int = None) -> list:
+    """`[(libellé commun, meilleure confiance)]`, un par OBJET — ce que `objects_by_label` compte
+    (même règle, mêmes trous franchis), avec la confiance la plus haute qu'il a eue : un objet sûr
+    une fois est un objet trouvé (2026-11-25, seuil de floutage par classe). Un libellé vide n'en
+    est pas un."""
     frames = _frames_of(doc)
     if doc.get('media') == 'video':
         if window is None:
             window = int(round(float(doc.get('fps') or 0)))
         # Les images qu'une décimation a sautées ne séparent jamais un objet de lui-même.
         window = max(int(window), decimation_of(doc) - 1)
-        _all, _after, before = _links(frames, max(0, min(window, MAX_CHAIN_GAP)), 0.2)
-        starts = (det for index in frames for det in frames[index] if id(det) not in before)
+        _all, after, before = _links(frames, max(0, min(window, MAX_CHAIN_GAP)), 0.2)
     else:
-        starts = (det for index in frames for det in frames[index])
-    found = {}
-    for det in starts:
-        label = common_label(det.get('label') or '')
-        if label:
-            found[label] = found.get(label, 0) + 1
-    return found
+        after, before = {}, {}
+    out = []
+    for index in frames:
+        for det in frames[index]:
+            if id(det) in before:
+                continue
+            label = common_label(det.get('label') or '')
+            if not label:
+                continue
+            best, link = float(det.get('conf', 1.0)), after.get(id(det))
+            while link is not None:
+                best = max(best, float(link[3].get('conf', 1.0)))
+                link = after.get(id(link[3]))
+            out.append((label, best))
+    return out
+
+
+#: Le PAS des confiances retenues pour compter ce qui sera flouté (`found_confidences`) — celui du
+#: curseur de seuil : un compte au seuil d'un cran du curseur est EXACT.
+CONFIDENCE_STEP = 0.05
+
+
+def found_confidences(doc: dict, *, window: int = None) -> dict:
+    """`{libellé: {cran: objets}}` — les objets trouvés rangés par cran de leur meilleure
+    confiance (`CONFIDENCE_STEP`, cran = la borne basse, `'0.25'`). Ce que la bande d'une card
+    garde pour dire, à tout seuil de floutage, combien d'objets seront floutés sans relire le
+    document (2026-11-25) : au plus vingt crans par libellé, quelle que soit la longueur."""
+    out = {}
+    for label, best in found_objects(doc, window=window):
+        step = f"{int(best / CONFIDENCE_STEP + 1e-9) * CONFIDENCE_STEP:.2f}"
+        out.setdefault(label, {})
+        out[label][step] = out[label].get(step, 0) + 1
+    return out
+
+
+def found_above(confidences: dict, threshold: float, floors: dict | None = None) -> dict:
+    """`{libellé: objets}` de `found_confidences` à partir du seuil de floutage de chaque classe
+    (`floors`, au nom commun, sinon `threshold`) — un libellé sans aucun objet au-dessus disparaît.
+    Exact pour un seuil pris sur un cran du curseur ; entre deux crans, compté au cran supérieur."""
+    by_label = _thresholds_by_label(floors)
+    out = {}
+    for label, steps in (confidences or {}).items():
+        limit = by_label.get(common_label(label), float(threshold or 0.0)) - 1e-9
+        count = sum(int(n) for step, n in steps.items() if float(step) >= limit)
+        if count:
+            out[label] = count
+    return out
 
 
 # ── Géométrie ─────────────────────────────────────────────────────────────────────────────────
