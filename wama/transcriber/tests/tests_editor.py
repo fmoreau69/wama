@@ -151,7 +151,7 @@ class WriteModesTest(TestCase):
 
         spans = []
 
-        def hear(backend, path, start, end, language=None):
+        def hear(backend, path, start, end, language=None, clean_mode=False):   # signature de workers._transcribe_span
             spans.append((start, end))
             return [{'word': ' bonjour', 'start': start + 0.1, 'end': start + 0.6, 'probability': 0.9}]
 
