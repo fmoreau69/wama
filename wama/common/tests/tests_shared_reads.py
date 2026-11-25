@@ -165,6 +165,39 @@ class UnderstoodPromptTest(TestCase):
                     self.assertRaises(RuntimeError):
                 app_metadata.enrich_prompt_value(app, field, 'les visages')
 
+    def test_the_offered_targets_are_understood_by_their_declaration_without_the_llm(self):
+        """2026-11-24 (A.5, targets offered checked) : a term the field DECLARES is understood by
+        its declaration — a description made of them costs no LLM and survives one that does not
+        answer ; only the free rest goes to the pipeline, and comes back after the known ones."""
+        from wama.common.services.model_coverage import canonical_class
+        from wama.common.utils import app_metadata, prompt_pipeline
+        declared = [(app, t['field'], t['vocabulary'])
+                    for app, targets in app_metadata.PROMPT_TARGETS.items()
+                    for t in targets if t.get('vocabulary')]
+        self.assertTrue(declared, 'no field offers targets')
+        for app, field, vocab in declared:
+            with self.subTest(app=app, field=field):
+                terms = vocab['terms']
+                self.assertEqual([t['concept'] for t in terms],
+                                 [canonical_class(t['concept']) for t in terms],
+                                 'a declared concept is written under its common name')
+                default = app_metadata.default_prompt(app, field)
+                self.assertTrue(default, 'the field is born with its offered targets')
+                with mock.patch.object(prompt_pipeline, 'process_prompt',
+                                       side_effect=AssertionError('the LLM was called')):
+                    res = app_metadata.process_prompt_for(app, field, default, full=True)
+                self.assertEqual(', '.join(t['concept'] for t in terms if t.get('default')),
+                                 res['prompt'])
+                self.assertEqual(default, res['original'])
+                first = terms[0]
+                with mock.patch.object(prompt_pipeline, 'process_prompt',
+                                       return_value={'prompt': 'red car'}) as pipeline:
+                    mixed = app_metadata.process_prompt_for(
+                        app, field, f"{first['text'].upper()}, la voiture rouge", full=True)
+                self.assertEqual('la voiture rouge', pipeline.call_args.args[0],
+                                 'only the free rest goes to the pipeline')
+                self.assertEqual(f"{first['concept']}, red car", mixed['prompt'])
+
     def test_what_a_launch_understood_is_kept_and_typing_again_drops_it(self):
         from django.contrib.auth.models import User as Account
         from wama.common.tests.tests_queue_delete_contract import _instance

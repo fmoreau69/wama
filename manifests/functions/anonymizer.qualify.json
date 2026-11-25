@@ -1,0 +1,66 @@
+{
+  "body": {
+    "app": "anonymizer",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "anonymizer.tasks:process_single_media",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "video",
+        "description": "L'image ou la vidéo détectée.",
+        "group": "travail",
+        "key": "work_media",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "detections",
+        "description": "Les objets à qualifier.",
+        "group": "travail",
+        "key": "detections",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "anonymizer.qualify",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "detections",
+        "description": "Les mêmes objets, chacun avec ses attributs.",
+        "key": "detections",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "params": [],
+    "projects": [],
+    "tags": [
+      "image",
+      "video",
+      "detection",
+      "attributes"
+    ]
+  },
+  "description": "Dit, de chaque objet détecté, sa couleur majoritaire, sa taille et — profondeur demandée — son plan (premier / arrière) : des attributs déterministes rangés dans le document de détections (`common/utils/detection_attributes`), que le floutage choisit sans redétecter.",
+  "key": "anonymizer.qualify",
+  "manifest_kind": "function",
+  "name": "Anonymizer — qualifier les objets",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:anonymizer.qualify",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

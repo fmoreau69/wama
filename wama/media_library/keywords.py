@@ -27,12 +27,16 @@ class KeywordRefused(Exception):
         self.status = status
 
 
-def palette_keywords(user, domain: str = ''):
-    """Ce que la palette propose sous un champ-prompt : le système et les siens."""
+def palette_keywords(user, domain: str = '', only: bool = False):
+    """Ce que la palette propose sous un champ-prompt : le système et les siens. `only` : ceux du
+    domaine SEULS (2026-11-24 — les cibles d'un détecteur n'ont rien à faire du tronc des
+    générateurs d'images, rangé sans domaine)."""
     from .models import PromptKeyword
     mine = Q(owner=user) if getattr(user, 'pk', None) else Q(pk__in=[])
     rows = PromptKeyword.objects.filter(Q(owner__isnull=True) | mine)
-    return rows.filter(Q(domain='') | Q(domain=domain)) if domain else rows
+    if not domain:
+        return rows
+    return rows.filter(domain=domain) if only else rows.filter(Q(domain='') | Q(domain=domain))
 
 
 def catalogue_rows(user, domain: str = ''):

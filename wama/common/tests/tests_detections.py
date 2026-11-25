@@ -717,3 +717,64 @@ class AgreementTest(SimpleTestCase):
         self.assertEqual(2, len(groups))
         self.assertEqual(1, len(dets.support([('a', [10, 10, 20, 20]), ('b', [18, 10, 28, 20])],
                                              iou=0.1)))
+
+
+class QualificationTest(SimpleTestCase):
+    """2026-11-24 (`ROADMAP §17quater` B, decision of Fabien : colour and depth first) : the
+    ATTRIBUTES of a detected object — majority colour, size, plane — are deterministic, written in
+    the document, read like the labels, and a selection never drops what carries no attribute."""
+
+    def _scene(self):
+        image = np.full((200, 300, 3), 128, np.uint8)           # gray background
+        image[20:60, 20:80] = (0, 0, 220)                         # a red object (BGR)
+        image[100:190, 150:290] = (220, 60, 0)                    # a large blue one
+        doc = dets.new_document(media='video', width=300, height=200, fps=2, frame_count=4)
+        red = dets.detection(box=[20, 20, 80, 60], label='car', track='m0:1')
+        blue = dets.detection(box=[150, 100, 290, 190], label='car', track='m0:2')
+        for index in (0, 1):
+            dets.add(doc, index, [dict(red), dict(blue)])
+        dets.add(doc, 2, [dets.detection(box=[0, 0, 4, 4], label='face')])   # too small to say
+        return image, doc
+
+    def test_each_object_gets_its_colour_size_and_plane_and_a_track_keeps_its_plane(self):
+        from wama.common.utils import detection_attributes as attributes
+        image, doc = self._scene()
+        depth = np.full((200, 300), 10.0, np.float32)
+        depth[20:60, 20:80] = 2.0                                 # the red object is near
+        calls = []
+
+        def depth_of(img):
+            calls.append(img.shape)
+            return depth
+
+        out = attributes.qualify(doc, ((i, image) for i in (0, 1, 2)), depth=depth_of,
+                                 depth_every=2)
+        self.assertNotIn('attrs', doc['frames'][0]['d'][0], 'the original is untouched')
+        red, blue = out['frames'][1]['d']                          # frame 1 : no depth measured
+        self.assertEqual(('red', 'medium'), (red['attrs']['color'], red['attrs']['size']),
+                         '40 × 60 px of 300 × 200 : 4 % of the image')
+        self.assertEqual(('blue', 'large'), (blue['attrs']['color'], blue['attrs']['size']))
+        self.assertEqual(('foreground', 'background'), (red['attrs']['plane'], blue['attrs']['plane']),
+                         'a tracked object keeps the plane measured on its track')
+        self.assertEqual(2, len(calls), 'the depth runs one frame in `depth_every`')
+        tiny = out['frames'][2]['d'][0]['attrs']
+        self.assertNotIn('color', tiny, 'too small to say its colour')
+        self.assertEqual(['red', 'blue'], dets.colors(out))
+        self.assertEqual(['small', 'medium', 'large'], dets.sizes(out), 'the tiny face is small')
+        self.assertEqual(['foreground', 'background'], dets.planes(out))
+        self.assertEqual(['color', 'size', 'depth'], out['qualified'])
+
+    def test_a_selection_drops_the_unticked_values_and_never_what_carries_none(self):
+        from wama.common.services.process_runs import OUTPUT_PROPERTIES
+        from wama.common.utils import detection_attributes as attributes
+        image, doc = self._scene()
+        out = attributes.qualify(doc, ((i, image) for i in (0, 1, 2)))
+        kept = dets.without_attributes(out, {'color': ['red'], 'plane': ['background']})
+        self.assertEqual({'blue'}, {d['attrs']['color'] for f in kept['frames'] for d in f['d']
+                                    if 'color' in d['attrs']})
+        self.assertIn('face', dets.labels(kept), 'the object without a colour is kept')
+        self.assertEqual([2], [f['i'] for f in kept['frames'] if any(
+            d['label'] == 'face' for d in f['d'])])
+        self.assertIs(out, dets.without_attributes(out, {'color': []}), 'nothing unticked')
+        self.assertEqual(('labels', 'colors', 'sizes', 'planes'), OUTPUT_PROPERTIES['detections'],
+                         'the attributes are read like the labels (`options_from`)')

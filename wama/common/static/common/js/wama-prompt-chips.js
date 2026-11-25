@@ -61,6 +61,9 @@
         this.target = typeof cfg.target === 'string'
             ? document.querySelector(cfg.target) : cfg.target;
         this.domain = cfg.domain || '';
+        // `only` (2026-11-24) : les mots-clés de CE domaine seuls — les cibles d'un détecteur, sans
+        // le tronc des générateurs d'images ; un mot-clé ajouté ici y reste (`domain` posté).
+        this.only = !!cfg.only && !!this.domain;
         // Mode gestion (médiathèque) : pas de prompt cible — clic chip = no-op, seuls add/del perso comptent.
         this.manage = !!cfg.manage;
         // Callback optionnel(n) appelé avec le nombre total de mots-clés (ex : MAJ d'un badge d'onglet).
@@ -77,6 +80,7 @@
         var self = this;
         var params = [];
         if (this.domain) params.push('domain=' + encodeURIComponent(this.domain));
+        if (this.only) params.push('only=1');
         if (this.manage) params.push('manage=1');
         var url = '/media-library/api/keywords/' + (params.length ? '?' + params.join('&') : '');
         this.container.innerHTML = '<div class="text-muted small">Chargement des mots-clés…</div>';
@@ -303,6 +307,7 @@
         var fd = new FormData();
         fd.append('text', text);
         fd.append('category', sel ? sel.value : 'style');
+        if (this.only) fd.append('domain', this.domain);
         fetch('/media-library/api/keywords/add/', { method: 'POST', headers: csrf(), body: fd })
             .then(function (r) { return r.json(); })
             .then(function (d) { if (d && d.success) { if (inp) inp.value = ''; self._load(); } });

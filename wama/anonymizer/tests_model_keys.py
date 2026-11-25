@@ -84,8 +84,9 @@ class WritersAndReadersTest(TestCase):
         self.user.groups.add(Group.objects.get_or_create(name=f'{GROUP_PREFIX}recherche')[0])
 
     def _media(self, model):
+        # The classes mode, said : the description is the default since 2026-11-24.
         return Media.objects.create(user=self.user, file='anonymizer/x/input/sample.png',
-                                    model_to_use=model)
+                                    model_to_use=model, target_mode='classes')
 
     def test_every_writer_stores_a_catalogue_key(self):
         for given, stored in (('yolo:yolo11n.pt', YOLO_KEY), (YOLO_KEY, YOLO_KEY),
@@ -283,6 +284,31 @@ class PromptModelTest(TestCase):
                          [(s['concept'], s['by']) for s in shown])
         media.target_mode = 'classes'
         self.assertEqual([], tasks.description_plan(media), 'nothing to show in the classes mode')
+
+    def test_a_new_card_describes_the_offered_targets_and_shows_them_understood(self):
+        """2026-11-24 (A.5, decision of Fabien : description by default, offered targets
+        checked) : a new card is born in the description mode with the targets the field
+        declares ; before any launch nor LLM, the modal already shows who will look for each."""
+        from wama.anonymizer import tasks
+        from wama.common.utils.app_metadata import default_prompt
+        media = Media.objects.create(user=self.user, file='anonymizer/x/input/sample.png')
+        self.assertEqual(('description', default_prompt('anonymizer', 'sam3_prompt')),
+                         (media.target_mode, media.sam3_prompt))
+        cover = {'parallel': True, 'unsupported_classes': [], 'models': [
+            {'id': 'yolo:face.pt', 'path': '/w/face.pt', 'name': 'face',
+             'classes': ['face', 'license plate'], 'model_key': YOLO_KEY}]}
+        with mock.patch.object(tasks, 'needs_parallel_detection', return_value=cover), \
+                mock.patch.object(tasks, 'check_sam3_installed', return_value=True), \
+                mock.patch('wama.common.utils.prompt_pipeline.process_prompt') as no_llm:
+            shown = {s['concept']: s['by'] for s in tasks.description_plan(media)}
+        no_llm.assert_not_called()
+        self.assertEqual([YOLO_KEY], shown['face'])
+        self.assertEqual([YOLO_KEY], shown['license plate'])
+        self.assertEqual([tasks.SAM3_KEY], shown['logo'])
+        media.sam3_prompt = 'visages, la voiture rouge'
+        with mock.patch.object(tasks, 'check_sam3_installed', return_value=True):
+            self.assertEqual([], tasks.description_plan(media),
+                             'a free text is shown once understood, never half guessed')
 
 
 class OfferedClassesTest(SimpleTestCase):

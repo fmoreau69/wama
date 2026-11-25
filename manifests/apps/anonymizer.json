@@ -285,6 +285,122 @@
                   "imports": []
                 }
               },
+              "name": "qualify_objects"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.BooleanField",
+              "kwargs": {
+                "db_default": {
+                  "expr": "False",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "False",
+                  "imports": []
+                }
+              },
+              "name": "qualify_depth"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FileField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "db_default": {
+                  "expr": "''",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "''",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "500",
+                  "imports": []
+                },
+                "upload_to": {
+                  "expr": "wama.common.utils.media_paths.UploadToUserPath('anonymizer', 'output')",
+                  "imports": [
+                    "import wama.common.utils.media_paths"
+                  ]
+                }
+              },
+              "name": "qualified_file"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.JSONField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "db_default": {
+                  "expr": "[]",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "list",
+                  "imports": []
+                }
+              },
+              "name": "blur_skip_colors"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.JSONField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "db_default": {
+                  "expr": "[]",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "list",
+                  "imports": []
+                }
+              },
+              "name": "blur_skip_sizes"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.JSONField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "db_default": {
+                  "expr": "[]",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "list",
+                  "imports": []
+                }
+              },
+              "name": "blur_skip_planes"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.BooleanField",
+              "kwargs": {
+                "db_default": {
+                  "expr": "False",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "False",
+                  "imports": []
+                }
+              },
               "name": "ocr_scanned_pages"
             },
             {
@@ -647,15 +763,15 @@
               "class": "django.db.models.CharField",
               "kwargs": {
                 "choices": {
-                  "expr": "[('classes', 'Classes'), ('description', 'Description')]",
+                  "expr": "[('description', 'Description'), ('classes', 'Classes (avancé)')]",
                   "imports": []
                 },
                 "db_default": {
-                  "expr": "'classes'",
+                  "expr": "'description'",
                   "imports": []
                 },
                 "default": {
-                  "expr": "'classes'",
+                  "expr": "'description'",
                   "imports": []
                 },
                 "max_length": {
@@ -675,6 +791,10 @@
               "kwargs": {
                 "blank": {
                   "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "\"visages, plaques d'immatriculation, textes, logos, écrans\"",
                   "imports": []
                 },
                 "help_text": {
@@ -1126,15 +1246,6 @@
           "mode_param": "target_mode",
           "modes": [
             {
-              "icon": "fa-list-check",
-              "id": "classes",
-              "inputs": [
-                "work_file"
-              ],
-              "label": "Classes",
-              "variant": "primary"
-            },
-            {
               "icon": "fa-comment-dots",
               "id": "description",
               "inputs": [
@@ -1143,6 +1254,15 @@
               ],
               "label": "Description",
               "variant": "info"
+            },
+            {
+              "icon": "fa-list-check",
+              "id": "classes",
+              "inputs": [
+                "work_file"
+              ],
+              "label": "Classes (avancé)",
+              "variant": "primary"
             }
           ],
           "params_schema": "PARAMS_JSON"
@@ -1192,6 +1312,7 @@
             "help_source": null,
             "icon": "fa-file-image",
             "inline": false,
+            "keywords": null,
             "label": "OCR des scans et des images",
             "max": null,
             "max_label": "",
@@ -1230,12 +1351,12 @@
             "chip_label": "Désignation",
             "choices": [
               [
-                "classes",
-                "Classes"
-              ],
-              [
                 "description",
                 "Description"
+              ],
+              [
+                "classes",
+                "Classes (avancé)"
               ]
             ],
             "contexts": [
@@ -1243,7 +1364,7 @@
               "batch",
               "panel"
             ],
-            "default": "classes",
+            "default": "description",
             "default_from": null,
             "display_format": "",
             "dom_id": "",
@@ -1255,6 +1376,7 @@
             "help_source": null,
             "icon": "fa-bullseye",
             "inline": true,
+            "keywords": null,
             "label": "",
             "max": null,
             "max_label": "",
@@ -1297,7 +1419,7 @@
               "batch",
               "panel"
             ],
-            "default": null,
+            "default": "visages, plaques d'immatriculation, textes, logos, écrans",
             "default_from": null,
             "display_format": "",
             "dom_id": {
@@ -1305,12 +1427,18 @@
             },
             "empty_label": "",
             "group": "description",
-            "help": "Décrivez-le avec vos mots — ex. « les visages et les plaques, les logos ». Le système le comprend, puis choisit le modèle qui cherche chaque chose.",
+            "help": "Les cibles proposées sont cochées d'office : décochez-en, ajoutez les vôtres, ou décrivez avec vos mots. Le système comprend la description, puis choisit le modèle qui cherche chaque chose.",
             "help_fallback": null,
             "help_html": "",
             "help_source": null,
             "icon": "fa-comment-dots",
             "inline": false,
+            "keywords": {
+              "domain": "anonymization",
+              "only": true,
+              "script": "/static/common/js/wama-prompt-chips.js",
+              "style": "/static/common/css/wama-prompt-chips.css"
+            },
             "label": "Ce qu'il faut anonymiser",
             "max": null,
             "max_label": "",
@@ -1370,6 +1498,7 @@
             "help_source": "anonymizer",
             "icon": "fa-microchip",
             "inline": false,
+            "keywords": null,
             "label": "Modèle",
             "max": null,
             "max_label": "",
@@ -1432,6 +1561,7 @@
             "help_source": null,
             "icon": "fa-gauge-high",
             "inline": false,
+            "keywords": null,
             "label": "Rapide ↔ Qualité",
             "max": 100,
             "max_label": "",
@@ -1488,6 +1618,7 @@
             "help_source": null,
             "icon": "fa-crosshairs",
             "inline": false,
+            "keywords": null,
             "label": "Seuil de détection",
             "max": 1,
             "max_label": "",
@@ -1542,6 +1673,7 @@
             "help_source": null,
             "icon": "fa-forward-fast",
             "inline": false,
+            "keywords": null,
             "label": "Décimation de l'analyse (vidéo)",
             "max": 250,
             "max_label": "",
@@ -1580,6 +1712,119 @@
             "chip_label": "",
             "choices": null,
             "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": false,
+            "default_from": null,
+            "display_format": "",
+            "dom_id": "",
+            "empty_label": "",
+            "group": "qualify",
+            "help": "Dit la couleur majoritaire et la taille de chaque objet détecté : « Ce qu'on floute » peut alors laisser net une couleur, une taille. Aucun modèle n'est chargé ; changer ce qu'on floute ne refait que le floutage.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-palette",
+            "inline": false,
+            "keywords": null,
+            "label": "Qualifier les objets (couleur, taille)",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "qualify_objects",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_from": null,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "remember": null,
+            "section": "settings",
+            "show_if": null,
+            "stales": [
+              "qualify"
+            ],
+            "step": null,
+            "stores_unchecked": false,
+            "type": "toggle",
+            "unit": "",
+            "write_from": null
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": false,
+            "default_from": null,
+            "display_format": "",
+            "dom_id": "",
+            "empty_label": "",
+            "group": "qualify",
+            "help": "Situe chaque objet au premier plan ou à l'arrière-plan de la scène, par un modèle de profondeur (une image par seconde sur une vidéo).",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-layer-group",
+            "inline": false,
+            "keywords": null,
+            "label": "Avec la profondeur (premier plan / arrière-plan)",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "qualify_depth",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_from": null,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "remember": null,
+            "section": "settings",
+            "show_if": {
+              "equals": true,
+              "field": "qualify_objects"
+            },
+            "stales": [
+              "qualify"
+            ],
+            "step": null,
+            "stores_unchecked": false,
+            "type": "toggle",
+            "unit": "",
+            "write_from": null
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
               "item"
             ],
             "default": [],
@@ -1594,6 +1839,7 @@
             "help_source": null,
             "icon": "fa-eye-slash",
             "inline": false,
+            "keywords": null,
             "label": "Ce qu'on floute",
             "max": null,
             "max_label": "",
@@ -1607,6 +1853,174 @@
             "options_from": {
               "port": "detections",
               "property": "labels"
+            },
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "remember": null,
+            "section": "settings",
+            "show_if": null,
+            "stales": [
+              "blur"
+            ],
+            "step": null,
+            "stores_unchecked": true,
+            "type": "multiselect",
+            "unit": "",
+            "write_from": null
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item"
+            ],
+            "default": [],
+            "default_from": null,
+            "display_format": "",
+            "dom_id": "",
+            "empty_label": "La qualification dira les couleurs des objets.",
+            "group": "mode",
+            "help": "Décocher une couleur laisse net les objets de cette couleur.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-palette",
+            "inline": false,
+            "keywords": null,
+            "label": "Couleurs floutées",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "blur_skip_colors",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_from": {
+              "port": "detections",
+              "property": "colors"
+            },
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "remember": null,
+            "section": "settings",
+            "show_if": null,
+            "stales": [
+              "blur"
+            ],
+            "step": null,
+            "stores_unchecked": true,
+            "type": "multiselect",
+            "unit": "",
+            "write_from": null
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item"
+            ],
+            "default": [],
+            "default_from": null,
+            "display_format": "",
+            "dom_id": "",
+            "empty_label": "La qualification dira la taille des objets.",
+            "group": "mode",
+            "help": "small : moins de 1 % de l'image ; large : au moins 10 %.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-up-right-and-down-left-from-center",
+            "inline": false,
+            "keywords": null,
+            "label": "Tailles floutées",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "blur_skip_sizes",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_from": {
+              "port": "detections",
+              "property": "sizes"
+            },
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "remember": null,
+            "section": "settings",
+            "show_if": null,
+            "stales": [
+              "blur"
+            ],
+            "step": null,
+            "stores_unchecked": true,
+            "type": "multiselect",
+            "unit": "",
+            "write_from": null
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item"
+            ],
+            "default": [],
+            "default_from": null,
+            "display_format": "",
+            "dom_id": "",
+            "empty_label": "La qualification avec profondeur dira le plan des objets.",
+            "group": "mode",
+            "help": "foreground : plus proche que le milieu de la scène ; background : au-delà.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-layer-group",
+            "inline": false,
+            "keywords": null,
+            "label": "Plans floutés",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "blur_skip_planes",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_from": {
+              "port": "detections",
+              "property": "planes"
             },
             "options_group": "",
             "options_mode": null,
@@ -1653,6 +2067,7 @@
             "help_source": null,
             "icon": "fa-droplet",
             "inline": false,
+            "keywords": null,
             "label": "Intensité du flou",
             "max": 99,
             "max_label": "",
@@ -1707,6 +2122,7 @@
             "help_source": null,
             "icon": "fa-border-top-left",
             "inline": false,
+            "keywords": null,
             "label": "Bords arrondis",
             "max": 50,
             "max_label": "",
@@ -1763,6 +2179,7 @@
             "help_source": null,
             "icon": "fa-up-right-and-down-left-from-center",
             "inline": false,
+            "keywords": null,
             "label": "Agrandissement de la zone",
             "max": 1.25,
             "max_label": "",
@@ -1819,6 +2236,7 @@
             "help_source": null,
             "icon": "fa-chart-line",
             "inline": false,
+            "keywords": null,
             "label": "Flou progressif",
             "max": 100,
             "max_label": "",
@@ -1873,6 +2291,7 @@
             "help_source": null,
             "icon": "fa-wave-square",
             "inline": false,
+            "keywords": null,
             "label": "Interpoler les détections manquantes",
             "max": null,
             "max_label": "",
@@ -1927,6 +2346,7 @@
             "help_source": null,
             "icon": "fa-film",
             "inline": false,
+            "keywords": null,
             "label": "Frames max à interpoler",
             "max": 60,
             "max_label": "",
@@ -1984,6 +2404,7 @@
             "help_source": null,
             "icon": "fa-arrows-left-right",
             "inline": false,
+            "keywords": null,
             "label": "Frames à prolonger avant/après",
             "max": 30,
             "max_label": "",
@@ -2038,6 +2459,7 @@
             "help_source": null,
             "icon": "fa-draw-polygon",
             "inline": false,
+            "keywords": null,
             "label": "Segmentation fine (contours)",
             "max": null,
             "max_label": "",
@@ -2092,6 +2514,7 @@
             "help_source": null,
             "icon": "fa-eye",
             "inline": false,
+            "keywords": null,
             "label": "Afficher l'aperçu",
             "max": null,
             "max_label": "",
@@ -2144,6 +2567,7 @@
             "help_source": null,
             "icon": "fa-vector-square",
             "inline": false,
+            "keywords": null,
             "label": "Afficher les boîtes",
             "max": null,
             "max_label": "",
@@ -2196,6 +2620,7 @@
             "help_source": null,
             "icon": "fa-tag",
             "inline": false,
+            "keywords": null,
             "label": "Afficher les libellés",
             "max": null,
             "max_label": "",
@@ -2248,6 +2673,7 @@
             "help_source": null,
             "icon": "fa-percent",
             "inline": false,
+            "keywords": null,
             "label": "Afficher la confiance",
             "max": null,
             "max_label": "",
@@ -2302,6 +2728,7 @@
             "help_source": null,
             "icon": "fa-file-export",
             "inline": false,
+            "keywords": null,
             "label": "Format de sortie",
             "max": null,
             "max_label": "",
@@ -2445,6 +2872,7 @@
             "help_source": null,
             "icon": "fa-sliders",
             "inline": false,
+            "keywords": null,
             "label": "Qualité",
             "max": null,
             "max_label": "",
@@ -2749,7 +3177,12 @@
             "precision_level",
             "detection_threshold",
             "detection_decimation",
+            "qualify_objects",
+            "qualify_depth",
             "blur_skip_labels",
+            "blur_skip_colors",
+            "blur_skip_sizes",
+            "blur_skip_planes",
             "blur_ratio",
             "rounded_edges",
             "roi_enlargement",
@@ -2802,6 +3235,53 @@
           "enrich": true,
           "field": "sam3_prompt",
           "kind": "concept",
+          "vocabulary": {
+            "category": "target",
+            "keyword_domain": "anonymization",
+            "terms": [
+              {
+                "concept": "face",
+                "default": true,
+                "text": "visages"
+              },
+              {
+                "concept": "license plate",
+                "default": true,
+                "text": "plaques d'immatriculation"
+              },
+              {
+                "concept": "text",
+                "default": true,
+                "text": "textes"
+              },
+              {
+                "concept": "logo",
+                "default": true,
+                "text": "logos"
+              },
+              {
+                "concept": "screen",
+                "default": true,
+                "text": "écrans"
+              },
+              {
+                "concept": "tattoo",
+                "text": "tatouages"
+              },
+              {
+                "concept": "badge",
+                "text": "badges"
+              },
+              {
+                "concept": "document",
+                "text": "documents"
+              },
+              {
+                "concept": "person",
+                "text": "personnes"
+              }
+            ]
+          },
           "when": {
             "equals": "description",
             "field": "target_mode"
@@ -3012,7 +3492,10 @@
         "add_to_anonymizer": {
           "args": {
             "blur_ratio": "range — Taille du noyau gaussien (impaire). [1–99] (défaut : 75)",
+            "blur_skip_colors": "multiselect — Décocher une couleur laisse net les objets de cette couleur. (défaut : [])",
             "blur_skip_labels": "multiselect — Ce que la détection a trouvé sur ce média. Décocher ce qu'on veut laisser net : seul le floutage est refait, sans redétecter. (défaut : [])",
+            "blur_skip_planes": "multiselect — foreground : plus proche que le milieu de la scène ; background : au-delà. (défaut : [])",
+            "blur_skip_sizes": "multiselect — small : moins de 1 % de l'image ; large : au moins 10 %. (défaut : [])",
             "classes": "list",
             "detection_decimation": "number — Une image analysée sur N d'une vidéo (1 : toutes). 0 : automatique — chaque modèle sa cadence (LocateAnything : une image par seconde ; YOLO, SAM3 : toutes). Les images sautées sont déduites des images analysées voisines. [0–250] (défaut : 0)",
             "detection_threshold": "range — Seuil de détection [0–1] (défaut : 0.25)",
@@ -3025,14 +3508,16 @@
             "output_quality": "select — Appliquée à la conversion vers le format choisi. (choix : web | balanced | max) (défaut : 'balanced')",
             "precision_level": "intent — 5 paliers effectifs (n/s/m/l/x) ; à partir de 50, segmentation fine. [0–100] (défaut : 50)",
             "progressive_blur": "range — Flou progressif [0–100] (défaut : 25)",
+            "qualify_depth": "toggle — Situe chaque objet au premier plan ou à l'arrière-plan de la scène, par un modèle de profondeur (une image par seconde sur une vidéo). (défaut : False)",
+            "qualify_objects": "toggle — Dit la couleur majoritaire et la taille de chaque objet détecté : « Ce qu'on floute » peut alors laisser net une couleur, une taille. Aucun modèle n'est chargé ; changer ce qu'on floute ne refait que le floutage. (défaut : False)",
             "roi_enlargement": "range — Aire floutée autour de l'objet : moins de 1 la réduit, plus de 1 l'agrandit. [0.75–1.25] (défaut : 1.05)",
             "rounded_edges": "number — Bords arrondis [0–50] (défaut : 5)",
-            "sam3_prompt": "textarea — Décrivez-le avec vos mots — ex. « les visages et les plaques, les logos ». Le système le comprend, puis choisit le modèle qui cherche chaque chose.",
+            "sam3_prompt": "textarea — Les cibles proposées sont cochées d'office : décochez-en, ajoutez les vôtres, ou décrivez avec vos mots. Le système comprend la description, puis choisit le modèle qui cherche chaque chose. (défaut : 'visages, plaques d'immatriculation, textes, logos, écrans')",
             "show_boxes": "toggle — Afficher les boîtes (défaut : True)",
             "show_conf": "toggle — Afficher la confiance (défaut : True)",
             "show_labels": "toggle — Afficher les libellés (défaut : True)",
             "show_preview": "toggle — Afficher l'aperçu (défaut : True)",
-            "target_mode": "radio — Classes : une liste d'objets à flouter. Description : ce qu'il faut flouter, décrit en texte. (choix : classes | description) (défaut : 'classes')",
+            "target_mode": "radio — Classes : une liste d'objets à flouter. Description : ce qu'il faut flouter, décrit en texte. (choix : description | classes) (défaut : 'description')",
             "use_segmentation": "toggle — Masque au contour de l'objet plutôt qu'au rectangle détecté. (défaut : True)"
           },
           "description": "Ajoute un élément à la file d'attente de Anonymizer (Floutage automatique de visages et plaques sur images et vidéos ; données personnelles occultées dans les documents, leur forme gardée) et renvoie son item_id."

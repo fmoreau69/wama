@@ -4,6 +4,16 @@
     "links": [
       {
         "from": "detect",
+        "to": "qualify",
+        "to_port": null
+      },
+      {
+        "from": "detect",
+        "to": "blur",
+        "to_port": null
+      },
+      {
+        "from": "qualify",
         "to": "blur",
         "to_port": null
       },
@@ -57,6 +67,30 @@
       },
       {
         "app": null,
+        "function": "anonymizer.qualify",
+        "id": "qualify",
+        "kind": "function",
+        "params": {},
+        "process": {
+          "degree": "optional",
+          "domains": [
+            "image_video"
+          ],
+          "gpu": true,
+          "label": "Qualification",
+          "outputs": [
+            "qualified_file"
+          ],
+          "share": 2,
+          "toggle": "qualify_objects",
+          "watched": [
+            "qualify_objects",
+            "qualify_depth"
+          ]
+        }
+      },
+      {
+        "app": null,
         "function": "anonymizer.blur",
         "id": "blur",
         "kind": "function",
@@ -75,6 +109,9 @@
           "share": 3,
           "watched": [
             "blur_skip_labels",
+            "blur_skip_colors",
+            "blur_skip_sizes",
+            "blur_skip_planes",
             "blur_ratio",
             "rounded_edges",
             "roi_enlargement",
@@ -180,7 +217,7 @@
   "description": "Pipeline déclaré en code : chaque process est un nœud `function` du catalogue, chaque dépendance un lien.",
   "key": "anonymizer",
   "manifest_kind": "pipeline",
-  "name": "Anonymizer — détection, floutage, réglages de sortie ; document : OCR, détection et occultation des données personnelles (6 process)",
+  "name": "Anonymizer — détection, floutage, réglages de sortie ; document : OCR, détection et occultation des données personnelles (7 process)",
   "owner": null,
   "projects": [],
   "schema_version": "1.0",

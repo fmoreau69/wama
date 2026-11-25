@@ -63,6 +63,7 @@ class AnonymizerTaskOnSkeletonTest(TestCase):
         self.input = folder / 'street.png'
         self.media = Media.objects.create(
             user=self.user, file_ext='.png', status='PENDING', classes2blur=['face'],
+            target_mode='classes',   # said : the description is the default since 2026-11-24
             file=f"{app_media_dir('anonymizer', self.user.id, 'input')}/street.png")
         #: Ce que rend la couverture COMMUNE des classes (`needs_parallel_detection`) : un
         #: détecteur qui couvre `face`. Jusqu'au 2026-10-12 elle rendait VIDE ici, et ces tests ne
@@ -161,6 +162,27 @@ class AnonymizerTaskOnSkeletonTest(TestCase):
         self.assertEqual(before['detect'], after['detect'], 'the detection was up to date')
         self.assertNotEqual(before['blur'], after['blur'])
         self.assertFalse((first == self._output_pixels()).all(), 'a lighter blur is written')
+
+    def test_a_qualified_card_blurs_from_the_qualified_objects_and_a_colour_can_stay_sharp(self):
+        """2026-11-24 (`ROADMAP §17quater` B) : with the qualification on, each object gets its
+        attributes, the blur reads THAT document (the nearest upstream, `upstream_output`) ;
+        unticking the colour found blurs again only, and leaves the zone sharp."""
+        outcome, _detected = self._run(qualify_objects=True)
+        self.assertEqual('SUCCESS', self.media.status, self.media.error_message)
+        self.assertEqual({'detect': 'SUCCESS', 'qualify': 'SUCCESS', 'blur': 'SUCCESS',
+                          'output': 'SUCCESS'}, self._states())
+        qualified = detections.read(os.path.join(self.root, self.media.qualified_file.name))
+        attrs = qualified['frames'][0]['d'][0]['attrs']
+        self.assertIn(attrs['color'], detections.colors(qualified))
+        self.assertEqual([attrs['size']], detections.sizes(qualified))
+        before = self._started()
+        self._run(blur_skip_colors=[attrs['color']])
+        after = self._started()
+        self.assertEqual((before['detect'], before['qualify']), (after['detect'], after['qualify']),
+                         'neither detected nor qualified again')
+        self.assertNotEqual(before['blur'], after['blur'])
+        original, blurred = cv2.imread(str(self.input)), self._output_pixels()
+        self.assertTrue((original == blurred).all(), 'the colour unticked stays sharp')
 
     def test_a_detection_setting_detects_again(self):
         self._run()

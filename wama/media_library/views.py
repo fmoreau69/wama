@@ -858,7 +858,8 @@ def api_prompt_keywords(request):
     domain = request.GET.get('domain', '')
     manage = request.GET.get('manage') == '1'
     qs = (keywords.catalogue_rows(request.user, domain) if manage
-          else keywords.palette_keywords(request.user, domain))
+          else keywords.palette_keywords(request.user, domain,
+                                         only=request.GET.get('only') == '1'))
     cats = dict(PromptKeyword.CATEGORY_CHOICES)
     # Pré-ordonner les catégories selon CATEGORY_CHOICES (ordre curé, pas alphabétique).
     grouped = {}
@@ -884,8 +885,11 @@ def api_prompt_keyword_add(request):
     """Ajoute un mot-clé à l'auteur — PRIVÉ (`keywords.create`)."""
     from wama.media_library import keywords
     try:
+        # `domain` (2026-11-24) : un mot-clé ajouté sous une palette d'un seul domaine y reste —
+        # sans lui il naissait sans domaine, hors de la palette qui l'avait ajouté.
         kw = keywords.create(request.user, request.POST.get('text'),
-                             request.POST.get('category') or 'style')
+                             request.POST.get('category') or 'style',
+                             domain=(request.POST.get('domain') or '')[:30])
     except keywords.KeywordRefused as exc:
         return JsonResponse({'success': False, 'error': str(exc)}, status=exc.status)
     return JsonResponse({'success': True, 'keyword': kw.to_dict()})

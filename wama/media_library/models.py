@@ -275,6 +275,9 @@ class PromptKeyword(ScopedVisibility):
         ('camera', 'Caméra / objectif'),
         ('render', 'Rendu / époque'),
         ('domain', 'Domaine'),
+        # Ce qu'un détecteur CHERCHE (2026-11-24) : les cibles qu'une app propose d'office
+        # (`PROMPT_TARGETS[...]['vocabulary']`, semées par `seed_prompt_keywords`).
+        ('target', 'Cibles'),
     ]
 
     owner = models.ForeignKey(

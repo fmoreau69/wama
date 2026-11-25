@@ -399,10 +399,13 @@ APP_MODES = {
              'mode_param': 'target_mode',
              'modes': [
                 # variant par mode (couleurs de l'UI existante : classes=bleu, description=cyan).
-                {'id': 'classes', 'label': 'Classes', 'icon': 'fa-list-check', 'variant': 'primary',
-                 'inputs': ['work_file']},
+                # La DESCRIPTION en premier, les classes en AVANCÉ (2026-11-24, décision de Fabien,
+                # `ROADMAP §17quater` (1)) : le premier mode est celui qu'on retient quand aucun
+                # n'est rangé (`wama-modes.js`), comme le défaut de la colonne.
                 {'id': 'description', 'label': 'Description', 'icon': 'fa-comment-dots',
                  'variant': 'info', 'inputs': ['work_file', 'prompt']},
+                {'id': 'classes', 'label': 'Classes (avancé)', 'icon': 'fa-list-check',
+                 'variant': 'primary', 'inputs': ['work_file']},
             ]},
             # Domaine DOCUMENT (2026-11-02, ROADMAP §16.4bis) : les données personnelles d'un
             # document, occultées dans le fichier même, sa forme gardée. Même élément (`Media`,

@@ -58,9 +58,31 @@ PROMPT_TARGETS = {
         # phrase en LISTE de concepts, que `SAM3Processor` segmente un par un.
         # `when` : le prompt ne sert qu'en mode DESCRIPTION (`app_modes`, `mode_param`) — il
         # suivait le booléen `use_sam3` jusqu'au 2026-09-27.
+        # `vocabulary` (2026-11-24, `ROADMAP §17quater` A.5, décision de Fabien : « les classes à
+        # flouter pour l'anonymisation sont souvent les mêmes » — chips PRÉ-COCHÉES) : les cibles
+        # que l'app PROPOSE d'office, chacune avec le concept qu'elle désigne. Une seule
+        # déclaration, lue par : le défaut de la description (`default_prompt`, les termes
+        # `default`), la palette sous le champ (`keywords_palette` → mots-clés système semés dans
+        # la médiathèque, `seed_prompt_keywords`), et la COMPRÉHENSION — un terme déclaré se
+        # comprend sans LLM (`_vocabulary_split`) : un LLM injoignable ne fait plus perdre les
+        # visages d'une description par défaut. Le concile (2026-11-19) : logos, textes incrustés
+        # et écrans doivent être proposés d'office.
         {'field': 'sam3_prompt', 'kind': 'concept',
          'when': {'field': 'target_mode', 'equals': 'description'},
-         'domain': 'detection', 'enrich': True},
+         'domain': 'detection', 'enrich': True,
+         'vocabulary': {
+             'keyword_domain': 'anonymization', 'category': 'target',
+             'terms': (
+                 {'text': 'visages', 'concept': 'face', 'default': True},
+                 {'text': "plaques d'immatriculation", 'concept': 'license plate', 'default': True},
+                 {'text': 'textes', 'concept': 'text', 'default': True},
+                 {'text': 'logos', 'concept': 'logo', 'default': True},
+                 {'text': 'écrans', 'concept': 'screen', 'default': True},
+                 {'text': 'tatouages', 'concept': 'tattoo'},
+                 {'text': 'badges', 'concept': 'badge'},
+                 {'text': 'documents', 'concept': 'document'},
+                 {'text': 'personnes', 'concept': 'person'},
+             )}},
     ],
     'cam_analyzer': [
         # Prompts de marquages SAM3 : LISTE de {label, prompt}. Enrichis en « concept »
@@ -118,6 +140,53 @@ def _target(app: str, field: str):
         if t['field'] == field:
             return t
     return None
+
+
+def prompt_vocabulary(app: str, field: str):
+    """Les cibles que la déclaration du champ PROPOSE (`vocabulary`), ou None."""
+    tgt = _target(app, field)
+    return (tgt or {}).get('vocabulary') or None
+
+
+def default_prompt(app: str, field: str) -> str:
+    """La valeur par DÉFAUT du champ : ses termes déclarés `default`, dans l'ordre déclaré —
+    une description que la palette montre pré-cochée (`WamaPromptChips` allume un mot présent)."""
+    vocab = prompt_vocabulary(app, field) or {}
+    return ', '.join(t['text'] for t in vocab.get('terms') or () if t.get('default'))
+
+
+def keywords_palette(app: str, field: str):
+    """`Param.keywords` du champ : la palette de mots-clés de SON domaine, seule (`only`)."""
+    vocab = prompt_vocabulary(app, field)
+    if not vocab:
+        return None
+    # La brique et sa feuille, chargées à la demande par `WamaParams` quand la page ne les a pas
+    # (la règle des faces de la visionneuse : le serveur dit les scripts à charger).
+    from django.templatetags.static import static
+    return {'domain': vocab['keyword_domain'], 'only': True,
+            'script': static('common/js/wama-prompt-chips.js'),
+            'style': static('common/css/wama-prompt-chips.css')}
+
+
+def _vocabulary_split(tgt, value):
+    """(concepts compris par la déclaration, reste à comprendre) d'une valeur : chaque partie
+    (`detection_base.prompt_concepts`, LA règle de découpage) égale à un terme déclaré — sans
+    casse — donne son concept ; le reste garde son texte, dans l'ordre."""
+    vocab = (tgt or {}).get('vocabulary')
+    if not vocab or not value or not str(value).strip():
+        return [], value
+    from wama.common.backends.detection_base import prompt_concepts
+    by_text = {t['text'].casefold(): t['concept'] for t in vocab.get('terms') or ()}
+    known, rest = [], []
+    for part in prompt_concepts(str(value)):
+        concept = by_text.get(part.casefold())
+        (known.append(concept) if concept else rest.append(part))
+    return known, ', '.join(rest)
+
+
+def vocabulary_concepts(app: str, field: str, value):
+    """`_vocabulary_split` du champ d'une app : (concepts compris par sa déclaration, reste)."""
+    return _vocabulary_split(_target(app, field), value)
 
 
 def _resolve_model(app: str, instance, tgt, model_id=None):
@@ -187,6 +256,18 @@ def process_prompt_for(app: str, field: str, value, instance=None, user=None, co
     caps, mtype, contract = _resolve_model(app, instance, tgt, model_id=model_id)
     domain = _domain_for(instance, tgt)
     original, (value, lyrics) = value, _spared_lyrics(tgt, value)
+    # Les termes que la cible DÉCLARE (`vocabulary`) sont compris par la déclaration ; seul le
+    # reste part à la pipeline — et une description faite des seuls termes proposés ne coûte
+    # aucun appel au LLM (ni ne dépend de lui).
+    known, value = _vocabulary_split(tgt, value)
+    if known and not (value or '').strip():
+        res = {'prompt': ', '.join(known), 'original': original, 'translated': False,
+               'enriched': True, 'reference_context': False, 'routing': None,
+               'reason': 'vocabulary'}
+        if console:
+            console(f"🎯 Concepts de détection : « {res['prompt']} » (termes proposés, compris "
+                    f"sans LLM).")
+        return res if full else res['prompt']
     res = process_prompt(value or '', kind=tgt.get('kind', 'text'),
                          model_capabilities=caps, model_type=mtype,
                          enrich=tgt.get('enrich', False) if enrich is None else enrich,
@@ -196,6 +277,10 @@ def process_prompt_for(app: str, field: str, value, instance=None, user=None, co
                          app=app, domain=domain, prompt_contract=contract)
     if lyrics:
         res = _rejoin_lyrics(res, original, lyrics, user, console)
+    if known:
+        res = dict(res, original=original,
+                   prompt=', '.join(known + [str(res.get('prompt') or '').strip()]).strip(', '),
+                   enriched=True)
     return res if full else res['prompt']
 
 

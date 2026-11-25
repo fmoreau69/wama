@@ -25,6 +25,7 @@ Exceptions app-spécifiques VOLONTAIREMENT hors schéma (widgets bespoke) :
 La modale ⚙ est SECTIONNÉE par `GROUPS` (ParamGroup) pour matcher les sections du volet droit —
 voir le commentaire au-dessus de GROUPS.
 """
+from wama.common.utils.app_metadata import keywords_palette
 from wama.common.utils.app_modes import options_mode_for
 from wama.common.utils.auto_model import intent_param
 from wama.common.utils.output_formats import output_format_params
@@ -45,6 +46,7 @@ GROUPS = [
     ParamGroup("description", "Description", icon="fa-comment-dots",
                show_if={"field": "target_mode", "equals": "description"}),
     ParamGroup("model", "Modèle", icon="fa-microchip"),
+    ParamGroup("qualify", "Qualification", icon="fa-palette", collapsed=True),
     ParamGroup("comment", "Comment flouter", icon="fa-droplet", columns=2),
     ParamGroup("afficher", "Quoi afficher", icon="fa-eye", columns=2),
     ParamGroup("sortie", "Sortie", icon="fa-file-export", columns=2),
@@ -58,8 +60,10 @@ PARAMS = derive_from_model(
         "target_mode", "sam3_prompt", "model_to_use",
         # ── Réglage de détection ──
         "precision_level", "detection_threshold", "detection_decimation",
+        # ── Qualification des objets (couleur, taille, profondeur — 2026-11-24) ──
+        "qualify_objects", "qualify_depth",
         # ── Ce qu'on floute parmi ce qui est détecté ──
-        "blur_skip_labels",
+        "blur_skip_labels", "blur_skip_colors", "blur_skip_sizes", "blur_skip_planes",
         # ── Comment flouter ──
         "blur_ratio", "rounded_edges", "roi_enlargement", "progressive_blur",
         # ── Temporel (vidéo) ──
@@ -93,8 +97,12 @@ PARAMS = derive_from_model(
             type="textarea", label="Ce qu'il faut anonymiser", icon="fa-comment-dots",
             dom_id={"panel": "user_setting_sam3_prompt"}, group="description",
             show_if={"field": "target_mode", "equals": "description"},
-            help="Décrivez-le avec vos mots — ex. « les visages et les plaques, les logos ». "
-                 "Le système le comprend, puis choisit le modèle qui cherche chaque chose.",
+            help="Les cibles proposées sont cochées d'office : décochez-en, ajoutez les vôtres, ou "
+                 "décrivez avec vos mots. Le système comprend la description, puis choisit le "
+                 "modèle qui cherche chaque chose.",
+            # La palette des cibles proposées (2026-11-24) : celle que la déclaration du champ
+            # nomme (`PROMPT_TARGETS[...]['vocabulary']`), rendue par `WamaParams`.
+            keywords=keywords_palette("anonymizer", "sam3_prompt"),
             stales=("detect",),
         ),
         # Menu de modèle tiré du CATALOGUE (2026-09-27) : les tâches qui localisent ce qu'on
@@ -148,6 +156,48 @@ PARAMS = derive_from_model(
                         "peut flouter.",
             help="Ce que la détection a trouvé sur ce média. Décocher ce qu'on veut laisser net : "
                  "seul le floutage est refait, sans redétecter.",
+            stales=("blur",),
+        ),
+        # La QUALIFICATION (2026-11-24, `ROADMAP §17quater` B) : l'interrupteur de son process
+        # (`ProcessSpec.toggle`), et la profondeur, qui demande un modèle (installé par la route).
+        "qualify_objects": dict(
+            type="toggle", label="Qualifier les objets (couleur, taille)", icon="fa-palette",
+            group="qualify",
+            help="Dit la couleur majoritaire et la taille de chaque objet détecté : « Ce qu'on "
+                 "floute » peut alors laisser net une couleur, une taille. Aucun modèle n'est "
+                 "chargé ; changer ce qu'on floute ne refait que le floutage.",
+            stales=("qualify",),
+        ),
+        "qualify_depth": dict(
+            type="toggle", label="Avec la profondeur (premier plan / arrière-plan)",
+            icon="fa-layer-group", group="qualify",
+            show_if={"field": "qualify_objects", "equals": True},
+            help="Situe chaque objet au premier plan ou à l'arrière-plan de la scène, par un "
+                 "modèle de profondeur (une image par seconde sur une vidéo).",
+            stales=("qualify",),
+        ),
+        "blur_skip_colors": dict(
+            type="multiselect", label="Couleurs floutées", icon="fa-palette", group="mode",
+            contexts=("item",), default=[],
+            options_from={"port": "detections", "property": "colors"}, stores_unchecked=True,
+            empty_label="La qualification dira les couleurs des objets.",
+            help="Décocher une couleur laisse net les objets de cette couleur.",
+            stales=("blur",),
+        ),
+        "blur_skip_sizes": dict(
+            type="multiselect", label="Tailles floutées", icon="fa-up-right-and-down-left-from-center",
+            group="mode", contexts=("item",), default=[],
+            options_from={"port": "detections", "property": "sizes"}, stores_unchecked=True,
+            empty_label="La qualification dira la taille des objets.",
+            help="small : moins de 1 % de l'image ; large : au moins 10 %.",
+            stales=("blur",),
+        ),
+        "blur_skip_planes": dict(
+            type="multiselect", label="Plans floutés", icon="fa-layer-group", group="mode",
+            contexts=("item",), default=[],
+            options_from={"port": "detections", "property": "planes"}, stores_unchecked=True,
+            empty_label="La qualification avec profondeur dira le plan des objets.",
+            help="foreground : plus proche que le milieu de la scène ; background : au-delà.",
             stales=("blur",),
         ),
         "detection_threshold": dict(

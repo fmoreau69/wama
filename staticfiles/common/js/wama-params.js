@@ -335,8 +335,14 @@
         ' data-write-for="' + esc(api.id) + '" data-write-from="' + esc(JSON.stringify(p.write_from)) +
         '"><i class="fas fa-pen-nib me-1"></i>' + esc(p.write_from.label || 'Écrire') + '</button>'
       : '';
+    // La PALETTE de mots-clés que le champ déclare (`Param.keywords`, 2026-11-24) : son hôte sous
+    // lui, montée par `_bindKeywords` — un mot présent dans le texte s'allume (pré-coché).
+    const keywords = p.keywords
+      ? '<div class="wama-prompt-keywords mt-1" data-keywords-for="' + esc(api.id) +
+        '" data-keywords="' + esc(JSON.stringify(p.keywords)) + '"></div>'
+      : '';
     return '<textarea class="form-control form-control-sm" id="' + api.id + '" ' + api.idAttr +
-      ' rows="2">' + esc(api.value) + '</textarea>' + write;
+      ' rows="2">' + esc(api.value) + '</textarea>' + keywords + write;
   });
 
   // L'UNITÉ déclarée se lit à côté de la valeur (2026-10-12) : un champ nombre la taisait — seul
@@ -1140,6 +1146,7 @@
     _bindProcessNeeds(container, schema, ctx);
     _bindProcessSwitches(container);
     _bindWriteFrom(container);
+    _bindKeywords(container);
     _bindDefaultFrom(container, schema, ctx);
     _bindOptionSources(container, schema, ctx, null, values);
     _avertirSourcesNonResolues(container, params, ctx);
@@ -2300,6 +2307,32 @@
   // à relire et enregistrer comme une saisie. Un seul écouteur délégué par conteneur. L'appel passe
   // par les briques de `wama-app-base.js` (`csrfFetch`, `jsonOrExplain` : une page d'erreur se DIT).
   var WRITE_ENDPOINT = '/common/api/write-lyrics/';
+
+  // La palette de mots-clés sous un champ qui la DÉCLARE (`Param.keywords`, 2026-11-24) : la brique
+  // commune `WamaPromptChips`, chargée à la demande (le serveur dit son script et sa feuille),
+  // ouverte — les cibles proposées se voient cochées d'office.
+  function _bindKeywords(container) {
+    if (!container || !container.querySelectorAll) return;
+    container.querySelectorAll('.wama-prompt-keywords[data-keywords-for]').forEach(function (host) {
+      if (host._wpKeywordsBound) return;
+      host._wpKeywordsBound = true;
+      var cfg = JSON.parse(host.getAttribute('data-keywords') || '{}');
+      var field = container.querySelector('#' + CSS.escape(host.getAttribute('data-keywords-for')));
+      if (!field) return;
+      var App = global.WamaApp || {};
+      if (cfg.style && App.loadStyle) App.loadStyle(cfg.style);
+      var ready = global.WamaPromptChips ? Promise.resolve()
+        : (cfg.script && App.loadScript
+           ? App.loadScript(cfg.script, function () { return !!global.WamaPromptChips; })
+           : Promise.reject(new Error('palette indisponible')));
+      ready.then(function () {
+        global.WamaPromptChips.init({ container: host, target: field, domain: cfg.domain || '',
+                                      only: !!cfg.only, collapsed: false });
+      }).catch(function (e) {
+        console.warn('[WamaParams] palette de mots-clés non montée', e && e.message);
+      });
+    });
+  }
 
   function _bindWriteFrom(container) {
     if (!container || container._wpWriteBound || !container.addEventListener) return;

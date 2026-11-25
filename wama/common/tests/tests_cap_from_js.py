@@ -1157,6 +1157,18 @@ class ProcessSectionsTest(SimpleTestCase):
         self.assertLess(out.index('wama-write-from'), out.index('wp-panel-notes'),
                         'the button belongs to its own field only')
 
+    def test_a_field_with_a_palette_gets_its_host_and_no_other_does(self):
+        """`Param.keywords` (2026-11-24, targets offered checked) : the palette host under ITS
+        field, carrying its declaration ; a plain text area has none (counter-proof)."""
+        cfg = {'domain': 'anonymization', 'only': True, 'script': '/s/chips.js'}
+        out = self._rendered([{'name': 'targets', 'type': 'textarea', 'keywords': cfg},
+                              {'name': 'notes', 'type': 'textarea'}], processes='[]')
+        self.assertEqual(1, out.count('class="wama-prompt-keywords mt-1"'))
+        self.assertIn('data-keywords-for="wp-panel-targets"', out)
+        self.assertIn('anonymization', out)
+        self.assertLess(out.index('wp-panel-targets'), out.index('wama-prompt-keywords'))
+        self.assertLess(out.index('wama-prompt-keywords'), out.index('wp-panel-notes'))
+
     def test_declared_groups_live_inside_the_section_of_each_step(self):
         """The imager, the anonymizer, the converter declare groups (ParamGroup) : they KEEP them,
         inside the section of each step ; a sub-group named like its section loses its title, not

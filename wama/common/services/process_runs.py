@@ -314,7 +314,9 @@ def _read_detections(output_type: str, output_ref: str):
 #: Les PROPRIÉTÉS qu'une sortie typée donne à lire (`Param.options_from`) : `{type: (propriété,
 #: …)}`, chacune une fonction de `common/utils/detections` qui prend le document. Une propriété
 #: neuve se déclare ici, jamais dans une app.
-OUTPUT_PROPERTIES = {'detections': ('labels',)}
+#: Les attributs d'une qualification (couleur, taille, plan — `detection_attributes`, 2026-11-24)
+#: se lisent comme les libellés : un réglage les choisit parmi ce qui a été qualifié.
+OUTPUT_PROPERTIES = {'detections': ('labels', 'colors', 'sizes', 'planes')}
 
 
 def output_property(output_type: str, output_ref: str, prop: str) -> list:

@@ -25,6 +25,13 @@ def default_classes2blur():
     return ["face"]
 
 
+#: Ce qu'une card neuve décrit : les cibles que l'anonymizer propose d'office, pré-cochées dans la
+#: palette (`app_metadata.default_prompt`, 2026-11-24). Une constante calculée à l'import : un
+#: défaut CALCULÉ n'atteindrait pas le schéma (`param_schema` rend `None` pour un callable).
+from wama.common.utils.app_metadata import default_prompt  # noqa: E402
+DEFAULT_DESCRIPTION = default_prompt('anonymizer', 'sam3_prompt')
+
+
 class Media(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
     # Partage F7 (PROFILES_PERMISSIONS §7.4bis) : lectures via visible_to()/visible_or_404,
     # mutations inchangées (filtrées par user) → lecture seule par construction.
@@ -80,6 +87,20 @@ class Media(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
     # et un objet qu'une détection relancée trouve en plus l'est aussi. Le changer ne périme que le
     # floutage (`stales`). `db_default` : le code d'avant le rechargement crée des médias sans lui.
     blur_skip_labels = models.JSONField(blank=True, default=list, db_default=[])
+    # La QUALIFICATION des objets détectés (2026-11-24, `ROADMAP §17quater` B, décision de Fabien :
+    # « couleur et profondeur d'abord ») — une étape OPTIONNELLE entre la détection et le
+    # floutage (`function_specs`, process `qualify`) : couleur majoritaire et taille de chaque
+    # objet, et son plan (premier / arrière) quand la profondeur est demandée — un modèle de
+    # profondeur, installé par la route. Son document (`qualified_file`) est celui que le floutage
+    # lit (`upstream_output`) ; « Ce qu'on floute » choisit aussi parmi ses attributs — les
+    # valeurs DÉCOCHÉES, comme les libellés : un objet d'une couleur nouvelle reste flouté.
+    qualify_objects = models.BooleanField(default=False, db_default=False)
+    qualify_depth = models.BooleanField(default=False, db_default=False)
+    qualified_file = models.FileField(upload_to=upload_to_user_output('anonymizer'),
+                                      max_length=500, blank=True, default='', db_default='')
+    blur_skip_colors = models.JSONField(blank=True, default=list, db_default=[])
+    blur_skip_sizes = models.JSONField(blank=True, default=list, db_default=[])
+    blur_skip_planes = models.JSONField(blank=True, default=list, db_default=[])
     # Domaine DOCUMENT (2026-11-02) — l'étape commune « OCR des scans et des images »
     # (`ocr_process`) : son interrupteur, que le fichier PROPOSE (`Param.default_from`, propriété
     # `needs_ocr` : un PDF scanné le coche), et les lignes qu'elle a lues, relues par la détection
@@ -149,14 +170,20 @@ class Media(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
     # MODE de l'élément (`app_modes`, `mode_param` du domaine `image_video`) : COMMENT on désigne
     # ce qu'il faut flouter — une liste de classes, ou une description en texte. Remplace le
     # booléen `use_sam3` (2026-09-27), qui nommait une famille de modèles au lieu du choix.
-    TARGET_MODES = [('classes', 'Classes'), ('description', 'Description')]
+    TARGET_MODES = [('description', 'Description'), ('classes', 'Classes (avancé)')]
     # `db_default` : le code d'AVANT le rechargement crée des médias sans connaître ce champ —
     # sans défaut côté base, l'insertion échouait sur NOT NULL (même précaution que `vad_mode`).
-    target_mode = models.CharField(max_length=16, choices=TARGET_MODES, default='classes',
-                                   db_default='classes', verbose_name='Désignation')
+    # La DESCRIPTION par défaut depuis le 2026-11-24 (décision de Fabien, `ROADMAP §17quater` (1) :
+    # « la description par défaut, les classes en Avancé ») ; elle naît avec les cibles que
+    # l'anonymizer propose d'office (`DEFAULT_DESCRIPTION`), donc jamais vide.
+    target_mode = models.CharField(max_length=16, choices=TARGET_MODES, default='description',
+                                   db_default='description', verbose_name='Désignation')
 
     # (`use_sam3` RETIRÉ le 2026-09-27, converti en `target_mode` — REMOVAL_LEDGER R73.)
+    # Défaut : les cibles proposées PRÉ-COCHÉES (2026-11-24, décision de Fabien) — lues de LA
+    # déclaration du champ (`PROMPT_TARGETS[...]['vocabulary']`), jamais recopiées ici.
     sam3_prompt = models.TextField(
+        default=DEFAULT_DESCRIPTION,
         blank=True,
         null=True,
         verbose_name='SAM3 Text Prompt',

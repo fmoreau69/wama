@@ -43,6 +43,19 @@ register(FunctionSpec(
                       description="Les objets détectés, frame par frame (boîte, contour, piste).")]))
 
 register(FunctionSpec(
+    key='anonymizer.qualify', name='Anonymizer — qualifier les objets',
+    description="Dit, de chaque objet détecté, sa couleur majoritaire, sa taille et — profondeur "
+                "demandée — son plan (premier / arrière) : des attributs déterministes rangés dans "
+                "le document de détections (`common/utils/detection_attributes`), que le "
+                "floutage choisit sans redétecter.",
+    category=FC.TRANSFORM, binding=Binding.APP, app=_APP, impl=_IMPL,
+    tags=['image', 'video', 'detection', 'attributes'],
+    inputs=[PortSpec('work_media', 'video', description="L'image ou la vidéo détectée."),
+            PortSpec('detections', 'detections', description="Les objets à qualifier.")],
+    outputs=[PortSpec('detections', 'detections',
+                      description="Les mêmes objets, chacun avec ses attributs.")]))
+
+register(FunctionSpec(
     key='anonymizer.blur', name='Anonymizer — flouter',
     description="Floute le média selon ses détections : au contour quand elles en portent un, au "
                 "rectangle sinon, trous d'une piste interpolés. Aucun modèle n'est chargé.",
@@ -129,7 +142,14 @@ PIPELINE = register_app_pipeline(_APP, (
     ProcessSpec('detect', label='Détection', watched=DETECT_WATCHED, gpu=True, share=7,
                 outputs=('detections_file',), eta='anonymizer.tasks:anonymizer_eta_key_size',
                 domains=MEDIA_DOMAINS),
-    ProcessSpec('blur', label='Floutage', depends_on=('detect',), watched=BLUR_WATCHED, share=3,
+    # La QUALIFICATION (2026-11-24, `ROADMAP §17quater` B) : optionnelle, à interrupteur. Le
+    # floutage lit le PLUS PROCHE amont qui rend des détections (`upstream_output`) : les objets
+    # qualifiés quand elle a lieu, ceux de la détection sinon.
+    ProcessSpec('qualify', label='Qualification', depends_on=('detect',), degree='optional',
+                toggle='qualify_objects', gpu=True, share=2, outputs=('qualified_file',),
+                domains=MEDIA_DOMAINS),
+    ProcessSpec('blur', label='Floutage', depends_on=('detect', 'qualify'), watched=BLUR_WATCHED,
+                share=3,
                 outputs=('output_file',), eta='anonymizer.tasks:blur_eta',
                 domains=MEDIA_DOMAINS),
     output_spec(depends_on=('blur',), domains=MEDIA_DOMAINS),

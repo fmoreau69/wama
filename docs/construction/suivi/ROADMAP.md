@@ -4727,8 +4727,44 @@ Detector et l'annotation du monde Data le reprennent sans copie.
   garde ramenée au commun (`tests_shared_reads.TheModalsPostTheDisplayedFaceTest`) ; la règle de
   découpage gardée là où elle l'était (`tests_sam3_concepts`).
 
-**Restes nommés (2026-11-24)** : ⏳ A.5 et la décision (2) ; ⏳ la forme structurée à attributs
-avec B ; ✅ jumelle `anonymizer_01` régénérée (`app_sandbox substitute anonymizer_01 apps`, ses
+**Décision de Fabien (2026-11-25)** : (2) **OUI** — les cibles proposées d'office en chips
+PRÉ-COCHÉES (*« vu qu'on travaille ici sur l'anonymizer, les classes à flouter pour l'anonymisation
+sont souvent les mêmes »*) ; puis B.
+
+**Livré le 2026-11-25** :
+- **A.5** ✅ les cibles proposées sont DÉCLARÉES une fois, sur le champ (`PROMPT_TARGETS[...]
+  ['vocabulary']`, `app_metadata.py`) : visages, plaques d'immatriculation, textes, logos, écrans
+  cochés ; tatouages, badges, documents, personnes offerts — chacune avec son concept. Lue par :
+  le défaut d'une card neuve (`Media.sam3_prompt` = `default_prompt`, `target_mode` = description,
+  les classes en second mode « Classes (avancé) », `app_modes`) ; la PALETTE sous le champ
+  (`Param.keywords`, rendue par `WamaParams` → `WamaPromptChips`, mots-clés système semés par
+  `seed_prompt_keywords`, palette d'UN domaine `only`, un mot-clé perso ajouté y reste) ; la
+  COMPRÉHENSION — un terme déclaré se comprend sans LLM (`_vocabulary_split`, à côté des paroles
+  épargnées), seul le texte libre part à la pipeline ; la modale montre « Compris » dès la
+  naissance de la card (`description_plan`). Barrière sur vos images, LLM COUPÉ (copies non
+  enregistrées) : #1436 6 = 6 visages (+ 3 plaques), `faces_02` 1842 = 1842 (+ 6 textes, 1 logo).
+  ⚠ Les cards neuves floutent davantage par défaut (textes, logos, écrans : SAM3 en plus) ; le
+  coût vidéo n'est pas mesuré.
+- **B** 🔄 (couleur, taille, profondeur) : l'étape « Qualification », optionnelle, entre détection
+  et floutage (`function_specs`, process `qualify`, interrupteur `qualify_objects`, profondeur
+  `qualify_depth`) ; les attributs DÉTERMINISTES dans le document (`attrs`, brique commune sans
+  Django `common/utils/detection_attributes.py` : couleur majoritaire des pixels de l'objet,
+  part de l'image, plan par la médiane de la carte de profondeur — moteur commun `depth_engine`,
+  modèle installé par la route, une image par seconde, la piste reprend le plan mesuré) ; lus
+  comme les libellés (`detections.colors/sizes/planes`, `OUTPUT_PROPERTIES`) ; « Ce qu'on
+  floute » les choisit sans redétecter (`blur_skip_colors/sizes/planes`,
+  `detections.without_attributes` — un objet sans l'attribut reste flouté). Le floutage lit le
+  plus proche amont qui rend des détections (`upstream_output`), plus le champ seul.
+
+**Restes nommés (2026-11-25)** : ⏳ B : tirer les attributs de la DESCRIPTION (« la voiture rouge »
+→ concept + couleur, skill `anonymizer-detection`), puis relations et rang ; jouer la qualification
+avec profondeur sur une vraie vidéo (non fait) ; ⏳ le compte 22 a enregistré une description VIDE
+en mode Description (réglage du volet, antérieur) : ses cards neuves ne décrivent rien — à lui
+dire, rien n'est touché ; ⏳ la jumelle `anonymizer_01` n'a ni les champs de la qualification ni
+le défaut (copies du 23/11, tests propres déjà cassés à l'import).
+
+**Restes nommés (2026-11-24)** : ✅ A.5 et la décision (2) (2026-11-25) ; ⏳ la forme structurée à
+attributs avec B ; ✅ jumelle `anonymizer_01` régénérée (`app_sandbox substitute anonymizer_01 apps`, ses
 champs de port, `TWINS_AWAITING_PROJECTION` vidé) après le commit des champs neufs de `Media` ;
 ⏳ ses tests PROPRES échouent à l'import — `tasks.py`/`views.py` générés le 23/11 sans les fonctions
 que les tests copiés de la source appellent (`detect_media`, `new_media_settings`, `process_media`,

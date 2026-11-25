@@ -2069,10 +2069,14 @@ MECHANISMS = (
               "(`max_extrapolation`, réglage séparé). Recouvrement, courbe et extrapolation sont "
               "les primitives communes de `wama_data/functions` (`box_iou`, `hermite_gap`, "
               "`extrapolate_speed_accel`), celles du cam_analyzer. Sans Django ni app : la Data "
-              "et le Lab peuvent le lire",
+              "et le Lab peuvent le lire. 2026-11-24 (`ROADMAP §17quater` B) : les ATTRIBUTS "
+              "d'un objet — couleur majoritaire, taille, plan par la profondeur — rangés dans le "
+              "document (`attrs`, `detection_attributes.qualify`), lus comme les libellés "
+              "(`colors`, `sizes`, `planes`) et choisis sans redétecter (`without_attributes`)",
               'wama/common/utils/detections.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6',
-              annexes=('wama/common/utils/blur_utils.py',),
+              annexes=('wama/common/utils/blur_utils.py',
+                       'wama/common/utils/detection_attributes.py'),
               depends_on=('video_render',)),
     Mechanism('video_render', "Rendu vidéo image par image, à horodatages d'origine",
               "Réécrit une vidéo en passant chaque image par une transformation de l'app, en UN "

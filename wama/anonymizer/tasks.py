@@ -162,7 +162,8 @@ def process_single_media(self, media_id, force_individual=False, process=None):
             forget_lost_generation(known, 'output_file', 'blur')
         run_item_task(self, app_id='anonymizer', model=Media, item_id=media_id,
                       pipeline=PIPELINE,
-                      processes={'detect': _detect, 'blur': _blur, 'output': _output,
+                      processes={'detect': _detect, 'qualify': _qualify, 'blur': _blur,
+                                 'output': _output,
                                  'ocr': _ocr, 'detect_text': _detect_personal_data,
                                  'occult_text': _occult_text},
                       notify_label='Anonymizer', only=process,
@@ -276,6 +277,12 @@ def description_plan(media) -> list:
     if media.target_mode != 'description':
         return []
     concepts = prompt_concepts(getattr(media, 'sam3_prompt_processed', '') or '')
+    if not concepts:
+        # Rien de compris encore : une description faite des seuls termes PROPOSÉS (la palette,
+        # le défaut) se comprend par la déclaration, sans LLM (`app_metadata.vocabulary_concepts`).
+        from wama.common.utils.app_metadata import vocabulary_concepts
+        known, rest = vocabulary_concepts('anonymizer', 'sam3_prompt', media.sam3_prompt)
+        concepts = known if not str(rest or '').strip() else []
     if not concepts:
         return []
     designated = catalogue_key_for(media.model_to_use)
@@ -652,6 +659,84 @@ def _detect(media, ctx):
     }
 
 
+def _upstream_detections(media, process_key):
+    """Le document de détections que le process LIT : la sortie du plus proche amont qui en rend
+    (`AppPipeline.upstream_output` — la qualification quand elle a lieu, sinon la détection),
+    jamais le champ seul (`output_of`, 2026-10-21)."""
+    from django.conf import settings
+    from wama.common.utils import detections
+    from .function_specs import PIPELINE
+    rel = PIPELINE.upstream_output(media, process_key, 'detections')
+    if not rel:
+        raise RuntimeError("aucune détection — relancer la détection.")
+    try:
+        return detections.read(os.path.join(settings.MEDIA_ROOT, rel))
+    except (OSError, ValueError) as exc:
+        raise RuntimeError(f"détections illisibles ({exc}) — relancer la détection.") from exc
+
+
+def _qualify(media, ctx):
+    """GLU du process `qualify` (« Qualification », 2026-11-24, `ROADMAP §17quater` B) : chaque
+    objet détecté reçoit sa couleur majoritaire et sa taille, et son plan quand la profondeur est
+    demandée — la brique commune `detection_attributes` ; le modèle de profondeur est installé
+    par la route (`ctx.ensure_model`) et lu par le moteur commun (`depth_engine`). Rien n'est
+    flouté : le floutage relit ce document."""
+    from wama.common.utils import detection_attributes, detections
+    from wama.common.services.output_process import drop_previous_outputs
+    if not media.file:
+        raise ValueError("Média sans fichier (ni URL rapatriée) : rien à qualifier.")
+    try:
+        doc = _upstream_detections(media, 'qualify')
+    except RuntimeError as exc:
+        raise RuntimeError(f"Qualification : {exc}") from exc
+    user = media.user
+    depth = None
+    if media.qualify_depth:
+        from wama.common.backends import depth_engine
+        key = depth_engine.DEFAULT_DEPTH_MODEL
+        ctx.ensure_model(f'huggingface:{key}')
+        depth = lambda image: depth_engine.estimate_depth(image, model_key=key)[0]   # noqa: E731
+        doc['depth_metric'] = bool(depth_engine.depth_model_spec(key)['metric_scale'])
+    video = doc.get('media') == 'video'
+    frame_numbers = [frame['i'] for frame in doc.get('frames') or []]
+    _console(user.id, f"Qualification — {len(frame_numbers)} image(s) à qualifier…")
+    ctx.progress(2)
+    total = max(len(frame_numbers), 1)
+
+    def frames():
+        for done, item in enumerate(detection_attributes.iter_frames(
+                media.file.path, frame_numbers, media='video' if video else 'image')):
+            ctx.progress(min(99, int((done + 1) * 100 / total)))
+            yield item
+
+    # Une vidéo : la profondeur une image par seconde (le plan d'un objet suivi se reprend sur sa
+    # piste) ; une image : sur elle.
+    step = max(1, int(round(float(doc.get('fps') or 0)))) if video else 1
+    qualified = detection_attributes.qualify(doc, frames(), depth=depth, depth_every=step)
+    rel, target = ctx.output_place('.json', nature='detections', source_name=media.file.path,
+                                   model='qualified')
+    detections.write(target, qualified)
+    drop_previous_outputs(media, 'qualified_file', keep=[target], natives=False)
+    media.qualified_file.name = rel
+    said = ', '.join(f"{name} : {', '.join(getattr(detections, prop)(qualified)) or '—'}"
+                     for name, prop in (('couleurs', 'colors'), ('tailles', 'sizes'),
+                                        ('plans', 'planes'))
+                     if name != 'plans' or depth is not None)
+    _console(user.id, f"Qualification — {said}")
+    return {
+        'fields': {'qualified_file': rel},
+        'output_ref': rel,
+        'label': os.path.basename(getattr(media.file, 'name', '') or '') or f"média #{media.id}",
+        'console_success': "Qualification ✔",
+        'models': [f'huggingface:{depth_engine.DEFAULT_DEPTH_MODEL}'] if depth is not None else None,
+    }
+
+
+#: « Ce qu'on floute » sur les ATTRIBUTS d'une qualification : réglage → attribut écarté.
+SKIPPED_ATTRIBUTES = {'blur_skip_colors': 'color', 'blur_skip_sizes': 'size',
+                      'blur_skip_planes': 'plane'}
+
+
 def _blur(media, ctx):
     """GLU du process `blur` (« Floutage », 2026-10-04) : le média réécrit depuis son document de
     détections — intensité, contour progressif, agrandissement de la zone, interpolation des
@@ -663,13 +748,12 @@ def _blur(media, ctx):
     from wama.common.utils.blur_utils import blur_detections
     if not media.file:
         raise ValueError("Média sans fichier (ni URL rapatriée) : rien à traiter.")
-    if not media.detections_file:
-        raise RuntimeError("Floutage : aucune détection — relancer la détection.")
+    # Le plus proche amont qui rend des détections : la QUALIFICATION quand elle a lieu, sinon la
+    # détection (`upstream_output`, 2026-11-24).
     try:
-        doc = detections.read(media.detections_file.path)
-    except (OSError, ValueError) as exc:
-        raise RuntimeError(f"Floutage : détections illisibles ({exc}) — relancer la "
-                           "détection.") from exc
+        doc = _upstream_detections(media, 'blur')
+    except RuntimeError as exc:
+        raise RuntimeError(f"Floutage : {exc}") from exc
     # Les corrections humaines (page de correction, chantier SURFACES) : une couche à part,
     # réappliquée ici à chaque floutage — une détection relancée ne les perd pas.
     doc = detections.apply_corrections(doc, media.detection_corrections)
@@ -677,6 +761,12 @@ def _blur(media, ctx):
     # la détection a trouvé, sans la refaire. Une zone ajoutée à la main suit sa classe.
     skipped = list(getattr(media, 'blur_skip_labels', None) or [])
     doc = detections.without_labels(doc, skipped)
+    # …et les ATTRIBUTS décochés d'une qualification (2026-11-24) — un objet non qualifié, ou qui
+    # ne porte pas l'attribut, reste flouté.
+    by_attribute = {attr: list(getattr(media, name, None) or [])
+                    for name, attr in SKIPPED_ATTRIBUTES.items()}
+    doc = detections.without_attributes(doc, by_attribute)
+    skipped += [value for values in by_attribute.values() for value in values]
     user = media.user
     if skipped:
         _console(user.id, f"Floutage : laissé net — {', '.join(skipped)}", 'info')

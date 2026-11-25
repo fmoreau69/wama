@@ -89,6 +89,24 @@ class KeywordProvenanceTest(TestCase):
                          (copy.owner_id, copy.visibility, copy.source['copied_from']))
         self.assertIn('aquarelle', {k.text for k in keywords.palette_keywords(self.other)})
 
+    def test_a_palette_of_one_domain_shows_that_domain_only_and_keeps_what_is_added_there(self):
+        """2026-11-24 : the targets of a detector (`only`) never show the trunk of the image
+        generators ; a keyword added under such a palette stays in its domain."""
+        from .. import keywords
+        from ..management.commands.seed_prompt_keywords import declared_vocabularies
+        domain, category, words = declared_vocabularies()[0]
+        PromptKeyword.objects.create(category=category, text=words[0], domain=domain,
+                                     visibility=PromptKeyword.VIS_PUBLIC)
+        self.assertEqual({words[0]}, {k.text for k in keywords.palette_keywords(
+            self.other, domain, only=True)})
+        self.assertIn('cinématique', {k.text for k in keywords.palette_keywords(self.other, domain)},
+                      'without `only`, the trunk is still offered (counter-proof)')
+        self.client.force_login(self.author)
+        self.client.post('/media-library/api/keywords/add/',
+                         {'text': 'blouses', 'category': category, 'domain': domain})
+        self.assertIn('blouses', {k.text for k in keywords.palette_keywords(
+            self.author, domain, only=True)})
+
     def test_an_administrator_promotes_and_nobody_deletes_the_trunk(self):
         from .. import keywords
         mine = keywords.create(self.author, 'heure bleue', 'light')

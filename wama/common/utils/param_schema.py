@@ -258,6 +258,14 @@ class Param:
                                                 # `common:write_lyrics` — la MÊME fonction
                                                 # (`write_lyrics_for`) que l'étape du pipeline qui les écrit
                                                 # au lancement quand le champ est resté vide.
+    keywords: Optional[dict] = None             # Un champ-prompt sous lequel se pose la PALETTE de
+                                                # mots-clés (`WamaPromptChips`, 2026-11-24) :
+                                                # `{"domain": "<domaine des mots-clés>", "only": bool}`
+                                                # — `only` : ceux de ce domaine SEULS (sans le tronc
+                                                # des générateurs d'images). Un mot présent dans le
+                                                # texte s'allume : un défaut qui les porte est une
+                                                # palette PRÉ-COCHÉE. Lu de la déclaration du champ
+                                                # (`app_metadata.keywords_palette`).
     stales: Optional[Tuple[str, ...]] = None    # Process du pipeline de l'app que ce réglage PÉRIME quand il
                                                 # change (2026-10-05, forme demandée par la session pipeline) :
                                                 # `('plan', 'render')`. `ProcessSpec.watched` en est DÉRIVÉ

@@ -294,6 +294,51 @@ def without_labels(doc: dict, skip) -> dict:
     return out
 
 
+def _attribute_values(doc: dict, name: str, order) -> list:
+    """Les valeurs de l'attribut `name` (`detection_attributes`) que portent les détections, dans
+    l'ordre du vocabulaire de l'attribut."""
+    seen = {(det.get('attrs') or {}).get(name)
+            for frame in doc.get('frames') or [] for det in frame.get('d') or []}
+    return [value for value in order if value in seen]
+
+
+def colors(doc: dict) -> list:
+    """Les COULEURS majoritaires des objets qualifiés (2026-11-24, `ROADMAP §17quater` B)."""
+    from wama.common.utils.detection_attributes import COLORS
+    return _attribute_values(doc, 'color', COLORS)
+
+
+def sizes(doc: dict) -> list:
+    """Les TAILLES des objets qualifiés (petit, moyen, grand)."""
+    from wama.common.utils.detection_attributes import SIZES
+    return _attribute_values(doc, 'size', SIZES)
+
+
+def planes(doc: dict) -> list:
+    """Les PLANS des objets qualifiés (premier plan, arrière-plan)."""
+    from wama.common.utils.detection_attributes import PLANES
+    return _attribute_values(doc, 'plane', PLANES)
+
+
+def without_attributes(doc: dict, skip) -> dict:
+    """Le document SANS les détections dont un attribut vaut une valeur écartée — `skip` :
+    `{attribut: [valeurs]}` (`{'color': ['red'], 'plane': ['background']}`). Une copie, l'original
+    intact, comme `without_labels`. Une détection qui ne porte pas l'attribut (pas qualifiée, trop
+    petite pour dire sa couleur) n'est JAMAIS écartée : ce qu'on n'a pas vu n'est pas laissé net."""
+    skip = {name: set(values) for name, values in (skip or {}).items() if values}
+    if not skip:
+        return doc
+    out = dict(doc)
+    out['frames'] = []
+    for frame in doc.get('frames') or []:
+        kept = [d for d in frame.get('d') or []
+                if not any((d.get('attrs') or {}).get(name) in values
+                           for name, values in skip.items())]
+        if kept:
+            out['frames'].append({**frame, 'd': kept})
+    return out
+
+
 def objects_by_label(doc: dict, *, window: int = None) -> dict:
     """{libellé: nombre d'OBJETS} — ce que la card dit avoir trouvé (2026-11-19, Fabien : « voir
     directement sur les cards les classes des objets détectés »). Une image (ou un texte) : ses

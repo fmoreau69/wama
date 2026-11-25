@@ -2155,11 +2155,11 @@ Le rôle `backend` (wama-dev-ai/run_backend.py) écrit le backend d'un modèle i
 
 ### Document de détections (type `detections` sur disque)
 
-Les objets détectés d'un média, frame par frame (boîte, contour en polygones, piste) — le type de donnée commun `detections` écrit sur disque (2026-10-04, décision de Fabien : détection et floutage séparés dans l'anonymizer). Écrit par un process « Détection », relu par le floutage (`blur_utils.blur_detections` ; les formes segmentées toutes ensemble, `blur_shapes`, mêmes finitions qu'un rectangle ; réécriture image par image `rewrite_media`) et par l'aperçu (`draw`) ; interpolation des trous d'un objet à la lecture (`by_frame`, la forme suit la boîte déduite) — même objet par la piste OU par une position plausible, le réglage seul pour limite, le centre comblé en COURBE (2026-10-05, card #1026) ; et PROLONGÉ de quelques images avant sa première détection et après sa dernière (`max_extrapolation`, réglage séparé). Recouvrement, courbe et extrapolation sont les primitives communes de `wama_data/functions` (`box_iou`, `hermite_gap`, `extrapolate_speed_accel`), celles du cam_analyzer. Sans Django ni app : la Data et le Lab peuvent le lire
+Les objets détectés d'un média, frame par frame (boîte, contour en polygones, piste) — le type de donnée commun `detections` écrit sur disque (2026-10-04, décision de Fabien : détection et floutage séparés dans l'anonymizer). Écrit par un process « Détection », relu par le floutage (`blur_utils.blur_detections` ; les formes segmentées toutes ensemble, `blur_shapes`, mêmes finitions qu'un rectangle ; réécriture image par image `rewrite_media`) et par l'aperçu (`draw`) ; interpolation des trous d'un objet à la lecture (`by_frame`, la forme suit la boîte déduite) — même objet par la piste OU par une position plausible, le réglage seul pour limite, le centre comblé en COURBE (2026-10-05, card #1026) ; et PROLONGÉ de quelques images avant sa première détection et après sa dernière (`max_extrapolation`, réglage séparé). Recouvrement, courbe et extrapolation sont les primitives communes de `wama_data/functions` (`box_iou`, `hermite_gap`, `extrapolate_speed_accel`), celles du cam_analyzer. Sans Django ni app : la Data et le Lab peuvent le lire. 2026-11-24 (`ROADMAP §17quater` B) : les ATTRIBUTS d'un objet — couleur majoritaire, taille, plan par la profondeur — rangés dans le document (`attrs`, `detection_attributes.qualify`), lus comme les libellés (`colors`, `sizes`, `planes`) et choisis sans redétecter (`without_attributes`)
 
 - **Domicile** : `wama/common/utils/detections.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Les DÉTECTIONS d'un média, sur disque — le type de donnée commun `detections` (`common/catalog/data_types.DataType.DETECTIONS` : objets détectés par frame — frame, bbox, classe, piste).
-- **API publique** (27) :
+- **API publique** (31) :
   - `new_document(*, media: str, width: int, height: int, fps: float=0.0, frame_count: int=1, engine: str='', models=(), classes=(), prompt: str='') -> dict` — Un document vide, prêt à recevoir ses frames (`add`).
   - `detection(*, box, label: str='', conf: float=1.0, track=None, polygons=None) -> dict` — Une détection au format du document : entiers pour les pixels, confiance arrondie.
   - `text_span(*, start: int, end: int, label: str, conf: float=1.0, sources=()) -> dict` — Une détection dans un TEXTE (2026-10-28, ROADMAP §16.4bis) : le passage `[start, end[` en
@@ -2175,6 +2175,10 @@ Les objets détectés d'un média, frame par frame (boîte, contour en polygones
   - `common_label(label: str) -> str` — Le nom COMMUN d'un libellé de détection (`model_coverage.canonical_class`) : le nom de
   - `labels(doc: dict) -> list` — Les LIBELLÉS que porte le document, sous leur nom COMMUN (`common_label`), dans l'ordre où
   - `without_labels(doc: dict, skip) -> dict` — Le document SANS les détections dont le libellé est dans `skip` — une copie, l'original
+  - `colors(doc: dict) -> list` — Les COULEURS majoritaires des objets qualifiés (2026-11-24, `ROADMAP §17quater` B).
+  - `sizes(doc: dict) -> list` — Les TAILLES des objets qualifiés (petit, moyen, grand).
+  - `planes(doc: dict) -> list` — Les PLANS des objets qualifiés (premier plan, arrière-plan).
+  - `without_attributes(doc: dict, skip) -> dict` — Le document SANS les détections dont un attribut vaut une valeur écartée — `skip` :
   - `objects_by_label(doc: dict, *, window: int=None) -> dict` — {libellé: nombre d'OBJETS} — ce que la card dit avoir trouvé (2026-11-19, Fabien : « voir
   - `mask_to_polygons(mask, epsilon: float=1.0, min_area: float=4.0) -> list` — Contours d'un masque (H×W, 0-1 ou 0-255) en polygones entiers, simplifiés à `epsilon`
   - `points_to_polygons(points, epsilon: float=1.0) -> list` — Un contour donné en points (ultralytics `masks.xy`) → polygones entiers simplifiés.

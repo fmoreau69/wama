@@ -23,18 +23,35 @@ TRUNK = {
 }
 
 
+def declared_vocabularies():
+    """`[(domaine, catégorie, [textes])]` des cibles que les champs-prompts DÉCLARENT
+    (`PROMPT_TARGETS[...]['vocabulary']`, 2026-11-24) — semées comme le tronc, chacune dans son
+    domaine : la palette d'un seul domaine (`only`) les montre seules."""
+    from wama.common.utils.app_metadata import PROMPT_TARGETS
+    out = []
+    for targets in PROMPT_TARGETS.values():
+        for tgt in targets:
+            vocab = tgt.get('vocabulary')
+            if vocab:
+                out.append((vocab['keyword_domain'], vocab['category'],
+                            [t['text'] for t in vocab.get('terms') or ()]))
+    return out
+
+
 class Command(BaseCommand):
     help = "Seed le tronc commun de mots-clés de prompt (PromptKeyword système, owner=None)."
 
     def handle(self, *args, **opts):
         from wama.media_library.models import PromptKeyword
         created = 0
-        for category, words in TRUNK.items():
+        rows = [('', category, words) for category, words in TRUNK.items()]
+        for domain, category, words in rows + declared_vocabularies():
             for i, text in enumerate(words):
                 _, was_created = PromptKeyword.objects.get_or_create(
                     owner=None, category=category, text=text,
                     # Un élément SYSTÈME est public (`catalogue_visible_q`, ROADMAP §29).
-                    defaults={'order': i, 'visibility': PromptKeyword.VIS_PUBLIC},
+                    defaults={'order': i, 'visibility': PromptKeyword.VIS_PUBLIC,
+                              'domain': domain},
                 )
                 created += int(was_created)
         total = PromptKeyword.objects.filter(owner__isnull=True).count()
