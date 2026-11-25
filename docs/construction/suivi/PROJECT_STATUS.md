@@ -32594,3 +32594,33 @@ pas d'ici. **Non vérifié** : la suite large ; HEAD dans un worktree ; aucune i
   commune ;
 - aucune interface ; marche suivante 1quater (lecture bornée à une plage, outil de l'assistant) ;
   🔴 relancer gunicorn + workers reste dû.
+
+## §PALIER — 2026-11-25 (suite), « PISTE DÉRIVÉE : revérification d'après commit » — commité `1238a6f99`, non poussé — corrige deux noms du bloc précédent
+
+Demandée par Fabien (`/reverif`). La question posée à chaque DONNÉE et à chaque DÉCISION du
+livrable — « où WAMA la pose-t-il déjà ? » — a ramené, après le commit `ad62748f7` :
+
+- **`source` était déjà pris.** `wama_data/core/segmentation.margins` trace sous `source`
+  l'origine qu'un segment avait AVANT sa marge (`segmentation.py:505-517`). La piste dérivée
+  écrivait sous ce nom les rangs des marques d'origine, et le réservait au lecteur : la colonne
+  d'un fichier de données aurait été lue `source_`. ⇒ la marque dérivée dit `source_ranks` ;
+  `source` n'est plus un nom réservé. **Le bloc précédent dit encore `source` : lire
+  `source_ranks`** ; les colonnes renommées à la lecture d'un fichier sont `masked`, `parent`
+  et les autres noms de `RESERVED`, pas `source`.
+- **L'origine d'une marque ajoutée** valait `added` ; elle porte le nom de son geste (`add`),
+  comme chaque production du Segmenter porte le nom de son mode (`_trace` : `around`, `join`,
+  `margins`).
+
+Établi sans rien changer : l'étiquette posée par un geste (`label`) est le nom que le codage du
+monde Data écrit déjà (`core/coding.py:260`) ; fermer un segment ouvert « à la fin du porteur »
+ne touche pas la marque (la fermeture tracée reste `segmentation.close`) ; aucune autre mesure
+de recouvrement à une dimension n'existe (celle des boîtes vit dans
+`wama_data/functions/geometry/shapes.box_iou`, que le substrat ne peut pas importer) ; les gestes
+en place du Transcriber (`word_anchoring`) sont d'une autre nature (au mot près) et restent.
+
+**Vérifié.** 1298 tests (périmètre + gardes transverses : identifiants, disposition des tests,
+couverture des outils de l'assistant) : 3 rouges, les trois du budget d'identifiants (+2, toujours
+`common/utils/detection_attributes.py`, non commité, d'une autre session ; la liste nominative ne
+nomme aucune de mes lignes). `QualificationTest` est repassé vert entre-temps. 9 contre-épreuves
+rouges sur 9 pour la reprise (43 sur 43 en tout). `check_docs` : 0 cassée, 1 périmée pas d'ici.
+**Non vérifié** : la suite large ; HEAD dans un worktree ; aucune interface.
