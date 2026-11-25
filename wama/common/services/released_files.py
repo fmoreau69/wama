@@ -169,6 +169,12 @@ def freed_by(instances) -> list:
         # Ce que la card PORTE : ses champs fichier, et les entrées de ses listes de chemins
         # déclarées — la même lecture que le geste lui-même (`release_card_files`).
         names = [rel for _field, rel in card_files(obj)]
+        # … et les fichiers de ses ports sans colonne (table commune des entrées, `port_fields`,
+        # 2026-11-25) : leurs lignes partent avec la card, elles ne comptent pas comme porteurs.
+        from wama.common.utils.port_fields import input_rows
+        for row in input_rows(obj):
+            inside.add((row._meta.label, row.pk))
+            names.append(row.file.name)
         for name in map(_norm, names):
             if (name and owns_file(obj, name)
                     and os.path.isfile(os.path.join(settings.MEDIA_ROOT, name))):

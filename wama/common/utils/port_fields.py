@@ -95,11 +95,13 @@ def ports_sharing(model, field: str) -> list:
 
 def port_value(element, port: str):
     """La valeur de `port` sur `element` : le fichier (`FieldFile`) ou le texte du champ qui le
-    porte ; None quand le port n'a pas de champ, que le champ est vide, ou que le champ, partagé
-    par plusieurs ports, porte un fichier d'une autre nature que celle du port."""
+    porte — ou, pour un port sans colonne, le fichier de son PREMIER rang dans la table commune des
+    entrées (`port_files`) ; None quand rien ne le garde, que le champ est vide, ou que le champ,
+    partagé par plusieurs ports, porte un fichier d'une autre nature que celle du port."""
     field = port_field(element, port)
     if not field:
-        return None
+        files = port_files(element, port)
+        return files[0] if files else None
     value = getattr(element, field, None)
     if not value:
         return None
@@ -114,3 +116,115 @@ def port_value(element, port: str):
         if owner != port:
             return None
     return value
+
+
+# ── LA TABLE COMMUNE DES ENTRÉES (`common.models.ElementInput`, 2026-11-25) ────────────────────────
+# Un port sans colonne garde ses fichiers ici, un rang par fichier. Une seule vérité par port : un
+# port que garde une colonne ne s'écrit jamais dans la table (`store_port_inputs` le range dans sa
+# colonne, la règle d'avant). Adresse de la card : `process_runs.address`, celle de ses lignes
+# d'exécution et de son pipeline étendu.
+
+def _rows(element, port=None):
+    from wama.common.models import ElementInput
+    from wama.common.services.process_runs import address
+    if getattr(element, 'pk', None) is None:
+        return ElementInput.objects.none()
+    rows = ElementInput.objects.filter(**address(element))
+    return rows.filter(port=port) if port else rows
+
+
+def input_rows(element, port=None) -> list:
+    """Les lignes de la table commune des entrées de cette card (d'un port, ou de tous), par port
+    puis par rang. `[]` pour un élément sans identifiant ; ne lève jamais."""
+    try:
+        return list(_rows(element, port).order_by('port', 'rank'))
+    except Exception:
+        return []
+
+
+def port_files(element, port: str) -> list:
+    """Les fichiers de `port` sur `element` : celui de sa colonne quand il en a une (0 ou 1 fichier,
+    `port_value`), sinon ceux de ses lignes dans la table, par rang (N fichiers)."""
+    if port_field(element, port):
+        value = port_value(element, port)
+        return [value] if value else []
+    return [row.file for row in input_rows(element, port)]
+
+
+def store_port_inputs(element, port: str, received) -> int:
+    """Range sur `element` (déjà créé) ce qu'il a REÇU sur `port` — des `ReceivedInput`
+    (`media_paths.received_inputs` / `designate`), dans l'ordre. Le port a une colonne : le premier
+    s'y pose, provenance comprise (`ReceivedInput.assign`, la règle d'avant). Sinon : un rang par
+    fichier dans la table commune, qui REMPLACE les rangs précédents de ce port (ceux qu'ils
+    portaient sont libérés, jamais effacés en silence). Un téléversement s'enregistre dans le
+    dossier d'entrée de l'app de la card ; une désignation pose le chemin désigné. Rend le nombre
+    de fichiers rangés."""
+    from django.db import transaction
+    received = [item for item in (received or []) if item is not None]
+    field = port_field(element, port)
+    if field:
+        if received:
+            received[0].assign(element, field)
+        return 1 if received else 0
+    from wama.common.models import ElementInput
+    from wama.common.services.process_runs import address
+    with transaction.atomic():
+        release_inputs(element, port)
+        for rank, item in enumerate(received):
+            row = ElementInput(**address(element), port=port, rank=rank,
+                               original_name=(item.name or '')[:255], user_id=element.user_id)
+            if item.designated:
+                row.file = item.value
+            else:
+                row.file.save(item.name, item.value, save=False)
+            row.save()
+    return len(received)
+
+
+def release_inputs(element, port=None) -> int:
+    """La card part (ou un port est remplacé) : ses lignes de la table s'oublient, et chacun de
+    leurs fichiers est LIBÉRÉ sous la règle de tout fichier d'une card
+    (`queue_duplication.release_held_file` : il appartient à la card, aucune autre ligne ne le
+    porte) — annoncé, jamais effacé en silence. Rend le nombre de fichiers libérés ; ne lève
+    jamais."""
+    released = 0
+    try:
+        from wama.common.utils.queue_duplication import release_held_file
+        for row in input_rows(element, port):
+            if release_held_file(element, row.file.name, holder=row, holder_field='file',
+                                 origin=f'port {row.port}'):
+                released += 1
+            row.delete()
+    except Exception:
+        import logging
+        logging.getLogger(__name__).warning('[port_fields] entrées de %s non libérées', element,
+                                            exc_info=True)
+    return released
+
+
+def copy_inputs(source, target, *, own_files: bool = False) -> int:
+    """La copie d'une card (`duplicate_instance`) porte les mêmes entrées : chaque ligne recopiée sur
+    la copie — le MÊME fichier, partagé comme celui d'une colonne ; `own_files` (la copie d'une card
+    REÇUE) : le fichier est recopié chez le propriétaire de la copie, qui ne désigne plus que les
+    siens. Rend le nombre de lignes recopiées ; ne lève jamais."""
+    copied = 0
+    try:
+        from django.core.files import File
+        from wama.common.models import ElementInput
+        from wama.common.services.process_runs import address
+        for row in input_rows(source):
+            new = ElementInput(**address(target), port=row.port, rank=row.rank,
+                               original_name=row.original_name, user_id=target.user_id)
+            if own_files:
+                with row.file.open('rb') as handle:
+                    new.file.save(row.original_name or row.file.name.rsplit('/', 1)[-1],
+                                  File(handle), save=False)
+            else:
+                new.file = row.file.name
+            new.save()
+            copied += 1
+    except Exception:
+        import logging
+        logging.getLogger(__name__).warning('[port_fields] entrées de %s non recopiées', source,
+                                            exc_info=True)
+    return copied

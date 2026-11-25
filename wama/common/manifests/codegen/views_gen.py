@@ -267,11 +267,25 @@ def _donnees(manifest: dict) -> dict:
     # Ports FICHIER SECONDAIRES (2026-10-05, le Writer : `reference_layout` à côté de
     # `reference_document`) — chacun posté sous le nom de son PORT, comme au composer
     # (`addToQueue(ports: 'card')`). Le port principal se reçoit sous le sien, `file` en repli
-    # (le nom d'une dépose `WamaImport`). Seul un port qui EST une colonne est reçu.
-    d['secondary_ports'] = [
-        p['id'] for p in ((body.get('ports') or {}).get('inputs') or [])
-        if p.get('id') and p.get('group') in ('travail', 'reference')
-        and p['id'] != d['input_field'] and p['id'] in champs]
+    # (le nom d'une dépose `WamaImport`). Chacun se range là où le LECTEUR le dit (2026-11-25) :
+    # le champ que l'app déclare (`inspector.port_fields`), sinon son homonyme, sinon la table
+    # commune des entrées (`port_fields.store_port_inputs`, champ ''). Jusqu'ici seul un port qui
+    # ÉTAIT une colonne était reçu : la partition de composer_01 (`work_score` → `reference_score`)
+    # ou l'avatar d'avatarizer_01 (→ `avatar_upload`) se perdaient en silence.
+    # Le port dont le champ EST la colonne d'entrée se reçoit plus bas, comme le principal.
+    listed_fields = (((body.get('inspector') or {}).get('port_fields') or {}).get(item) or {})
+    d['secondary_fields'] = {}
+    for p in ((body.get('ports') or {}).get('inputs') or []):
+        pid = p.get('id')
+        if not pid or p.get('group') not in ('travail', 'reference'):
+            continue
+        field = listed_fields.get(pid) or (pid if pid in champs else '')
+        if field and (field == d['input_field'] or field not in champs):
+            continue
+        if not field and pid == d['entry'].get('work_port'):
+            continue                     # le principal, reçu dans la colonne d'entrée
+        d['secondary_fields'][pid] = field
+    d['secondary_ports'] = list(d['secondary_fields'])
     d['a_output'] = 'output_file' in champs
     # Le champ de PROGRESSION enregistrée de l'élément (2026-10-27) : `progress` par convention,
     # sinon celui que l'app DÉCLARE à son statut (`tool_api.triad_spec.status_fields.progress` —
@@ -913,17 +927,27 @@ def upload(request):
         # Ports secondaires : reçus par la MÊME brique, chacun sous son nom de port ; leur
         # provenance s'enregistre comme celle du principal. Un port secondaire ne suffit pas à
         # créer l'élément (une référence de forme n'est pas une consigne).
-        sec = d['secondary_ports']
+        # Chaque port secondaire va là où le LECTEUR le dit (`d['secondary_fields']`, 2026-11-25) :
+        # son champ — posé à la création, provenance ensuite —, ou, sans champ, la table commune des
+        # entrées, après la création (`port_fields.store_port_inputs` : un rang par fichier).
+        sec = d['secondary_fields']
+        to_table = any(not field for field in sec.values())
         secondary_lines = (f"\n    _others = []"
-                     f"\n    for _port in {tuple(sec)!r}:"
+                     f"\n    for _port, _field in {tuple(sec.items())!r}:"
                      f"\n        _r = received_inputs(request, user, '{app}', field=_port)"
                      f"\n        if _r:"
-                     f"\n            kwargs[_port] = _r[0].value"
-                     f"\n            _others.append((_port, _r[0]))"
+                     f"\n            if _field:"
+                     f"\n                kwargs[_field] = _r[0].value"
+                     f"\n            _others.append((_port, _field, _r))"
                      f"\n        elif _r.refusal and not _avert:"
                      f"\n            _avert = _r.refusal"
                      if sec else '')
-        record_sec = ("\n    for _port, _r in _others:\n        _r.record(item, _port)"
+        record_sec = ("\n    for _port, _field, _r in _others:"
+                      "\n        if _field:"
+                      "\n            _r[0].record(item, _field)"
+                      + ("\n        else:"
+                         "\n            from wama.common.utils.port_fields import store_port_inputs"
+                         "\n            store_port_inputs(item, _port, _r)" if to_table else '')
                       if sec else '')
         # La CONSIGNE vient de la card seule : passée par la cascade, une consigne vide
         # retomberait sur la DERNIÈRE consigne enregistrée, et chaque ajout l'enregistrerait

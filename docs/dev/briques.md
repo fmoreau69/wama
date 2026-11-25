@@ -1914,17 +1914,22 @@ Chaque étape d'outil porte son verdict (`ok`) et sa durée (`seconds`), écrits
 
 ### Le champ qui garde la valeur d'un port
 
-Où se range la valeur d'un port d'entrée sur un élément : `register_port_fields` au `ready()` de l'app, rejoué dans celui des jumelles par `apps_gen` (les seuls écarts hérités, liste qui ne doit que baisser), sinon le champ HOMONYME du port (les apps nées d'un manifeste), sinon aucun. `port_value` : un champ partagé par deux ports (l'avatar, photo OU objet 3D) rend le fichier au port que sa nature désigne (`input_match.work_token_for`). Un consommateur ne nomme plus de colonne : la cible (table commune des entrées) se pose derrière ce lecteur
+Où se range la valeur d'un port d'entrée sur un élément : `register_port_fields` au `ready()` de l'app, rejoué dans celui des jumelles par `apps_gen` (les seuls écarts hérités, liste qui ne doit que baisser), sinon le champ HOMONYME du port (les apps nées d'un manifeste), sinon aucun. `port_value` : un champ partagé par deux ports (l'avatar, photo OU objet 3D) rend le fichier au port que sa nature désigne (`input_match.work_token_for`). Un consommateur ne nomme plus de colonne. Un port SANS colonne garde ses fichiers dans la table commune des entrées (`ElementInput`, 2026-11-25 : un rang par fichier, `store_port_inputs` / `port_files`), libérés au retrait, recopiés à la duplication, suivis au transfert
 
 - **Domicile** : `wama/common/utils/port_fields.py` · **doc** : [docs/construction/ui/INPUT_MODEL_MATCHING.md](../construction/ui/INPUT_MODEL_MATCHING.md)
 - **Module** : OÙ SE RANGE LA VALEUR D'UN PORT — le lecteur commun des entrées d'un élément (2026-11-24).
-- **API publique** (6) :
+- **API publique** (11) :
   - `register_port_fields(model, mapping: dict) -> None` — Déclare, pour le modèle d'élément `model` (classe, instance ou `'app.Modèle'`), le champ des
   - `registered() -> dict` — Toutes les déclarations, par étiquette de modèle — ce que lisent l'extracteur et la garde.
   - `port_field_map(model) -> dict` — `{port: champ}` que le modèle d'élément déclare (`register_port_fields`), ou {}.
   - `port_field(model, port: str) -> str` — Le champ du modèle d'élément `model` (classe ou instance) qui porte la valeur de `port` —
   - `ports_sharing(model, field: str) -> list` — Les ports que le modèle range dans le MÊME champ `field` (déclarés), dans l'ordre déclaré.
   - `port_value(element, port: str)` — La valeur de `port` sur `element` : le fichier (`FieldFile`) ou le texte du champ qui le
+  - `input_rows(element, port=None) -> list` — Les lignes de la table commune des entrées de cette card (d'un port, ou de tous), par port
+  - `port_files(element, port: str) -> list` — Les fichiers de `port` sur `element` : celui de sa colonne quand il en a une (0 ou 1 fichier,
+  - `store_port_inputs(element, port: str, received) -> int` — Range sur `element` (déjà créé) ce qu'il a REÇU sur `port` — des `ReceivedInput`
+  - `release_inputs(element, port=None) -> int` — La card part (ou un port est remplacé) : ses lignes de la table s'oublient, et chacun de
+  - `copy_inputs(source, target, *, own_files: bool=False) -> int` — La copie d'une card (`duplicate_instance`) porte les mêmes entrées : chaque ligne recopiée sur
 
 ### Moteur de l'assistant IA
 
@@ -2526,7 +2531,7 @@ duplicate_instance(), release_card_files() (retirer une card libère TOUT ce qu'
 
 - **Domicile** : `wama/common/utils/queue_duplication.py` · **doc** : [docs/construction/architecture/WAMA_APP_CONVENTIONS.md](../construction/architecture/WAMA_APP_CONVENTIONS.md)
 - **Module** : WAMA — Common utilities for queue item duplication and safe file deletion.
-- **API publique** (9) :
+- **API publique** (10) :
   - `owns_file(instance, file_name: str) -> bool` — Le fichier vit-il dans le DOMICILE de l'app de cette card (`users/<uid>/<app>/…`) ?
   - `safe_delete_file(instance, field_name: str) -> bool` — ⚠ Depuis le 2026-09-30, RÉSERVÉ au REMPLACEMENT d'un fichier par SA card (l'ancien rendu
   - `release_card_file(instance, field_name: str) -> bool` — Une card que l'utilisateur RETIRE (supprimer, tout effacer, lot) LIBÈRE son fichier : il
@@ -2535,6 +2540,7 @@ duplicate_instance(), release_card_files() (retirer une card libère TOUT ce qu'
   - `delete_file_unless_shared(instance, field_name: str) -> bool` — Suppression VOULUE du fichier d'un objet — mais jamais s'il en reste un porteur.
   - `is_received(instance, user) -> bool` — La card appartient-elle à QUELQU'UN D'AUTRE que `user` (une card qu'on lui a partagée) ?
   - `duplicate_instance(instance, reset_fields=None, clear_fields=None, *, for_user=None)` — Create a new DB row that shares the same input file(s) as the original.
+  - `release_held_file(instance, file_name: str, *, holder, holder_field: str, origin: str) -> bool` — LIBÈRE un fichier que la card `instance` porte AILLEURS que dans un de ses `FileField` — une
   - `copy_subfolder(rel: str, app: str) -> str` — Le sous-dossier d'app où COPIER `rel` chez un autre propriétaire : sa place relative dans le
 
 ### Identité d'un lot (titre, ce qui varie, nom donné)
@@ -2648,7 +2654,7 @@ Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queu
 
 - **Domicile** : `wama/common/models.py` · **doc** : [docs/construction/ui/CARD_DESIGN.md §3bis](../construction/ui/CARD_DESIGN.md)
 - **Module** : Briques de modèles COMMUNES (cf. BATCH_MODEL_AUDIT.md).
-- **API publique** (50) :
+- **API publique** (52) :
   - `job_status_values() -> list` — Les VALEURS des cinq états de FILE, dans l'ordre du vocabulaire.
   - `normalize_job_status(value) -> str` — Un état QUELCONQUE (base, JSON, littéral d'app) → le vocabulaire commun.
   - `class ProcessingTimeMixin(models.Model)` — Durée RÉELLE de traitement, en secondes. Le worker la CALCULE déjà (il la passe au learner
@@ -2703,6 +2709,8 @@ Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queu
 ### Réglages de référence d'un lot (promotion fille ↔ mère)
 
 UNE ligne par lot (`BatchSettings`, adressée comme `ProcessRun`) : ce que la mère TIENT pour référence — posé par sa ⚙ (`batch_update` la retient désormais) ou PROMU d'une fille (`batch_promote`, POST `source=`) ; « ↓ réaligner » (`batch_realign`) la repose sur toutes les filles et efface les écarts individuels. La charge utile est DÉCLARÉE (`promote_payload`), par défaut les réglages du SCHÉMA lus par la règle de la révision ; le monde Data y mettra son protocole — même geste, deux charges. Les trois gestes écrivent par le chemin de la ⚙ de lot (deux temps, un refus n'écrit rien) ; la référence suit la duplication et part avec la suppression. 2026-11-05 : une fille garde ses VALEURS PROPRES (`own_settings` — liées à son entrée, tirées de son fichier ou entrée elle-même, ou réglées à la main), selon la PORTÉE du geste (`SCOPES`) et le choix « remplacer aussi » ligne par ligne ; la page les lit (`common:api_batch_own_settings`). Surfaces : la ⚙ et le volet de la mère (« Réaligner », avec sa portée) et d'une fille (« Faire de ses réglages la référence ») — `WamaParams.batchAlignment`, à côté des réglages (Fabien, 05/11 ; le menu « … » du 02 au 05/11) — et l'outil d'assistant `update_batch_settings`. 9 apps câblées + le générateur ; le composer suit avec son câblage pipeline
+  - `element_input_upload_to(instance, filename)` — Où se range un fichier TÉLÉVERSÉ sur un port sans colonne : le dossier d'entrée de l'app de
+  - `class ElementInput(models.Model)` — La VALEUR d'un port d'entrée d'une card, quand aucune colonne ne la garde — la table commune
 
 - **Domicile** : `wama/common/services/batch_settings.py` · **doc** : [docs/construction/ui/MODES_QUEUE_UX.md §5ter](../construction/ui/MODES_QUEUE_UX.md)
 - **Module** : Les RÉGLAGES D'UN LOT — ce que la card MÈRE tient pour référence (`MODES_QUEUE_UX §5ter`, `WAMA_APP_GENERATION_ROUTE §10.6` 5.3 ; marche P5, 2026-10-03).
@@ -4203,7 +4211,7 @@ Privé / unité / public : filtrage des lectures, mutations inchangées. Depuis 
 
 - **Domicile** : `wama/common/models.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : Briques de modèles COMMUNES (cf. BATCH_MODEL_AUDIT.md).
-- **API publique** (50) :
+- **API publique** (52) :
   - `job_status_values() -> list` — Les VALEURS des cinq états de FILE, dans l'ordre du vocabulaire.
   - `normalize_job_status(value) -> str` — Un état QUELCONQUE (base, JSON, littéral d'app) → le vocabulaire commun.
   - `class ProcessingTimeMixin(models.Model)` — Durée RÉELLE de traitement, en secondes. Le worker la CALCULE déjà (il la passe au learner
@@ -4258,6 +4266,8 @@ Privé / unité / public : filtrage des lectures, mutations inchangées. Depuis 
 ### Voix de référence (médiathèque) et voix de clonage
 
 LA brique TTS des voix : `speaker_wav_for` (décidée par la CAPACITÉ du moteur, jamais par un nom de moteur, et qui TRANSMET la langue depuis le 2026-09-27), `resolve_speaker_wav` (sa_/ua_/cv_/nom d'avant), `default_voice_for_language` (« Voix par défaut » = la voix de référence de la LANGUE choisie, dans l'ordre du menu ; sans elle c'était un clip anglophone quelle que soit la langue), `describe_voice`, `voice_reference_groups` (optgroups dérivés d'une REQUÊTE sur `SystemAsset(voice)` + `attributes`), `ingest_voice_file` (le seul point d'entrée, ingest initial ET téléchargements). Les voix VIVENT en médiathèque depuis le 2026-09-13 (28 versées, dossier `voice_references/` retiré) ; le service TTS ne résout plus rien. Quatre consommateurs : synthesizer, avatarizer, `voice_options` (menus), assistant. Depuis le 2026-10-28, les voix PROPRES d'un moteur (Phonon, Kokoro, Bark — `TTSBackend.VOICES`, portées par le catalogue) : un groupe par jeu de modèles qui les nomment (`engine_voice_groups`, `data-models`), jugées dans les DEUX sens par une règle commune du navigateur (`WamaModelCaps.voiceFits` : sous un modèle, ses voix ; une voix choisie grise les autres modèles, `WamaInputMatch.voiceSlot`), et portées au tirage « auto » (`voice_draw_constraint`, clé `voice` d'`options_resolution` — lancement et prévision) ; et la voix de l'ASSISTANT — modèle choisi ou tiré « auto », le plus rapide en temps réel sauf voix choisie (`assistant_voice`)
+  - `element_input_upload_to(instance, filename)` — Où se range un fichier TÉLÉVERSÉ sur un port sans colonne : le dossier d'entrée de l'app de
+  - `class ElementInput(models.Model)` — La VALEUR d'un port d'entrée d'une card, quand aucune colonne ne la garde — la table commune
 
 - **Domicile** : `wama/common/tts/voice_refs.py` · **doc** : [docs/construction/exploitation/MEDIA_STORAGE_TIERING.md §9.4](../construction/exploitation/MEDIA_STORAGE_TIERING.md)
 - **Module** : Voix de RÉFÉRENCE — la brique COMMUNE : résolution d'un preset en fichier, groupes du menu, libellés, téléchargement. Les voix VIVENT EN MÉDIATHÈQUE (`SystemAsset(asset_type='voice')`, `media_library/system/`) depuis le 2026-09-13 — plan `MEDIA_STORAGE_TIERING §9.4`.

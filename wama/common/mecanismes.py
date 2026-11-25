@@ -1692,7 +1692,9 @@ MECHANISMS = (
               "HOMONYME du port (les apps nées d'un manifeste), sinon aucun. `port_value` : un champ "
               "partagé par deux ports (l'avatar, photo OU objet 3D) rend le fichier au port que sa "
               "nature désigne (`input_match.work_token_for`). Un consommateur ne nomme plus de "
-              "colonne : la cible (table commune des entrées) se pose derrière ce lecteur",
+              "colonne. Un port SANS colonne garde ses fichiers dans la table commune des entrées "
+              "(`ElementInput`, 2026-11-25 : un rang par fichier, `store_port_inputs` / "
+              "`port_files`), libérés au retrait, recopiés à la duplication, suivis au transfert",
               'wama/common/utils/port_fields.py', 'docs/construction/ui/INPUT_MODEL_MATCHING.md',
               depends_on=('source_ingest',)),
     # Garde de SORTIE, distincte de l'ingest : l'ingest sait CHERCHER, celle-ci dit OÙ il a le

@@ -780,12 +780,32 @@ natures est exclu aussi : décision du 2026-09-30, le vocabulaire des rôles sui
    contrat d'envoi, pas une copie de la table ; le porter (poster sous l'id du PORT, la vue rangeant
    au champ par le lecteur — ce que fait déjà le composer, `ports: 'card'`) change trois cards et
    trois vues, et se vérifie au navigateur : une étape à part.
-3. ⏳ **Le stockage universel, à décider** : la valeur d'un port ne demande AUCUNE colonne — une
-   table commune des ENTRÉES d'un élément, une ligne par (élément, port, rang) : la copie de travail
-   et sa provenance. C'est `InputProvenance` agrandie (`common/models.py`) : elle a déjà une ligne
-   par entrée d'un élément, l'adresse `(app, object_type, object_id, field)`, la provenance
-   (`upload`, `asset`, `app`, `url`…), et ne s'écrit que par les briques communes (dépôt direct,
-   `copy_into_app_input`, `ensure_local_input` — sa docstring).
+3. 🔄 **Le stockage universel — décidé par Fabien le 2026-11-25, première marche livrée** : la
+   valeur d'un port ne demande AUCUNE colonne — une table commune des ENTRÉES d'une card, une ligne
+   par (card, port, rang). ✅ T1 (2026-11-25) : `common.models.ElementInput`, écrite et lue par le
+   lecteur seul (`port_fields.store_port_inputs`, `port_files`, `port_value`). Une seule vérité par
+   port : la table ne garde QUE les ports sans colonne ; un port gardé par une colonne s'y range
+   comme avant (`ReceivedInput.assign`). Adresse : `process_runs.address`, celle des lignes
+   d'exécution et de `PipelineExtension` (l'app dans la clé). Le fichier est un vrai `FileField` :
+   l'index des fichiers le voit sans une ligne de plus (déplacer, détacher, porteurs, intégrité).
+   Les gestes de card la voient : retrait (`release_card_files`, fichiers LIBÉRÉS et annoncés, sous
+   la règle nommée une fois `queue_duplication.release_held_file`), aperçu du retrait
+   (`released_files.freed_by`), duplication (`duplicate_instance`), transfert
+   (`card_transfer._hand_over_inputs`). Premier consommateur : la vue « Ajouter » générée
+   (`views_gen`, ports secondaires : chacun dans son champ, sinon dans la table) — elle perdait en
+   silence tout port secondaire qui n'était pas une colonne homonyme : la partition de
+   `composer_01`, l'avatar d'`avatarizer_01`, la voix de `synthesizer_01` (régénérées, rangées
+   désormais dans la colonne de leur app réelle). ⚠ Trou nommé, antérieur : la vue générée d'une
+   app dont le DÉPÔT CRÉE l'élément (forme « dépôt », l'anonymizer) ne reçoit que son port de
+   travail — ses ports secondaires ne sont lus que par la forme « attache / mixte » (bouton
+   « Ajouter »). ⏳ Ensuite : une app rejoint la table en
+   déplaçant ses colonnes, une à une, derrière le lecteur (`register_port_fields` qui baisse).
+   ⚠ Corrigé à la mise en œuvre : la table n'est PAS `InputProvenance` agrandie, comme écrit
+   d'abord — la règle de `common/models.py`, « deux natures de données ⇒ deux tables » : la
+   provenance est une trace au mieux (un échec n'arrête jamais un import), la valeur d'un port fait
+   foi. ⚠ Défaut latent relevé : la clé d'unicité d'`InputProvenance` ignore l'app
+   (`object_type` = nom de classe) — une jumelle et sa source, à numéro égal, s'écraseraient leur
+   provenance ; consigné, non corrigé (changer la contrainte touche le code en service).
    Un port de plus = des lignes de plus, sans migration ; N fichiers par port ; l'avatar de galerie
    et la voix de « Mes voix » y sont des entrées de provenance `asset`. Même convention d'adresse et
    de rôle que le lien de composition de `ROUTE §10.7.11` (pièce 1), mais une table DISTINCTE, pour

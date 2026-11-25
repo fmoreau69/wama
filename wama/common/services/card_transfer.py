@@ -197,11 +197,39 @@ def _hand_over_files(objects, new_owner) -> dict:
     return {'fields': fields, 'lists': lists, 'moved': moved, 'copied': copied}
 
 
+def _hand_over_inputs(obj, new_owner):
+    """Les fichiers de ses ports SANS colonne (table commune des entrées, `port_fields`,
+    2026-11-25) suivent la card, sous la règle des fichiers de `_hand_over_files` : POSSÉDÉ par la
+    card (`owns_file`, jugé AVANT le changement de propriétaire) et désigné par rien d'autre, il est
+    DÉPLACÉ chez le nouveau ; sinon COPIÉ chez lui. La ligne lui appartient ensuite."""
+    from django.conf import settings
+    from wama.common.utils.file_references import is_referenced_elsewhere
+    from wama.common.utils.media_paths import copy_into_app_input
+    from wama.common.utils.port_fields import input_rows
+    from wama.common.utils.queue_duplication import owns_file
+    for row in input_rows(obj):
+        name = row.file.name
+        source = os.path.join(settings.MEDIA_ROOT, name)
+        if os.path.isfile(source):
+            if owns_file(obj, name) and not is_referenced_elsewhere(
+                    name, label=row._meta.label, pk=row.pk, field='file'):
+                new = _moved_path(name, row.app, obj.user_id, new_owner.pk)
+                target = os.path.join(settings.MEDIA_ROOT, new)
+                os.makedirs(os.path.dirname(target), exist_ok=True)
+                shutil.move(source, target)
+            else:
+                _dest, new = copy_into_app_input(source, row.app, new_owner.pk)
+            row.file.name = new
+        row.user = new_owner
+        row.save(update_fields=['file', 'user'])
+
+
 def _make_theirs(obj, new_owner, fields, lists=None):
     """La ligne devient celle du nouveau propriétaire : ses chemins, lui, privée. Une liste de
     chemins ne voit changer que les ENTRÉES copiées (`lists` : {champ: {ancien: nouveau}})."""
     from wama.common.utils.file_references import relocated_list
     obj.refresh_from_db()
+    _hand_over_inputs(obj, new_owner)
     for name, value in (fields or {}).items():
         setattr(obj, name, value)
     for name, mapping in (lists or {}).items():

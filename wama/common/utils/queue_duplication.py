@@ -170,20 +170,22 @@ def release_card_files(instance) -> int:
     Ne lève jamais.
     """
     from django.db import models as dj_models
-    from wama.common.utils.file_references import is_referenced_elsewhere, listed_paths
+    from wama.common.utils.file_references import listed_paths
     released = 0
     for f in instance._meta.concrete_fields:
         if isinstance(f, dj_models.FileField) and release_card_file(instance, f.name):
             released += 1
     try:
         for field_name, file_name in listed_paths(instance):
-            if (owns_file(instance, file_name)
-                    and not is_referenced_elsewhere(file_name, label=instance._meta.label,
-                                                    pk=instance.pk, field=field_name)
-                    and _note_released(instance, field_name, file_name)):
+            if release_held_file(instance, file_name, holder=instance, holder_field=field_name,
+                                 origin=field_name):
                 released += 1
     except Exception:
         pass
+    # … et les fichiers de ses ports sans colonne, gardés dans la table commune des entrées
+    # (`port_fields`, `ElementInput`, 2026-11-25) — sous la même règle, puis les lignes oubliées.
+    from wama.common.utils.port_fields import release_inputs
+    released += release_inputs(instance)
     # La card emporte aussi ses LIGNES D'EXÉCUTION (ROUTE §10.6 4.1) : une ligne dont l'élément
     # n'existe plus ne serait plus jamais lue. C'est le seul geste de ce verbe qui ne touche pas
     # un fichier — il est ici parce que ce verbe EST le retrait de la card, dans les dix apps.
@@ -198,6 +200,23 @@ def release_card_files(instance) -> int:
     from wama.common.services import card_pipelines
     process_runs.safely(card_pipelines.forget, instance)
     return released
+
+
+def release_held_file(instance, file_name: str, *, holder, holder_field: str, origin: str) -> bool:
+    """LIBÈRE un fichier que la card `instance` porte AILLEURS que dans un de ses `FileField` — une
+    entrée d'une liste de chemins déclarée (le porteur est la card elle-même), une ligne de la table
+    commune des entrées (`ElementInput`, son champ `file`). La règle de tout retrait : le fichier
+    appartient à la card (`owns_file`), et aucune AUTRE ligne du dépôt ne le désigne — le porteur
+    lui-même ne se compte pas. Noté comme libéré, jamais effacé. Rend `True` s'il vient d'être
+    libéré ; ne lève jamais."""
+    from wama.common.utils.file_references import is_referenced_elsewhere
+    try:
+        return bool(file_name and owns_file(instance, file_name)
+                    and not is_referenced_elsewhere(file_name, label=holder._meta.label,
+                                                    pk=holder.pk, field=holder_field)
+                    and _note_released(instance, origin, file_name))
+    except Exception:
+        return False
 
 
 def is_shared_elsewhere(instance, field_name: str, file_name: str) -> bool:
@@ -345,6 +364,10 @@ def duplicate_instance(instance, reset_fields=None, clear_fields=None, *, for_us
     obj.save()
     if received:
         _copy_files_to(obj, for_user)
+    # Ses entrées gardées hors colonne (table commune, `port_fields`, 2026-11-25) : le MÊME fichier,
+    # partagé comme une colonne — recopié chez son nouveau propriétaire pour une card reçue.
+    from wama.common.utils.port_fields import copy_inputs
+    copy_inputs(instance, obj, own_files=received)
     # La copie porte le MÊME pipeline : ce que la card source y ajoutait (`card_pipelines`, ROUTE
     # §10.6 3.2bis marche 2) — le pipeline, pas ses résultats : elle n'a aucune ligne d'exécution.
     from wama.common.services import card_pipelines

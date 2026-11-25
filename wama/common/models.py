@@ -2276,3 +2276,67 @@ class InputProvenance(models.Model):
 
     def __str__(self):
         return f"{self.object_type}#{self.object_id}.{self.field} ← {self.kind}:{self.ref[:60]}"
+
+
+def element_input_upload_to(instance, filename):
+    """Où se range un fichier TÉLÉVERSÉ sur un port sans colonne : le dossier d'entrée de l'app de
+    la card, comme ses colonnes d'entrée (`UploadToUserPath`)."""
+    from wama.common.utils.media_paths import UploadToUserPath
+    return UploadToUserPath(instance.app, 'input')(instance, filename)
+
+
+class ElementInput(models.Model):
+    """La VALEUR d'un port d'entrée d'une card, quand aucune colonne ne la garde — la table commune
+    des entrées (`INPUT_MODEL_MATCHING §6.13`, décision de Fabien du 2026-11-25).
+
+    POURQUOI une table : une colonne par port bloque toute évolution — un modèle qui apporte une
+    nature de plus ouvre un port de plus (`app_registry.app_input_ports`), et son fichier n'avait
+    nulle part où aller sans une migration du modèle, de sa jumelle et du générateur. Ici, un port
+    de plus = des lignes de plus ; N fichiers sur un port = N rangs.
+
+    POURQUOI une table À PART d'`InputProvenance` (et non elle agrandie, comme proposé d'abord) : la
+    règle de ce module, « deux natures de données ⇒ deux tables ». La provenance est une TRACE au
+    mieux — un échec d'enregistrement ne fait jamais échouer un import (`utils/provenance.py`) ;
+    la valeur d'un port FAIT FOI : la perdre, c'est perdre l'entrée de l'utilisateur.
+
+    UNE SEULE VÉRITÉ PAR PORT : un port que garde une colonne (déclarée, `port_fields`, ou homonyme)
+    ne s'écrit JAMAIS ici ; la table ne porte que les ports sans colonne. Une app rejoindra la
+    table en déplaçant ses colonnes, une à une, derrière le lecteur (`port_fields`) — rien
+    n'est urgent (`ROUTE §10.7.11`, D12).
+
+    Adressage : celui des lignes d'exécution (`process_runs.address` : `app` = label Django du
+    modèle de la card, `object_type`, `object_id` en texte) — le même que `PipelineExtension` ;
+    l'app EST dans la clé (`InputProvenance` ne l'y met pas, et une jumelle partage le nom de classe
+    de sa source). Le fichier est un vrai `FileField` : l'index des fichiers (`file_references`) le
+    voit donc sans une ligne de plus — déplacer, détacher, compter les porteurs, l'intégrité.
+    ÉCRITE et LUE par `common/utils/port_fields.py` seule ; oubliée au retrait de la card,
+    recopiée à sa duplication (`queue_duplication`), comme `PipelineExtension`.
+    """
+
+    app = models.CharField(max_length=32, db_index=True)
+    object_type = models.CharField(max_length=64)
+    object_id = models.CharField(max_length=64)
+    #: L'id du port (`app_modes.INPUT_TYPES`) — jamais un nom de colonne.
+    port = models.CharField(max_length=64)
+    #: Le rang du fichier sur ce port (0 pour le premier) : N fichiers, N lignes.
+    rank = models.PositiveIntegerField(default=0, db_default=0)
+    file = models.FileField(upload_to=element_input_upload_to, max_length=500)
+    #: Le nom d'origine, tel que l'utilisateur le connaît.
+    original_name = models.CharField(max_length=255, blank=True, default='', db_default='')
+    #: Le propriétaire de la card — le dossier d'un téléversement, la propriété d'un fichier.
+    user = models.ForeignKey('auth.User', on_delete=models.CASCADE, related_name='element_inputs')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Entrée d'une card"
+        verbose_name_plural = 'Entrées des cards'
+        ordering = ['app', 'object_type', 'object_id', 'port', 'rank']
+        constraints = [
+            models.UniqueConstraint(fields=['app', 'object_type', 'object_id', 'port', 'rank'],
+                                    name='element_input_unique_rank'),
+        ]
+        indexes = [models.Index(fields=['app', 'object_type', 'object_id'],
+                                name='element_input_card')]
+
+    def __str__(self):
+        return f"{self.app}:{self.object_type}#{self.object_id}.{self.port}[{self.rank}] ← {self.file.name}"

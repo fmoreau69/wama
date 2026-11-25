@@ -337,3 +337,155 @@ class AFieldSharedByTwoPortsTest(SimpleTestCase):
                                      f'{model._meta.label}.{field} holding a {nature} file')
                     checked += 1
         self.assertGreater(checked, 1, 'a shared field exists today (the avatar) and is read')
+
+
+class _CardWithAPortWithoutColumn:
+    """A REAL element model of the catalogue and a file token of the vocabulary that no field of it
+    keeps — chosen from the declarations, never named."""
+
+    @staticmethod
+    def pick():
+        from wama.common.app_registry import APP_CATALOG
+        from wama.common.utils.app_modes import INPUT_TYPES
+        from wama.common.utils.detail_registry import DetailRegistry
+        from wama.common.utils.port_fields import port_field
+        for app in sorted(a for a, s in APP_CATALOG.items()
+                          if not s.get('sandbox') and not s.get('generated_from')):
+            model = (DetailRegistry.get(app) or {}).get('model')
+            if model is None or not any(f.name == 'user' for f in model._meta.concrete_fields):
+                continue
+            for token, spec in sorted(INPUT_TYPES.items()):
+                if spec.get('kind') == 'file' and not port_field(model, token):
+                    return app, model, token
+        raise AssertionError('no element model with a port without column')
+
+
+class TheCommonTableKeepsAPortWithoutColumnTest(TestCase):
+    """`ElementInput` (2026-11-25, `INPUT_MODEL_MATCHING §6.13`) : a port that no column keeps
+    stores its files there, one rank per file — and every gesture of a card sees them : reading,
+    replacing, removing (released, announced), duplicating, transferring, the files index."""
+
+    def setUp(self):
+        import shutil
+        import tempfile
+        from django.contrib.auth import get_user_model
+        from django.test import override_settings
+        self.tmp = tempfile.mkdtemp()
+        media = override_settings(MEDIA_ROOT=self.tmp)
+        media.enable()
+        self.addCleanup(media.disable)
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.app, self.model, self.port = _CardWithAPortWithoutColumn.pick()
+        self.user = get_user_model().objects.create_user('element_input_owner', password='x')
+        from django.db.models.signals import post_save
+        with mock.patch.object(post_save, 'send', return_value=[]):   # no ingest, no hook
+            self.card = self.model.objects.create(user=self.user)
+
+    def _received(self, name, content=b'witness'):
+        from wama.common.utils.media_paths import app_media_dir, designate, get_app_media_path
+        folder = get_app_media_path(self.app, self.user.id, 'input')
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / name).write_bytes(content)
+        return designate(f"{app_media_dir(self.app, self.user.id, 'input')}/{name}", self.user,
+                         self.app)
+
+    @staticmethod
+    def _names(files):
+        return [f.name.rsplit('/', 1)[-1] for f in files]
+
+    def test_n_files_are_n_ranks_and_the_reader_returns_them(self):
+        from wama.common.utils.port_fields import (input_rows, port_files, port_value,
+                                                   store_port_inputs)
+        self.assertEqual(2, store_port_inputs(self.card, self.port,
+                                              [self._received('a.bin'), self._received('b.bin')]))
+        self.assertEqual([0, 1], [r.rank for r in input_rows(self.card, self.port)])
+        self.assertEqual(['a.bin', 'b.bin'], self._names(port_files(self.card, self.port)))
+        self.assertTrue(port_value(self.card, self.port).name.endswith('a.bin'))
+
+    def test_a_port_with_a_column_never_writes_to_the_table(self):
+        from wama.common.utils.app_modes import INPUT_TYPES
+        from wama.common.utils.port_fields import input_rows, port_field, store_port_inputs
+        kept = next((t for t in sorted(INPUT_TYPES) if INPUT_TYPES[t].get('kind') == 'file'
+                     and port_field(self.model, t)
+                     and self.model._meta.get_field(port_field(self.model, t)).get_internal_type()
+                     == 'FileField'), None)
+        if kept is None:
+            self.skipTest('this element model keeps no file port in a column')
+        store_port_inputs(self.card, kept, [self._received('kept.bin')])
+        self.card.refresh_from_db()
+        self.assertTrue(getattr(self.card, port_field(self.model, kept)).name.endswith('kept.bin'))
+        self.assertEqual([], input_rows(self.card), 'one truth per port : the column')
+
+    def test_replacing_a_port_releases_the_former_file(self):
+        from wama.common.models import ReleasedFile
+        from wama.common.utils.port_fields import input_rows, store_port_inputs
+        store_port_inputs(self.card, self.port, [self._received('old.bin')])
+        store_port_inputs(self.card, self.port, [self._received('new.bin')])
+        self.assertEqual(['new.bin'], self._names(r.file for r in input_rows(self.card)))
+        self.assertTrue(ReleasedFile.objects.filter(user=self.user, path__endswith='old.bin').exists())
+
+    def test_removing_the_card_releases_its_files_and_forgets_its_rows(self):
+        from wama.common.models import ElementInput, ReleasedFile
+        from wama.common.services.released_files import freed_by
+        from wama.common.utils.port_fields import store_port_inputs
+        from wama.common.utils.queue_duplication import release_card_files
+        store_port_inputs(self.card, self.port, [self._received('gone.bin')])
+        self.assertTrue(any(p.endswith('gone.bin') for p in freed_by([self.card])),
+                        'the confirmation announces what the gesture frees')
+        release_card_files(self.card)
+        self.assertFalse(ElementInput.objects.filter(object_id=str(self.card.pk)).exists())
+        self.assertTrue(ReleasedFile.objects.filter(user=self.user, path__endswith='gone.bin').exists())
+
+    def test_a_copy_carries_the_same_files_and_the_index_sees_both(self):
+        from wama.common.utils.file_references import direct_references
+        from wama.common.utils.port_fields import input_rows, store_port_inputs
+        from wama.common.utils.queue_duplication import duplicate_instance
+        store_port_inputs(self.card, self.port, [self._received('shared.bin')])
+        copy = duplicate_instance(self.card)
+        self.assertEqual([r.file.name for r in input_rows(self.card)],
+                         [r.file.name for r in input_rows(copy)])
+        refs = direct_references(input_rows(self.card)[0].file.name)
+        self.assertEqual(2, len([r for r in refs if r['label'] == 'common.ElementInput']))
+
+    def test_a_transferred_card_takes_its_files_to_its_new_owner(self):
+        from django.contrib.auth import get_user_model
+        from wama.common.services.card_transfer import _hand_over_inputs
+        from wama.common.utils.media_paths import app_media_dir
+        from wama.common.utils.port_fields import input_rows, store_port_inputs
+        store_port_inputs(self.card, self.port, [self._received('mine.bin')])
+        other = get_user_model().objects.create_user('element_input_heir', password='x')
+        _hand_over_inputs(self.card, other)
+        row = input_rows(self.card)[0]
+        self.assertEqual(other.pk, row.user_id)
+        self.assertTrue(row.file.name.startswith(app_media_dir(self.app, other.pk, '')),
+                        row.file.name)
+
+    def test_the_generated_add_view_stores_a_port_without_column_in_the_table(self):
+        """A model that brings a new nature opens a port that no column keeps : the add view
+        generated for a twin receives it and stores it in the table — no migration. Measured on the
+        manifest of a REAL app (extracted, as `substitute` does) with such a port added."""
+        from wama.common.app_registry import APP_CATALOG
+        from wama.common.management.commands.app_sandbox import render_payload
+        from wama.common.manifests.codegen.views_gen import _donnees, render_views
+        from wama.common.manifests.ingest import extract
+        for app in sorted(a for a, s in APP_CATALOG.items()
+                          if not s.get('sandbox') and not s.get('generated_from')):
+            manifest = render_payload(extract('app', app), 'views', False)
+            # The add view of the ATTACH / MIXED form receives the secondary ports (a drop that
+            # creates the element receives its work port only — a gap of its own, named in
+            # `INPUT_MODEL_MATCHING §6.13`).
+            if (not manifest or _donnees(manifest).get('_raison')
+                    or not _donnees(manifest)['entry'].get('adds')):
+                continue
+            columns = _donnees(manifest)['champ_noms']
+            token = next((t for t in ('reference_voice', 'reference_document', 'reference_file')
+                          if t not in columns), None)
+            manifest['body'].setdefault('ports', {}).setdefault('inputs', []).append(
+                {'id': token, 'group': 'reference', 'types': ['audio']})
+            if _donnees(manifest)['secondary_fields'].get(token) != '':
+                continue
+            source, _reason = render_views(manifest)
+            if source:
+                self.assertIn('store_port_inputs(item, _port, _r)', source)
+                return
+        self.fail('no app manifest renders an add view with a port without column')
