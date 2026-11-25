@@ -310,6 +310,29 @@ class AGeneratedCopyKeepsWhatTheUserGaveTest(TestCase):
             checked += 1
         self.assertGreater(checked, 3)
 
+    def test_the_instruction_of_the_generated_add_view_goes_to_the_field_of_the_prompt_port(self):
+        """The add view generated for a twin wrote the instruction to no field when the app keeps
+        its prompt port in a column of another name (`text_content`) : « Rien à ajouter » for
+        avatarizer_01 and synthesizer_01, the reds that started the reader (2026-11-23)."""
+        from wama.common.app_registry import APP_CATALOG
+        from wama.common.management.commands.app_sandbox import render_payload
+        from wama.common.manifests.codegen.views_gen import _donnees
+        from wama.common.manifests.ingest import extract
+        from wama.common.utils.port_fields import registered
+        checked = 0
+        for label, mapping in sorted(registered().items()):
+            app = label.split('.')[0]
+            entry = APP_CATALOG.get(app) or {}
+            if 'prompt' not in mapping or entry.get('generated_from') or entry.get('sandbox'):
+                continue
+            d = _donnees(render_payload(extract('app', app), 'views', False))
+            if d.get('_raison') or not d['entry'].get('adds'):
+                continue
+            with self.subTest(app=app):
+                self.assertEqual(mapping['prompt'], d['entry']['prompt_field'])
+            checked += 1
+        self.assertGreater(checked, 0, 'an app keeps its instruction in a column of another name')
+
 
 class AFieldSharedByTwoPortsTest(SimpleTestCase):
     """A legacy field that keeps two ports (one avatar : a photo OR a 3D object) gives each port

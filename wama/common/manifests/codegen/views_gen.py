@@ -190,8 +190,15 @@ def prompt_port_field(body: dict, fields=None) -> str:
     targets = (body.get('prompts') or {}).get('targets') or []
     ports = [p['id'] for p in ((body.get('ports') or {}).get('inputs') or [])
              if p.get('group') == 'prompt' and p.get('id')]
+    # Le champ que l'app DÉCLARE pour son port de consigne (`inspector.port_fields`, 2026-11-25 —
+    # le lecteur commun `port_fields`) : la consigne d'avatarizer_01 et de synthesizer_01 vit dans
+    # `text_content`, que rien ici ne nommait — leur ajout répondait « Rien à ajouter ».
+    item = (body.get('processing') or {}).get('item_model') or ''
+    listed = ((body.get('inspector') or {}).get('port_fields') or {}).get(item) or {}
+    stated = [listed[p] for p in ports if listed.get(p) and exists(listed[p])]
     return next((t['field'] for t in targets if t.get('field') and exists(t['field'])),
-                next((p for p in ports if exists(p)), 'prompt' if exists('prompt') else ''))
+                next(iter(stated),
+                     next((p for p in ports if exists(p)), 'prompt' if exists('prompt') else '')))
 
 
 def _donnees(manifest: dict) -> dict:
