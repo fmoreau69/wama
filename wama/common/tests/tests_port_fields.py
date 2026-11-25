@@ -438,6 +438,26 @@ class TheCommonTableKeepsAPortWithoutColumnTest(TestCase):
         self.assertFalse(ElementInput.objects.filter(object_id=str(self.card.pk)).exists())
         self.assertTrue(ReleasedFile.objects.filter(user=self.user, path__endswith='gone.bin').exists())
 
+    def test_the_retention_purge_takes_the_files_and_the_rows_of_the_card(self):
+        """The purge deletes an expired card WITHOUT its removal gesture (`release_card_files`) :
+        its rows and their files go with it, under the purge's own rule (owned, carried by no other
+        row) — a file another card still holds stays."""
+        import os
+        from django.conf import settings
+        from wama.common.models import ElementInput
+        from wama.common.services.retention import _purge_instance
+        from wama.common.utils.port_fields import input_rows, store_port_inputs
+        from wama.common.utils.queue_duplication import duplicate_instance
+        store_port_inputs(self.card, self.port, [self._received('expired.bin')])
+        kept = duplicate_instance(self.card)                  # the same file, held by a copy
+        path = os.path.join(settings.MEDIA_ROOT, input_rows(self.card)[0].file.name)
+        _purge_instance(self.card)
+        self.assertEqual(1, ElementInput.objects.filter(file__endswith='expired.bin').count())
+        self.assertTrue(os.path.isfile(path), 'still held by the copy')
+        _purge_instance(kept)
+        self.assertFalse(ElementInput.objects.filter(file__endswith='expired.bin').exists())
+        self.assertFalse(os.path.isfile(path), 'the last holder purged : the file goes')
+
     def test_a_copy_carries_the_same_files_and_the_index_sees_both(self):
         from wama.common.utils.file_references import direct_references
         from wama.common.utils.port_fields import input_rows, store_port_inputs

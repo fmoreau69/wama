@@ -114,6 +114,16 @@ def _purge_instance(obj):
         if owns_file(obj, rel) and not is_referenced_elsewhere(
                 rel, label=obj._meta.label, pk=obj.pk, field=field):
             _delete_path(rel)
+    # 2bis) Les fichiers de ses ports SANS colonne (table commune des entrées, `port_fields`,
+    #    2026-11-25) — même règle (la ligne qui le porte ne se compte pas), puis les lignes : la
+    #    purge efface la card sans passer par son retrait (`release_card_files`).
+    from wama.common.utils.port_fields import input_rows
+    for row in input_rows(obj):
+        rel = row.file.name
+        if rel and owns_file(obj, rel) and not is_referenced_elsewhere(
+                rel, label=row._meta.label, pk=row.pk, field='file'):
+            _delete_path(rel)
+        row.delete()
     # 3) Supprimer l'enregistrement.
     obj.delete()
 
