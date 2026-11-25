@@ -96,7 +96,9 @@ class EveryPortOfACardHasItsFieldTest(SimpleTestCase):
                     unresolved_twins.add(app)
                     continue
                 missing.append(f'{app}/{domain}: {pid} ({model.__name__})')
-        self.assertGreater(seen, 20, 'the ports of the catalogue are read')
+        # The real apps alone offer about twenty ports (twins are not versioned : a fresh clone has
+        # none) — the threshold only proves the catalogue is read.
+        self.assertGreater(seen, 10, 'the ports of the catalogue are read')
         self.assertEqual([], missing, 'a port whose value no field keeps : list it on the element '
                                       'app (`register_port_fields` in its ready()), or name the column after the port')
         # Twins are not versioned (`.gitignore`, `wama/*_NN/`) : only a twin PRESENT is judged.
