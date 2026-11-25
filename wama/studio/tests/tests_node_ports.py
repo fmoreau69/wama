@@ -32,6 +32,21 @@ class NodePortsReachTheAppTest(TestCase):
         self.assertFalse(ok)
         self.assertIn('retirer du budget', detail)
 
+    def test_a_twin_is_judged_on_its_source_line(self):
+        """A twin's tool IS its source's, retargeted: it inherits the source's unread ports and
+        settles with it — never a budget line of its own (red every night from 2026-10-30)."""
+        budget = generic_runner.UNWIRED_PORTS_BUDGET
+        registry = [{'label': 'imager_01', 'generated_from': 'imager'}]
+        apps = {**generic_runner.GENERIC_APPS, 'imager_01': generic_runner.GENERIC_APPS['imager']}
+        inherited = lambda app: list(budget.get('imager' if app == 'imager_01' else app, []))
+        with patch.dict(generic_runner.GENERIC_APPS, apps), \
+                patch('wama.common.sandbox.load_registry', return_value=registry):
+            self.assertTrue(generic_runner.unwired_ports_report(inherited)[0])
+            beyond = lambda app: inherited(app) + (['new_port'] if app == 'imager_01' else [])
+            ok, detail = generic_runner.unwired_ports_report(beyond)
+        self.assertFalse(ok)
+        self.assertIn('imager_01', detail)
+
     def test_the_budget_only_names_real_port_tokens(self):
         from wama.common.utils.app_modes import INPUT_TYPES
         for app, ports in generic_runner.UNWIRED_PORTS_BUDGET.items():

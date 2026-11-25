@@ -319,10 +319,17 @@ UNWIRED_PORTS_BUDGET = {
 
 def unwired_ports_report(measure=None):
     """(ok, détail) — la liste MESURÉE des ports non lus confrontée au budget, dans les deux
-    sens : un port non lu hors budget (ajout), une ligne de budget soldée mais pas retirée."""
+    sens : un port non lu hors budget (ajout), une ligne de budget soldée mais pas retirée.
+
+    Une JUMELLE se juge sur la ligne de sa SOURCE (`sandbox.declaring_app`) : son outil est celui
+    de sa source re-ciblé (`tool_api._register_twin_creators`), elle hérite donc de ses ports non
+    lus, et se solde avec elle. Le budget ne nommait que les apps réelles : depuis que les jumelles
+    ont leur nœud (2026-10-29), le geste nocturne `studio.node_ports_wired` était rouge chaque
+    nuit sur leurs ports hérités (mesuré du 2026-10-30 au 2026-11-25)."""
+    from wama.common.sandbox import declaring_app
     measure = measure or unwired_ports
     measured = {app: measure(app) for app in GENERIC_APPS}
-    grown = {app: [p for p in ports if p not in UNWIRED_PORTS_BUDGET.get(app, [])]
+    grown = {app: [p for p in ports if p not in UNWIRED_PORTS_BUDGET.get(declaring_app(app), [])]
              for app, ports in measured.items()}
     grown = {app: ports for app, ports in grown.items() if ports}
     solved = {app: [p for p in ports if p not in measured.get(app, [])]
