@@ -335,7 +335,7 @@ def referential_tracks(ref: TemporalReferential) -> Tuple[Track, ...]:
         tracks.append(Track(
             key=name, label=name, kind=kind,
             source=_stream_rows(name, kind == DataType.SEGMENTS),
-            # Une colonne qui porte un nom que le lecteur écrit (`source`, `parent`…) se lit sous
+            # Une colonne qui porte un nom que le lecteur écrit (`parent`, `masked`…) se lit sous
             # ce nom suivi d'un souligné : aucune colonne du fichier n'est écrasée ni perdue.
             attributes=tuple((f'{c}_', c) if c in RESERVED else c
                              for c in columns if c != ORIGIN_COLUMN),

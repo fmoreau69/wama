@@ -90,12 +90,13 @@ SEGMENT_GESTURES = ('split', 'merge', 'retime')
 #: L'attribut d'une ÉTIQUETTE posée par un geste, quand la piste n'en porte pas d'autre (le nom de
 #: la colonne que le codage du monde Data écrit déjà).
 LABEL = 'label'
-#: L'origine d'une marque AJOUTÉE par un geste.
-ADDED = 'added'
+#: L'origine d'une marque AJOUTÉE par un geste : le nom du geste, comme chaque production du
+#: Segmenter porte le nom de son mode (`around`, `join`, `margins`…).
+ADDED = 'add'
 #: Les noms que le LECTEUR écrit dans une marque (ses bornes, son origine, sa parente, et ce qu'une
 #: piste dérivée y ajoute). Aucun attribut ne se lit sous l'un d'eux — il serait écrasé sans bruit :
 #: la déclaration le lit sous un autre nom commun (`('nom commun', 'nom rangé')`).
-RESERVED = ('start', 'end', 'time', 'origin', 'parent', 'source', 'touched', 'masked')
+RESERVED = ('start', 'end', 'time', 'origin', 'parent', 'source_ranks', 'touched', 'masked')
 
 
 class InvalidTracks(ValueError):
@@ -573,7 +574,7 @@ def violations(card, key: str, tolerance: float = TOLERANCE,
 # ══════════════════════════════════════════════════════════════════════════════════════════════
 # LA PISTE DÉRIVÉE — une piste source + la liste ordonnée des gestes (`ROUTE §10.7.14 ⑰`)
 # ══════════════════════════════════════════════════════════════════════════════════════════════
-# Une marque d'une piste dérivée porte, en plus de celles de sa source : `source`, les rangs des
+# Une marque d'une piste dérivée porte, en plus de celles de sa source : `source_ranks`, les rangs des
 # marques de la source dont elle vient (une seule, deux après une fusion, aucune si elle a été
 # ajoutée) ; `touched`, les rangs des gestes qui l'ont changée (absent : intacte) ; `masked` quand
 # elle est masquée — elle reste dans la piste, c'est `effective_line` qui la saute.
@@ -690,7 +691,7 @@ def _add(track: Track, marks: List[dict], index: int, edit: dict) -> Optional[st
     elif not _rank(rank, 0, len(marks)):
         return "`mark` attend le rang où l'ajouter"
     _set(mark, values)
-    mark.update(origin=ADDED, source=[], touched=[index])
+    mark.update(origin=ADDED, source_ranks=[], touched=[index])
     if track.parent:
         mark['parent'] = None              # le lecteur la retrouve par contenance (`read_derived`)
     marks.insert(rank, mark)
@@ -746,7 +747,7 @@ def _do(track: Track, marks: List[dict], index: int, edit, tolerance: float,
         if at is None or at <= mark['start'] + tolerance \
                 or (mark['end'] is not None and at >= mark['end'] - tolerance):
             return "le point de coupe n'est pas à l'intérieur du segment"
-        second = dict(mark, start=at, source=list(mark['source']))
+        second = dict(mark, start=at, source_ranks=list(mark['source_ranks']))
         mark['end'] = at
         marks.insert(rank + 1, second)
         _touch(mark, index)
@@ -763,7 +764,7 @@ def _do(track: Track, marks: List[dict], index: int, edit, tolerance: float,
             return "mêlerait un segment masqué et un segment gardé"
         ends = [member['end'] for member in group]
         mark['end'] = None if None in ends else max(ends)
-        mark['source'] = sorted({origin for member in group for origin in member['source']})
+        mark['source_ranks'] = sorted({rank for member in group for rank in member['source_ranks']})
         mark['touched'] = sorted({i for member in group for i in member.get('touched', ())})
         del marks[rank + 1:rank + len(group)]
         _touch(mark, index)
@@ -817,7 +818,7 @@ def apply_edits(track: Track, marks: Iterable[dict], edits: Optional[Iterable[di
     ont bougé (`was`, `now`) — la piste a été remesurée, ou un geste d'avant a été retiré : à
     montrer, pour qu'on le revoie. Liste vide : tout s'est fait sur les marques visées. Les
     marques reçues ne sont pas modifiées."""
-    out = [dict(mark, source=[rank]) for rank, mark in enumerate(marks)]
+    out = [dict(mark, source_ranks=[rank]) for rank, mark in enumerate(marks)]
     reports = []
     for index, edit in enumerate(edits or ()):
         report = _apply(track, out, index, edit, tolerance)
@@ -863,7 +864,7 @@ def _derived(card, track: Track, edits, cache: dict, tolerance: float) -> Tuple[
     if track.parent:
         parents = _read(card, _track(card, track.parent, cache), cache)
         for mark in marks:
-            if not mark['source']:          # ajoutée par un geste : sa parente par contenance
+            if not mark['source_ranks']:    # ajoutée par un geste : sa parente par contenance
                 mark['parent'] = _holder(parents, mark)
     return marks, problems
 
@@ -874,7 +875,7 @@ def read_derived(card, key: str, edits: Optional[Iterable[dict]],
     """Les marques de la piste DÉRIVÉE d'une card — sa piste `key` rejouée par la liste de gestes
     `edits` — et le compte rendu des gestes sautés ou faits sur une marque qui a bougé
     (`apply_edits`). La piste source se lit comme toujours
-    (`read_track`) et n'est jamais modifiée : sans geste, on retrouve ses marques (avec `source`).
+    (`read_track`) et n'est jamais modifiée : sans geste, on retrouve ses marques (avec `source_ranks`).
     Où se range `edits` est l'affaire du monde du porteur ; ce lecteur ne fait que rejouer."""
     cache = _context(card, tracks)
     return _derived(card, _track(card, key, cache), edits, cache, tolerance)

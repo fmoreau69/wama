@@ -437,25 +437,31 @@ class TracksOfAReferentialTest(unittest.TestCase):
                                              set={'label': 'start'})))
 
     def test_a_column_named_like_what_the_reader_writes_is_kept_under_another_name(self):
-        """A file may name a column `source` or `masked` : the reader writes those names in a
-        mark, so the column is read as `source_` — never overwritten, in the track or its derived."""
+        """A file may name a column `masked` or `parent` : the reader writes those names in a mark,
+        so the column is read as `masked_` — never overwritten, in the track or its derived. A
+        column `source` stays what it is : where a segment came from before its margins."""
         from wama.common.catalog.marks import extend_edits, read_derived, validate
+        from .core.segmentation import margins
         from .frames import read_referential_tracks, referential_tracks
+        widened = margins([{'start': 1.0, 'end': 5.0, 'origin': 'coding'},
+                           {'start': 6.0, 'end': 9.0, 'origin': 'coding'}], before=1.0)
+        self.assertEqual('coding', widened[0]['source'], 'the Data world already uses that name')
         ref = TemporalReferential('trial')
-        ref.add(_signal('shots', (0.0, 5.0), ends=[5.0, 9.0], data_type=DataType.SEGMENTS,
-                        rows=[{'source': 'front', 'masked': 'no', 'name': 'a'},
-                              {'source': 'rear', 'masked': 'no', 'name': 'b'}]))
+        ref.add(_signal('shots', [s['start'] for s in widened], ends=[s['end'] for s in widened],
+                        data_type=DataType.SEGMENTS,
+                        rows=[dict(s, masked='no', parent='p1') for s in widened]))
         tracks = referential_tracks(ref)
         self.assertEqual([], validate(tracks))
         read = read_referential_tracks(ref)['shots']
-        self.assertEqual([('front', 'no', 'a'), ('rear', 'no', 'b')],
-                         [(m['source_'], m['masked_'], m['name']) for m in read])
-        self.assertFalse({'source', 'masked'} & set(read[0]))
+        self.assertEqual([('coding', 'no', 'p1', 'margins')] * 2,
+                         [(m['source'], m['masked_'], m['parent_'], m['origin']) for m in read])
+        self.assertFalse({'masked', 'parent'} & set(read[0]))
         derived, problems = read_derived(ref, 'shots', extend_edits(tracks[0], read, [], 'mask', 1),
                                          tracks)
         self.assertEqual([], problems)
-        self.assertEqual([('front', [0], None), ('rear', [1], True)],
-                         [(m['source_'], m['source'], m.get('masked')) for m in derived])
+        self.assertEqual([('coding', 'no', [0], None), ('coding', 'no', [1], True)],
+                         [(m['source'], m['masked_'], m['source_ranks'], m.get('masked'))
+                          for m in derived])
 
     def test_the_marks_come_under_the_common_names_in_session_time(self):
         from .frames import read_referential_tracks

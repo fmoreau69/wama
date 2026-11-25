@@ -249,7 +249,7 @@ class IncoherentStatementsTest(SimpleTestCase):
             'an unknown place to go': (Track('a', 'A', source='a', gestures=('mask',),
                                              edits='elsewhere'),),
             'an attribute under a name the reader writes': (Track('a', 'A', source='a',
-                                                                  attributes=('source',)),),
+                                                                  attributes=('masked',)),),
             'an instant that would be split': (Track('a', 'A', source='a', kind=DataType.EVENTS,
                                                      gestures=('mask', 'split'),
                                                      edits=marks.DERIVED),),
@@ -265,9 +265,12 @@ class IncoherentStatementsTest(SimpleTestCase):
         self.assertEqual([], marks.validate((
             Track('turns', 'T', runs_of='lines', by='speaker'),
             Track('lines', 'L', source='rows', parent='turns', constraint=INCLUSION))))
-        # Read under another common name, a stored `source` is an attribute like any other.
+        # Read under another common name, a stored `masked` is an attribute like any other ; and
+        # `source` is no name of the reader — a segment of the Data world keeps there the origin
+        # it had before its margins (`segmentation.margins`).
         self.assertEqual([], marks.validate((Track('a', 'A', source='a',
-                                                   attributes=(('camera', 'source'),)),)))
+                                                   attributes=(('hidden', 'masked'), 'source')),)))
+        self.assertNotIn('source', marks.RESERVED)
         # A track that is only looked at, one that only gives cards, a computed one coloured by
         # the value it groups : all coherent.
         self.assertEqual([], marks.validate((
@@ -422,18 +425,19 @@ class DerivedTrackTest(SimpleTestCase):
         derived, problems = marks.read_derived(holder, 'parts', edits, (track,))
         self.assertEqual([], problems)
         self.assertEqual([
-            {'start': 0.0, 'end': 4.0, 'name': 'a', 'origin': 'parts', 'source': [0], 'touched': [0]},
-            {'start': 4.0, 'end': 20.0, 'name': 'a', 'origin': 'parts', 'source': [0, 1],
+            {'start': 0.0, 'end': 4.0, 'name': 'a', 'origin': 'parts', 'source_ranks': [0],
+             'touched': [0]},
+            {'start': 4.0, 'end': 20.0, 'name': 'a', 'origin': 'parts', 'source_ranks': [0, 1],
              'touched': [0, 1, 2], 'masked': True},
             {'start': 20.0, 'end': 30.0, 'name': 'end', 'label': 'kept', 'origin': 'parts',
-             'source': [2], 'touched': [3]}], derived)
+             'source_ranks': [2], 'touched': [3]}], derived)
         self.assertEqual(untouched, source, 'the marks given are not changed')
         self.assertEqual(untouched, marks.read_track(holder, 'parts', (track,)),
                          'the source track still reads as before')
         self.assertEqual(self.PARTS, holder['parts'])
         self.assertEqual((derived, []), marks.apply_edits(track, source, json.loads(json.dumps(edits))),
                          'the list goes to JSON and back, and replays the same')
-        self.assertEqual(([dict(m, source=[i]) for i, m in enumerate(source)], []),
+        self.assertEqual(([dict(m, source_ranks=[i]) for i, m in enumerate(source)], []),
                          marks.read_derived(holder, 'parts', [], (track,)),
                          'no gesture : the marks of the source, each one saying where it comes from')
 
@@ -514,7 +518,7 @@ class DerivedTrackTest(SimpleTestCase):
                 derived, reports = marks.apply_edits(every, source, [edit])
                 self.assertEqual([(0, gesture, False)],
                                  [(r['edit'], r['gesture'], r['applied']) for r in reports])
-                self.assertEqual([dict(m, source=[i]) for i, m in enumerate(source)], derived)
+                self.assertEqual([dict(m, source_ranks=[i]) for i, m in enumerate(source)], derived)
         # A merge takes segments that follow one another and are all kept, or all masked.
         for first, wrong in ((('mask', 0, {}), 'masqué'), (('reorder', 2, {'to': 0}), 'suivent')):
             with self.subTest(merge_after=first[0]):
@@ -552,7 +556,7 @@ class DerivedTrackTest(SimpleTestCase):
             derived, problems = marks.read_derived({'parts': rows}, 'parts',
                                                    self._made(track, rows, *gestures), (track,))
             self.assertEqual([], problems)
-            return [(m['start'], m['end'], m.get('name'), m['source']) for m in derived]
+            return [(m['start'], m['end'], m.get('name'), m['source_ranks']) for m in derived]
 
         a, b, c = (0.0, 10.0, 'a', [0]), (10.0, 20.0, 'b', [1]), (20.0, None, 'c', [2])
         self.assertEqual([(0.0, 8.0, 'a', [0]), b, (22.0, None, 'c', [2])],
@@ -578,6 +582,8 @@ class DerivedTrackTest(SimpleTestCase):
         added = marks.read_derived({'parts': rows}, 'parts', self._made(
             track, rows, ('add', None, {'start': 3, 'end': 5})), (track,))[0][1]
         self.assertEqual((marks.ADDED, [0]), (added['origin'], added['touched']))
+        self.assertEqual('add', marks.ADDED, 'named after its gesture, as the Segmenter names '
+                                             'a production after its mode')
         # Instants : moved, added, masked, labelled — the same list, the same reader.
         beeps = self._track(('move', 'add', 'mask', 'label', 'delete', 'reorder'),
                             kind=DataType.EVENTS)
