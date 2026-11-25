@@ -58,11 +58,12 @@ def _list(attrs, key):
     return [str(v)] if v else []
 
 
-#: Les deux attributs qui RATTACHENT une personne à une unité : son unité principale, et toutes
-#: ses unités. Nommés une fois — la remontée au profil ci-dessous et la lecture de l'annuaire par
-#: unité (`accounts/directory.py`) lisent les mêmes.
+#: L'attribut qui RATTACHE une personne à une unité : son unité PRINCIPALE. Nommé une fois — la
+#: remontée au profil ci-dessous et la lecture de l'annuaire par unité (`accounts/directory.py`)
+#: lisent le même. WAMA ne lit plus « toutes ses unités » (décision de Fabien, 2026-11-25 : une
+#: seule appartenance, la principale — les autres codes d'une fiche sont souvent les codes
+#: hérités de la même unité, et rien ne s'en sert).
 MAIN_UNIT_ATTRIBUTE = 'supannEntiteAffectationPrincipale'
-UNITS_ATTRIBUTE = 'supannEntiteAffectation'
 
 ESTABLISHMENT_ATTRIBUTE = 'supannEtablissement'
 #: La qualité de la personne : la principale si la fiche la porte, sinon toutes ses qualités.
@@ -72,7 +73,7 @@ STATUS_ATTRIBUTES = ('eduPersonPrimaryAffiliation', 'eduPersonAffiliation')
 
 #: La liste FERMÉE de ce que `_parse_org` lit d'une fiche — celle que la lecture d'une personne
 #: hors connexion réclame (`directory.person_org`), et rien de plus.
-ORG_ATTRIBUTES = (ESTABLISHMENT_ATTRIBUTE, MAIN_UNIT_ATTRIBUTE, UNITS_ATTRIBUTE, *STATUS_ATTRIBUTES)
+ORG_ATTRIBUTES = (ESTABLISHMENT_ATTRIBUTE, MAIN_UNIT_ATTRIBUTE, *STATUS_ATTRIBUTES)
 
 #: Ce qu'un compte reçoit de l'annuaire À SA CRÉATION (pré-inscription comme première connexion),
 #: avant tout choix de sa titulaire : son unité principale, rien d'autre. Le reste s'ajoute AVEC
@@ -96,7 +97,6 @@ def _parse_org(attrs):
     return {
         'establishment': _first(attrs, ESTABLISHMENT_ATTRIBUTE),  # forme `{UAI}0772894C`
         'org_entity_code': _first(attrs, MAIN_UNIT_ATTRIBUTE),
-        'org_affiliations': _list(attrs, UNITS_ATTRIBUTE),
         'ldap_affiliation': status[:64],
     }
 

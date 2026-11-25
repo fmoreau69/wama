@@ -237,7 +237,22 @@ def _welcome_on_activation(sender, instance, created, **kwargs):
         notify_user(instance, '[WAMA] Votre compte est activé' if asked
                     else '[WAMA] Un compte a été préparé pour vous',
                     _welcome_text(instance, asked))
-        logger.info('compte %s activé → email de bienvenue', instance.get_username())
+        closed = close_moderation_requests(instance)
+        logger.info('compte %s activé → email de bienvenue, %s demande(s) de modération close(s)',
+                    instance.get_username(), closed)
+
+
+def close_moderation_requests(user) -> int:
+    """Le compte est activé : la demande de modération qui attendait encore chez les AUTRES
+    administrateurs est marquée lue — plus personne n'a à y répondre (2026-11-25). Rend le nombre
+    de notifications closes. La ligne reste : c'est elle qui dit que la personne était venue
+    (`accounts_that_asked`)."""
+    from django.utils import timezone
+
+    from wama.common.models import Notification
+    return Notification.objects.filter(
+        kind=ACCOUNT_PENDING_KIND, object_type='User', object_id=str(user.pk),
+        read_at__isnull=True).update(read_at=timezone.now())
 
 
 # ── Journal d'accès ───────────────────────────────────────────────────────────

@@ -246,23 +246,18 @@
                         Vos partages « labo » vont à
                         <strong>{{ rattachement.partage_cible.name }}</strong>.
                     </p>
-                    {% elif rattachement.partage_a_designer %}
-                    <p class="mb-3">
-                        <i class="fas fa-hand-pointer text-info me-1"></i>
-                        Vous appartenez à plusieurs unités : WAMA ne choisit pas pour vous —
-                        vous <strong>désignez l'unité</strong> au moment du partage, dans
-                        <a href="{% url 'common:rag' %}">Mon RAG</a>.
-                    </p>
                     {% else %}
                     <p class="mb-3">
                         <i class="fas fa-circle-info text-body-secondary me-1"></i>
-                        Aucune de vos unités n'est reconnue dans l'annuaire des structures :
+                        Votre unité n'est pas reconnue dans l'annuaire des structures :
                         le partage au niveau labo reste indisponible.
                     </p>
                     {% endif %}
 
+                    {% comment %}UNE appartenance, la principale (décision de Fabien du 2026-11-25) :
+                    celle que le partage et le RAG lisent.{% endcomment %}
                     <div class="row mb-2">
-                        <div class="col-4 label-col">Unités</div>
+                        <div class="col-4 label-col">Unité</div>
                         <div class="col-8 value-col">
                             {% for r in rattachement.reconnus %}
                             <div class="mb-2">
@@ -303,7 +298,7 @@
                     22/08 sur « {EIFFEL}CFR - LESCOT »), pas à la lecture courante.{% endcomment %}
                     <details class="mt-2">
                         <summary class="text-body-secondary small" style="cursor:pointer">
-                            Codes de l'annuaire ({{ rattachement.rattachements|length }})
+                            Code de l'annuaire
                         </summary>
                         <div class="mt-2 ps-2 border-start border-secondary">
                             {% for r in rattachement.rattachements %}

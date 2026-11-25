@@ -55,10 +55,11 @@ class AffiliationBlockTest(TestCase):
         ctx = rattachement_institutionnel(self.profile)
         self.assertIsNotNone(ctx['partage_cible'])
         self.assertEqual('LESCOT', ctx['partage_cible'].name)
-        self.assertFalse(ctx['partage_a_designer'])
 
-    def test_several_affiliations_say_the_user_will_have_to_choose(self):
-        """LE cas mesuré : le mécanisme refuse de trancher, la page le DIT."""
+    def test_several_codes_on_the_record_still_make_one_unit_the_main_one(self):
+        """LE cas mesuré : la fiche porte, pour une même unité, ses codes hérités à côté du code
+        en vigueur. Une seule appartenance compte — la principale (décision du 2026-11-25) ; la
+        page ne montre qu'elle et le partage y va sans rien demander."""
         self._unit('CFR - LESCOT', 'LESCOT')
         self._unit('{IFSTTAR}LESCOT', '{IFSTTAR}LESCOT', 'autre')
         self.profile.org_affiliations = ['{IFSTTAR}LESCOT', 'CFR - LESCOT',
@@ -67,13 +68,14 @@ class AffiliationBlockTest(TestCase):
         self.profile.save()
 
         ctx = rattachement_institutionnel(self.profile)
-        self.assertIsNone(ctx['partage_cible'], "rien n'est ouvert automatiquement")
-        self.assertTrue(ctx['partage_a_designer'])
-        self.assertIn('nommer', ctx['partage_raison'])
+        self.assertEqual(['CFR - LESCOT'], [r['code'] for r in ctx['rattachements']])
+        self.assertTrue(ctx['rattachements'][0]['principal'])
+        self.assertEqual('LESCOT', ctx['partage_cible'].name)
+        self.assertEqual('', ctx['partage_raison'])
 
     def test_labels_are_readable_and_raw_codes_are_kept(self):
         self._unit('{IFSTTAR}LESCOT', '{IFSTTAR}LESCOT', 'autre')
-        self.profile.org_affiliations = ['{IFSTTAR}LESCOT', '{EIFFEL}CFR - LESCOT']
+        self.profile.org_entity_code = '{IFSTTAR}LESCOT'
         self.profile.save()
 
         ctx = rattachement_institutionnel(self.profile)
@@ -84,12 +86,15 @@ class AffiliationBlockTest(TestCase):
         self.assertEqual('IFSTTAR', par_code['{IFSTTAR}LESCOT']['autorite'])
         # Le code brut reste là : c'est lui qui sert au diagnostic.
         self.assertEqual('{IFSTTAR}LESCOT', par_code['{IFSTTAR}LESCOT']['code'])
-        self.assertEqual('CFR - LESCOT', par_code['{EIFFEL}CFR - LESCOT']['libelle'])
         self.assertEqual('0772894C', ctx['etablissement_libelle'])
         self.assertEqual('UAI', ctx['etablissement_autorite'])
+        # Un code préfixé que l'arbre des unités ne connaît pas : lisible quand même.
+        self.profile.org_entity_code = '{EIFFEL}CFR - LESCOT'
+        self.profile.save()
+        only = rattachement_institutionnel(self.profile)['rattachements']
+        self.assertEqual([('CFR - LESCOT', False)], [(r['libelle'], r['reconnu']) for r in only])
 
     def test_an_account_without_any_affiliation_says_nothing_it_cannot_hold(self):
         ctx = rattachement_institutionnel(self.profile)
         self.assertEqual([], ctx['rattachements'])
         self.assertIsNone(ctx['partage_cible'])
-        self.assertFalse(ctx['partage_a_designer'])

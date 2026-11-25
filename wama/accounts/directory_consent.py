@@ -27,17 +27,15 @@ logger = logging.getLogger(__name__)
 #: donnée écrit (clés de `ldap._parse_org`) ; `derived` : ceux qui s'en déduisent et s'effacent
 #: avec elle ; `opens` : ce que la donnée OUVRE dans WAMA, dit à la personne avant qu'elle choisisse.
 DIRECTORY_DATA = {
+    # L'unité : la PRINCIPALE, et elle seule (`common.models.profile_org_codes`). Les autres codes
+    # d'une fiche ne sont plus lus ; ce qu'un profil en portait (`org_affiliations`) s'efface
+    # avec l'unité si la personne la retire.
     'main_unit': {
-        'label': 'Unité principale',
-        'fields': ('org_entity_code',), 'derived': ('org_entity_name', 'org_hierarchy'),
+        'label': 'Unité',
+        'fields': ('org_entity_code',),
+        'derived': ('org_entity_name', 'org_hierarchy', 'org_affiliations'),
         'opens': "Partager avec votre unité et lire ce qu'elle partage ; elle s'affiche à "
                  "côté de votre nom pour les administrateurs.",
-    },
-    'other_units': {
-        'label': 'Autres unités de rattachement',
-        'fields': ('org_affiliations',), 'derived': (),
-        'opens': "Partager avec vos autres unités (équipe, département) et lire ce qu'elles "
-                 "partagent.",
     },
     'establishment': {
         'label': 'Établissement',

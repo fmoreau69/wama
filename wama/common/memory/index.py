@@ -25,9 +25,10 @@ NIVEAUX. Un document entre au RAG à un NIVEAU choisi par l'utilisateur au momen
                       sous-unités (héritage `OrgUnit.parent`).
   'project' est ANNONCÉ comme niveau suivant (décision Fabien 2026-08-21) ; 'public' viendra en
   dernier. Le niveau EST la visibilité de `ScopedVisibility` — aucun second modèle de scope.
-  ⚠ MULTI-ENTITÉS : un utilisateur peut appartenir à PLUSIEURS unités (`org_affiliations` est
-  une liste). S'il en a plusieurs, le geste 'unit' doit NOMMER l'unité — on ne devine pas :
-  un partage parti dans la mauvaise entité ne se voit pas.
+  UNE unité par personne : sa PRINCIPALE (`common.models.profile_org_codes`, décision de Fabien
+  du 2026-11-25). Le geste 'unit' y va sans rien demander. Jusque-là la fiche d'annuaire donnait
+  plusieurs codes pour une même unité (hérités à côté de celui en vigueur) et le geste exigeait
+  d'en NOMMER un.
 
 ⚠ ZÉRO APPEL DE MODÈLE ICI (règle §5bis) : le découpage est mécanique, `embedding=NULL`, les
 vecteurs viennent par lot via `store.reindex()`.
@@ -170,14 +171,14 @@ def _refusal(message, status=400):
 def _gesture_level(user, level, org_unit):
     """`(niveau, unité)` d'un geste : ceux du geste, sinon les défauts du profil (« Mon RAG »).
 
-    L'unité cible ne se DEVINE pas quand il y en a plusieurs (`_resolve_unit` refuse) : sans le
-    repli sur `rag_unite_defaut`, un utilisateur à plusieurs rattachements — cas courant à l'UGE,
-    où les codes hérités coexistent avec les actuels — ne pourrait jamais partager au labo."""
+    L'unité n'a plus de défaut à lire : une personne n'a qu'UNE unité, la principale
+    (`profile_org_codes`, 2026-11-25), et `_resolve_unit` la trouve seul. Le repli sur
+    `rag_unite_defaut` servait aux profils à plusieurs rattachements ; gardé, il ferait refuser
+    le partage à qui aurait nommé un code hérité."""
     prof = getattr(user, 'profile', None)
     level = (level or '').strip() or (getattr(prof, 'rag_niveau_defaut', '') if prof else '') \
         or 'user'
-    unit = (org_unit or '').strip() or (getattr(prof, 'rag_unite_defaut', '') if prof else '')
-    return level, unit or None
+    return level, (org_unit or '').strip() or None
 
 
 def item_text(detail):
@@ -374,15 +375,11 @@ def _resolve_unit(user, org_unit):
       • avec PLUSIEURS affiliations, l'unité doit être nommée — deviner publierait dans la
         mauvaise entité, et un partage raté ne se voit pas.
     """
-    from ..models import OrgUnit
+    from ..models import OrgUnit, profile_org_codes
 
-    prof = getattr(user, 'profile', None)
-    codes = []
-    if prof is not None:
-        codes = list(prof.org_affiliations or [])
-        if prof.org_entity_code:
-            codes.append(prof.org_entity_code)
-    codes = list(dict.fromkeys(codes))          # dédoublonne en préservant l'ordre
+    # L'unité d'une personne : la règle commune (`profile_org_codes`, son unité PRINCIPALE seule
+    # depuis le 2026-11-25) — cette fonction en écrivait une copie, à plusieurs affiliations.
+    codes = profile_org_codes(getattr(user, 'profile', None))
 
     if org_unit is not None:
         if isinstance(org_unit, OrgUnit):
@@ -402,7 +399,7 @@ def _resolve_unit(user, org_unit):
             return None, f"l'affiliation « {codes[0]} » n'a pas d'OrgUnit correspondante"
         return unite, ''
     if not codes:
-        return None, ("aucune affiliation d'unité sur le profil — renseigner "
-                      "org_affiliations avant de partager au niveau labo")
+        return None, ("aucune unité principale sur le profil — elle vient de l'annuaire, et "
+                      "se garde depuis « Mes données d'annuaire »")
     return None, (f"plusieurs affiliations ({', '.join(codes)}) : nommer l'unité cible "
                   "via org_unit")

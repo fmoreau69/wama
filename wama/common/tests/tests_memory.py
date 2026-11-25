@@ -196,8 +196,11 @@ class FragmentRagTests(TestCase):
 
 
 def _affilier(user, *codes):
-    """Pose les affiliations d'unité sur le profil (auto-créé par signal `post_save`)."""
+    """Pose l'unité du profil (auto-créé par signal `post_save`) : la PREMIÈRE est sa principale,
+    celle qui le rattache (`profile_org_codes`, 2026-11-25) ; les autres restent sur la fiche
+    comme des codes que plus rien ne lit."""
     prof = user.profile
+    prof.org_entity_code = codes[0] if codes else ''
     prof.org_affiliations = list(codes)
     prof.save()
 
@@ -251,17 +254,16 @@ class EntreeExpliciteRagTests(TestCase):
         self.assertIn('erreur', r)
         self.assertEqual(RagChunk.objects.filter(user=seul).count(), 0)
 
-    def test_niveau_unit_ambigu_exige_de_nommer_l_unite(self):
-        """Multi-entités (précision Fabien) : plusieurs affiliations ⇒ on ne devine JAMAIS."""
+    def test_several_codes_on_a_record_share_to_the_main_unit_and_to_no_other(self):
+        """Une seule appartenance (décision de Fabien du 2026-11-25) : la principale. Plusieurs
+        codes sur la fiche ne demandent plus de choisir, et n'ouvrent pas les autres unités."""
         multi = User.objects.create_user('rag_multi', password='x')
         _affilier(multi, 'LAB-TEST', 'EQ-TEST')
         r = add_to_rag(multi, 'texte partagé', source_ref='x', niveau='unit')
-        self.assertIn('erreur', r)
-        self.assertIn('plusieurs affiliations', r['erreur'])
-        # En nommant l'unité, le geste passe.
-        r2 = add_to_rag(multi, 'texte partagé', source_ref='x', niveau='unit',
-                            org_unit='LAB-TEST')
-        self.assertEqual(r2.get('niveau'), 'unit')
+        self.assertEqual(r.get('niveau'), 'unit')
+        other = add_to_rag(multi, 'texte partagé', source_ref='y', niveau='unit',
+                           org_unit='EQ-TEST')
+        self.assertIn("pas d'affiliation directe", other['erreur'])
 
     def test_publier_vers_un_ancetre_est_refuse(self):
         """`a` est affilié à l'ÉQUIPE : publier au LABO (ancêtre) = niveau 3/4, pas ouvert."""
@@ -506,6 +508,10 @@ class RattachementMultipleTests(TestCase):
         prof = self.u.profile
         # Trois codes, dont un FANTÔME absent de l'annuaire — exactement le profil mesuré.
         prof.org_affiliations = ['{IFSTTAR}LESCOT', 'CFR - LESCOT', '{EIFFEL}CFR - LESCOT']
+        # …et son unité PRINCIPALE, la seule qui le rattache depuis le 2026-11-25 (décision de
+        # Fabien : « une seule appartenance […] la principale/officielle ») — le blocage que
+        # cette classe protégeait disparaît avec le choix entre trois codes d'une même unité.
+        prof.org_entity_code = 'CFR - LESCOT'
         prof.rag_niveau_defaut = 'unit'
         prof.save()
 
@@ -522,34 +528,34 @@ class RattachementMultipleTests(TestCase):
         return self.client.post('/common/api/rag/ajouter/',
                                 {'app': 'apptest', 'pk': self.item.pk})
 
-    def test_sans_unite_choisie_le_partage_est_refuse_et_MOTIVE(self):
-        r = self._ajouter()
-        self.assertEqual(r.status_code, 400)
-        self.assertIn('nommer', r.json()['erreur'])       # refus explicite, pas un plantage
-        self.assertEqual(RagChunk.objects.count(), 0)
-
-    def test_l_unite_par_defaut_du_profil_debloque_le_partage(self):
-        prof = self.u.profile
-        prof.rag_unite_defaut = 'CFR - LESCOT'
-        prof.save()
+    def test_sharing_goes_to_the_main_unit_without_anything_to_choose(self):
         r = self._ajouter()
         self.assertEqual(r.status_code, 200)
         chunk = RagChunk.objects.filter(user=self.u).first()
         self.assertEqual(chunk.visibility, ScopedVisibility.VIS_UNIT)
         self.assertEqual(chunk.scope_org_unit_id, self.actuel.id)
 
-    def test_la_page_ne_propose_que_les_unites_RESOLUES(self):
-        r = self.client.get('/common/rag/')
-        codes = {u['code'] for u in r.context['unites']}
-        # Le code fantôme est écarté : proposer un choix qui échouerait ensuite serait pire
-        # que ne pas le proposer.
-        self.assertEqual(codes, {'CFR - LESCOT', '{IFSTTAR}LESCOT'})
+    def test_a_default_unit_left_from_before_no_longer_decides_anything(self):
+        """Un profil qui avait nommé le code HÉRITÉ comme cible : le partage va quand même à
+        l'unité principale, au lieu d'être refusé ou de partir ailleurs."""
+        prof = self.u.profile
+        prof.rag_unite_defaut = '{IFSTTAR}LESCOT'
+        prof.save()
+        r = self._ajouter()
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(RagChunk.objects.filter(user=self.u).first().scope_org_unit_id,
+                         self.actuel.id)
 
-    def test_on_ne_peut_pas_choisir_une_unite_dont_on_n_est_pas_membre(self):
+    def test_the_page_offers_the_main_unit_and_no_other_code_of_the_record(self):
+        r = self.client.get('/common/rag/')
+        self.assertEqual({'CFR - LESCOT'}, {u['code'] for u in r.context['unites']})
+
+    def test_a_unit_that_is_not_the_main_one_cannot_be_named(self):
         OrgUnit.objects.create(code='AUTRE-LABO', name='Autre labo', unit_type='labo')
-        r = self.client.post('/common/api/rag/preference/',
-                             {'unite_soumise': '1', 'unite_defaut': 'AUTRE-LABO'})
-        self.assertEqual(r.status_code, 400)
+        for code in ('AUTRE-LABO', '{IFSTTAR}LESCOT'):
+            r = self.client.post('/common/api/rag/preference/',
+                                 {'unite_soumise': '1', 'unite_defaut': code})
+            self.assertEqual(r.status_code, 400)
         self.u.profile.refresh_from_db()
         self.assertEqual(self.u.profile.rag_unite_defaut, '')
 

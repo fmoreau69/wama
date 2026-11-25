@@ -1794,11 +1794,9 @@ def rag_preference(request):
         # On VALIDE contre les affiliations réelles : accepter un code arbitraire laisserait
         # croire à un partage possible vers une unité dont l'utilisateur n'est pas membre —
         # `add_to_rag` le refuserait ensuite, mais seulement au moment du clic.
+        from .models import profile_org_codes
         code = (request.POST.get('unite_defaut') or '').strip()
-        affiliations = list(prof.org_affiliations or [])
-        if prof.org_entity_code:
-            affiliations.append(prof.org_entity_code)
-        if code and code not in affiliations:
+        if code and code not in profile_org_codes(prof):
             return JsonResponse({'erreur': f"vous n'êtes pas rattaché à « {code} »"}, status=400)
         prof.rag_unite_defaut = code
         champs.append('rag_unite_defaut')
@@ -2016,16 +2014,15 @@ def memories_approve(request):
 def unites_partageables(profile):
     """Les unités vers lesquelles CE profil peut réellement partager — `[{code, nom}]`.
 
-    Intersection entre ses rattachements d'annuaire et l'arbre `OrgUnit` peuplé par
-    `manage.py sync_org_units`. Vide = le niveau labo restera refusé, et la page le dit.
+    Son unité PRINCIPALE (`profile_org_codes`, une seule appartenance depuis le 2026-11-25) si
+    l'arbre `OrgUnit` peuplé par `manage.py sync_org_units` la connaît. Vide = le niveau labo
+    restera refusé, et la page le dit.
     """
-    from .models import OrgUnit
+    from .models import OrgUnit, profile_org_codes
 
-    if profile is None:
+    codes = profile_org_codes(profile)
+    if not codes:
         return []
-    codes = list(profile.org_affiliations or [])
-    if profile.org_entity_code:
-        codes.append(profile.org_entity_code)
     unites = OrgUnit.local().filter(code__in=set(codes))
     return [{'code': u.code, 'nom': u.name, 'type': u.get_unit_type_display()} for u in unites]
 

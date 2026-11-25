@@ -446,11 +446,12 @@ def rattachement_institutionnel(profile):
     # Le libellé pour un humain (`ldap.readable`) : le code brut reste affiché à côté — on ne le
     # remplace pas, on cesse d'en faire le titre.
     from wama.accounts.ldap import readable as _readable, split_namespace
-    from wama.common.models import OrgUnit
+    from wama.common.models import OrgUnit, profile_org_codes
 
-    codes = list(profile.org_affiliations or [])
-    if profile.org_entity_code and profile.org_entity_code not in codes:
-        codes.insert(0, profile.org_entity_code)
+    # UNE appartenance, la principale (`profile_org_codes`, décision de Fabien du 2026-11-25) :
+    # celle que le partage et le RAG lisent. La page montrait jusque-là tous les codes de la
+    # fiche, dont les codes hérités d'une même unité.
+    codes = profile_org_codes(profile)
     connues = {u.code: u for u in OrgUnit.local().filter(code__in=codes)}
 
     rattachements = []
@@ -494,7 +495,6 @@ def rattachement_institutionnel(profile):
         #: L'unité qui recevrait un partage labo SANS qu'on la nomme, ou None + la raison.
         'partage_cible': target,
         'partage_raison': reason,
-        'partage_a_designer': target is None and any(r['reconnu'] for r in rattachements),
         'hierarchie': profile.org_hierarchy or [],
     }
 
@@ -1054,6 +1054,9 @@ def user_management(request):
             'unit_code': unit_code,
             'unit': profile.org_entity_label() if profile else '',
             'unit_path': profile.org_path() if profile else '',
+            # La qualité de la personne (chercheur, personnel, étudiant…), si elle la garde sur
+            # son profil : elle aide à lui proposer un rôle.
+            'status': profile.ldap_affiliation if profile else '',
             'role': get_user_role(user),
             'groups': [g.name for g in user.groups.all()],
             'metier_cells': [{'key': k, 'label': label, 'active': k in active_metier,

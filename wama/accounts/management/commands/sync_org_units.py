@@ -70,13 +70,13 @@ class Command(BaseCommand):
         dry = options['dry_run']
         codes = list(options['code'])
         if not codes and not options['all']:
-            # Source par défaut : ce que l'annuaire a DÉJÀ écrit sur les profils. On ne
-            # synchronise pas 612 entités pour en utiliser deux.
+            # Source par défaut : l'unité qui RATTACHE chaque profil (`profile_org_codes`, son
+            # unité principale seule depuis le 2026-11-25). On ne synchronise pas tout un
+            # annuaire pour quelques unités, ni les codes hérités d'une unité que plus rien ne lit.
+            from wama.common.models import profile_org_codes
             vus = set()
             for prof in UserProfile.objects.all():
-                vus.update(prof.org_affiliations or [])
-                if prof.org_entity_code:
-                    vus.add(prof.org_entity_code)
+                vus.update(profile_org_codes(prof))
             codes = sorted(vus)
         if not codes and not options['all']:
             self.stdout.write('Aucun code d\'entité sur les profils — rien à faire. '

@@ -3816,8 +3816,9 @@ MECHANISMS = (
                        'wama/accounts/moderation.py',
                        'wama/accounts/tests/tests_directory.py')),
     Mechanism('directory_consent', "Données d'annuaire choisies par la personne, rôle demandé",
-              "Ce que l'annuaire propose d'ajouter à un profil (unité principale, autres unités, "
-              "établissement, qualité — `DIRECTORY_DATA`) se choisit AVEC la personne : le minimum "
+              "Ce que l'annuaire propose d'ajouter à un profil (unité — la principale, la seule "
+              "appartenance que WAMA lise —, établissement, qualité : `DIRECTORY_DATA`) se "
+              "choisit AVEC la personne : le minimum "
               "à la création du compte, puis une pastille par donnée au panneau d'accueil de la "
               "première connexion et sur le profil. `writable` est la règle que la connexion "
               "applique (ajoutée = rafraîchie, retirée = effacée et ne revient pas, sans choix = "

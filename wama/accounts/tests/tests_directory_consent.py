@@ -97,22 +97,24 @@ class DirectoryConsentTests(TestCase):
 
     def test_an_added_datum_is_refreshed_and_a_removed_one_never_comes_back(self):
         zoe = self._came('zoe.martin')
-        rows = directory_consent.decide(zoe, accept=['other_units', 'status'], decline=['main_unit'])
-        self.assertEqual({'main_unit': 'declined', 'other_units': 'accepted',
-                          'establishment': 'undecided', 'status': 'accepted'},
+        legacy = zoe.profile
+        legacy.org_affiliations = ['LAB-A', 'OLD-A']        # ce qu'un profil d'avant portait
+        legacy.save()
+        rows = directory_consent.decide(zoe, accept=['status'], decline=['main_unit'])
+        self.assertEqual({'main_unit': 'declined', 'establishment': 'undecided', 'status': 'accepted'},
                          {row['key']: row['choice'] for row in rows})
         profile = self._profile('zoe.martin')
-        # Ajoutées : lues de l'annuaire à l'instant. Retirée : effacée, nom et hiérarchie compris.
-        self.assertEqual((['LAB-A', 'OLD-A'], 'member, researcher'),
-                         (profile.org_affiliations, profile.ldap_affiliation))
-        self.assertEqual(('', '', []), (profile.org_entity_code, profile.org_entity_name,
-                                        profile.org_hierarchy))
+        # Ajoutée : lue de l'annuaire à l'instant. Retirée : effacée — le nom, la hiérarchie et
+        # les anciens codes de rattachement avec elle.
+        self.assertEqual('member, researcher', profile.ldap_affiliation)
+        self.assertEqual(('', '', [], []), (profile.org_entity_code, profile.org_entity_name,
+                                            profile.org_hierarchy, profile.org_affiliations))
         self.assertFalse(directory_consent.pending(zoe))
-        profile.org_affiliations = ['STALE']
+        profile.ldap_affiliation = 'stale'
         profile.save()
         self._sign_in_again('zoe.martin')
         profile = self._profile('zoe.martin')
-        self.assertEqual(['LAB-A', 'OLD-A'], profile.org_affiliations, "ajoutée : tenue à jour")
+        self.assertEqual('member, researcher', profile.ldap_affiliation, "ajoutée : tenue à jour")
         self.assertEqual(('', ''), (profile.org_entity_code, profile.establishment),
                          "retirée : ne revient pas ; sans choix : toujours pas ajoutée")
 
@@ -124,10 +126,12 @@ class DirectoryConsentTests(TestCase):
         profile.save()
         self._sign_in_again('zoe.martin')
         profile = self._profile('zoe.martin')
-        self.assertEqual((['LAB-A', 'OLD-A'], '{UAI}0000000X', ''),
-                         (profile.org_affiliations, profile.establishment, profile.ldap_affiliation))
+        self.assertEqual(('{UAI}0000000X', ''), (profile.establishment, profile.ldap_affiliation))
+        # Les autres codes de la fiche ne se lisent plus : ce qu'un profil en portait reste tel
+        # quel (rien n'est effacé sans la personne), et plus rien ne s'en sert.
+        self.assertEqual(['STALE'], profile.org_affiliations)
         rows = {row['key']: row for row in directory_consent.state(zoe, proposed={})}
-        self.assertEqual(('undecided', True), (rows['other_units']['choice'], rows['other_units']['stored']))
+        self.assertEqual(('undecided', True), (rows['establishment']['choice'], rows['establishment']['stored']))
         self.assertEqual(('undecided', False), (rows['status']['choice'], rows['status']['stored']))
 
     # ── Ce que la personne choisit ──────────────────────────────────────────────────────────
@@ -153,8 +157,10 @@ class DirectoryConsentTests(TestCase):
         self.assertEqual(list(directory_consent.DIRECTORY_DATA), [row['key'] for row in told['data']])
         self.assertEqual(('undecided', True, 'LAB-A'),
                          tuple(rows['main_unit'][k] for k in ('choice', 'stored', 'value')))
-        self.assertEqual(('undecided', False, '', 'LAB-A, OLD-A'),
-                         tuple(rows['other_units'][k] for k in ('choice', 'stored', 'value', 'offer')))
+        self.assertEqual(('undecided', False, '', '0000000X'),
+                         tuple(rows['establishment'][k] for k in ('choice', 'stored', 'value', 'offer')))
+        self.assertEqual({'main_unit', 'establishment', 'status'}, set(rows),
+                         "une seule appartenance : les autres codes d'une fiche ne se proposent pas")
         self.assertEqual('member, researcher', rows['status']['offer'])
         self.assertTrue(all(row['opens'] for row in told['data']))
         self.assertFalse(told['answered'])
@@ -302,8 +308,7 @@ class DirectoryConsentTests(TestCase):
         from wama import tool_api
         zoe = self._came('zoe.martin')
         told = tool_api.get_my_directory_data(zoe)
-        self.assertEqual({'main_unit': 'undecided', 'other_units': 'undecided',
-                          'establishment': 'undecided', 'status': 'undecided'},
+        self.assertEqual({'main_unit': 'undecided', 'establishment': 'undecided', 'status': 'undecided'},
                          {row['key']: row['choice'] for row in told['data']})
         self.assertNotIn('offer', told['data'][0], "l'outil dit ce que WAMA garde, il n'interroge pas l'annuaire")
         done = tool_api.set_my_directory_data(zoe, add=['establishment'], remove=['main_unit'])

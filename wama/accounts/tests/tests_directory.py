@@ -43,7 +43,7 @@ PEOPLE = [
      'supannEntiteAffectationPrincipale': 'LAB-A-T1', 'supannEntiteAffectation': ['LAB-A-T1'],
      'telephoneNumber': '0102030406'},
     {'uid': 'lea.roux', 'givenName': 'Léa', 'sn': 'Roux', 'mail': 'lea.roux@univ.test',
-     'supannEntiteAffectationPrincipale': 'LAB-B', 'supannEntiteAffectation': ['LAB-B', 'LAB-A'],
+     'supannEntiteAffectationPrincipale': 'LAB-A', 'supannEntiteAffectation': ['LAB-A', 'LAB-B'],
      'telephoneNumber': '0102030407'},
     {'uid': 'tom.blanc', 'givenName': 'Tom', 'sn': 'Blanc', 'mail': 'tom.blanc@univ.test',
      'supannEntiteAffectationPrincipale': 'LAB-B', 'supannEntiteAffectation': ['LAB-B']},
@@ -131,13 +131,16 @@ class DirectoryReadTests(SimpleTestCase):
                          directory.find_units('OLD-A', exact=True, conn=self.conn))
         self.assertEqual([], directory.find_units('   ', conn=self.conn))
 
-    def test_people_of_a_unit_are_found_by_main_or_secondary_attachment(self):
+    def test_people_of_a_unit_are_those_whose_main_unit_it_is(self):
         people = directory.people_of(['LAB-A', 'LAB-A-T1'], conn=self.conn)
         self.assertEqual(['Adam.Petit', 'lea.roux', 'zoe.martin'], [p['username'] for p in people])
         self.assertEqual({'username': 'zoe.martin', 'first_name': 'Zoé', 'last_name': 'Martin',
                           'email': 'zoe.martin@univ.test', 'main_unit': 'LAB-A'}, people[-1])
-        self.assertEqual(['zoe.martin'],
-                         [p['username'] for p in directory.people_of(['OLD-A'], conn=self.conn)])
+        # Une seule appartenance, la principale : Léa porte aussi LAB-B sur sa fiche, Zoé un code
+        # hérité — ni l'une ni l'autre ne se retrouve sous ces unités-là.
+        self.assertEqual(['tom.blanc'],
+                         [p['username'] for p in directory.people_of(['LAB-B'], conn=self.conn)])
+        self.assertEqual([], directory.people_of(['OLD-A'], conn=self.conn))
         self.assertEqual([], directory.people_of([], conn=self.conn))
 
     def test_only_the_closed_list_of_attributes_is_ever_asked_from_the_directory(self):
@@ -528,3 +531,65 @@ class AccountsPageTests(TestCase):
         layers = {layer['key']: layer for layer in get_scene('users').layers}
         self.assertEqual(('nodes', False), (layers['preregistered']['role'], layers['preregistered']['on']))
         self.assertLessEqual({p['layer'] for p in people.values()} - {None}, set(layers))
+
+    # ── Les restes : la demande close, la qualité, le rapprochement ─────────────────────────
+
+    def test_activating_an_account_closes_the_request_still_waiting_with_the_others(self):
+        other = User.objects.create_user('second.admin', password='x')
+        set_account_tier(other, 'admin')
+        directory.preregister(['zoe.martin'])
+        zoe = User.objects.get(username='zoe.martin')
+        moderation.pending_login(zoe)
+        waiting = Notification.objects.filter(kind=moderation.ACCOUNT_PENDING_KIND,
+                                              object_id=str(zoe.pk))
+        self.assertEqual(2, waiting.filter(read_at__isnull=True).count())
+        moderation.activate_accounts([zoe])
+        self.assertEqual((0, 2), (waiting.filter(read_at__isnull=True).count(), waiting.count()))
+        # La ligne reste : c'est elle qui dit que la personne était venue.
+        User.objects.filter(pk=zoe.pk).update(is_active=False)
+        self.assertEqual('pending', moderation.account_state(User.objects.get(pk=zoe.pk)))
+
+    def test_the_accounts_page_shows_the_status_a_person_keeps_on_the_profile(self):
+        directory.preregister(['zoe.martin'])
+        profile = User.objects.get(username='zoe.martin').profile
+        profile.ldap_affiliation = 'member, researcher'
+        profile.save()
+        self.client.force_login(self.admin)
+        page = self.client.get(reverse('accounts:user-management')).content.decode()
+        self.assertIn('member, researcher</small>', page)
+
+    def test_the_reconciliation_names_arrivals_and_departures_and_tells_the_administrators_once(self):
+        directory.preregister(['zoe.martin', 'tom.blanc'])
+        # Tom est rangé dans LAB-A par WAMA, l'annuaire le compte dans LAB-B : un départ de LAB-A.
+        moved = User.objects.get(username='tom.blanc').profile
+        moved.org_entity_code = 'LAB-A'
+        moved.save()
+        local = User.objects.create_user('local.person', password='x')      # pas un compte d'annuaire
+        local.profile.org_entity_code = 'LAB-A'
+        local.profile.save()
+        report = directory.reconcile(['LAB-A'])
+        self.assertEqual({'units': ['LAB-A', 'LAB-A-T1'], 'arrivals': ['Adam.Petit', 'lea.roux'],
+                          'departures': ['tom.blanc']}, report)
+        self.assertEqual({'units': [], 'arrivals': [], 'departures': []}, directory.reconcile())
+        asked = Notification.objects.filter(kind=directory.DIRECTORY_CHANGES_KIND)
+        self.assertEqual(1, directory.report_reconciliation(report))
+        self.assertEqual(0, directory.report_reconciliation(report), "une notification attend déjà")
+        self.assertEqual([self.admin], [n.recipient for n in asked])
+        self.assertIn('tom.blanc', asked.get().body)
+        self.assertNotIn('lea.roux', asked.get().body)
+        self.assertEqual(0, directory.report_reconciliation(
+            {'units': ['LAB-A'], 'arrivals': [], 'departures': []}))
+
+    def test_the_nightly_task_reads_nothing_without_followed_units_and_reports_with_them(self):
+        from wama.common.tasks import reconcile_directory_accounts_task
+        with mock.patch.object(directory, 'reconcile') as read:
+            self.assertEqual({'units': 0}, reconcile_directory_accounts_task())
+            read.assert_not_called()
+        with override_settings(WAMA_DIRECTORY_FOLLOWED_UNITS=['LAB-B']):
+            done = reconcile_directory_accounts_task()
+        self.assertEqual({'units': 1, 'arrivals': 1, 'departures': 0, 'notified': 1}, done)
+        out, err = io.StringIO(), io.StringIO()
+        call_command('reconcile_directory_accounts', '--code', 'LAB-B', stdout=out, stderr=err)
+        self.assertIn('1 arrivée(s), sans compte', out.getvalue())
+        self.assertIn('tom.blanc', out.getvalue())
+        self.assertEqual('', err.getvalue())

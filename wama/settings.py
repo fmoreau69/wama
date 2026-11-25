@@ -469,8 +469,12 @@ if ENABLE_LDAP:
     AUTH_LDAP_USER_ATTRLIST = [
         'givenName', 'sn', 'mail', 'uid',
         'supannEtablissement', 'supannEntiteAffectationPrincipale',
-        'supannEntiteAffectation', 'eduPersonPrimaryAffiliation', 'eduPersonAffiliation',
+        'eduPersonPrimaryAffiliation', 'eduPersonAffiliation',
     ]
+    # Unités SUIVIES par le rapprochement quotidien des comptes (`accounts.directory.reconcile`) :
+    # codes exacts séparés par « ; ». Propres à l'instance — dans son environnement, jamais ici.
+    WAMA_DIRECTORY_FOLLOWED_UNITS = [code.strip() for code in os.environ.get(
+        'WAMA_DIRECTORY_FOLLOWED_UNITS', '').split(';') if code.strip()]
     # Base des STRUCTURES (SUPANN) pour résoudre noms + hiérarchie institut→…→équipe
     # (`accounts/directory.py`, `sync_org_units`). Standard SUPANN ; surchargeable par env.
     LDAP_STRUCTURES_BASE_DN = os.environ.get(
@@ -1015,6 +1019,13 @@ if ENABLE_CELERY:
         'purge-access-log': {
             'task': 'common.purge_access_log',
             'schedule': crontab(hour=1, minute=40),
+            'options': {'queue': 'default'},
+        },
+        # Comptes ↔ annuaire (2026-11-25) : arrivées et départs des unités SUIVIES, dits aux
+        # administrateurs ; sans unité suivie (`WAMA_DIRECTORY_FOLLOWED_UNITS`), la tâche ne lit rien.
+        'reconcile-directory-accounts': {
+            'task': 'common.reconcile_directory_accounts',
+            'schedule': crontab(hour=1, minute=42),
             'options': {'queue': 'default'},
         },
         # Sessions EXPIRÉES (2026-11-11, décision de Fabien) : `clearsessions` n'était joué par

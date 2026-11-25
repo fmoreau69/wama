@@ -228,6 +228,24 @@ def purge_access_log_task(dry_run=False):
     return summary
 
 
+@shared_task(name='common.reconcile_directory_accounts')
+def reconcile_directory_accounts_task():
+    """Rapprochement quotidien des comptes avec l'annuaire, pour les unités que l'instance suit
+    (`accounts.directory.reconcile`, 2026-11-25) : arrivées et départs sont DITS aux
+    administrateurs, rien n'est créé ni fermé. Sans unité suivie, ou annuaire muet : rien."""
+    from wama.accounts import directory
+    if not directory.followed_units():
+        return {'units': 0}
+    try:
+        report = directory.reconcile()
+    except directory.DirectoryUnavailable as exc:
+        logger.info("[annuaire] rapprochement impossible : %s", exc)
+        return {'units': 0, 'unavailable': True}
+    notified = directory.report_reconciliation(report)
+    return {'units': len(report['units']), 'arrivals': len(report['arrivals']),
+            'departures': len(report['departures']), 'notified': notified}
+
+
 @shared_task(name='common.clear_expired_sessions')
 def clear_expired_sessions_task():
     """Purge quotidienne des sessions EXPIRÉES — le geste de `manage.py clearsessions`

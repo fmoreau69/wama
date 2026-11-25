@@ -25,7 +25,7 @@ from contextlib import contextmanager
 from django.conf import settings
 from django.contrib.auth import get_user_model
 
-from .ldap import MAIN_UNIT_ATTRIBUTE, UNITS_ATTRIBUTE
+from .ldap import MAIN_UNIT_ATTRIBUTE
 from .models import IDENTITY_FIELDS
 
 logger = logging.getLogger(__name__)
@@ -182,8 +182,11 @@ def person_attributes() -> tuple:
 
 
 def people_of(codes, *, conn=None) -> list:
-    """Les personnes rattachées à l'une des unités `codes` (à titre principal ou non), triées par
-    identifiant : `{username, first_name, last_name, email, main_unit}`."""
+    """Les personnes dont l'unité PRINCIPALE est l'une des unités `codes`, triées par
+    identifiant : `{username, first_name, last_name, email, main_unit}`. Une personne n'a
+    qu'une appartenance dans WAMA, la principale (`common.models.profile_org_codes`) : la
+    retrouver sous une unité où elle n'est que de passage préparerait un compte que cette unité
+    ne verrait pas."""
     import ldap
     codes = [c for c in dict.fromkeys(codes) if c]
     search = getattr(settings, 'AUTH_LDAP_USER_SEARCH', None)
@@ -192,8 +195,7 @@ def people_of(codes, *, conn=None) -> list:
     if not codes:
         return []
     mapped = getattr(settings, 'AUTH_LDAP_USER_ATTR_MAP', {}) or {}
-    clauses = ''.join(f'({attribute}={_escape(code)})'
-                      for code in codes for attribute in (UNITS_ATTRIBUTE, MAIN_UNIT_ATTRIBUTE))
+    clauses = ''.join(f'({MAIN_UNIT_ATTRIBUTE}={_escape(code)})' for code in codes)
     with session(conn) as c:
         try:
             found = c.search_s(search.base_dn, search.scope, f'(|{clauses})',
@@ -294,6 +296,70 @@ def state_labels() -> dict:
     """Clé → libellé de tout état que `with_account_state` peut rendre."""
     from .moderation import ACCOUNT_STATES
     return {**STATE_LABELS_ABSENT, **ACCOUNT_STATES}
+
+
+# ── Rapprochement périodique ────────────────────────────────────────────────────────────────
+
+#: Type de la notification DANS WAMA d'un rapprochement qui a trouvé des arrivées ou des départs.
+DIRECTORY_CHANGES_KIND = 'directory_changes'
+
+
+def followed_units() -> list:
+    """Les codes EXACTS des unités que cette instance suit (réglage
+    `WAMA_DIRECTORY_FOLLOWED_UNITS`, posé dans l'environnement de l'instance — jamais au dépôt)."""
+    return [code for code in (getattr(settings, 'WAMA_DIRECTORY_FOLLOWED_UNITS', None) or []) if code]
+
+
+def reconcile(codes=None, *, conn=None) -> dict:
+    """Rapproche WAMA de l'annuaire pour les unités `codes` (défaut : `followed_units`), sous-unités
+    comprises. LECTURE SEULE des deux côtés. Rend `{'units', 'arrivals', 'departures'}` :
+    `arrivals`, les personnes de ces unités qui n'ont pas de compte ; `departures`, les comptes
+    d'annuaire que WAMA range dans ces unités et que l'annuaire n'y compte plus (partis, ou
+    passés à une autre unité)."""
+    from .permissions import is_directory_account
+    codes = list(dict.fromkeys(followed_units() if codes is None else codes))
+    if not codes:
+        return {'units': [], 'arrivals': [], 'departures': []}
+    units = {}
+    with session(conn) as c:
+        for code in codes:
+            units.update((u['code'], u) for u in find_units(code, exact=True, conn=c))
+        people = people_of(list(units), conn=c)
+    listed = {p['username'].lower() for p in people}
+    known = accounts_named(listed)
+    holders = get_user_model().objects.filter(profile__org_entity_code__in=list(units))
+    return {'units': sorted(units),
+            'arrivals': sorted(p['username'] for p in people if p['username'].lower() not in known),
+            'departures': sorted(u.get_username() for u in holders
+                                 if is_directory_account(u) and u.get_username().lower() not in listed)}
+
+
+def report_reconciliation(report: dict) -> int:
+    """Prévient les administrateurs, DANS WAMA, de ce qu'un rapprochement a trouvé — rien s'il n'a
+    rien trouvé, et rien de plus tant qu'une notification de ce type attend encore d'être lue.
+    Rend le nombre de notifications posées."""
+    from django.urls import reverse
+
+    from wama.common.models import Notification
+    from wama.common.utils.notifications import notify_in_app
+
+    from .permissions import administrators
+    arrivals, departures = report.get('arrivals') or [], report.get('departures') or []
+    if not (arrivals or departures):
+        return 0
+    if Notification.objects.filter(kind=DIRECTORY_CHANGES_KIND, read_at__isnull=True).exists():
+        return 0
+    lines = []
+    if arrivals:
+        lines.append(f"{len(arrivals)} personne(s) des unités suivies n'ont pas de compte : "
+                     "« Importer depuis l'annuaire » les prépare.")
+    if departures:
+        shown = ', '.join(departures[:20]) + ('…' if len(departures) > 20 else '')
+        lines.append(f"{len(departures)} compte(s) ne sont plus dans leur unité d'après "
+                     f"l'annuaire : {shown}.")
+    return notify_in_app(administrators(), DIRECTORY_CHANGES_KIND,
+                         f"Annuaire : {len(arrivals)} arrivée(s), {len(departures)} départ(s)",
+                         body='\n'.join(lines), url=reverse('accounts:user-management'))
 
 
 # ── Pré-inscription ─────────────────────────────────────────────────────────────────────────

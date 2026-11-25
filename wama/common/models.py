@@ -501,15 +501,17 @@ def user_scope_org_ids(user):
 
 
 def profile_org_codes(prof):
-    """Les codes d'annuaire qui RATTACHENT un profil : tous ses rattachements, puis son entité
-    principale — la règle UNE fois, pour les portées de partage et la constellation des
-    utilisateurs (`accounts/constellation.py`)."""
-    if prof is None:
-        return []
-    codes = list(prof.org_affiliations or [])
-    if prof.org_entity_code:
-        codes.append(prof.org_entity_code)
-    return list(dict.fromkeys(codes))
+    """Le code d'annuaire qui RATTACHE un profil : son unité PRINCIPALE, et elle seule — la règle
+    UNE fois, pour les portées de partage, le RAG d'unité (`memory.index._resolve_unit`), « Mon
+    RAG », le profil et la constellation des utilisateurs. Rend une liste d'au plus un code.
+
+    Décision de Fabien, 2026-11-25 : *« une seule appartenance affichée et utilisée dans tout ce
+    qui est partage, RAG, etc. […] la principale/officielle »*. L'annuaire porte, pour une même
+    unité, ses codes hérités à côté du code en vigueur : les lire tous donnait à choisir entre
+    trois « unités » qui n'en sont qu'une. Mesuré ce jour-là sur la base : rien n'était rangé
+    dans une unité, aucun profil ne nommait d'unité cible — la règle ne retire rien à personne."""
+    code = getattr(prof, 'org_entity_code', '') if prof is not None else ''
+    return [code] if code else []
 
 
 class ElementPreference(models.Model):
