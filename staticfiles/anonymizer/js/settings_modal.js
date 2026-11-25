@@ -62,15 +62,21 @@
     if (!plan || !plan.length) return;
     const box = document.createElement('div');
     box.className = 'small text-body-secondary mt-1 anon-understood';
+    // Les attributs qu'on MESURERA après ce détecteur (`attrs`, la qualification), le rang et
+    // l'objet auquel il appartient (`rank`, `of`), 2026-11-25 ; un objet cherché pour RELIER
+    // seulement (`owner`) n'est pas flouté.
+    function badge(values) {
+      return values.length ? ' <span class="badge text-bg-secondary">' + esc(values.join(', ')) + '</span>' : '';
+    }
+    function part(p) { return '<b>' + esc(p.concept) + '</b>' + badge(Object.values(p.attrs || {})); }
     box.innerHTML = '<i class="fas fa-route"></i> Compris : ' + plan.map(function (step) {
-      // Les attributs qu'on MESURERA après ce détecteur (`attrs`, la qualification, 2026-11-25).
-      const attrs = Object.values(step.attrs || {});
-      return '<b>' + esc(step.concept) + '</b>' +
-        (attrs.length ? ' <span class="badge text-bg-secondary">' + esc(attrs.join(', ')) + '</span>' : '') +
-        ' → ' +
+      return (step.rank ? badge([step.rank]) + ' ' : '') + part(step) +
+        (step.of ? ' de ' + part(step.of) : '') +
+        (step.owner ? ' <i>(pour relier, non flouté)</i>' : '') + ' → ' +
         (step.by && step.by.length ? esc(step.by.join(', ')) : '<span class="text-warning">aucun détecteur</span>');
-    }).join(' · ') + (plan.some(function (step) { return step.attrs; })
-      ? ' — la qualification les mesurera (activée au lancement)' : '');
+    }).join(' · ') + (plan.some(function (step) {
+      return step.attrs || step.rank || (step.of && step.of.attrs);
+    }) ? ' — la qualification les mesurera (activée au lancement)' : '');
     const anchor = field.parentNode.querySelector('.wama-prompt-enrich-original') || field;
     anchor.insertAdjacentElement('afterend', box);
   }

@@ -808,3 +808,65 @@ class QualificationTest(SimpleTestCase):
                       'a car also asked without attribute : every car')
         self.assertIs(out, dets.within_request(out, [{'concept': 'red car', 'by': ['sam3']}]),
                       'a model that reads the phrase measured it itself')
+
+    def test_a_request_reads_its_rank_and_what_the_object_belongs_to(self):
+        from wama.common.utils.detection_attributes import read_request
+        from wama_data.functions.geometry.shapes import box_centre_inside
+        self.assertEqual({'phrase': 'face', 'rank': 'nearest', 'of': 'red person'},
+                         read_request('the closest face of the red person'))
+        self.assertEqual({'phrase': 'logo', 'of': 'white truck'}, read_request('logo on white truck'))
+        self.assertEqual({'phrase': 'license plate'}, read_request('license plate'))
+        self.assertEqual({'phrase': 'nearest'}, read_request('nearest'), 'nothing left : as said')
+        self.assertEqual({'phrase': 'face of'}, read_request('face of'), 'no owner named')
+        self.assertTrue(box_centre_inside([10, 10, 20, 20], [0, 0, 100, 100]))
+        self.assertFalse(box_centre_inside([0, 0, 16, 10], [10, 0, 100, 100]), 'centre at x = 8')
+        self.assertTrue(box_centre_inside([0, 0, 16, 10], [10, 0, 100, 100], margin=4),
+                        'the margin of the recall bench')
+        self.assertFalse(box_centre_inside(None, [0, 0, 100, 100]), 'a text span has no box')
+        from wama.common.utils.detection_attributes import measures_of
+        self.assertEqual({'attributes'}, measures_of({'concept': 'face', 'of': {
+            'concept': 'person', 'attrs': {'color': 'red'}}}), "the owner's colour")
+        self.assertEqual({'attributes', 'depth'}, measures_of({'concept': 'car', 'rank': 'nearest'}))
+        self.assertEqual({'attributes'}, measures_of({'concept': 'car', 'rank': 'largest'}))
+        self.assertEqual(set(), measures_of({'concept': 'face', 'of': {'concept': 'person'}}),
+                         'a relation without attribute : the boxes suffice')
+
+    def _people(self):
+        """Two people (red, blue) each with a face inside, and a face outside anybody."""
+        doc = dets.new_document(media='image', width=300, height=200)
+        red = dets.detection(box=[0, 0, 100, 200], label='person')
+        blue = dets.detection(box=[150, 0, 300, 200], label='person')
+        red['attrs'], blue['attrs'] = {'color': 'red', 'depth': 2.0}, {'color': 'blue', 'depth': 9.0}
+        faces = [dets.detection(box=[30, 10, 60, 40], label='face'),
+                 dets.detection(box=[200, 10, 230, 40], label='face'),
+                 dets.detection(box=[110, 10, 140, 40], label='face')]
+        for face, depth in zip(faces, (2.0, 9.0, 5.0)):
+            face['attrs'] = {'depth': depth, 'area': 0.015}
+        dets.add(doc, 0, [red, blue] + faces)
+        return doc
+
+    def test_a_relation_keeps_what_belongs_to_the_described_owner_and_the_owner_stays_sharp(self):
+        doc = self._people()
+        plan = [{'concept': 'face', 'by': ['k'], 'of': {'concept': 'person', 'attrs': {'color': 'red'}}},
+                {'concept': 'person', 'by': ['k'], 'owner': True}]
+        kept = [d['box'] for d in dets.within_request(doc, plan)['frames'][0]['d']]
+        self.assertEqual([[30, 10, 60, 40], [110, 10, 140, 40]], kept,
+                         "the red person's face, and the face nobody holds ; no person blurred")
+        with_people = dets.within_request(doc, plan[:1] + [{'concept': 'person', 'by': ['k']}])
+        self.assertIn('person', dets.labels(with_people), 'person asked for itself too : blurred')
+
+    def test_a_rank_keeps_the_first_of_the_image_and_all_when_it_is_not_measured(self):
+        doc = self._people()
+        nearest = dets.within_request(doc, [{'concept': 'face', 'by': ['k'], 'rank': 'nearest'}])
+        self.assertEqual([[30, 10, 60, 40]], [d['box'] for d in nearest['frames'][0]['d']
+                                              if d['label'] == 'face'])
+        farthest = dets.within_request(doc, [{'concept': 'face', 'by': ['k'], 'rank': 'farthest'}])
+        self.assertEqual([[200, 10, 230, 40]], [d['box'] for d in farthest['frames'][0]['d']
+                                                if d['label'] == 'face'])
+        largest = dets.within_request(doc, [{'concept': 'face', 'by': ['k'], 'rank': 'largest'}])
+        self.assertEqual(3, len([d for d in largest['frames'][0]['d'] if d['label'] == 'face']),
+                         'all equal : every ex aequo')
+        del doc['frames'][0]['d'][2]['attrs']['depth']
+        unmeasured = dets.within_request(doc, [{'concept': 'face', 'by': ['k'], 'rank': 'nearest'}])
+        self.assertEqual(3, len([d for d in unmeasured['frames'][0]['d'] if d['label'] == 'face']),
+                         'one face without depth : nothing is ranked')

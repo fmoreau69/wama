@@ -213,7 +213,10 @@ sous `wama_data/functions/<domaine>/` — 4 sous-paquets : `io/` (parsing, ex. R
 > délègue, et `driving.ego_track_filter` l'emploie pour la pose du véhicule porteur),
 > `kinematics/gap_fill.py` (`hermite_gap` — trou d'une trajectoire comblé en courbe, porté des
 > fantômes du cam_analyzer le 2026-10-05, employé aussi par l'interpolation des détections de
-> l'anonymizer) et `geometry/shapes.py` (`box_iou`, domicile unique de l'IoU de boîtes, même date).
+> l'anonymizer) et `geometry/shapes.py` (`box_iou`, domicile unique de l'IoU de boîtes, même date ;
+`box_centre_inside`, « cet objet appartient à ce contenant » par son centre — la règle du banc de
+rappel du model_manager, qui la lit, et des relations d'une description de l'anonymizer,
+2026-11-25).
 
 Deux `binding` cohabitent dans le MÊME `FUNCTION_CATALOG` :
 - **`pure`** — signature `(données_typées, params) → données_typées`, chaînable direct. Défaut pour

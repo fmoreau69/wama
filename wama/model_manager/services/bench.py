@@ -319,18 +319,20 @@ def read_recall_reference(sample: str) -> dict:
 
 def containment_counts(doc: dict, ref: dict) -> dict:
     """Les comptes du rappel par contenant — sans interpretation (cf. en-tete du protocole)."""
+    # « Dans un contenant » : le CENTRE de la détection dans sa boîte (élargie de 4 px pour les
+    # fausses alertes) — la règle commune `box_centre_inside`, que les relations d'une description
+    # de l'anonymizer lisent aussi (2026-11-25).
+    from wama_data.functions.geometry.shapes import box_centre_inside
     by_index = {f['i']: f.get('d') or [] for f in doc.get('frames') or []}
     near = found = detections = inside = 0
     for index, containers in enumerate(ref['containers']):
-        centres = [((d['box'][0] + d['box'][2]) / 2, (d['box'][1] + d['box'][3]) / 2)
-                   for d in by_index.get(index, [])]
-        detections += len(centres)
-        inside += sum(any(c[0] - 4 <= x <= c[2] + 4 and c[1] - 4 <= y <= c[3] + 4
-                          for c in containers) for x, y in centres)
+        boxes = [d['box'] for d in by_index.get(index, [])]
+        detections += len(boxes)
+        inside += sum(any(box_centre_inside(b, c, margin=4) for c in containers) for b in boxes)
         for c in containers:
             if c[3] - c[1] >= ref['min_height']:
                 near += 1
-                found += any(c[0] <= x <= c[2] and c[1] <= y <= c[3] for x, y in centres)
+                found += any(box_centre_inside(b, c) for b in boxes)
     return {'near': near, 'found': found, 'missed': near - found, 'detections': detections,
             'inside': inside}
 

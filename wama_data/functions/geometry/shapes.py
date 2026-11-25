@@ -23,6 +23,20 @@ def box_iou(a, b) -> float:
     return inter / union if union > 0 else 0.0
 
 
+def box_centre_inside(inner, outer, margin: float = 0.0) -> bool:
+    """Le CENTRE de la boîte `inner` est-il dans la boîte `outer` [x0, y0, x1, y1], élargie de
+    `margin` pixels ? Faux si l'une manque. LA règle « cet objet appartient à ce contenant » :
+    celle du banc de rappel (`model_manager.services.bench.containment_counts`, protocole
+    `containment_v1`), portée ici le 2026-11-25 pour les relations d'une description (« face of
+    red person », `detections.within_request`) — le pendant de `box_iou`, qui ne le dit pas : un
+    visage entier dans une personne a un recouvrement faible."""
+    if not inner or not outer or len(inner) < 4 or len(outer) < 4:
+        return False
+    x, y = (inner[0] + inner[2]) / 2, (inner[1] + inner[3]) / 2
+    return (outer[0] - margin <= x <= outer[2] + margin
+            and outer[1] - margin <= y <= outer[3] + margin)
+
+
 def rect_intersect_sat(rect1, rect2):
     """
     Collision entre 2 rectangles orientés via le théorème des axes séparateurs (SAT).

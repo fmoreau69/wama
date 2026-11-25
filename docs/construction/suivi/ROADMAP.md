@@ -4777,9 +4777,25 @@ sont souvent les mêmes »*) ; puis B.
   d'être une troisième source d'IMPOSITION à côté de `required_by` / `required_by_steps` : la
   demande n'est comprise qu'au lancement (LLM), que ni la bande ni la modale ne savent juger. À
   reprendre au commun quand le Detector (§17bis) voudra la même règle.
+- **B — relations et rang** ✅ (même jour) : « le visage de la personne au pull rouge » → `face of
+  red person`, « la plus proche » → `nearest` (skill `anonymizer-detection`), lus sans LLM
+  (`detection_attributes.read_request` : rang en tête, relation au premier `of` / `on`). Le routeur
+  fait chercher les DEUX objets ; le pas garde `rank` et `of` ; un objet demandé seulement pour
+  relier a son pas `owner` — cherché, jamais flouté pour lui-même. La sélection
+  (`detections.within_request`), image par image : un objet appartient à un autre quand son CENTRE
+  est dans sa boîte — la règle du banc de rappel (`containment_v1`), portée dans
+  `wama_data/functions/geometry/shapes.box_centre_inside` à côté de `box_iou` et que le banc lit
+  désormais (revérification : une première version inventait « 60 % de la boîte ») ; il n'est
+  écarté que sur PREUVE (un contenant vu et mesuré, incompatible) ;
+  le rang garde le premier de l'image (profondeur pour `nearest` / `farthest`, part de l'image pour
+  `largest` / `smallest`), TOUS quand l'un n'est pas mesuré. La demande active ce qu'elle mesure
+  (`detection_attributes.measures_of`, règle COMMUNE que l'anonymizer traduit en ses réglages :
+  la couleur du contenant, la profondeur d'un rang de distance ; une relation sans attribut ne
+  mesure rien — revérification : elle était d'abord écrite dans `anonymizer/tasks.py`). ⚠ Le rang est PAR IMAGE : sur une vidéo, « la plus
+  proche » peut changer d'objet d'une image à l'autre — par piste, à décider avec D (suivi).
 
-**Restes nommés (2026-11-25)** : ✅ B : attributs tirés de la DESCRIPTION (ci-dessus) ; ⏳ relations
-(« le visage de la personne au pull rouge ») et rang (« la plus proche ») ; ⏳ un texte libre jamais
+**Restes nommés (2026-11-25)** : ✅ B : attributs tirés de la DESCRIPTION, relations et rang
+(ci-dessus) ; ⏳ le rang par PISTE sur une vidéo (avec D) ; ⏳ un texte libre jamais
 compris avant ne qualifie qu'au second ▶ ; jouer la qualification
 avec profondeur sur une vraie vidéo (non fait) ; ⏳ le compte 22 a enregistré une description VIDE
 en mode Description (réglage du volet, antérieur) : ses cards neuves ne décrivent rien — à lui

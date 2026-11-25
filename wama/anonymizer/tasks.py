@@ -282,9 +282,13 @@ def _routed_description(prompt, precision_level, user):
 
 
 def _said_step(step) -> str:
-    """Un pas du plan dit en clair : le concept, et les attributs qu'on mesurera après lui."""
-    attrs = step.get('attrs') or {}
-    return step['concept'] + (f" ({', '.join(attrs.values())})" if attrs else '')
+    """Un pas du plan dit en clair : son rang, le concept, les attributs qu'on mesurera après lui,
+    l'objet auquel il appartient (« nearest face (small) of person (red) »)."""
+    def said(part):
+        attrs = part.get('attrs') or {}
+        return part['concept'] + (f" ({', '.join(attrs.values())})" if attrs else '')
+    return ((f"{step['rank']} " if step.get('rank') else '') + said(step)
+            + (f" of {said(step['of'])}" if step.get('of') else ''))
 
 
 def description_plan(media) -> list:
@@ -327,28 +331,29 @@ def understood_plan(media) -> list:
 
 
 def _requested_qualification():
-    """Les réglages de la qualification qu'une demande à attributs exige : l'interrupteur que son
-    process DÉCLARE (`ProcessSpec.toggle`), et la profondeur pour un plan demandé."""
+    """Les réglages de l'anonymizer pour chaque mesure (`measures_of`) : l'interrupteur que son
+    process `qualify` DÉCLARE (`ProcessSpec.toggle`), et la profondeur quand elle est demandée."""
     from .function_specs import PIPELINE
-    return ((PIPELINE.spec('qualify').toggle, None), ('qualify_depth', 'plane'))
+    return ((PIPELINE.spec('qualify').toggle, 'attributes'), ('qualify_depth', 'depth'))
 
 
 def switch_requested_qualification(media, plan=None) -> list:
     """La DEMANDE règle la qualification (2026-11-25, `ROADMAP §17quater` B ; décision de Fabien
     du 2026-11-24 : « ce que le système a compris doit être montré […] et les réglages le
-    refléter ») : un concept demandé avec des attributs qu'un détecteur à classes cherchera
-    (`attrs` d'un pas du plan) ACTIVE la qualification, et sa profondeur pour un plan demandé —
-    écrit sur la card, dit à la console. Rend les réglages activés (`[]` : rien à changer).
-    `plan` : celui du lancement ; sinon ce que la card a déjà compris, lu sans LLM
-    (`understood_plan`). Rien n'est jamais DÉSACTIVÉ ici : c'est un choix de l'utilisateur."""
+    refléter ») : un pas du plan qui demande une MESURE (`detection_attributes.measures_of` :
+    attributs qu'un détecteur à classes cherchera, ceux de l'objet auquel il appartient, un rang)
+    ACTIVE la qualification, et sa profondeur pour un plan ou un rang de distance — écrit sur la
+    card, dit à la console. Rend les réglages activés (`[]` : rien à changer). `plan` : celui du
+    lancement ; sinon ce que la card a déjà compris, lu sans LLM (`understood_plan`). Rien n'est
+    jamais DÉSACTIVÉ ici : c'est un choix de l'utilisateur."""
+    from wama.common.utils.detection_attributes import measures_of
     steps = [step for step in (understood_plan(media) if plan is None else plan)
-             if step.get('attrs')]
-    asked = [step['attrs'] for step in steps]
-    if not asked:
+             if measures_of(step)]
+    if not steps:
         return []
-    switched = [name for name, attribute in _requested_qualification()
-                if not getattr(media, name, False)
-                and (attribute is None or any(attribute in attrs for attrs in asked))]
+    needed = set().union(*(measures_of(step) for step in steps))
+    switched = [name for name, need in _requested_qualification()
+                if not getattr(media, name, False) and need in needed]
     if switched:
         for name in switched:
             setattr(media, name, True)
@@ -817,6 +822,7 @@ def _blur(media, ctx):
     frame floutée — entre lesquelles l'inspecteur bascule (variantes de `preview_utils`)."""
     from wama.common.utils import detections
     from wama.common.utils.blur_utils import blur_detections
+    from wama.common.utils.detection_attributes import measures_of
     if not media.file:
         raise ValueError("Média sans fichier (ni URL rapatriée) : rien à traiter.")
     # Le plus proche amont qui rend des détections : la QUALIFICATION quand elle a lieu, sinon la
@@ -828,9 +834,11 @@ def _blur(media, ctx):
     # Les corrections humaines (page de correction, chantier SURFACES) : une couche à part,
     # réappliquée ici à chaque floutage — une détection relancée ne les perd pas.
     doc = detections.apply_corrections(doc, media.detection_corrections)
-    # La DEMANDE à attributs (« red car » cherché par un détecteur à classes, le `plan` du
-    # document, 2026-11-25) : ne restent que les objets compatibles — un objet non qualifié reste.
-    asked = detections.requested_attributes(doc.get('plan'))
+    # La DEMANDE (le `plan` du document, 2026-11-25) : attributs (« red car » cherché par un
+    # détecteur à classes), relation (« face of red person »), rang (« nearest car ») — ne restent
+    # que les objets qui y répondent ; rien n'est écarté sans preuve (non qualifié : il reste).
+    asked = list(dict.fromkeys(detections.common_label(step['concept'])
+                               for step in doc.get('plan') or () if measures_of(step)))
     if asked and not doc.get('qualified'):
         _console(media.user_id, "Floutage : objets non qualifiés — tous les "
                                 + ', '.join(f"« {label} »" for label in asked)

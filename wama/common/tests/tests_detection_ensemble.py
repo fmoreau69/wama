@@ -230,6 +230,24 @@ class RouteConceptsTest(SimpleTestCase):
         self.assertEqual(['blue logo'], route_concepts(['blue logo'], cover=self._cover)['unrouted'],
                          'what nobody looks for is named as it was asked')
 
+    def test_a_relation_searches_both_objects_and_the_owner_alone_is_not_a_target(self):
+        """2026-11-25 (B, relations and rank) : « nearest face of red car » — the face and the car
+        are both looked for, each by who covers it ; the step keeps its rank and what it belongs
+        to ; an object asked only to relate has its own step, marked `owner`."""
+        from wama.common.services.detection_ensemble import route_concepts
+        route = route_concepts(['nearest face of red car', 'logo on bus'], cover=self._cover,
+                               open_model_key='anonymizer:sam3')
+        self.assertEqual('logo, bus', route['models'][-1]['prompt'])
+        self.assertEqual([
+            {'concept': 'face', 'by': ['anonymizer:yolo:faces.pt'], 'rank': 'nearest',
+             'of': {'concept': 'car', 'attrs': {'color': 'red'}}},
+            {'concept': 'logo', 'by': ['anonymizer:sam3'], 'of': {'concept': 'bus'}},
+            {'concept': 'car', 'by': ['anonymizer:yolo:coco.pt'], 'owner': True},
+            {'concept': 'bus', 'by': ['anonymizer:sam3'], 'owner': True}], route['plan'])
+        both = route_concepts(['face of person', 'person'], cover=self._cover)['plan']
+        self.assertFalse(any(step.get('owner') for step in both),
+                         'asked for itself too : not an owner only')
+
     def test_the_open_model_of_a_detector_set_receives_its_own_part(self):
         from wama.common.services import detection_ensemble
         sam3 = mock.Mock()

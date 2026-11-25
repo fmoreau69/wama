@@ -217,6 +217,41 @@ class AnonymizerTaskOnSkeletonTest(TestCase):
         self.assertGreater(np.abs(original[inside].astype(int) - self._output_pixels()[inside]).mean(),
                            20, 'the black face asked is blurred')
 
+    def test_a_relation_blurs_the_face_of_the_described_person_and_never_the_person(self):
+        """2026-11-25 (`ROADMAP §17quater` B, relations) : « face of red person » — the person is
+        looked for too, qualified (black and white stripes), and the face it holds is not the one
+        asked : nothing is blurred. « face of black person » : the face only — the person, searched
+        to relate, stays sharp around it."""
+        def understood(text):
+            return {'prompt': text, 'original': text, 'enriched': True, 'translated': False}
+
+        def people(**kwargs):
+            self.engine_kwargs = kwargs
+            doc = _document()
+            doc['frames'][0]['d'].append(detections.detection(box=[0, 0, 64, 64], label='person',
+                                                              conf=0.9))
+            return doc
+
+        self.cover = {**self.cover, 'models': [{**self.cover['models'][0],
+                                                'classes': ['face', 'person']}]}
+        original = cv2.imread(str(self.input))
+        inside = (slice(BOX[1] + 4, BOX[3] - 4), slice(BOX[0] + 4, BOX[2] - 4))
+        for asked, face_blurred in (('face of red person', False), ('face of black person', True)):
+            Media.objects.filter(pk=self.media.pk).update(
+                target_mode='description', sam3_prompt=asked, sam3_prompt_processed=asked)
+            with self.subTest(asked), \
+                    mock.patch('wama.common.utils.app_metadata.process_prompt_for',
+                               return_value=understood(asked)), \
+                    mock.patch.object(tasks, 'check_sam3_installed', return_value=False):
+                self._run(engine=people)
+                self.assertEqual('SUCCESS', self.media.status, self.media.error_message)
+                self.assertTrue(self.media.qualify_objects, "the owner's colour is measured")
+                blurred = self._output_pixels()
+                self.assertEqual(face_blurred,
+                                 np.abs(original[inside].astype(int) - blurred[inside]).mean() > 20)
+                self.assertTrue((original[50:, 50:] == blurred[50:, 50:]).all(),
+                                'the person, searched to relate, is never blurred')
+
     def test_a_detection_setting_detects_again(self):
         self._run()
         outcome, detected = self._run(detection_threshold=0.6)

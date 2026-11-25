@@ -339,40 +339,97 @@ def without_attributes(doc: dict, skip) -> dict:
     return out
 
 
-def requested_attributes(plan) -> dict:
-    """`{libellé commun: [attributs demandés]}` des concepts qu'un plan du routeur
-    (`detection_ensemble.route_concepts`) demande AVEC des attributs — `{}` pour un concept aussi
-    demandé sans (« car, red car » : toutes les voitures)."""
-    wanted, free = {}, set()
+_REQUEST_KEYS = ('attrs', 'rank', 'of')
+
+
+def requested_targets(plan) -> tuple:
+    """Ce qu'un plan du routeur (`detection_ensemble.route_concepts`) DEMANDE, par libellé
+    commun : `({libellé: [demandes {'attrs'?, 'rank'?, 'of'?}]}, {libellés cherchés pour relier
+    seulement})`. Un concept aussi demandé sans rien (« car, red car ») n'a aucune demande : tous
+    ses objets ; un objet cherché pour relier (`owner`) et aussi demandé pour lui-même est flouté."""
+    wanted, free, owners = {}, set(), set()
     for step in plan or ():
         label = common_label(step.get('concept') or '')
         if not label:
             continue
-        if step.get('attrs'):
-            wanted.setdefault(label, []).append(dict(step['attrs']))
+        if step.get('owner'):
+            owners.add(label)
+        elif any(step.get(key) for key in _REQUEST_KEYS):
+            wanted.setdefault(label, []).append({key: step[key] for key in _REQUEST_KEYS
+                                                 if step.get(key)})
         else:
             free.add(label)
-    return {label: asked for label, asked in wanted.items() if label not in free}
+    asked = set(wanted) | free
+    return ({label: asks for label, asks in wanted.items() if label not in free},
+            owners - asked)
+
+
+def _belongs(det: dict, frame_dets, labels, of) -> bool:
+    """`det` appartient-il à un objet que `of` décrit ? Faux seulement sur une PREUVE : un objet
+    du libellé demandé le contient (son centre y est, `box_centre_inside` — la règle du banc de
+    rappel) et AUCUN de ceux-là n'est compatible. Ni contenant vu, ni attribut mesuré : vrai — ce
+    qu'on n'a pas vu n'est pas laissé net."""
+    if not of:
+        return True
+    from wama.common.utils.detection_attributes import compatible
+    from wama_data.functions.geometry.shapes import box_centre_inside
+    label = common_label(of.get('concept') or '')
+    holders = [o for o, name in zip(frame_dets, labels) if name == label and o is not det
+               and box_centre_inside(det.get('box'), o.get('box'))]
+    return not holders or any(compatible(o.get('attrs'), of.get('attrs')) for o in holders)
+
+
+def _ranked_first(candidates, rank: str) -> list:
+    """Le premier des `candidates` selon le rang (`detection_attributes.RANKS`) — tous les ex
+    aequo ; TOUS quand l'un ne porte pas la mesure (pas de profondeur sur cette image) : on ne
+    classe pas ce qu'on n'a pas mesuré."""
+    from wama.common.utils.detection_attributes import RANKS
+    key, highest = RANKS[rank]
+    values = [(d.get('attrs') or {}).get(key) for d in candidates]
+    if any(v is None for v in values):
+        return list(candidates)
+    best = max(values) if highest else min(values)
+    return [d for d, v in zip(candidates, values) if v == best]
 
 
 def within_request(doc: dict, plan=None) -> dict:
-    """Le document SANS les objets que la DEMANDE écarte (2026-11-25, `ROADMAP §17quater` B) : un
-    concept demandé avec des attributs (« red car » cherché par un détecteur à classes, `plan` du
-    routeur, gardé dans le document) ne garde que ses objets compatibles avec l'une des demandes
-    (`detection_attributes.compatible`). Un objet non qualifié, ou qui ne porte pas l'attribut,
-    est GARDÉ — ce qu'on n'a pas vu n'est pas laissé net ; les autres libellés aussi. Une copie,
-    l'original intact, comme `without_labels`. `plan` : celui du document par défaut."""
+    """Le document SANS les objets que la DEMANDE écarte (2026-11-25, `ROADMAP §17quater` B) — le
+    `plan` du routeur, gardé dans le document. Image par image, un objet d'un libellé demandé AVEC
+    quelque chose reste s'il répond à l'une de ses demandes : ses attributs
+    (`detection_attributes.compatible`, « red car »), l'objet auquel il appartient (`of`, « face
+    of red person » : `_belongs`), et parmi ceux qui y répondent, le premier selon le rang
+    (`rank`, « nearest » : `_ranked_first`). Un objet cherché pour relier seulement (`owner`)
+    n'est pas flouté. Rien n'est écarté sans preuve : non qualifié, sans contenant vu, sans
+    mesure pour classer, il reste. Une copie, l'original intact, comme `without_labels`."""
     from wama.common.utils.detection_attributes import compatible
-    wanted = requested_attributes(doc.get('plan') if plan is None else plan)
-    if not wanted:
+    wanted, owners = requested_targets(doc.get('plan') if plan is None else plan)
+    if not wanted and not owners:
         return doc
     out = dict(doc)
     out['frames'] = []
     for frame in doc.get('frames') or []:
-        kept = [d for d in frame.get('d') or []
-                if common_label(d.get('label') or '') not in wanted
-                or any(compatible(d.get('attrs'), asked)
-                       for asked in wanted[common_label(d.get('label') or '')])]
+        dets = list(frame.get('d') or [])
+        labels = [common_label(d.get('label') or '') for d in dets]
+        keep, ranked = set(), {}
+        for index, (det, label) in enumerate(zip(dets, labels)):
+            if label in owners:
+                continue
+            asks = wanted.get(label)
+            if asks is None:
+                keep.add(index)
+                continue
+            for k, ask in enumerate(asks):
+                if not (compatible(det.get('attrs'), ask.get('attrs'))
+                        and _belongs(det, dets, labels, ask.get('of'))):
+                    continue
+                if ask.get('rank'):
+                    ranked.setdefault((label, k), []).append(index)
+                else:
+                    keep.add(index)
+        for (label, k), positions in ranked.items():
+            first = _ranked_first([dets[i] for i in positions], wanted[label][k]['rank'])
+            keep |= {i for i in positions if any(dets[i] is d for d in first)}
+        kept = [det for index, det in enumerate(dets) if index in keep]
         if kept:
             out['frames'].append({**frame, 'd': kept})
     return out

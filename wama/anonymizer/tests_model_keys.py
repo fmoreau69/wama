@@ -338,6 +338,27 @@ class PromptModelTest(TestCase):
         media.refresh_from_db()
         self.assertEqual((True, True), (media.qualify_objects, media.qualify_depth))
 
+    def test_a_relation_or_a_rank_switches_on_what_it_measures_and_nothing_more(self):
+        """2026-11-25 (B, relations and rank) : the owner's colour is measured, a distance rank
+        needs the depth, a relation without attribute only needs the boxes."""
+        from wama.anonymizer import tasks
+        cover = {'parallel': True, 'unsupported_classes': [], 'models': [
+            {'id': 'yolo:coco.pt', 'path': '/w/coco.pt', 'name': 'coco',
+             'classes': ['face', 'person', 'car'], 'model_key': YOLO_KEY}]}
+        expected = {'face of red person': ['qualify_objects'],
+                    'nearest car': ['qualify_objects', 'qualify_depth'],
+                    'largest car': ['qualify_objects'],
+                    'face of person': []}
+        for understood, switched in expected.items():
+            media = Media.objects.create(user=self.user, file='anonymizer/x/input/sample.png',
+                                         model_to_use='auto', target_mode='description',
+                                         sam3_prompt=understood, sam3_prompt_processed=understood)
+            with self.subTest(understood), \
+                    mock.patch.object(tasks, 'needs_parallel_detection', return_value=cover), \
+                    mock.patch.object(tasks, 'check_sam3_installed', return_value=False), \
+                    mock.patch.object(tasks, '_console'):
+                self.assertEqual(switched, tasks.switch_requested_qualification(media))
+
 
 class OfferedClassesTest(SimpleTestCase):
     """2026-11-24 (A.1) — the classes the edit page offers for an added zone : the ASKED ones in the

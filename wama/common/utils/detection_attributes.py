@@ -55,6 +55,17 @@ VALUE_ATTRIBUTE = {**{c: 'color' for c in COLORS}, **{s: 'size' for s in SIZES},
                    **{p: 'plane' for p in PLANES}}
 #: Les graphies qu'un modèle de langue écrit pour une valeur sans écrire son nom.
 _SYNONYMS = {'grey': 'gray', 'violet': 'purple', 'big': 'large', 'tiny': 'small'}
+#: Les RANGS qu'une description demande (« la plus proche »), et ce qui les classe : l'attribut
+#: lu et le sens — le premier de l'image après tri est le seul gardé (`detections.within_request`).
+RANKS = {'nearest': ('depth', False), 'farthest': ('depth', True),
+         'largest': ('area', True), 'smallest': ('area', False)}
+_RANK_WORDS = {'nearest': 'nearest', 'closest': 'nearest', 'farthest': 'farthest',
+               'furthest': 'farthest', 'largest': 'largest', 'biggest': 'largest',
+               'smallest': 'smallest'}
+#: Les mots qui disent qu'un objet APPARTIENT à un autre (« face of person », « logo on car ») —
+#: son centre est dans la boîte de l'autre (`wama_data…shapes.box_centre_inside`).
+RELATION_WORDS = ('of', 'on')
+_ARTICLES = ('the', 'a', 'an')
 
 # Teintes OpenCV (0-180) → nom : bornes HAUTES exclues, dans l'ordre. Le rouge enjambe 0.
 _HUES = ((8, 'red'), (20, 'orange'), (33, 'yellow'), (78, 'green'), (95, 'cyan'),
@@ -204,6 +215,47 @@ def read_concept(phrase: str) -> tuple:
         attrs[name] = value
         words = words[1:]
     return ' '.join(words), attrs
+
+
+def read_request(phrase: str) -> dict:
+    """La DEMANDE que porte un concept compris (2026-11-25, `ROADMAP §17quater` B : relations et
+    rang) — `{'phrase'}` et, quand ils sont dits, `'rank'` (`RANKS`) et `'of'` (la phrase de
+    l'objet auquel il appartient) : « nearest face of red person » → `{'phrase': 'face', 'rank':
+    'nearest', 'of': 'red person'}`. Le rang se lit en tête, la relation au premier mot de
+    `RELATION_WORDS` entre deux groupes ; `phrase` et `of` se lisent ensuite par `read_concept`.
+    Les articles de tête sont ignorés. Rien n'est deviné : ce qui ne suit pas ces formes reste
+    la phrase."""
+    words = [w for w in ' '.join(str(phrase or '').split()).split(' ') if w]
+    while len(words) > 1 and words[0].casefold() in _ARTICLES:
+        words = words[1:]
+    out = {}
+    if len(words) > 1 and words[0].casefold() in _RANK_WORDS:
+        out['rank'] = _RANK_WORDS[words[0].casefold()]
+        words = words[1:]
+    for i, word in enumerate(words):
+        if 0 < i < len(words) - 1 and word.casefold() in RELATION_WORDS:
+            owner = words[i + 1:]
+            while len(owner) > 1 and owner[0].casefold() in _ARTICLES:
+                owner = owner[1:]
+            out['of'] = ' '.join(owner)
+            words = words[:i]
+            break
+    out['phrase'] = ' '.join(words)
+    return out
+
+
+def measures_of(step) -> set:
+    """Ce qu'il faut MESURER sur les objets détectés pour répondre à un pas du plan du routeur
+    (`detection_ensemble.route_concepts`) : `attributes` (couleur, taille — `qualify`) pour ses
+    attributs, ceux de l'objet auquel il appartient, ou un rang ; `depth` en plus pour un plan
+    demandé ou un rang de distance. Une relation sans attribut ne mesure rien : la boîte suffit.
+    Chaque app traduit ces mesures en SES réglages (l'anonymizer : son étape « Qualification »)."""
+    attrs = [step.get('attrs') or {}, (step.get('of') or {}).get('attrs') or {}]
+    rank = RANKS.get(step.get('rank') or '')
+    need = {'attributes'} if (any(attrs) or rank) else set()
+    if any('plane' in a for a in attrs) or (rank and rank[0] == 'depth'):
+        need |= {'attributes', 'depth'}
+    return need
 
 
 def compatible(attrs: dict, wanted: dict) -> bool:
