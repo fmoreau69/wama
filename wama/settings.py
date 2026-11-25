@@ -472,7 +472,7 @@ if ENABLE_LDAP:
         'supannEntiteAffectation', 'eduPersonPrimaryAffiliation', 'eduPersonAffiliation',
     ]
     # Base des STRUCTURES (SUPANN) pour résoudre noms + hiérarchie institut→…→équipe
-    # (best-effort, resolve_org_hierarchy). Standard SUPANN ; surchargeable par env.
+    # (`accounts/directory.py`, `sync_org_units`). Standard SUPANN ; surchargeable par env.
     LDAP_STRUCTURES_BASE_DN = os.environ.get(
         'WAMA_LDAP_STRUCTURES_DN', 'ou=structures,dc=univ-eiffel,dc=fr')
     AUTH_LDAP_ALWAYS_UPDATE_USER = True

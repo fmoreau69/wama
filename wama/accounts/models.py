@@ -9,6 +9,11 @@ from wama.common.tts.constants import LANGUAGE_CHOICES
 from wama.common.utils.secret_crypto import EncryptedTextField
 from wama.accounts.permissions import TIER_CHOICES
 
+#: L'IDENTITÉ d'un compte : ce que modifient son titulaire (`UserEdit`, « Modifier mon profil »)
+#: et un administrateur depuis la page des utilisateurs (`user_edit`), et ce que l'annuaire
+#: remplit (`directory.person_attributes`, dans l'ordre du réglage `AUTH_LDAP_USER_ATTR_MAP`).
+IDENTITY_FIELDS = ('first_name', 'last_name', 'email')
+
 
 class UserProfile(models.Model):
     """
@@ -202,11 +207,27 @@ class UserProfile(models.Model):
         verbose_name='Affiliation LDAP',
         help_text='eduPersonPrimaryAffiliation (researcher/faculty/staff/student…) — aide au rôle.')
 
+    # Les données d'annuaire sont ajoutées AVEC la personne (décision de Fabien, 2026-11-25 —
+    # `accounts/directory_consent.py`) : ce qu'elle a choisi, donnée par donnée, et quand.
+    directory_consent = models.JSONField(
+        blank=True, default=dict, null=True,
+        verbose_name="Données d'annuaire : mes choix",
+        help_text="Par donnée proposée par l'annuaire : true (ajoutée), false (retirée). "
+                  "Une clé absente : la personne n'a pas encore choisi.")
+    directory_consent_at = models.DateTimeField(
+        blank=True, null=True,
+        verbose_name="Données d'annuaire : dernier choix",
+        help_text="Vide tant que la personne n'a pas répondu au panneau d'accueil.")
+
+    def org_entity_label(self):
+        """L'unité principale telle qu'on la MONTRE : son nom, à défaut son code, sinon ''."""
+        return self.org_entity_name or self.org_entity_code or ''
+
     def org_path(self):
         """Chaîne lisible institut → … → équipe (depuis org_hierarchy, sinon entité principale)."""
         if self.org_hierarchy:
             return ' → '.join(u.get('name') or u.get('code') for u in self.org_hierarchy)
-        return self.org_entity_name or self.org_entity_code or ''
+        return self.org_entity_label()
 
     # Notifications email (fin/échec des traitements longs).
     notify_email = models.BooleanField(default=True, verbose_name='Notifications par email')
@@ -320,6 +341,11 @@ class AccessGrant(models.Model):
     `kind='app'`, `effect='allow'` et `level='use'` sont honorés aujourd'hui ; les autres valeurs
     du dessin (rôle, unité, projet ; refus ; développer) sont déclarées pour qu'une suite les
     ajoute sans migration — `accounts.app_access` refuse de les écrire.
+
+    Second usage (2026-11-25) : la DEMANDE d'un rôle métier (`kind='role'`, `element_id` = la clé
+    du rôle — `accounts.role_requests`). Ici la ligne garde la demande et sa réponse ; le droit
+    lui-même reste l'appartenance au groupe `role:<clé>` (`permissions.user_roles`), et `kind`
+    n'y est pas une famille d'`accessible()`.
     """
     SUBJECT_ROLE, SUBJECT_ORGUNIT, SUBJECT_PROJECT, SUBJECT_USER = 'role', 'orgunit', 'project', 'user'
     SUBJECT_CHOICES = [(SUBJECT_ROLE, 'Rôle'), (SUBJECT_ORGUNIT, 'Unité'),

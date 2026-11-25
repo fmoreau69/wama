@@ -45,7 +45,8 @@ réponse vient de la vue (`answer_url`), une par famille de demande.
     {% elif app_grant %}
     <dl class="mb-3">
       <dt>Demandé par</dt><dd>{{ requester }}</dd>
-      <dt>Ce qui est demandé</dt><dd>{{ grant.get_level_display }} l'app du bac à sable « {{ element_label }} » ({{ element_app }})</dd>
+      {# `what` : la phrase de la FAMILLE de la demande (app du bac à sable, rôle métier — `accounts.views._grant_family`) ; sans elle, celle d'une app. #}
+      <dt>Ce qui est demandé</dt><dd>{% if what %}{{ what }}{% else %}{{ grant.get_level_display }} l'app du bac à sable « {{ element_label }} » ({{ element_app }}){% endif %}</dd>
       {% if grant.reason %}<dt>Pourquoi</dt><dd>{{ grant.reason }}</dd>{% endif %}
       <dt>Le</dt><dd>{{ grant.created_at|date:"d/m/Y H:i" }}</dd>
       <dt>État</dt><dd data-request-state>{{ grant.get_state_display }}{% if grant.answered_at %} le {{ grant.answered_at|date:"d/m/Y H:i" }}{% if grant.granted_by %} par {{ grant.granted_by.username }}{% endif %}{% endif %}</dd>
@@ -75,7 +76,7 @@ réponse vient de la vue (`answer_url`), une par famille de demande.
     </div>
     <div class="small mt-2" data-request-message></div>
     {% elif not is_owner and grant.state == 'requested' %}
-    <p class="small text-body-secondary mb-0">Votre demande attend la réponse {% if promotion %}d'un administrateur{% elif app_grant %}du créateur de l'app ou d'un administrateur{% else %}du propriétaire{% endif %}.</p>
+    <p class="small text-body-secondary mb-0">Votre demande attend la réponse {% if promotion %}d'un administrateur{% elif app_grant %}{{ waiting|default:"du créateur de l'app ou d'un administrateur" }}{% else %}du propriétaire{% endif %}.</p>
     {% endif %}
   </div>
 </div>

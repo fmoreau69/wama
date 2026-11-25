@@ -4,7 +4,8 @@ Synchronise l'arbre `OrgUnit` depuis l'annuaire SUPANN (`ou=structures`).
 LE MAILLON QUI MANQUAIT. Mesuré le 2026-08-22 : l'authentification LDAP fonctionne depuis
 longtemps ET la remontée SUPANN peuple bien le profil (`org_affiliations` de Fabien portait
 ses trois codes), mais **`OrgUnit` était VIDE** — et rien dans le dépôt ne le peuplait.
-`resolve_org_hierarchy` existait sans appelant depuis sa création. Conséquence concrète : le
+Une fonction de résolution existait sans appelant depuis sa création (`resolve_org_hierarchy`,
+retirée le 2026-11-25, `REMOVAL_LEDGER R247`). Conséquence concrète : le
 niveau « RAG du labo » était refusé au clic (`_resolve_unit` cherche un `OrgUnit` par code et
 n'en trouvait aucun), alors que toutes les informations nécessaires étaient à portée.
 
@@ -82,8 +83,11 @@ class Command(BaseCommand):
                               '(Les profils se peuplent à la connexion LDAP.)')
             return
 
+        # La liaison et la lecture d'une fiche d'unité sont celles de la brique d'annuaire
+        # (`accounts/directory.py`, 2026-11-25) — cette commande les écrivait à part.
+        from wama.accounts import directory
         try:
-            conn = self._connecter(settings)
+            conn = directory.connect()
         except Exception as e:
             self.stderr.write(self.style.ERROR(f'Connexion LDAP impossible : {e}'))
             return
@@ -91,13 +95,11 @@ class Command(BaseCommand):
         fiches, introuvables = {}, []
         try:
             if options['all']:
-                for dn, attrs in self._chercher(conn, base, '(supannCodeEntite=*)'):
-                    fiche = self._fiche(attrs)
-                    if fiche:
-                        fiches[fiche['code']] = fiche
+                for fiche in directory.search_units(conn, '(supannCodeEntite=*)'):
+                    fiches[fiche['code']] = fiche
             else:
                 for code in codes:
-                    trouve = self._remonter(conn, base, code, fiches)
+                    trouve = self._remonter(conn, code, fiches)
                     if not trouve:
                         introuvables.append(code)
         finally:
@@ -118,7 +120,7 @@ class Command(BaseCommand):
 
         if dry:
             for f in fiches.values():
-                self.stdout.write(f"  [dry] {f['code']!r} — {f['nom']!r} "
+                self.stdout.write(f"  [dry] {f['code']!r} — {f['name']!r} "
                                   f"type={deviner_type(f['type'], f['code'])} "
                                   f"parent={f['parent'] or '—'}")
             return
@@ -134,7 +136,7 @@ class Command(BaseCommand):
             # étrangère par un nom venu d'ici — en silence.
             unite, cree = OrgUnit.objects.get_or_create(
                 code=f['code'], authority=LOCAL_AUTHORITY,
-                defaults={'name': f['nom'], 'unit_type': deviner_type(f['type'], f['code']),
+                defaults={'name': f['name'], 'unit_type': deviner_type(f['type'], f['code']),
                           'source': 'ldap'})
             if cree:
                 crees += 1
@@ -142,8 +144,8 @@ class Command(BaseCommand):
             if unite.source == 'manual':
                 continue                       # saisie humaine : l'annuaire ne l'écrase pas
             champs = []
-            if f['nom'] and unite.name != f['nom']:
-                unite.name, _ = f['nom'], champs.append('name')
+            if f['name'] and unite.name != f['name']:
+                unite.name, _ = f['name'], champs.append('name')
             t = deviner_type(f['type'], f['code'])
             if unite.unit_type != t:
                 unite.unit_type, _ = t, champs.append('unit_type')
@@ -189,55 +191,22 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(f'Profils rafraîchis : {touches}.'))
 
     # ── Annuaire ────────────────────────────────────────────────────────────────────────
-    def _connecter(self, settings):
-        import ldap
-        conn = ldap.initialize(settings.AUTH_LDAP_SERVER_URI)
-        conn.set_option(ldap.OPT_NETWORK_TIMEOUT, 10)
-        conn.set_option(ldap.OPT_TIMEOUT, 15)
-        bind_dn = getattr(settings, 'AUTH_LDAP_BIND_DN', '') or ''
-        if bind_dn:
-            conn.simple_bind_s(bind_dn, getattr(settings, 'AUTH_LDAP_BIND_PASSWORD', ''))
-        else:
-            conn.simple_bind_s()          # anonyme — suffisant à l'UGE (vérifié 2026-08-22)
-        return conn
-
-    _ATTRS = ['description', 'ou', 'supannTypeEntite',
-              'supannCodeEntiteParent', 'supannCodeEntite']
-
-    def _chercher(self, conn, base, filtre):
-        import ldap
-        return conn.search_s(base, ldap.SCOPE_SUBTREE, filtre, self._ATTRS)
-
-    def _fiche(self, attrs):
-        def val(cle):
-            v = attrs.get(cle)
-            return v[0].decode('utf-8', 'ignore') if v else ''
-        code = val('supannCodeEntite')
-        if not code:
-            return None
-        return {'code': code,
-                # `description` d'abord, `ou` en repli, le code en dernier ressort : certaines
-                # fiches héritées (branche {IFSTTAR}) n'ont pas de libellé du tout.
-                'nom': val('description') or val('ou') or code,
-                'type': val('supannTypeEntite'),
-                'parent': val('supannCodeEntiteParent')}
-
-    def _remonter(self, conn, base, code, fiches):
+    def _remonter(self, conn, code, fiches):
         """Remonte la chaîne parent d'un code et range chaque fiche. Rend False si introuvable."""
         import ldap.filter
+
+        from wama.accounts import directory
         vu, courant, garde, trouve = set(), code, 0, False
         while courant and garde < 12:
             garde += 1
             if courant in fiches or courant in vu:
                 break                       # déjà connu : la chaîne au-dessus l'est aussi
             vu.add(courant)
-            res = self._chercher(
-                conn, base, f'(supannCodeEntite={ldap.filter.escape_filter_chars(courant)})')
+            res = directory.search_units(
+                conn, f'(supannCodeEntite={ldap.filter.escape_filter_chars(courant)})')
             if not res:
                 break
-            fiche = self._fiche(res[0][1])
-            if not fiche:
-                break
+            fiche = res[0]
             fiches[fiche['code']] = fiche
             trouve = True
             courant = fiche['parent']

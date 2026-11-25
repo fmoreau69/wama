@@ -66,6 +66,15 @@ def account_kind(user) -> str:
         return 'test'
     return 'person'
 
+
+def is_directory_account(user) -> bool:
+    """Ce compte est-il celui d'une personne que l'ANNUAIRE authentifie ? Un compte de personne
+    sans mot de passe local — celui que la première connexion ou la pré-inscription crée. LE
+    prédicat de l'état « pré-inscrit » (`moderation.account_states`) et des données d'annuaire
+    (`directory_consent.applies`)."""
+    return bool(getattr(user, 'pk', None)) and account_kind(user) == 'person' \
+        and not user.has_usable_password()
+
 # ── Rôles métier ───────────────────────────────────────────────────────────
 ROLES = {
     'communication': 'Communication',

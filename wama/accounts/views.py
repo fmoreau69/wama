@@ -14,7 +14,7 @@ from django.views.generic.edit import CreateView, UpdateView
 from django.views.decorators.http import require_POST
 from functools import wraps
 
-from .models import LoginForm, UserProfile
+from .models import IDENTITY_FIELDS, LoginForm, UserProfile
 from ..common import external_sources, themes
 from ..common.utils.secret_crypto import storage_available
 from ..common.utils.volet import VOLET_AUCUN, volet
@@ -56,11 +56,6 @@ ROLE_OF_TIER = {'admin': 'admin', 'developpeur': 'dev', 'utilisateur': 'user'}
 #: …et le niveau que pose un rôle choisi sur cette page (« Ajouter », « Rôle »).
 TIER_OF_ROLE = {role: tier for tier, role in ROLE_OF_TIER.items()}
 
-#: L'IDENTITÉ modifiable d'un compte : par lui-même (`UserEdit`, « Modifier mon profil ») comme
-#: par un administrateur depuis la page des utilisateurs (`user_edit`).
-IDENTITY_FIELDS = ('first_name', 'last_name', 'email')
-
-
 def get_user_role(user):
     """Le rôle principal d'un compte, DÉRIVÉ de son niveau (`permissions.user_tier`) — il lisait
     les groupes hérités `admin` / `dev` / `user`, retirés le 2026-10-21."""
@@ -68,6 +63,21 @@ def get_user_role(user):
     if not user.is_authenticated or is_guest_account(user):
         return 'anonymous'
     return ROLE_OF_TIER.get(user_tier(user), 'user')
+
+
+def _safe_next(request, next_url: str) -> str:
+    """`next_url` s'il mène DANS cette instance, sinon ''.
+
+    ⚠ `next` vient du CLIENT : validé avant redirection, sinon la page de login devient un
+    redirecteur ouvert (un lien forgé `?next=https://evil…` dépose l'utilisateur ailleurs juste
+    APRÈS qu'il s'est authentifié — le moment où il fait le plus confiance à l'écran). Garde posée
+    le 2026-08-31, en réparant le fil `?next=` pour le QR d'appariement : les gabarits envoyaient
+    `request.path` (la page de login elle-même), aucun lien profond n'était donc honoré."""
+    from django.utils.http import url_has_allowed_host_and_scheme
+    if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()},
+                                                    require_https=request.is_secure()):
+        return next_url
+    return ''
 
 
 def login_view(request):
@@ -81,18 +91,15 @@ def login_view(request):
             user = form.get_user()
             login(request, user)
             messages.success(request, "Successfully logged in!")
-            # ⚠ `next` vient du CLIENT : validé avant redirection, sinon la page de login
-            # devient un redirecteur ouvert (un lien forgé `?next=https://evil…` dépose
-            # l'utilisateur ailleurs juste APRÈS qu'il s'est authentifié — le moment où il
-            # fait le plus confiance à l'écran). Garde posée le 2026-08-31, en réparant le
-            # fil `?next=` pour le QR d'appariement : les gabarits envoyaient `request.path`
-            # (la page de login elle-même), aucun lien profond n'était donc honoré.
-            from django.utils.http import url_has_allowed_host_and_scheme
-            next_url = request.POST.get('next') or ''
-            if not url_has_allowed_host_and_scheme(next_url,
-                                                   allowed_hosts={request.get_host()},
-                                                   require_https=request.is_secure()):
-                next_url = ''
+            next_url = _safe_next(request, request.POST.get('next') or '')
+            # PREMIÈRE venue d'un compte d'annuaire : le panneau d'accueil d'abord — ce que
+            # l'annuaire propose d'ajouter à son profil, et son métier (`directory_consent`).
+            # La destination demandée suit, et le panneau y renvoie.
+            from . import directory_consent
+            if directory_consent.pending(user):
+                from urllib.parse import urlencode
+                query = {'welcome': 1, **({'next': next_url} if next_url else {})}
+                return redirect(f"{reverse('accounts:profile')}?{urlencode(query)}")
             return redirect(next_url or 'anonymizer:upload')
         elif not form.is_pending():
             # Un compte EN ATTENTE n'a pas fait d'erreur : le formulaire lui dit qu'il attend.
@@ -250,6 +257,8 @@ def profile_view(request):
     from wama.common.services.sharing import scope_choices
     from wama.common.tts.constants import LANGUAGE_CHOICES
 
+    from . import directory_consent as directory_consent_module
+
     token_obj, _ = Token.objects.get_or_create(user=request.user)
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
 
@@ -284,6 +293,14 @@ def profile_view(request):
         'is_ldap': _is_ldap_user(request),
         'channel_links': liaisons,
         'rattachement': rattachement_institutionnel(profile),
+        # Mes données d'annuaire (`directory_consent`) : la carte n'existe que pour un compte
+        # d'annuaire ; elle lit son état par sa route. `welcome` : première venue, le panneau
+        # d'accueil s'ouvre ; `welcome_next` : où la personne allait (déjà validé à la connexion,
+        # revalidé ici — l'adresse vient du client).
+        'directory_data': directory_consent_module.applies(request.user),
+        'directory_welcome': (request.GET.get('welcome') == '1'
+                              and directory_consent_module.pending(request.user)),
+        'welcome_next': _safe_next(request, request.GET.get('next') or ''),
         # Ses DERNIERS accès, refus compris : c'est lui qui sait si une ligne n'est pas de lui.
         'recent_access': recent_access(request.user),
         'cloud_policies': UserProfile.CLOUD_POLICIES,
@@ -415,7 +432,8 @@ def recent_access(user, limit: int = 8) -> list:
 def rattachement_institutionnel(profile):
     """L'appartenance organisationnelle du profil, RÉSOLUE contre l'arbre `OrgUnit`.
 
-    Ces champs arrivent de l'annuaire (SUPANN, à chaque connexion — `accounts/ldap.py`) et
+    Ces champs arrivent de l'annuaire (SUPANN — `accounts/ldap.py` ; depuis le 2026-11-25 ceux que
+    la personne a choisi d'y voir, `accounts/directory_consent.py`) et
     n'étaient affichés NULLE PART : le profil de Fabien portait ses trois rattachements depuis
     des mois sans qu'on puisse les voir. Les montrer n'est pas cosmétique — c'est ce qui
     explique à l'utilisateur pourquoi le niveau « RAG du labo » lui est ouvert… ou refusé.
@@ -425,24 +443,15 @@ def rattachement_institutionnel(profile):
     2026-08-22, « {EIFFEL}CFR - LESCOT » est porté par le profil mais absent de `ou=structures`.
     Le dire évite de chercher un bug ici.
     """
-    from wama.accounts.ldap import split_namespace
+    # Le libellé pour un humain (`ldap.readable`) : le code brut reste affiché à côté — on ne le
+    # remplace pas, on cesse d'en faire le titre.
+    from wama.accounts.ldap import readable as _readable, split_namespace
     from wama.common.models import OrgUnit
 
     codes = list(profile.org_affiliations or [])
     if profile.org_entity_code and profile.org_entity_code not in codes:
         codes.insert(0, profile.org_entity_code)
     connues = {u.code: u for u in OrgUnit.local().filter(code__in=codes)}
-
-    def _readable(code, nom=''):
-        """Libellé pour un humain : le nom de l'unité s'il en a un, sinon le code SANS son
-        préfixe d'autorité SUPANN (`{IFSTTAR}LESCOT` → « LESCOT »). Le code brut reste
-        affiché à côté — on ne le remplace pas, on cesse d'en faire le titre."""
-        namespace, value = split_namespace(code)
-        if nom and nom != code:
-            return nom, namespace
-        # Un code réduit à son seul préfixe (`{IFSTTAR}`, la racine de la chaîne) n'a pas
-        # de valeur après le namespace : c'est le namespace qui EST le nom lisible.
-        return (value or namespace or code), namespace
 
     rattachements = []
     for code in codes:
@@ -1010,21 +1019,45 @@ def user_management(request):
     from wama.accounts.permissions import (ACCOUNT_KINDS, GROUP_PREFIX, ROLE_DESCRIPTIONS, ROLES,
                                            account_kind)
 
-    users = User.objects.all().order_by('username').prefetch_related('groups')
+    from django.conf import settings
+
+    from wama.accounts import directory
+    from wama.accounts.moderation import ACCOUNT_STATES, account_states
+
+    users = list(User.objects.all().order_by('username').select_related('profile')
+                 .prefetch_related('groups'))
     groups = Group.objects.all().order_by('name')
+    # L'ÉTAT de chaque compte — actif, pré-inscrit, en attente, désactivé : une lecture pour
+    # toute la page (`moderation.account_states`, 2026-11-25).
+    states = account_states(users)
+    # Les rôles métier DEMANDÉS et en attente (`role_requests`) : montrés sur la ligne, où le
+    # cocher répond à la demande.
+    from wama.accounts.role_requests import pending_by_user
+    requested = pending_by_user()
 
     # Une SECTION par nature de compte (2026-10-01, demande de Fabien) : les personnes, puis les
     # comptes de test et le compte système — `account_kind`, défini une fois.
     sections = {kind: [] for kind in ACCOUNT_KINDS}
+    units = {}
     for user in users:
         # Rôles MÉTIER actifs (axe B, cumulatifs, Groups 'role:*') — indépendants du tier ci-dessus.
         active_metier = {g.name[len(GROUP_PREFIX):] for g in user.groups.all()
                          if g.name.startswith(GROUP_PREFIX)}
+        profile = getattr(user, 'profile', None)
+        unit_code = profile.org_entity_code if profile else ''
+        if unit_code:
+            units[unit_code] = profile.org_entity_label()
         sections[account_kind(user)].append({
             'user': user,
+            'state': states[user.pk],
+            'state_label': ACCOUNT_STATES[states[user.pk]],
+            'unit_code': unit_code,
+            'unit': profile.org_entity_label() if profile else '',
+            'unit_path': profile.org_path() if profile else '',
             'role': get_user_role(user),
             'groups': [g.name for g in user.groups.all()],
-            'metier_cells': [{'key': k, 'label': label, 'active': k in active_metier}
+            'metier_cells': [{'key': k, 'label': label, 'active': k in active_metier,
+                              'requested': requested.get(user.pk, {}).get(k)}
                              for k, label in ROLES.items()],
         })
 
@@ -1039,8 +1072,13 @@ def user_management(request):
             # Clé `tier` et non `role` : `data-f-role` est l'attribut RÉSERVÉ de la brique
             # (recherche, tri) — une facette `role` le poserait sur chaque ligne.
             {'cle': 'tier', 'label': 'Rôle', 'options': role_labels},
-            {'cle': 'statut', 'label': 'Statut', 'options': {'actif': 'Actif', 'inactif': 'Inactif'}},
+            {'cle': 'statut', 'label': 'Statut', 'options': ACCOUNT_STATES},
+            {'cle': 'unit', 'label': 'Unité', 'tous': 'Toutes',
+             'options': dict(sorted(units.items(), key=lambda kv: kv[1].lower()))},
         ],
+        # Ce que la page sait faire depuis l'annuaire — rien si aucun n'est réglé.
+        'directory_ready': bool(getattr(settings, 'AUTH_LDAP_SERVER_URI', '')),
+        'preregister_limit': directory.PREREGISTER_LIMIT,
         'sorts': [('username:asc', 'Nom'), ('joined:desc', 'Inscription récente'),
                   ('login:desc', 'Dernière connexion')],
         'groups': groups,
@@ -1094,10 +1132,13 @@ def user_toggle_metier_role(request, user_id):
     if role not in ROLES:
         return JsonResponse({'success': False, 'error': f"Métier inconnu : {role}"}, status=400)
 
-    group, _ = Group.objects.get_or_create(name=GROUP_PREFIX + role)
     if data.get('enabled'):
-        user.groups.add(group)
+        # Poser le rôle est UN geste (`role_requests.give`) : il répond du même coup à la
+        # demande que la personne en avait faite.
+        from .role_requests import give
+        give(user, role, request.user)
     else:
+        group, _ = Group.objects.get_or_create(name=GROUP_PREFIX + role)
         user.groups.remove(group)
     return JsonResponse({'success': True})
 
@@ -1412,38 +1453,116 @@ def user_toggle_active(request, user_id):
     return JsonResponse({'success': False, 'error': 'Méthode non autorisée'})
 
 
+# ── Sélection de comptes et annuaire (2026-11-25, `PROFILES_PERMISSIONS §1.12`) ──────────────────
+# Activer une sélection, retrouver les personnes d'une unité de l'annuaire, pré-inscrire celles
+# qui n'ont pas de compte. Les trois gestes ont leur outil d'assistant (`tool_api.activate_accounts`,
+# `list_directory_accounts`, `preregister_accounts`), qui appelle les mêmes fonctions.
+
+def _json_list(request, key: str):
+    """La liste `key` du corps JSON d'une requête, ou None si le corps n'en est pas un."""
+    try:
+        values = json.loads(request.body or b'{}').get(key)
+    except (json.JSONDecodeError, AttributeError):
+        return None
+    return values if isinstance(values, list) else None
+
+
+@admin_required
+@require_POST
+def users_activate(request):
+    """AJAX : active les comptes INACTIFS de la sélection (`ids`) — pré-inscrits, en attente ou
+    désactivés. Chacun reçoit son message de bienvenue, comme par le bouton de sa ligne."""
+    from .moderation import activate_accounts
+    ids = _json_list(request, 'ids')
+    if ids is None:
+        return JsonResponse({'success': False, 'error': 'JSON invalide'}, status=400)
+    chosen = User.objects.filter(pk__in=[i for i in ids if isinstance(i, int)]).order_by('username')
+    report = activate_accounts(chosen, protected=[request.user])
+    logger.info('[comptes] %s a activé %s compte(s)', request.user, len(report['activated']))
+    return JsonResponse({'success': True, **report,
+                         'message': f"{len(report['activated'])} compte(s) activé(s)"})
+
+
+@admin_required
+def directory_lookup(request):
+    """AJAX : les unités de l'annuaire que désigne `q`, et leurs personnes avec l'état de leur
+    compte WAMA. LECTURE SEULE, et par la liste fermée de `directory.person_attributes`."""
+    from . import directory
+    try:
+        found = directory.lookup(request.GET.get('q', ''))
+    except directory.DirectoryUnavailable as exc:
+        return JsonResponse({'success': False, 'error': str(exc)})
+    return JsonResponse({'success': True, **found, 'states': directory.state_labels(),
+                         'absent': directory.STATE_ABSENT})
+
+
+@admin_required
+@require_POST
+def directory_preregister(request):
+    """AJAX : pré-inscrit (comptes INACTIFS, sans mot de passe local, sans rôle, personne n'est
+    prévenu) les identifiants `usernames` que l'annuaire connaît et qui n'ont pas de compte."""
+    from . import directory
+    usernames = _json_list(request, 'usernames')
+    if usernames is None:
+        return JsonResponse({'success': False, 'error': 'JSON invalide'}, status=400)
+    try:
+        report = directory.preregister([u for u in usernames if isinstance(u, str)])
+    except ValueError as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+    except directory.DirectoryUnavailable as exc:
+        return JsonResponse({'success': False, 'error': str(exc)})
+    logger.info('[comptes] %s a pré-inscrit %s compte(s)', request.user, len(report['created']))
+    return JsonResponse({'success': True, **report,
+                         'message': f"{len(report['created'])} compte(s) pré-inscrit(s), inactifs"})
+
+
 # ── L'ACCÈS aux apps du bac à sable (2026-11-02, `accounts.app_access`) ──────────────────────────
 # La demande, l'accord, la réponse et le retrait passent par le service ; la page de la demande
 # est celle des demandes d'accès d'une card (`common/access_request.html`), où mène la
 # notification. Chaque geste a son outil d'assistant (`tool_api.*_app_access`).
 
 def _app_access_reply(run):
-    from .app_access import AppAccessRefused
+    from .app_access import AccessRefused
     try:
         return JsonResponse({'done': True, **(run() or {})})
-    except AppAccessRefused as exc:
+    except AccessRefused as exc:
         return JsonResponse({'done': False, 'reason': str(exc)})
+
+
+def _grant_family(grant):
+    """Le module qui TRANCHE une ligne `AccessGrant`, par sa famille (`kind`) — une app du bac à
+    sable, un rôle métier. Chacun rend `can_grant`, `answer`, `request_summary` ; la page et la
+    réponse d'une demande sont les mêmes pour toutes."""
+    from . import app_access, role_requests
+    return {app_access.KIND_APP: app_access,
+            role_requests.KIND_ROLE: role_requests}.get(getattr(grant, 'kind', None))
+
+
+def _requested_grant(pk):
+    from .models import AccessGrant
+    grant = AccessGrant.objects.filter(pk=pk).select_related('granted_by').first()
+    return (grant, _grant_family(grant)) if grant is not None else (None, None)
 
 
 @login_required
 def app_access_request_page(request, pk: int):
-    """Une DEMANDE d'accès à une app du bac à sable : ce qui est demandé, par qui ; Accepter /
-    Refuser pour son créateur et les administrateurs, l'état pour le demandeur. Personne d'autre
+    """Une DEMANDE — d'accès à une app du bac à sable, ou d'un rôle métier : ce qui est demandé,
+    par qui ; Accepter / Refuser pour qui en décide, l'état pour le demandeur. Personne d'autre
     ne la voit."""
     from django.http import Http404
-    from .app_access import app_title, can_grant
-    from .models import AccessGrant
-    grant = AccessGrant.objects.filter(pk=pk, kind='app').select_related('granted_by').first()
-    if grant is None:
+    grant, family = _requested_grant(pk)
+    if family is None:
         raise Http404
-    decider = can_grant(request.user, grant.element_id)
+    decider = family.can_grant(request.user, grant.element_id)
     if not (decider or grant.subject_id == request.user.pk):
         raise Http404
     requester = grant.subject_user()
+    summary = family.request_summary(grant)
     return render(request, 'common/access_request.html', {
         'grant': grant, 'is_owner': decider, 'app_grant': True,
         'requester': requester.get_username() if requester else f'#{grant.subject_id}',
-        'element_label': app_title(grant.element_id), 'element_app': grant.element_id,
+        'element_label': summary['label'], 'element_app': summary['app'],
+        'what': summary['what'], 'waiting': summary['waiting'],
         'answer_url': reverse('accounts:app-access-answer', args=[grant.pk]),
         'volet': VOLET_AUCUN,
     })
@@ -1452,14 +1571,56 @@ def app_access_request_page(request, pk: int):
 @login_required
 @require_POST
 def app_access_answer(request, pk: int):
-    """POST `accept` (1|0) — le créateur ou un administrateur répond à une demande."""
-    from .app_access import answer
-    from .models import AccessGrant
-    grant = AccessGrant.objects.filter(pk=pk, kind='app').first()
-    if grant is None:
+    """POST `accept` (1|0) — qui décide de la demande (créateur de l'app ou administrateur ; un
+    administrateur pour un rôle) y répond."""
+    grant, family = _requested_grant(pk)
+    if family is None:
         return JsonResponse({'done': False, 'reason': 'demande introuvable'}, status=404)
-    return _app_access_reply(lambda: answer(request.user, grant,
-                                            request.POST.get('accept') in ('1', 'true')))
+    return _app_access_reply(lambda: family.answer(request.user, grant,
+                                                   request.POST.get('accept') in ('1', 'true')))
+
+
+@login_required
+@require_POST
+def role_request(request):
+    """POST `role` (+ `reason`) — la personne demande un rôle métier ; un administrateur valide."""
+    from .role_requests import request_role
+    return _app_access_reply(lambda: {'id': request_role(
+        request.user, request.POST.get('role') or '', request.POST.get('reason') or '').pk})
+
+
+# ── Mes données d'annuaire (2026-11-25, `accounts/directory_consent.py`) ─────────────────────────
+# Ce que l'annuaire propose d'ajouter au profil se choisit avec la personne : au panneau d'accueil
+# de sa première connexion, puis depuis son profil. Outils : `tool_api.get_my_directory_data`,
+# `set_my_directory_data`.
+
+@login_required
+def directory_data(request):
+    """GET : l'état de chaque donnée (choix, valeur gardée, valeur proposée par l'annuaire) et
+    les rôles métier que la personne peut demander. POST JSON `{accept: […], decline: […]}` : son
+    choix ; `{acknowledge: true}` : elle a vu le panneau et ne change rien."""
+    from . import directory_consent as consent
+    from .role_requests import requestable_roles
+    user = request.user
+    if not consent.applies(user):
+        return JsonResponse({'success': False,
+                             'error': "Ce compte n'est pas un compte d'annuaire."}, status=400)
+    if request.method == 'POST':
+        try:
+            body = json.loads(request.body or b'{}')
+            if not isinstance(body, dict):
+                raise ValueError('JSON invalide')
+            if body.get('accept') or body.get('decline'):
+                rows = consent.decide(user, body.get('accept') or (), body.get('decline') or ())
+            else:
+                consent.acknowledge(user)
+                rows = consent.state(user)
+        except (ValueError, TypeError) as exc:
+            return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+    else:
+        rows = consent.state(user)
+    return JsonResponse({'success': True, 'data': rows, 'roles': requestable_roles(user),
+                         'answered': not consent.pending(user)})
 
 
 @login_required

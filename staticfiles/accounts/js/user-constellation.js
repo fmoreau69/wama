@@ -70,7 +70,7 @@ function adapt(data) {
     const items = Object.entries(u.contributions).flatMap(([fam, f]) => f.items.map(it => ({ fam, ...it })));
     return {
       id: u.id, seed: u.id, name: u.name, handle: u.username, sub: u.org.entity || u.tier_label,
-      size: total, faded: !u.active, layer: u.kind === 'person' ? null : 'tests',
+      size: total, faded: !u.active, layer: u.layer,
       groups: [...u.units.map(unitId), ...(projectsOf.get(u.id) || []).map(x => projectId(x.project.id))],
       sets: { roles: u.roles },
       cats: { tier: u.tier, world: topWorld ? topWorld[0] : null },
@@ -202,7 +202,7 @@ function detail(n, api) {
       <div class="wc-badges">
         <span class="wc-badge tier" style="--c:${css(tierColor(api, u.tier))}">${esc(F.tierLabel(u.tier))}</span>
         ${u.roles.map(k => `<span class="wc-badge"><span class="sw" style="--c:${css(ROLE_PALETTE[(F.roleIndex.get(k) ?? 0) % ROLE_PALETTE.length])}"></span>${esc(F.roleLabel(k))}</span>`).join('')}
-        ${u.active ? '' : '<span class="wc-badge off">Inactif</span>'}
+        ${u.active ? '' : `<span class="wc-badge off">${esc(u.state_label || 'Inactif')}</span>`}
         ${u.kind !== 'person' ? `<span class="wc-badge">${esc(data.account_kinds[u.kind] || u.kind)}</span>` : ''}
       </div>
       <p class="mute" style="margin-top:8px">Inscrit le ${fmtDate(u.joined)} · dernière connexion ${fmtDate(u.last_login)}</p>

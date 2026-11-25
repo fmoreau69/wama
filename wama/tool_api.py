@@ -5236,10 +5236,10 @@ def _truthy(value) -> bool:
 def _app_access_call(user, run):
     if refusal := _signed_in_refusal(user, "Accès"):
         return refusal
-    from wama.accounts.app_access import AppAccessRefused
+    from wama.accounts.app_access import AccessRefused
     try:
         return run()
-    except AppAccessRefused as exc:
+    except AccessRefused as exc:
         return {'error': str(exc)}
 
 
@@ -5353,6 +5353,251 @@ def revoke_app_access(user, grant_id: int) -> dict:
             return {'error': f"Accès #{grant_id} introuvable."}
         app_access.revoke(user, grant)
         return {'revoked': True, 'grant_id': grant.pk}
+    return _app_access_call(user, run)
+
+
+# LES COMPTES ET L'ANNUAIRE (2026-11-25, `accounts.directory`, `PROFILES_PERMISSIONS §1.12`) : un
+# administrateur retrouve les personnes d'une unité, PRÉ-INSCRIT celles qui n'ont pas de compte
+# (inactif, sans rôle, personne n'est prévenu), ACTIVE une sélection. Les mêmes fonctions que la
+# page des utilisateurs. ⚠ Une réponse d'outil peut être lue par un modèle distant : elle ne porte
+# que des identifiants et des états, jamais une adresse ni un nom de personne.
+
+def _account_admin_refusal(user, action: str) -> dict | None:
+    """Le refus d'un geste de gestion des comptes à qui n'est pas administrateur, ou None — le
+    prédicat de la page des utilisateurs (`accounts.views.admin_required`)."""
+    if refusal := _signed_in_refusal(user, action):
+        return refusal
+    from wama.accounts.permissions import is_admin_tier
+    if not is_admin_tier(user):
+        return {'error': f"{action} réservée à un administrateur."}
+    return None
+
+
+def _accounts_page() -> dict:
+    from django.urls import reverse
+    from wama.common.services.navigation import absolute_url
+    url = reverse('accounts:user-management')
+    return {'page': url, 'link': absolute_url(url)}
+
+
+def _counts_by_state(people) -> dict:
+    from collections import Counter
+    return dict(Counter(person['state'] for person in people))
+
+
+@tool_effect(READ)
+def list_directory_accounts(user, unit: str) -> dict:
+    """
+    List the people of a unit of the institution's directory (a laboratory, a department, a team
+    and its sub-units) with the state of each one's WAMA account: absent, preregistered, pending,
+    active or disabled. Read-only, reserved to administrators.
+
+    Args:
+        unit: text contained in the unit's name or code (at least 3 characters).
+
+    Returns:
+        {"units": [{"code", "name"}], "people": [{"username", "state"}], "counts", "states",
+         "page", "link"} or {"error"}
+    """
+    if refusal := _account_admin_refusal(user, "Lecture de l'annuaire"):
+        return refusal
+    from wama.accounts import directory
+    try:
+        found = directory.lookup(unit)
+    except directory.DirectoryUnavailable as exc:
+        return {'error': f"Annuaire : {exc}."}
+    return {'units': [{'code': u['code'], 'name': u['name']} for u in found['units']],
+            'people': [{'username': p['username'], 'state': p['state']} for p in found['people']],
+            'counts': _counts_by_state(found['people']), 'states': directory.state_labels(),
+            **_accounts_page()}
+
+
+@tool_effect(WRITE)
+def preregister_accounts(user, unit: str = '', usernames: list = None,
+                         confirm: bool = False) -> dict:
+    """
+    Prepare the WAMA accounts of people who have none, from the institution's directory: every
+    person of a unit, or the usernames given. Each account is created inactive, without a role;
+    nobody is notified until an administrator activates it. Reserved to administrators.
+
+    Args:
+        unit:      text contained in the unit's name or code — every person of it without an account.
+        usernames: or the exact directory usernames to prepare.
+        confirm:   true once the user has agreed to the number of accounts.
+
+    Returns:
+        {"preregistered": [usernames], "existing": [...], "missing": [...], "page", "link"}
+        or {"error"}
+    """
+    if refusal := _account_admin_refusal(user, "Pré-inscription"):
+        return refusal
+    from wama.accounts import directory
+    try:
+        chosen = [str(name) for name in (usernames or [])]
+        if not chosen and (unit or '').strip():
+            chosen = [p['username'] for p in directory.lookup(unit)['people']
+                      if p['state'] == directory.STATE_ABSENT]
+        if not chosen:
+            return {'error': "Aucun compte à préparer : désignez une unité (unit) dont des "
+                             "personnes n'ont pas de compte, ou des identifiants (usernames)."}
+        if not _truthy(confirm):
+            return _unconfirmed('Pré-inscrire', count=len(chosen), usernames=chosen)
+        report = directory.preregister(chosen)
+    except directory.DirectoryUnavailable as exc:
+        return {'error': f"Annuaire : {exc}."}
+    except ValueError as exc:
+        return {'error': f"{exc}."}
+    return {'preregistered': report['created'], 'existing': report['existing'],
+            'missing': report['missing'], **_accounts_page()}
+
+
+@tool_effect(WRITE)
+def activate_accounts(user, usernames: list, confirm: bool = False) -> dict:
+    """
+    Activate inactive WAMA accounts (preregistered, pending or disabled) so that their holders can
+    sign in; each one receives the welcome message. Reserved to administrators.
+
+    Args:
+        usernames: the usernames of the accounts to activate.
+        confirm:   true once the user has agreed to the list.
+
+    Returns:
+        {"activated": [usernames], "skipped": [...], "unknown": [...], "page", "link"} or {"error"}
+    """
+    if refusal := _account_admin_refusal(user, "Activation de comptes"):
+        return refusal
+    from wama.accounts.directory import accounts_named
+    from wama.accounts.moderation import activate_accounts as activate
+    asked = {str(name).strip().lower(): str(name).strip() for name in (usernames or []) if str(name).strip()}
+    if not asked:
+        return {'error': "usernames requis : les identifiants des comptes à activer."}
+    found = accounts_named(asked)
+    accounts = list(found.values())
+    unknown = sorted(name for low, name in asked.items() if low not in found)
+    if not _truthy(confirm):
+        return _unconfirmed('Activer', usernames=[a.get_username() for a in accounts
+                                                   if not a.is_active], unknown=unknown)
+    return {**activate(accounts, protected=[user]), 'unknown': unknown, **_accounts_page()}
+
+
+# MES DONNÉES D'ANNUAIRE et MON MÉTIER (2026-11-25, `accounts.directory_consent`,
+# `accounts.role_requests`) : la personne choisit ce que l'annuaire ajoute à son profil, et demande
+# le rôle métier qui est le sien ; un administrateur répond. Les fonctions de la page de profil.
+
+def _profile_page() -> dict:
+    from django.urls import reverse
+    from wama.common.services.navigation import absolute_url
+    url = reverse('accounts:profile')
+    return {'page': url, 'link': absolute_url(url)}
+
+
+def _directory_data_rows(rows) -> list:
+    return [{key: row[key] for key in ('key', 'label', 'choice', 'stored', 'value', 'opens')}
+            for row in rows]
+
+
+@tool_effect(READ)
+def get_my_directory_data(user) -> dict:
+    """
+    Tell which data of the institution's directory WAMA keeps on your own profile (main unit,
+    other units, institution, status) and your choice for each one, with the business roles you
+    hold, have requested or may request.
+
+    Returns:
+        {"data": [{"key", "label", "choice", "stored", "value", "opens"}],
+         "roles": [{"key", "label", "held", "pending"}], "page", "link"} or {"error"}
+    """
+    if refusal := _signed_in_refusal(user):
+        return refusal
+    from wama.accounts import directory_consent, role_requests
+    if not directory_consent.applies(user):
+        return {'error': "Ce compte n'est pas un compte d'annuaire : il n'en reçoit aucune donnée."}
+    # `proposed={}` : l'outil dit ce que WAMA GARDE, il n'interroge pas l'annuaire.
+    return {'data': _directory_data_rows(directory_consent.state(user, proposed={})),
+            'roles': role_requests.requestable_roles(user), **_profile_page()}
+
+
+@tool_effect(WRITE)
+def set_my_directory_data(user, add: list = None, remove: list = None) -> dict:
+    """
+    Add to your own profile, or remove from it, data of the institution's directory. A removed
+    datum is erased from WAMA and does not come back; an added one is read from the directory
+    and refreshed at each sign-in.
+
+    Args:
+        add:    keys to add (the `key` of each datum that `get_my_directory_data` lists).
+        remove: keys to remove.
+
+    Returns:
+        {"data": [{"key", "label", "choice", "stored", "value", "opens"}], "page", "link"} or {"error"}
+    """
+    if refusal := _signed_in_refusal(user, "Choix"):
+        return refusal
+    from wama.accounts import directory_consent
+    if not (add or remove):
+        return {'error': "add ou remove requis : les clés des données à ajouter ou à retirer."}
+    try:
+        rows = directory_consent.decide(user, [str(k) for k in (add or [])],
+                                        [str(k) for k in (remove or [])])
+    except ValueError as exc:
+        return {'error': f"{exc}."}
+    return {'data': _directory_data_rows(rows), **_profile_page()}
+
+
+@tool_effect(WRITE)
+def request_role(user, role: str, reason: str = '') -> dict:
+    """
+    Ask for a business role, which opens the applications of that trade. The administrators are
+    notified and answer; a request already waiting is returned, not repeated.
+
+    Args:
+        role:   the role key (`get_my_directory_data` lists them).
+        reason: why you need it, shown to whoever answers.
+
+    Returns:
+        {"requested": true, "request_id", "role"} or {"error"}
+    """
+    from wama.accounts import role_requests
+    return _app_access_call(user, lambda: {
+        'requested': True, 'role': role,
+        'request_id': role_requests.request_role(user, role, reason).pk})
+
+
+@tool_effect(READ)
+def list_role_requests(user) -> dict:
+    """
+    List the requests for a business role: your own with their state, and for an administrator
+    the ones waiting for an answer.
+
+    Returns:
+        {"mine": [{"id", "role", "state", ...}], "to_answer": [...]} or {"error"}
+    """
+    from wama.accounts import role_requests
+    return _local_times(_app_access_call(user, lambda: role_requests.overview(user)))
+
+
+@tool_effect(WRITE)
+def answer_role_request(user, request_id: int, accept: bool) -> dict:
+    """
+    Accept or refuse a person's request for a business role — for an administrator
+    (`list_role_requests` lists the requests to answer). Accepting gives the role at once.
+
+    Args:
+        request_id: the request id.
+        accept:     true to give the role, false to refuse.
+
+    Returns:
+        {"answered": true, "request_id", "state"} or {"error"}
+    """
+    from wama.accounts import role_requests
+    from wama.accounts.models import AccessGrant
+
+    def run():
+        grant = AccessGrant.objects.filter(pk=request_id, kind=role_requests.KIND_ROLE).first()
+        if grant is None:
+            return {'error': f"Demande de rôle #{request_id} introuvable."}
+        return {'answered': True, 'request_id': grant.pk,
+                **role_requests.answer(user, grant, _truthy(accept))}
     return _app_access_call(user, run)
 
 
@@ -6024,6 +6269,18 @@ TOOL_REGISTRY = {
     'grant_app_access':   grant_app_access,
     'answer_app_access':  answer_app_access,
     'revoke_app_access':  revoke_app_access,
+    # Les comptes et l'annuaire (2026-11-25) : lire une unité, pré-inscrire, activer — réservés
+    # aux administrateurs, garde dans le corps (`_account_admin_refusal`).
+    'list_directory_accounts': list_directory_accounts,
+    'preregister_accounts':    preregister_accounts,
+    'activate_accounts':       activate_accounts,
+    # Mes données d'annuaire et mon métier (2026-11-25) : choisir ce que le profil garde,
+    # demander un rôle ; un administrateur répond (garde dans `role_requests.answer`).
+    'get_my_directory_data':   get_my_directory_data,
+    'set_my_directory_data':   set_my_directory_data,
+    'request_role':            request_role,
+    'list_role_requests':      list_role_requests,
+    'answer_role_request':     answer_role_request,
     # Ranger une SORTIE d'app en médiathèque — 3ᵉ surface du même geste (menu « … » + route
     # d'app + ici). Transverse : c'est la médiathèque DE L'APPELANT, garde = ownership.
     'add_item_to_media_library': add_item_to_media_library,

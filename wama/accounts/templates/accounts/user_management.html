@@ -18,15 +18,36 @@
                 <a href="{% url 'accounts:app-access-matrix' %}" class="btn btn-outline-info me-2">
                     <i class="fas fa-table-cells-large"></i> Accès aux applications
                 </a>
+                {% if directory_ready %}
+                <button class="btn btn-outline-success me-2" data-bs-toggle="modal" data-bs-target="#directoryModal"
+                        title="Retrouver les personnes d'une unité et préparer leur compte, inactif, avant leur première connexion">
+                    <i class="fas fa-address-book"></i> Importer depuis l'annuaire
+                </button>
+                {% endif %}
                 <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addUserModal">
                     <i class="fas fa-user-plus"></i> Ajouter un utilisateur
                 </button>
             </div>
 
             {% comment %}Barre COMMUNE (filtre / tri / recherche, mode client) — 2026-10-01, demande de
-            Fabien. Les lignes portent `data-f-tier` / `data-f-statut` (facettes) et `data-s-*` (tri) ;
-            chaque section est un groupe (`data-f-groupe`) qui disparaît quand le filtre la vide.{% endcomment %}
+            Fabien. Les lignes portent `data-f-tier` / `data-f-statut` / `data-f-unit` (facettes) et
+            `data-s-*` (tri) ; chaque section est un groupe (`data-f-groupe`) qui disparaît quand le
+            filtre la vide.{% endcomment %}
             {% include 'common/_filter_bar.html' with facettes=facets cible='.user-row' mode='client' sort_options=sorts sort_value='username:asc' placeholder='Rechercher un compte (identifiant, email, nom)…' %}
+            {% comment %}Sélection (2026-11-25) : les comptes INACTIFS se cochent, et s'activent
+            ensemble. La barre n'apparaît qu'avec une sélection.{% endcomment %}
+            {% url 'accounts:users-activate' as activate_url %}
+            <div id="selectionBar" class="alert alert-secondary align-items-center py-2 mb-3 d-none"
+                 data-activate-url="{{ activate_url }}">
+                <span><strong id="selectionCount">0</strong> compte(s) sélectionné(s)</span>
+                <button type="button" class="btn btn-sm btn-success ms-3" id="activateSelection">
+                    <i class="fas fa-check"></i> Activer la sélection
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary ms-2" id="clearSelection">
+                    Tout décocher
+                </button>
+                <span class="small text-body-secondary ms-3">Chaque compte activé reçoit un message de bienvenue.</span>
+            </div>
             <div class="wama-filter-empty text-muted text-center py-3" style="display:none;">
                 Aucun compte ne correspond.
             </div>
@@ -49,9 +70,15 @@
                         <table class="table table-hover mb-0">
                             <thead>
                                 <tr>
+                                    <th style="width:1.5rem;">
+                                        <input class="form-check-input select-all-accounts" type="checkbox"
+                                               title="Cocher les comptes inactifs affichés de cette section"
+                                               aria-label="Cocher les comptes inactifs affichés">
+                                    </th>
                                     <th>Utilisateur</th>
                                     <th>Email</th>
                                     <th>Nom</th>
+                                    <th>Unité</th>
                                     <th>Rôle</th>
                                     <th>
                                         Métiers
@@ -68,10 +95,17 @@
                                 {% for item in section.users %}
                                 <tr class="user-row" data-user-id="{{ item.user.id }}"
                                     data-f-tier="{{ item.role }}"
-                                    data-f-statut="{% if item.user.is_active %}actif{% else %}inactif{% endif %}"
+                                    data-f-statut="{{ item.state }}"
+                                    data-f-unit="{{ item.unit_code }}"
                                     data-s-username="{{ item.user.username|lower }}"
                                     data-s-joined="{{ item.user.date_joined|date:'U' }}"
                                     data-s-login="{% if item.user.last_login %}{{ item.user.last_login|date:'U' }}{% endif %}">
+                                    <td>
+                                        {% if not item.user.is_active and item.user.username != 'anonymous' %}
+                                        <input class="form-check-input select-account" type="checkbox"
+                                               value="{{ item.user.id }}" aria-label="Sélectionner {{ item.user.username }}">
+                                        {% endif %}
+                                    </td>
                                     {% comment %}`overflow-wrap:anywhere` : les identifiants et adresses des comptes de
                                     test n'ont pas d'espace (`wama_rights_communication`) — sans coupure, ils
                                     élargissaient le tableau de 315 px à 1500 px de large (mesuré le 2026-10-01).{% endcomment %}
@@ -84,6 +118,7 @@
                                     </td>
                                     <td style="overflow-wrap:anywhere; min-width:7rem;">{{ item.user.email|default:"-" }}</td>
                                     <td>{{ item.user.first_name }} {{ item.user.last_name }}</td>
+                                    <td title="{{ item.unit_path }}">{{ item.unit|default:"—" }}</td>
                                     <td>
                                         <select class="form-select form-select-sm bg-body text-body-emphasis border-secondary role-select"
                                                 style="min-width:9rem;"
@@ -121,6 +156,11 @@
                                                        for="metier-{{ item.user.id }}-{{ cell.key }}">
                                                     {{ cell.label }}
                                                 </label>
+                                                {% if cell.requested %}
+                                                <a href="{% url 'accounts:app-access-page' cell.requested %}"
+                                                   class="badge bg-warning text-dark ms-1 role-requested text-decoration-none"
+                                                   title="Rôle demandé par la personne : cochez-le pour l'accorder, ou ouvrez la demande pour la refuser">demandé</a>
+                                                {% endif %}
                                             </div>
                                             {% endfor %}
                                             <button type="button"
@@ -139,9 +179,16 @@
                                         {% if item.user.username == 'anonymous' %}
                                         <span class="badge bg-secondary">Système</span>
                                         {% elif item.user.is_active %}
-                                        <span class="badge bg-success status-badge">Actif</span>
+                                        <span class="badge bg-success status-badge">{{ item.state_label|default:"Actif" }}</span>
+                                        {% elif item.state == 'pending' %}
+                                        <span class="badge bg-warning text-dark status-badge"
+                                              title="La personne s'est connectée et attend d'être activée">{{ item.state_label }}</span>
+                                        {% elif item.state == 'preregistered' %}
+                                        <span class="badge bg-info text-dark status-badge"
+                                              title="Compte préparé depuis l'annuaire : la personne n'est pas encore venue et n'a rien demandé">{{ item.state_label }}</span>
                                         {% else %}
-                                        <span class="badge bg-danger status-badge">Inactif</span>
+                                        <span class="badge bg-danger status-badge"
+                                              title="Compte fermé par un administrateur">{{ item.state_label|default:"Inactif" }}</span>
                                         {% endif %}
                                     </td>
                                     <td>{{ item.user.date_joined|date:"d/m/Y" }}<br><small class="text-muted">{{ item.user.date_joined|date:"H:i" }}</small></td>
@@ -182,7 +229,7 @@
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="9" class="text-center text-muted">Aucun compte dans cette section</td>
+                                    <td colspan="11" class="text-center text-muted">Aucun compte dans cette section</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -331,6 +378,66 @@ modale est remplie depuis les `data-*` du bouton stylo de la ligne, aucune lectu
         </div>
     </div>
 </div>
+
+{% comment %}Importer depuis l'annuaire (2026-11-25, demande de Fabien) : retrouver les personnes
+d'une unité, voir l'état de chacune dans WAMA, préparer le compte de celles qui n'en ont pas.
+La modale ne porte aucune donnée : elle lit `accounts:directory-lookup`.{% endcomment %}
+{% if directory_ready %}
+<div class="modal fade" id="directoryModal" tabindex="-1" aria-hidden="true"
+     data-lookup-url="{% url 'accounts:directory-lookup' %}"
+     data-preregister-url="{% url 'accounts:directory-preregister' %}"
+     data-limit="{{ preregister_limit }}">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+        <div class="modal-content bg-body text-body-emphasis border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="fas fa-address-book"></i> Importer depuis l'annuaire</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="directorySearchForm" class="d-flex gap-2 mb-2">
+                    <input type="search" class="form-control bg-body text-body-emphasis border-secondary"
+                           id="directoryQuery" placeholder="Nom ou code d'une unité (laboratoire, service, équipe)…"
+                           minlength="3" required autocomplete="off">
+                    <button type="submit" class="btn btn-primary text-nowrap">
+                        <i class="fas fa-magnifying-glass"></i> Chercher
+                    </button>
+                </form>
+                <p class="small text-body-secondary mb-3">
+                    Un compte préparé ici est <strong>inactif</strong> et sans rôle. Il ne reprend de
+                    l'annuaire que l'identifiant, le prénom, le nom, l'adresse et l'unité principale.
+                    Personne n'est prévenu tant que le compte n'est pas activé.
+                </p>
+                <div id="directoryMessage" class="text-body-secondary small"></div>
+                <div id="directoryUnits" class="small mb-2"></div>
+                <div class="table-responsive d-none" id="directoryPeople">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th style="width:1.5rem;">
+                                    <input class="form-check-input" type="checkbox" id="directorySelectAll"
+                                           aria-label="Cocher toutes les personnes sans compte">
+                                </th>
+                                <th>Identifiant</th>
+                                <th>Nom</th>
+                                <th>Email</th>
+                                <th>Dans WAMA</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <span class="small text-body-secondary me-auto" id="directorySummary"></span>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" class="btn btn-success" id="directoryPreregister" disabled>
+                    <i class="fas fa-user-clock"></i> Préparer les comptes
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block javascript %}
@@ -338,6 +445,125 @@ modale est remplie depuis les `data-*` du bouton stylo de la ligne, aucune lectu
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const csrfToken = '{{ csrf_token }}';
+
+    // Sélection des comptes inactifs → activation en lot.
+    const selectionBar = document.getElementById('selectionBar');
+    const selectedBoxes = () => Array.from(document.querySelectorAll('.select-account:checked'));
+    function refreshSelection() {
+        const count = selectedBoxes().length;
+        document.getElementById('selectionCount').textContent = count;
+        selectionBar.classList.toggle('d-none', count === 0);
+        selectionBar.classList.toggle('d-flex', count > 0);
+    }
+    document.querySelectorAll('.select-account').forEach(box => box.addEventListener('change', refreshSelection));
+    document.querySelectorAll('.select-all-accounts').forEach(all => {
+        all.addEventListener('change', function() {
+            // Les seules lignes AFFICHÉES de la section : un filtre en cours borne la sélection.
+            this.closest('table').querySelectorAll('.select-account').forEach(box => {
+                if (box.closest('tr').offsetParent !== null) { box.checked = all.checked; }
+            });
+            refreshSelection();
+        });
+    });
+    document.getElementById('clearSelection').addEventListener('click', function() {
+        document.querySelectorAll('.select-account, .select-all-accounts').forEach(box => { box.checked = false; });
+        refreshSelection();
+    });
+    document.getElementById('activateSelection').addEventListener('click', function() {
+        const ids = selectedBoxes().map(box => parseInt(box.value, 10));
+        if (!ids.length || !confirm(`Activer ${ids.length} compte(s) ? Chacun recevra un message de bienvenue.`)) { return; }
+        fetch(selectionBar.dataset.activateUrl, {
+            method: 'POST',
+            headers: {'X-CSRFToken': csrfToken, 'Content-Type': 'application/json'},
+            body: JSON.stringify({ids: ids}),
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) { location.reload(); } else { alert('Erreur: ' + data.error); }
+        })
+        .catch(error => { console.error('Error:', error); alert("Erreur lors de l'activation"); });
+    });
+
+    // Importer depuis l'annuaire : chercher une unité, cocher, préparer les comptes. Ce que
+    // l'annuaire rend s'écrit par `textContent`, jamais en HTML.
+    const directoryModal = document.getElementById('directoryModal');
+    if (directoryModal) {
+        const peopleBox = document.getElementById('directoryPeople');
+        const peopleBody = peopleBox.querySelector('tbody');
+        const message = document.getElementById('directoryMessage');
+        const unitsBox = document.getElementById('directoryUnits');
+        const summary = document.getElementById('directorySummary');
+        const prepare = document.getElementById('directoryPreregister');
+        const selectAll = document.getElementById('directorySelectAll');
+        const limit = parseInt(directoryModal.dataset.limit, 10);
+        const chosen = () => Array.from(peopleBody.querySelectorAll('input:checked')).map(box => box.value);
+        const cell = (row, text) => { const td = document.createElement('td'); td.textContent = text; row.appendChild(td); return td; };
+        function refreshChosen() {
+            const count = chosen().length;
+            prepare.disabled = count === 0 || count > limit;
+            summary.textContent = count > limit
+                ? `${count} personnes cochées : un passage en prépare au plus ${limit}.`
+                : (count ? `${count} compte(s) à préparer` : '');
+        }
+        function search() {
+            message.textContent = "Lecture de l'annuaire…";
+            unitsBox.textContent = '';
+            peopleBody.replaceChildren();
+            peopleBox.classList.add('d-none');
+            selectAll.checked = false;
+            refreshChosen();
+            const query = document.getElementById('directoryQuery').value.trim();
+            fetch(directoryModal.dataset.lookupUrl + '?q=' + encodeURIComponent(query))
+            .then(response => response.json())
+            .then(data => {
+                if (!data.success) { message.textContent = data.error; return; }
+                if (!data.units.length) { message.textContent = "Aucune unité de l'annuaire ne correspond."; return; }
+                unitsBox.textContent = `${data.units.length} unité(s) : ` + data.units.map(unit => unit.name).join(' · ');
+                const absent = data.people.filter(person => person.state === data.absent).length;
+                message.textContent = `${data.people.length} personne(s), dont ${absent} sans compte WAMA.`;
+                data.people.forEach(person => {
+                    const row = document.createElement('tr');
+                    const pick = cell(row, '');
+                    if (person.state === data.absent) {
+                        const box = document.createElement('input');
+                        box.type = 'checkbox'; box.className = 'form-check-input'; box.value = person.username;
+                        box.addEventListener('change', refreshChosen);
+                        pick.appendChild(box);
+                    }
+                    cell(row, person.username);
+                    cell(row, `${person.first_name} ${person.last_name}`.trim());
+                    cell(row, person.email);
+                    cell(row, data.states[person.state] || person.state);
+                    peopleBody.appendChild(row);
+                });
+                peopleBox.classList.toggle('d-none', !data.people.length);
+            })
+            .catch(error => { console.error('Error:', error); message.textContent = "L'annuaire n'a pas pu être lu."; });
+        }
+        document.getElementById('directorySearchForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+            search();
+        });
+        selectAll.addEventListener('change', function() {
+            peopleBody.querySelectorAll('input[type=checkbox]').forEach(box => { box.checked = selectAll.checked; });
+            refreshChosen();
+        });
+        prepare.addEventListener('click', function() {
+            const usernames = chosen();
+            if (!usernames.length || !confirm(`Préparer ${usernames.length} compte(s) inactif(s) ? Personne ne sera prévenu.`)) { return; }
+            prepare.disabled = true;
+            fetch(directoryModal.dataset.preregisterUrl, {
+                method: 'POST',
+                headers: {'X-CSRFToken': csrfToken, 'Content-Type': 'application/json'},
+                body: JSON.stringify({usernames: usernames}),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) { location.reload(); } else { alert('Erreur: ' + data.error); refreshChosen(); }
+            })
+            .catch(error => { console.error('Error:', error); alert('Erreur lors de la préparation des comptes'); refreshChosen(); });
+        });
+    }
 
     // Add user
     document.getElementById('submitAddUser').addEventListener('click', function() {
@@ -454,6 +680,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (!data.success) {
                     alert('Erreur: ' + data.error);
                     this.checked = !enabled; // revert
+                } else if (enabled) {
+                    // Le rôle posé répond à la demande de la personne : la pastille « demandé » part.
+                    const asked = this.closest('.form-check').querySelector('.role-requested');
+                    if (asked) { asked.remove(); }
                 }
             })
             .catch(error => {

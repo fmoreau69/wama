@@ -3797,6 +3797,40 @@ MECHANISMS = (
               # `annexes` : la remontée d'attributs au PROFIL est l'autre moitié — elle marchait
               # déjà (signaux au login) ; c'est l'ARBRE qui manquait, d'où le domicile ici.
               annexes=('wama/accounts/ldap.py',)),
+    Mechanism('directory_accounts', "Annuaire lu par unité et comptes pré-inscrits",
+              "Retrouve les personnes d'une unité de l'annuaire, avec l'état de leur compte "
+              "(sans compte, ou l'état lu par `moderation.account_states` : actif, pré-inscrit, "
+              "en attente, désactivé), et PRÉ-INSCRIT celles qui n'en ont pas : compte inactif, "
+              "sans mot de passe local ni rôle, créé par le moteur de connexion lui-même — un "
+              "administrateur peut l'activer avant la première venue. Lecture seule côté "
+              "annuaire, liste FERMÉE d'attributs, le minimum sur le compte (identité, unité "
+              "principale), personne de prévenu ; la liaison est aussi celle de `org_sync`. "
+              "Une lecture (`lookup`) et une borne par passage pour ses trois surfaces : la "
+              "commande `preregister_accounts` (sans effet sans `--apply`), la page des "
+              "utilisateurs (« Importer depuis l'annuaire », « Activer la sélection ») et "
+              "l'assistant (`list_directory_accounts`, `preregister_accounts`, `activate_accounts`)",
+              'wama/accounts/directory.py',
+              'docs/construction/exploitation/PROFILES_PERMISSIONS.md',
+              annexes=('wama/accounts/management/commands/preregister_accounts.py',
+                       'wama/accounts/management/commands/sync_org_units.py',
+                       'wama/accounts/moderation.py',
+                       'wama/accounts/tests/tests_directory.py')),
+    Mechanism('directory_consent', "Données d'annuaire choisies par la personne, rôle demandé",
+              "Ce que l'annuaire propose d'ajouter à un profil (unité principale, autres unités, "
+              "établissement, qualité — `DIRECTORY_DATA`) se choisit AVEC la personne : le minimum "
+              "à la création du compte, puis une pastille par donnée au panneau d'accueil de la "
+              "première connexion et sur le profil. `writable` est la règle que la connexion "
+              "applique (ajoutée = rafraîchie, retirée = effacée et ne revient pas, sans choix = "
+              "rien de neuf) ; une valeur vient toujours de l'annuaire, jamais du navigateur. "
+              "Un rôle métier se DEMANDE (`role_requests`, ligne `AccessGrant` de famille "
+              "`role`, page et réponse communes aux demandes d'accès) ; le droit reste le groupe "
+              "`role:<clé>`. Outils : `get_my_directory_data`, `set_my_directory_data`, "
+              "`request_role`, `list_role_requests`, `answer_role_request`",
+              'wama/accounts/directory_consent.py',
+              'docs/construction/exploitation/PROFILES_PERMISSIONS.md',
+              annexes=('wama/accounts/role_requests.py',
+                       'wama/accounts/static/accounts/js/directory-consent.js',
+                       'wama/accounts/tests/tests_directory_consent.py')),
     # Rattaché le 2026-08-27 : c'est le POINT UNIQUE DE DÉCISION de l'accès aux apps (tier ×
     # rôles), et il n'était sur aucune carte. Son absence s'est payée — la fermeture du compte de
     # service `anonymous` avait été faite à la main sur la base vivante, donc défaite par toute

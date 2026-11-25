@@ -12,8 +12,8 @@ Flux :
 2. signal `post_save` (User) → le profil existe (créé par accounts.models) → on l'applique.
 
 ⚠️ Les NOMS lisibles + la HIÉRARCHIE (institut→…→équipe) vivent dans `ou=structures` et
-demandent une requête additionnelle : `resolve_org_hierarchy` (best-effort, à activer quand
-la base DN des structures est configurée). Pour l'instant on peuple les CODES bruts, gratuits.
+demandent une requête additionnelle : celle de la synchro des unités (`sync_org_units`, par la
+liaison de `accounts/directory.py`), qui les range dans `OrgUnit` ; `_apply_ldap_org` les y relit.
 """
 import logging
 import re
@@ -58,13 +58,46 @@ def _list(attrs, key):
     return [str(v)] if v else []
 
 
+#: Les deux attributs qui RATTACHENT une personne à une unité : son unité principale, et toutes
+#: ses unités. Nommés une fois — la remontée au profil ci-dessous et la lecture de l'annuaire par
+#: unité (`accounts/directory.py`) lisent les mêmes.
+MAIN_UNIT_ATTRIBUTE = 'supannEntiteAffectationPrincipale'
+UNITS_ATTRIBUTE = 'supannEntiteAffectation'
+
+ESTABLISHMENT_ATTRIBUTE = 'supannEtablissement'
+#: La qualité de la personne : la principale si la fiche la porte, sinon toutes ses qualités.
+#: (Mesuré le 2026-11-25 : la première n'était portée par aucune fiche lue, la seconde par toutes
+#: — le champ du profil restait vide.)
+STATUS_ATTRIBUTES = ('eduPersonPrimaryAffiliation', 'eduPersonAffiliation')
+
+#: La liste FERMÉE de ce que `_parse_org` lit d'une fiche — celle que la lecture d'une personne
+#: hors connexion réclame (`directory.person_org`), et rien de plus.
+ORG_ATTRIBUTES = (ESTABLISHMENT_ATTRIBUTE, MAIN_UNIT_ATTRIBUTE, UNITS_ATTRIBUTE, *STATUS_ATTRIBUTES)
+
+#: Ce qu'un compte reçoit de l'annuaire À SA CRÉATION (pré-inscription comme première connexion),
+#: avant tout choix de sa titulaire : son unité principale, rien d'autre. Le reste s'ajoute AVEC
+#: elle (`accounts/directory_consent.py` — décision de Fabien, 2026-11-25).
+MINIMUM_FIELDS = ('org_entity_code',)
+
+
+def readable(code: str, name: str = ''):
+    """`(libellé, autorité)` d'un code d'annuaire pour un humain : le nom de l'unité s'il en a un,
+    sinon le code SANS son préfixe d'autorité (`{AUTORITÉ}UNITÉ` → « UNITÉ »). Un code réduit à
+    son seul préfixe (`{AUTORITÉ}`, la racine d'une chaîne) se nomme par lui."""
+    namespace, value = split_namespace(code)
+    if name and name != code:
+        return name, namespace
+    return (value or namespace or code), namespace
+
+
 def _parse_org(attrs):
     """Attributs LDAP (fiche personne) → dict de champs profil (codes bruts)."""
+    status = _first(attrs, STATUS_ATTRIBUTES[0]) or ', '.join(_list(attrs, STATUS_ATTRIBUTES[1]))
     return {
-        'establishment': _first(attrs, 'supannEtablissement'),  # forme `{UAI}0772894C`
-        'org_entity_code': _first(attrs, 'supannEntiteAffectationPrincipale'),
-        'org_affiliations': _list(attrs, 'supannEntiteAffectation'),
-        'ldap_affiliation': _first(attrs, 'eduPersonPrimaryAffiliation'),
+        'establishment': _first(attrs, ESTABLISHMENT_ATTRIBUTE),  # forme `{UAI}0772894C`
+        'org_entity_code': _first(attrs, MAIN_UNIT_ATTRIBUTE),
+        'org_affiliations': _list(attrs, UNITS_ATTRIBUTE),
+        'ldap_affiliation': status[:64],
     }
 
 
@@ -84,76 +117,47 @@ except Exception:
 
 
 @receiver(post_save, sender=User)
-def _apply_ldap_org(sender, instance, **kwargs):
-    """Applique les attributs SUPANN stashés au profil (uniquement juste après login LDAP)."""
+def _apply_ldap_org(sender, instance, created=False, **kwargs):
+    """Applique au profil ce que l'annuaire vient de rendre (juste après une connexion, ou à la
+    création du compte) — et seulement ce que sa titulaire a choisi d'y voir
+    (`directory_consent.writable` : le minimum à la création, rien de NEUF sans son accord)."""
     org = getattr(instance, '_ldap_org', None)
     if not org:
         return
     instance._ldap_org = None   # une seule application
     try:
+        from .directory_consent import writable
         from .models import UserProfile
         prof, _ = UserProfile.objects.get_or_create(user=instance)
-        changed = False
-        for k, v in org.items():
-            if v and getattr(prof, k, None) != v:
-                setattr(prof, k, v)
-                changed = True
-        # Si l'entité principale correspond à un OrgUnit connu (synchro structures), on
-        # renseigne nom + hiérarchie lisibles depuis l'arbre en BDD (sans requête LDAP).
-        code = org.get('org_entity_code')
-        if code:
-            try:
-                from wama.common.models import OrgUnit
-                # `.local()` : le code vient de l'annuaire de CET établissement (§8.6).
-                unit = OrgUnit.local().filter(code=code).first()
-                if unit:
-                    prof.org_entity_name = unit.name
-                    prof.org_hierarchy = [{'code': u.code, 'name': u.name, 'type': u.unit_type}
-                                          for u in unit.ancestors()]
-                    changed = True
-            except Exception:
-                pass
-        if changed:
-            prof.save()
+        apply_org(prof, writable(prof, org, created=created))
     except Exception:
         logger.warning('application org au profil échouée', exc_info=True)
 
 
-def resolve_org_hierarchy(entity_code, structures_base_dn=None):
-    """Best-effort : résout un code d'entité → chaîne [{code,name,type}] institut→…→équipe
-    en suivant `supannCodeEntiteParent` dans `ou=structures`. Nécessite une connexion LDAP
-    et la base DN des structures (settings.LDAP_STRUCTURES_BASE_DN). Retourne [] si indispo.
-
-    À câbler quand la DSI a fourni la base structures — voir reference_ldap_supann_orgunit.
-    """
-    from django.conf import settings
-    base = structures_base_dn or getattr(settings, 'LDAP_STRUCTURES_BASE_DN', None)
-    if not base or not entity_code:
-        return []
-    try:
-        import ldap  # python-ldap (dépendance de django_auth_ldap)
-        conn = ldap.initialize(getattr(settings, 'AUTH_LDAP_SERVER_URI', ''))
-        bdn = getattr(settings, 'AUTH_LDAP_BIND_DN', '') or ''
-        if bdn:
-            conn.simple_bind_s(bdn, getattr(settings, 'AUTH_LDAP_BIND_PASSWORD', ''))
-        chain, code, guard = [], entity_code, 0
-        while code and guard < 12:
-            guard += 1
-            res = conn.search_s(base, ldap.SCOPE_SUBTREE,
-                                f'(supannCodeEntite={code})',
-                                ['description', 'supannTypeEntite', 'supannCodeEntiteParent'])
-            if not res:
-                break
-            a = res[0][1]
-            chain.append({
-                'code': code,
-                'name': (a.get('description', [b''])[0] or b'').decode('utf-8', 'ignore'),
-                'type': (a.get('supannTypeEntite', [b''])[0] or b'').decode('utf-8', 'ignore'),
-            })
-            parent = a.get('supannCodeEntiteParent')
-            code = parent[0].decode('utf-8', 'ignore') if parent else None
-        chain.reverse()   # du plus large (institut) au plus fin (équipe)
-        return chain
-    except Exception:
-        logger.warning('resolve_org_hierarchy échouée pour %s', entity_code, exc_info=True)
-        return []
+def apply_org(prof, org) -> bool:
+    """Écrit sur le profil les champs `org` (codes bruts d'annuaire), puis le nom et la hiérarchie
+    lisibles de l'unité principale depuis l'arbre `OrgUnit` — l'écriture de la connexion ET celle
+    d'un choix de la personne (`directory_consent.decide`). Rend True si le profil a changé."""
+    changed = False
+    for k, v in org.items():
+        if v and getattr(prof, k, None) != v:
+            setattr(prof, k, v)
+            changed = True
+    # Si l'entité principale correspond à un OrgUnit connu (synchro structures), on
+    # renseigne nom + hiérarchie lisibles depuis l'arbre en BDD (sans requête LDAP).
+    code = org.get('org_entity_code')
+    if code:
+        try:
+            from wama.common.models import OrgUnit
+            # `.local()` : le code vient de l'annuaire de CET établissement (§8.6).
+            unit = OrgUnit.local().filter(code=code).first()
+            if unit:
+                prof.org_entity_name = unit.name
+                prof.org_hierarchy = [{'code': u.code, 'name': u.name, 'type': u.unit_type}
+                                      for u in unit.ancestors()]
+                changed = True
+        except Exception:
+            pass
+    if changed:
+        prof.save()
+    return changed

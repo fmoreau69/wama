@@ -22,8 +22,22 @@ from wama.accounts.models import AccessGrant
 KIND_APP = 'app'
 
 
-class AppAccessRefused(Exception):
+class AccessRefused(Exception):
+    """Refus MOTIVÉ d'un geste sur une ligne `AccessGrant`, quelle que soit sa famille (une app
+    du bac à sable ici, un rôle métier dans `accounts/role_requests.py`) : le motif est destiné
+    à l'utilisateur."""
+
+
+class AppAccessRefused(AccessRefused):
     """Refus MOTIVÉ : le motif est destiné à l'utilisateur."""
+
+
+def request_summary(grant) -> dict:
+    """Ce que la page d'une demande dit de celle-ci (`common/access_request.html`)."""
+    return {'what': f"{grant.get_level_display()} l'app du bac à sable « "
+                    f"{app_title(grant.element_id)} » ({grant.element_id})",
+            'label': app_title(grant.element_id), 'app': grant.element_id,
+            'waiting': "du créateur de l'app ou d'un administrateur"}
 
 
 # ── Les faits du bac à sable ───────────────────────────────────────────────────────────────────

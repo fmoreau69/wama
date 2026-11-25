@@ -52,6 +52,12 @@ def register_scene():
              'glow': 'trans', 'on': True},
             {'key': 'tests', 'role': 'nodes', 'label': 'Comptes de test', 'dot': 'ink-mute',
              'flat': True, 'on': False},
+            # Un compte PRÉ-INSCRIT (préparé depuis l'annuaire) est celui d'une personne qui n'est
+            # pas encore venue : masqué par défaut (décision de Fabien, 2026-11-25).
+            {'key': 'preregistered', 'role': 'nodes', 'label': 'Pré-inscrits', 'dot': 'ink-mute',
+             'flat': True, 'on': False,
+             'title': "Montrer les comptes préparés depuis l'annuaire, dont la personne n'est "
+                      "pas encore venue"},
             {'key': 'names', 'role': 'names', 'label': 'Noms', 'on': True, 'embed_on': False,
              'title': "Masquer les noms (initiales seules) — pour projeter la constellation devant "
                       "d'autres personnes"},
@@ -262,6 +268,8 @@ def constellation():
     """Les FAITS de la constellation, pour la page `accounts:user-constellation`."""
     from django.contrib.auth.models import User
 
+    from wama.accounts.moderation import (ACCOUNT_STATES, STATE_PREREGISTERED,
+                                          account_states)
     from wama.accounts.permissions import (ACCOUNT_KINDS, ROLES, TIER_CHOICES, account_kind,
                                            accessible_apps, presented_apps, user_roles,
                                            user_tier)
@@ -282,6 +290,7 @@ def constellation():
     contributions, families = _contributions({u.username: u.id for u in users})
     activity = count_by_app_per_user()
     tiers = dict(TIER_CHOICES)
+    states = account_states(users)
 
     people = []
     for u in users:
@@ -296,6 +305,13 @@ def constellation():
             'tier_label': tiers.get(tier, tier),
             'roles': sorted(user_roles(u)),
             'active': u.is_active,
+            # L'état lu par la page des utilisateurs (`moderation.account_states`) : la page
+            # range un compte pré-inscrit dans sa couche, éteinte par défaut.
+            'state': states[u.id],
+            'state_label': ACCOUNT_STATES[states[u.id]],
+            # La couche de la scène (`SCENE.layers`) qui montre ou cache ce compte, ou None.
+            'layer': ('tests' if account_kind(u) != 'person' else
+                      'preregistered' if states[u.id] == STATE_PREREGISTERED else None),
             'joined': u.date_joined.isoformat() if u.date_joined else None,
             'last_login': u.last_login.isoformat() if u.last_login else None,
             'org': {

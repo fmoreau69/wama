@@ -17,10 +17,19 @@ logger = logging.getLogger(__name__)
 
 
 class WamaLDAPBackend(LDAPBackend):
+    #: Vrai sur la SEULE instance qui pré-inscrit (`directory.preregister`) : un administrateur
+    #: prépare le compte avant toute connexion. Le compte naît inactif quel que soit le réglage
+    #: de modération, et personne n'est prévenu — nul n'a rien demandé. La demande partira le
+    #: jour où la personne tentera d'entrer (`moderation.pending_login`).
+    preregistering = False
+
     def get_or_build_user(self, username, ldap_user):
         user, built = super().get_or_build_user(username, ldap_user)
+        if built and self.preregistering:
+            user.is_active = False
+            logger.info('compte %s pré-inscrit depuis l\'annuaire → inactif', username)
         # `built=True` = utilisateur NOUVEAU (pas encore en base) → modération.
-        if built and getattr(settings, 'WAMA_MODERATE_NEW_USERS', True):
+        elif built and getattr(settings, 'WAMA_MODERATE_NEW_USERS', True):
             user.is_active = False           # en attente de validation admin
             user._wama_new_pending = True     # drapeau → notification après save
             logger.info('nouvel utilisateur LDAP %s → inactif (modération)', username)

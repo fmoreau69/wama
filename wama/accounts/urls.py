@@ -41,6 +41,10 @@ urlpatterns = [
     path('app-access/<int:pk>/answer/', views.app_access_answer, name='app-access-answer'),
     path('app-access/<int:pk>/revoke/', views.app_access_revoke, name='app-access-revoke'),
     path('manage/app-access/toggle/', views.app_access_toggle, name='app-access-toggle'),
+    # Un rôle métier se DEMANDE (2026-11-25) : la page et la réponse sont celles d'`app-access`.
+    path('role-request/', views.role_request, name='role-request'),
+    # Mes données d'annuaire (2026-11-25) : les lire, choisir lesquelles WAMA garde.
+    path('profile/directory-data/', views.directory_data, name='directory-consent'),
     path('profile/token/regenerate/', views.token_regenerate, name='token-regenerate'),
     # Passerelle de canaux (ROADMAP §19) — l'écran qui SCELLE l'appariement : c'est cette
     # session authentifiée qui apporte la preuve d'identité, pas le canal.
@@ -53,6 +57,10 @@ urlpatterns = [
     path('users/constellation/', views.user_constellation, name='user-constellation'),
     path('users/constellation/data/', views.user_constellation_data, name='user-constellation-data'),
     path('users/new/', views.user_add, name='user-add'),
+    # Sélection de comptes et annuaire (2026-11-25) : activer en lot, lire une unité, pré-inscrire.
+    path('users/activate/', views.users_activate, name='users-activate'),
+    path('users/directory/', views.directory_lookup, name='directory-lookup'),
+    path('users/directory/preregister/', views.directory_preregister, name='directory-preregister'),
     path('users/<int:user_id>/delete/', views.user_delete, name='user-delete'),
     path('users/<int:user_id>/role/', views.user_update_role, name='user-update-role'),
     path('users/<int:user_id>/edit/', views.user_edit, name='user-update-identity'),

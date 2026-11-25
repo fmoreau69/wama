@@ -104,7 +104,117 @@ def pending_login(user, request=None) -> None:
     request_moderation(user)
 
 
+# ── L'ÉTAT d'un compte ────────────────────────────────────────────────────────
+
+#: L'état d'un compte, clé → libellé — LA lecture de la page des utilisateurs, de la lecture de
+#: l'annuaire par unité (`directory.with_account_state`) et de la constellation. Un compte
+#: inactif n'est pas « inactif » tout court : PRÉ-INSCRIT, personne n'a rien demandé (un
+#: administrateur l'a préparé depuis l'annuaire) ; EN ATTENTE, sa titulaire est venue et attend ;
+#: DÉSACTIVÉ, il a servi et un administrateur l'a fermé (2026-11-25).
+STATE_ACTIVE, STATE_PENDING, STATE_PREREGISTERED, STATE_DISABLED = (
+    'active', 'pending', 'preregistered', 'disabled')
+ACCOUNT_STATES = {STATE_ACTIVE: 'Actif', STATE_PENDING: 'En attente',
+                  STATE_PREREGISTERED: 'Pré-inscrit', STATE_DISABLED: 'Désactivé'}
+
+
+def accounts_that_asked(user_ids) -> set:
+    """Parmi `user_ids`, les comptes dont la titulaire est VENUE sans pouvoir entrer : une demande
+    de modération existe (lue ou non), ou le journal garde un refus où elle avait prouvé son
+    identité (`pending_login` — la ligne porte le compte ; un mot de passe faux, lui, ne laisse
+    qu'un nom, et ne fait pas d'un compte pré-inscrit un compte en attente)."""
+    from wama.common.models import Notification
+
+    from .models import AccessLog
+    ids = list(user_ids)
+    if not ids:
+        return set()
+    asked = {int(pk) for pk in Notification.objects.filter(
+        kind=ACCOUNT_PENDING_KIND, object_type='User', object_id__in=[str(pk) for pk in ids],
+    ).values_list('object_id', flat=True) if str(pk).isdigit()}
+    asked.update(AccessLog.objects.filter(user_id__in=ids, event='login_denied')
+                 .values_list('user_id', flat=True))
+    return asked
+
+
+def account_states(users) -> dict:
+    """`{pk: état}` pour `users` — deux lectures en base pour toute la liste, quel que soit son
+    nombre. Pré-inscrit : un compte d'ANNUAIRE (`permissions.is_directory_account`), inactif,
+    jamais entré, et que personne n'a demandé."""
+    from .permissions import is_directory_account
+    users = list(users)
+    never_came = [u for u in users if not u.is_active and u.last_login is None]
+    asked = accounts_that_asked(u.pk for u in never_came)
+    states = {}
+    for user in users:
+        if user.is_active:
+            states[user.pk] = STATE_ACTIVE
+        elif user.last_login is not None:
+            states[user.pk] = STATE_DISABLED
+        elif user.pk in asked:
+            states[user.pk] = STATE_PENDING
+        elif is_directory_account(user):
+            states[user.pk] = STATE_PREREGISTERED
+        else:
+            states[user.pk] = STATE_DISABLED
+    return states
+
+
+def account_state(user) -> str:
+    """L'état d'UN compte (`account_states`)."""
+    return account_states([user])[user.pk]
+
+
+def activate_accounts(users, *, protected=()) -> dict:
+    """Active chaque compte INACTIF de `users` — le geste « Activer » d'une ligne, pour une
+    sélection. Rend `{'activated': […], 'skipped': […]}` (identifiants). Un compte de service
+    pour visiteur et les comptes `protected` (celui de l'administrateur qui agit) ne se touchent
+    pas ; un compte déjà actif est laissé tel quel. Chaque activation envoie le message de
+    bienvenue (`_welcome_on_activation`), comme le bouton de la ligne."""
+    from .permissions import is_guest_account
+    spared = {getattr(u, 'pk', u) for u in protected}
+    report = {'activated': [], 'skipped': []}
+    for user in users:
+        if user.is_active or user.pk in spared or is_guest_account(user):
+            report['skipped'].append(user.get_username())
+            continue
+        user.is_active = True
+        user.save()
+        report['activated'].append(user.get_username())
+    if report['activated']:
+        logger.info('activation en lot : %s compte(s)', len(report['activated']))
+    return report
+
+
 # ── Email de bienvenue à l'activation (is_active False → True) ─────────────────
+
+#: Ce que lit, à l'activation, une personne qui n'a RIEN demandé (compte pré-inscrit) : c'est son
+#: premier contact avec WAMA. Elle apprend que le compte existe, ce qu'il porte, d'où cela vient
+#: et comment s'y opposer (décision de Fabien, 2026-11-25).
+PREREGISTERED_WELCOME = (
+    "Bonjour {name},\n\n"
+    "Un compte WAMA a été préparé pour vous par un administrateur de la plateforme, et il vient "
+    "d'être activé. WAMA est la plateforme de traitement de médias et d'IA de votre laboratoire. "
+    "Vous pouvez vous y connecter avec vos identifiants habituels de l'établissement{address}.\n\n"
+    "Ce que ce compte enregistre aujourd'hui, repris de l'annuaire de l'établissement : votre "
+    "identifiant, votre prénom, votre nom, votre adresse électronique et votre unité de "
+    "rattachement. Rien d'autre : à votre première connexion, WAMA vous montrera ce que "
+    "l'annuaire peut y ajouter, et c'est vous qui choisirez — y compris de retirer votre unité.\n\n"
+    "Vous n'avez rien à faire si vous ne souhaitez pas vous en servir. Pour faire supprimer ce "
+    "compte et ces informations, ou pour toute question, {contact}.\n")
+
+
+def _welcome_text(user, asked: bool) -> str:
+    name = user.get_full_name() or user.get_username()
+    if asked:
+        return (f"Bonjour {name},\n\n"
+                f"Votre compte WAMA a été validé. Vous pouvez maintenant vous connecter.\n")
+    address = (getattr(settings, 'WAMA_PUBLIC_URL', '') or '').strip()
+    moderators = list(getattr(settings, 'WAMA_MODERATOR_EMAILS', []) or [])
+    return PREREGISTERED_WELCOME.format(
+        name=name, address=f' ({address})' if address else '',
+        contact=(f'écrivez à {moderators[0]}' if moderators
+                 else "adressez-vous à un administrateur de WAMA"))
+
 
 @receiver(pre_save, sender=User)
 def _capture_old_active(sender, instance, **kwargs):
@@ -120,10 +230,13 @@ def _welcome_on_activation(sender, instance, created, **kwargs):
     if created:
         return
     if getattr(instance, '_old_active', None) is False and instance.is_active:
-        notify_user(
-            instance, '[WAMA] Votre compte est activé',
-            f"Bonjour {instance.get_full_name() or instance.get_username()},\n\n"
-            f"Votre compte WAMA a été validé. Vous pouvez maintenant vous connecter.\n")
+        # Une personne jamais venue et qui n'a rien demandé ne lit pas « votre compte a été
+        # validé » : elle apprend qu'il existe (`PREREGISTERED_WELCOME`).
+        came = instance.last_login is not None or instance.has_usable_password()
+        asked = came or instance.pk in accounts_that_asked([instance.pk])
+        notify_user(instance, '[WAMA] Votre compte est activé' if asked
+                    else '[WAMA] Un compte a été préparé pour vous',
+                    _welcome_text(instance, asked))
         logger.info('compte %s activé → email de bienvenue', instance.get_username())
 
 

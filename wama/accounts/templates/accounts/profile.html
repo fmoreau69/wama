@@ -182,8 +182,48 @@
             </div>
             {% endif %}
 
-            {% comment %}Rattachement institutionnel — remonté de l'annuaire (SUPANN) à CHAQUE
-            connexion LDAP. Ces champs existaient depuis des mois sans être affichés nulle part.
+            {% comment %}Mes données d'annuaire (2026-11-25, décision de Fabien) : ce que l'annuaire
+            propose d'ajouter au profil se choisit AVEC la personne — une pastille par donnée, un
+            geste pour tout. Le composant (`accounts/js/directory-consent.js`) est le même que
+            celui du panneau d'accueil de la première connexion ; la carte ne porte aucune donnée,
+            elle lit sa route. Les adresses en forme `as` : un gabarit relu avant le code qui
+            déclare ses routes ne rend rien, au lieu d'échouer.{% endcomment %}
+            {% url 'accounts:directory-consent' as consent_url %}
+            {% url 'accounts:role-request' as role_url %}
+            {% if directory_data and consent_url %}
+            <div class="card bg-body border-secondary mb-4" id="directoryData"
+                 data-directory-consent data-url="{{ consent_url }}" data-role-url="{{ role_url }}">
+                <div class="card-header border-secondary d-flex align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-address-card me-2"></i>Mes données d'annuaire</h5>
+                    <div class="ms-auto">
+                        <button type="button" class="btn btn-sm btn-outline-success" data-consent-all="accept">Tout ajouter</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary ms-1" data-consent-all="decline">Tout retirer</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <p class="small text-body-secondary mb-2">
+                        Votre identifiant, votre nom et votre adresse sont nécessaires à votre compte.
+                        Le reste vient de l'annuaire de l'établissement <strong>si vous le voulez</strong> :
+                        une donnée retirée est effacée de WAMA et n'y revient pas ; une donnée ajoutée
+                        se met à jour à chacune de vos connexions.
+                    </p>
+                    <div data-consent-list>
+                        <div class="text-body-secondary small"><i class="fas fa-spinner fa-spin me-1"></i>Lecture…</div>
+                    </div>
+                    <div class="small text-body-emphasis mt-2" data-consent-message></div>
+                    <h6 class="mt-3 mb-1"><i class="fas fa-briefcase me-1"></i>Mon métier</h6>
+                    <p class="small text-body-secondary mb-2">
+                        Un rôle ouvre les applications de ce métier. Demandez le vôtre : un
+                        administrateur valide.
+                    </p>
+                    <div data-consent-roles></div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% comment %}Rattachement institutionnel — remonté de l'annuaire (SUPANN) à la
+            connexion, pour les données que la personne garde (carte ci-dessus, 2026-11-25).
+            Ces champs existaient depuis des mois sans être affichés nulle part.
             Les montrer explique à l'utilisateur pourquoi le partage « RAG du labo » lui est
             ouvert ou refusé — voir WAMA_MEMORY.md §7ter.{% endcomment %}
             <div class="card bg-body border-secondary mb-4">
@@ -286,7 +326,8 @@
                     <p class="text-body-secondary small mb-0 mt-2">
                         <i class="fas fa-circle-info me-1"></i>
                         Ces informations viennent de l'annuaire et se rafraîchissent à chaque
-                        connexion — elles ne se modifient pas ici.
+                        connexion — elles ne se modifient pas ici. Vous choisissez lesquelles
+                        WAMA garde dans « Mes données d'annuaire ».
                     </p>
                     {% else %}
                     <p class="text-body-secondary small mb-0">
@@ -770,6 +811,54 @@
 
 {# Au niveau du <body> (`base.html`, bloc `extra_modals`) : logée dans le contenu, la modale passe sous son voile #}
 {% block extra_modals %}
+{% comment %}Panneau d'ACCUEIL de la première connexion d'un compte d'annuaire (2026-11-25) : la
+personne apprend ce que WAMA garde d'elle, choisit ce que l'annuaire y ajoute, et dit son métier.
+Le MÊME composant que la carte « Mes données d'annuaire » du profil. « Plus tard » ne choisit
+rien : le panneau reviendra à la prochaine connexion.{% endcomment %}
+{% url 'accounts:directory-consent' as welcome_consent_url %}
+{% url 'accounts:role-request' as welcome_role_url %}
+{% if directory_welcome and welcome_consent_url %}
+<div class="modal fade" id="directoryWelcomeModal" tabindex="-1" aria-labelledby="directoryWelcomeTitle"
+     aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content bg-body text-body-emphasis border-secondary"
+             data-directory-consent data-url="{{ welcome_consent_url }}" data-role-url="{{ welcome_role_url }}">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="directoryWelcomeTitle"><i class="fas fa-hand-sparkles me-2"></i>Bienvenue dans WAMA, {{ request.user.first_name|default:request.user.username }}</h5>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">
+                    Votre compte porte votre identifiant, votre nom et votre adresse : ils lui sont
+                    nécessaires. L'annuaire de l'établissement propose d'y ajouter ce qui suit —
+                    <strong>c'est vous qui choisissez</strong>, donnée par donnée, et vous pourrez
+                    changer d'avis à tout moment depuis votre profil.
+                </p>
+                <div class="d-flex gap-2 mb-2">
+                    <button type="button" class="btn btn-sm btn-success" data-consent-all="accept">Tout ajouter</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-consent-all="decline">Ne rien ajouter</button>
+                </div>
+                <div data-consent-list>
+                    <div class="text-body-secondary small"><i class="fas fa-spinner fa-spin me-1"></i>Lecture…</div>
+                </div>
+                <div class="small text-body-emphasis mt-2" data-consent-message></div>
+                <h6 class="mt-3 mb-1"><i class="fas fa-briefcase me-1"></i>Quel est votre métier ?</h6>
+                <p class="small text-body-secondary mb-2">
+                    Un rôle ouvre les applications de ce métier. Demandez le vôtre (plusieurs si
+                    besoin) : un administrateur valide.
+                </p>
+                <div data-consent-roles></div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal"
+                        title="Rien n'est changé ; ce panneau reviendra à votre prochaine connexion">Plus tard</button>
+                <button type="button" class="btn btn-primary" data-consent-done data-next="{{ welcome_next }}">
+                    <i class="fas fa-check me-1"></i>Terminer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 <!-- ── Importer une charte graphique (`ROADMAP §28` étape 7 voie 2) ─────────────────── -->
 <div class="modal fade" id="charterModal" tabindex="-1" aria-labelledby="charterModalTitle" aria-hidden="true">
     <div class="modal-dialog modal-lg">
@@ -837,6 +926,7 @@
 {% block extra_js %}
 <script src="{% static_v 'common/js/wama-key-field.js' %}"></script>  {# WamaKeyField : champ de clé d'API commun (profil + page Sources externes) #}
 <script src="{% static_v 'common/js/wama-promotion.js' %}"></script>  {# « Demander la promotion » : la route commune (§29 6a) #}
+{% if directory_data %}<script src="{% static_v 'accounts/js/directory-consent.js' %}"></script>{% endif %}  {# Mes données d'annuaire : carte du profil + panneau d'accueil #}
 <script>
 const LANGUAGE_URL       = "{% url 'accounts:profile-language' %}";
 const UNITS_URL          = "{% url 'accounts:profile-units' %}";
