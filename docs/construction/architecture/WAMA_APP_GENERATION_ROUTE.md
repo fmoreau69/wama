@@ -9362,10 +9362,23 @@ fonction déclarée ; la librairie, s'il en faut une, par la route d'installatio
   l'assistant `get_file_marks`.
 - **Mesuré le 2026-11-25** sur 15 des 49 vidéos que portent des cards (lecture seule, rien de
   rangé) : aucun trou ; 0,3 à 1,3 s pour une vidéo de moins d'une minute, 35 s pour 2 h 20
-  (1 Go). ⚠ Ces vidéos sont presque toutes des prises CONTINUES (un plan) ; une caméra embarquée
-  de 2 h 20 rend 11 « plans » qui sont des changements de lumière, pas des coupes. La justesse sur
-  un film MONTÉ n'est prouvée que sur un témoin de synthèse (coupes retrouvées à l'image près) :
-  à mesurer sur un vrai montage avant de fixer le seuil par défaut.
+  (1 Go). Ces vidéos sont presque toutes des prises CONTINUES (un plan).
+- **Le seuil par défaut vient d'une mesure À L'ŒIL** (revérification du même jour : les images de
+  part et d'autre de chaque coupe, regardées). Le disque ne porte aucun film monté ; trois vidéos
+  ont pourtant des coupes : un clip du banc des plaques (un montage de caméras de véhicules), une
+  vidéo de démonstration, une séquence avec un pictogramme inséré en fondu. Au seuil par défaut de
+  ffmpeg (10), le détecteur ne trouvait que 6 des 22 coupes du clip et 1 des 2 de la démonstration,
+  et manquait les deux fondus ; les 13 candidates regardées entre 6 et 10 étaient TOUTES de vraies
+  coupes ou de vrais fondus (des scènes qui se ressemblent — route, ciel, capot — notent bas).
+  D'où le seuil par défaut à 6, et la règle des coupes proches : de deux coupes à moins de la
+  durée minimale (un fondu se dit souvent en deux fois), la plus forte dit où le plan change.
+  ⚠ Limite MESURÉE d'un seuil fixe : une caméra embarquée de 2 h 20, prise continue, rend 14
+  fausses coupes au seuil de 10 et 66 au seuil de 6 (des changements de lumière) — une toutes les
+  deux minutes. Le seuil par défaut sert les vidéos montées, celles qu'on coupe par leurs plans ;
+  il se règle (`threshold`), et les fausses coupes se fusionnent. Trois vidéos ne sont pas un
+  banc : la justesse sur un long métrage reste à mesurer. Le vrai remède — un détecteur ADAPTATIF
+  (une coupe est un pic par rapport à ses voisines) ou à modèle — passerait par la route
+  d'installation : ⏳ décision de Fabien.
 - **La même porte pour ce qui se segmente tout seul** (📜 Fabien, le même jour : *« segmenter
   automatiquement ce qu'il est possible de segmenter automatiquement, comme les parties d'un
   morceau (intro, couplet, refrain, bridge) »*) : un producteur de plus, inscrit par l'app dont
@@ -9375,7 +9388,9 @@ fonction déclarée ; la librairie, s'il en faut une, par la route d'installatio
 - ⏳ Restes : montrer la piste sur une card (quelle entrée de la card pose son axe : le lecteur des
   ports, `port_fields`, avec la coupe de ⑱) ; le Describer légende une image toutes les 10 s, il
   pourrait légender une image par plan ; l'analyse automatique à l'import (aujourd'hui à la
-  demande) ; un producteur sur la carte graphique passera par la file de son app.
+  demande) ; un producteur sur la carte graphique passera par la file de son app ; l'inscription
+  d'un producteur vit en CODE (`functions.py` de son app) — sa fonction a son manifeste, lui
+  aucune facette : une app née d'un manifeste ne peut pas encore en inscrire un.
 
 **⑳ Extraire et recomposer — deux gestes symétriques, déjà dans le modèle (⏳).** 📜 Fabien, le
 même jour : *« un clic droit sur un segment pourrait permettre d'extraire le segment en une nouvelle

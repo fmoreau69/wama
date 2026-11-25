@@ -13,11 +13,18 @@ import re
 import subprocess
 from typing import List, Optional, Tuple
 
-#: Le seuil du filtre, de 0 à 100 — sa valeur par défaut dans ffmpeg. Plus bas : plus de coupes
-#: (les fondus, les mouvements brusques) ; plus haut : les seules coupes franches.
-THRESHOLD = 10.0
-#: En deçà, deux coupes sont un même changement (un flash, un fondu court) : le plan trop court
-#: rejoint celui qui le précède.
+#: Le seuil du filtre, de 0 à 100. Plus bas : plus de coupes (les fondus, les mouvements
+#: brusques) ; plus haut : les seules coupes franches. MESURÉ le 2026-11-25 sur les vidéos montées
+#: du disque, images regardées de part et d'autre de chaque coupe : la valeur par défaut de ffmpeg
+#: (10) ne trouvait que 6 des 22 coupes d'un montage de caméras de véhicules (des scènes qui se
+#: ressemblent : route, ciel, capot) et 1 des 2 coupes d'une vidéo de démonstration ; les 13
+#: candidates regardées entre 6 et 10 étaient toutes de vraies coupes ou de vrais fondus. ⚠ Une
+#: prise CONTINUE à la lumière changeante rend de fausses coupes à tout seuil fixe (une caméra
+#: embarquée de 2 h 20 : 14 au seuil de 10, 66 au seuil de 6) : ce défaut sert les vidéos montées,
+#: celles qu'on coupe par leurs plans.
+THRESHOLD = 6.0
+#: En deçà, deux coupes sont un même changement (un flash, un fondu) : elles n'en font qu'une, la
+#: plus forte des deux.
 MIN_DURATION = 0.5
 #: L'analyse se fait sur une image réduite (jamais agrandie) : un changement de plan se voit à
 #: cette taille, et une vidéo 4K ne coûte pas seize fois une vidéo HD.
@@ -34,14 +41,17 @@ def cuts_of(output: str) -> List[Tuple[float, float]]:
 def shots_from_cuts(cuts, duration: float, min_duration: float = MIN_DURATION) -> List[dict]:
     """Les plans d'une vidéo de `duration` secondes, depuis ses coupes — pure. Une coupe qui ferait
     un plan plus court que `min_duration` (au début, entre deux coupes, à la fin) est écartée : le
-    plan rejoint son voisin. Sans coupe, la vidéo est UN plan."""
+    plan rejoint son voisin. De deux coupes plus proches que `min_duration` (un fondu se dit
+    souvent en deux fois), la plus FORTE dit où le plan change. Sans coupe, la vidéo est UN
+    plan."""
     kept: List[Tuple[float, float]] = []
-    last = 0.0
     for time, score in sorted(cuts):
-        if time - last < min_duration or time >= duration:
+        if time >= duration:
             continue
-        kept.append((time, score))
-        last = time
+        if time - (kept[-1][0] if kept else 0.0) >= min_duration:
+            kept.append((time, score))
+        elif kept and score > kept[-1][1]:
+            kept[-1] = (time, score)
     if kept and duration - kept[-1][0] < min_duration:
         kept.pop()
     starts = [(0.0, None)] + kept

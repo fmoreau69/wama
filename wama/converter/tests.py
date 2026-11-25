@@ -691,9 +691,13 @@ class ShotsFromCutsTest(SimpleTestCase):
                          shots.shots_from_cuts([], 4.0))
 
     def test_a_shot_too_short_joins_its_neighbour(self):
-        cuts = [(0.2, 50.0), (2.0, 40.0), (2.3, 60.0), (5.8, 30.0), (9.0, 20.0)]
+        cuts = [(0.2, 50.0), (2.0, 40.0), (2.3, 30.0), (5.8, 30.0), (9.0, 20.0)]
         found = shots.shots_from_cuts(cuts, 6.0, min_duration=0.5)
         self.assertEqual([(0.0, 2.0), (2.0, 6.0)], [(s['start'], s['end']) for s in found])
+        # De deux coupes proches (un fondu dit en deux fois), la plus forte dit où le plan change.
+        found = shots.shots_from_cuts([(2.0, 40.0), (2.3, 60.0), (2.6, 50.0), (4.0, 9.0)], 6.0)
+        self.assertEqual([(0.0, 2.3, None), (2.3, 4.0, 60.0), (4.0, 6.0, 9.0)],
+                         [(s['start'], s['end'], s['score']) for s in found])
         every = shots.shots_from_cuts(cuts, 6.0, min_duration=0)
         self.assertEqual(5, len(every), 'the cut past the end is never a shot')
 
@@ -723,3 +727,52 @@ class DetectShotsTest(SimpleTestCase):
                 pass
             with self.assertRaises(ValueError):
                 shots.detect_shots(f'{folder}/empty.mp4')
+
+
+class ShotsRunThroughTheStudioDoorTest(TestCase):
+    """The function LAUNCHED as a node of the Studio launches it (`_run_app_function` : the file
+    of its upstream by its port, the settings of the node, the caller) — on a real video, in a
+    media root of its own. What it stores is what any card that uses the video then reads."""
+
+    def test_the_node_stores_the_shots_and_says_them_and_other_settings_replace_them(self):
+        import os
+        import shutil
+        import tempfile
+
+        from django.core.cache import cache
+        from django.test import override_settings
+
+        from wama.common.catalog import function_catalog as fc
+        from wama.common.services.process_pipeline import process_of_function
+        from wama.common.utils import media_marks
+        from wama.common.utils.ffmpeg_utils import test_pattern_video
+        from wama.converter.functions import SHOTS, SHOTS_FUNCTION
+        from wama.studio.tasks import _run_app_function
+
+        root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, root, True)
+        rel = 'users/7/converter/input/cuts.mp4'
+        os.makedirs(os.path.dirname(os.path.join(root, rel)))
+        test_pattern_video(os.path.join(root, rel), size='160x120', seconds=3,
+                           video_filter="negate=enable='between(t,1,1.99)'")
+        spec = fc.get(SHOTS_FUNCTION)
+        self.assertEqual((None, None), process_of_function(SHOTS_FUNCTION),
+                         'a function of the file, not a step of the card')
+        with override_settings(MEDIA_ROOT=root):
+            cache.clear()
+            said = _run_app_function(spec, {'user_id': 7}, lambda **kw: None, 60,
+                                     inputs={'video': rel})
+            self.assertEqual('Plans — 3 sur 0:03', said)
+            found = media_marks.read_media_tracks(rel)[SHOTS]
+            self.assertEqual([(0.0, 1.0), (1.0, 2.0), (2.0, 3.0)],
+                             [(s['start'], s['end']) for s in found])
+            self.assertEqual({SHOTS}, {s['origin'] for s in found})
+            said = _run_app_function(spec, {'min_duration': 1.5, 'user_id': 7},
+                                     lambda **kw: None, 60, inputs={'video': rel})
+            self.assertEqual('Plans — 1 sur 0:03', said)
+            state = media_marks.marks_state(rel, schedule=False)[SHOTS]
+            self.assertEqual(('ready', 1, {'min_duration': 1.5}),
+                             (state['status'], state['count'], state['params']))
+            with self.assertRaisesRegex(ValueError, 'plans'):
+                _run_app_function(spec, {'user_id': 7}, lambda **kw: None, 60,
+                                  inputs={'video': 'users/7/converter/input/nothing.mp4'})

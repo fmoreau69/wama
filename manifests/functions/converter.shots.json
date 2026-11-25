@@ -38,7 +38,7 @@
     "params": [
       {
         "choices": null,
-        "default": 10.0,
+        "default": 6.0,
         "description": "Sensibilité : plus bas, plus de coupes (fondus, mouvements brusques) ; plus haut, les seules coupes franches.",
         "key": "threshold",
         "max": 100,

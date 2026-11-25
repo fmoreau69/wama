@@ -20,9 +20,10 @@ from wama.common.utils.media_marks import Producer, register_producer
 from .utils.shots import MIN_DURATION, THRESHOLD
 
 SHOTS = 'shots'
+SHOTS_FUNCTION = f'converter.{SHOTS}'
 
 register(FunctionSpec(
-    key='converter.shots', name='Converter — détecter les plans',
+    key=SHOTS_FUNCTION, name='Converter — détecter les plans',
     description="Repère les changements de plan d'une vidéo (ffmpeg) et range ses plans comme une "
                 "piste de segments sur l'axe du fichier : ce qu'on gardera, masquera ou "
                 "réordonnera pour la couper. La vidéo n'est pas modifiée.",
@@ -49,5 +50,5 @@ register_producer(Producer(
                 gestures=('extract', 'label', 'mask', 'merge', 'reorder', 'split'), edits=DERIVED),
     natures=('video',),
     detect='wama.converter.utils.shots:detect_shots',
-    function='converter.shots',
+    function=SHOTS_FUNCTION,
 ))
