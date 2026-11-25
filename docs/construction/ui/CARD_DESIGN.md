@@ -1186,6 +1186,33 @@ Trois pièges, tous rencontrés :
    peut ne vouloir qu'un essai, ou seulement copier le texte. L'ancien flux du §5 (« preview live
    → [Ajouter à la file] ») le prévoyait, mais il est SUPERSEDED avec le mode. Ordre retenu :
    finir ce qui est en cours, puis trancher ici, ou dans un chantier dédié.
+   ✅ **TRANCHÉ le 2026-11-25 (Fabien) — une PAGE D'ARRIVÉE, premier onglet de toute app**, avant
+   « File d'attente » (les onglets vivent une fois, `common/app_modern_base.html:141` : un onglet
+   ajouté là sert toutes les apps, jumelles comprises). Ce qu'elle porte, en BRIQUES UI déclarées
+   (le mécanisme des surfaces : grille déplaçable, disposition par compte — `WAMA_VOLETS §3-ter`),
+   composée par le schéma et générée, aucun HTML par app :
+   - la **card d'entrée v4**, la MÊME brique que dans la file, repliée comme elle (une seule façon
+     d'entrer ; une version mieux dépliée se jugera plus tard) ;
+   - le **temps réel** quand l'app le déclare (`has_live_input` : micro ; `instant_preview` :
+     résultat pendant la frappe). **Le résultat ne devient une card QUE par « Ajouter à la file »**
+     — c'était la décision d'origine (flux du §5), le Speak qui crée la card à l'arrêt
+     (`transcriber.save_realtime`) est à ramener à ce bouton ;
+   - l'**aperçu du traitement en cours**, celui de la card (faces dont « Pendant »), et l'accès
+     direct à sa **page d'édition pendant le traitement** (au plan : `ROADMAP`, demandes du
+     2026-11-25, « la page d'édition ouverte pendant le traitement ») ;
+   - petit à petit, les **combinaisons d'apps** (transcrire + traduire, sous-titrer une vidéo) —
+     par le PIPELINE commun (`ROUTE §10.6`), jamais codées dans la page : elle montre ce que le
+     pipeline sait faire (`ROADMAP §8` phase 4). Inspiration de Fabien : les offres d'un service de
+     traduction (texte · fichiers · voix · API · usage dans les applications d'IA) — chacune a déjà
+     son équivalent (`instant_preview`, card d'entrée, `has_live_input`, API REST v1 et MCP tirés de
+     `tool_api`).
+   ⏳ **Le NOM de l'onglet** : « Accueil », « Live », « Établi », « Paillasse », « Atelier » écartés
+   par Fabien ; « Studio » est un monde. Concile du 2026-11-25 (six agents, Albert et ILaaS) :
+   **« Direct »** soutenu par quatre avis sur cinq (court, s'oppose à « File d'attente » ; risque
+   relevé : restrictif quand les combinaisons d'apps seront la norme), puis « Instantané »,
+   « Express », « Scène », « Piste », « Pilotage », « Plan de travail ». À trancher par Fabien.
+   ⏳ **Question liée — deux façons de créer une card ?** Cartographie et avis du concile : plus
+   bas, fin de la section « La FORME D'ENTRÉE se déduit des ports ».
 7. **Les fichiers injectés d'une card doivent pouvoir se REMPLACER** (4ᵉ message, 30/08) :
    aujourd'hui on ne peut remplacer ni le fichier de travail ni la référence d'une card
    existante — dupliquer permet « mêmes entrées, autres réglages » mais JAMAIS « autres
@@ -2014,6 +2041,45 @@ porte l'obligation — garde du 30/09 INVERSÉE), `tests_codegen_templates.Gener
 (et le test du cover, sorti d'`expectedFailure`), `tests_designation_js` (V8 : `attach: 'card'`
 joint sur une card attache, envoie sur une card qui crée ; `filePorts` ; aucune autre lecture des
 onglets dans `wama/`, `wama_lab/`, `wama_data/`).
+
+⏳ **UNE seule façon de créer une card ? (question de Fabien, 2026-11-25 — NON TRANCHÉE)** —
+*« soit l'utilisateur complète l'entrée de l'app et la card se crée d'office, soit il doit cliquer
+sur "Ajouter à la file" […] ça donne deux modes de fonctionnement selon l'app »*. Il envisage les
+deux boutons PARTOUT — « Ajouter à la file » (crée, non lancée) et « Lancer » (crée et lance), qui
+existaient avant —, la page d'arrivée en exigeant déjà le premier pour le temps réel (§11.8
+exigence 6).
+**Cartographie mesurée le 2026-11-25** (`input_slots(app, domaine).entry` sur le catalogue réel,
+apps et jumelles) — la règle « par port » ci-dessus est UNE fonction, mais l'utilisateur en voit
+deux effets :
+| ce que fait un dépôt | cards d'entrée |
+|---|---|
+| CRÉE la card (brouillon non lancé ; un dossier de N fichiers = N cards) | anonymizer ×2 domaines, converter, describer, enhancer ×2, reader, transcriber ; synthesizer et translator (le texte saisi suffit aussi : forme mixte) |
+| JOINT le fichier ; « Ajouter à la file » crée | imager ×2 (la consigne suffit, l'image guide), composer (la consigne suffit), avatarizer (il faut une voix ET un avatar), writer (consigne seule) |
+Hors card d'entrée, toutes les voies CRÉENT sans ce choix : fichier de lot, URL, « Envoyer vers »,
+outil `add_to_<app>` de l'assistant, nœud du Studio (le converter y est LANCÉ à la création,
+`auto_start`). Historique : la zone « À valider » (staging) supprimée le 2026-06-29 (§8.5), le
+mode temps réel retiré le 2026-08-30.
+**Avis du concile du 2026-11-25** (cinq agents, Albert et ILaaS, décideur `synthesis` ; dossier
+transmis mot pour mot) — partagé :
+- **deux avis pour UN geste explicite** (suppression de la création au dépôt) : un dépôt, même de
+  200 fichiers, REMPLIT la card d'entrée, et « Ajouter à la file » crée les N cards d'un clic —
+  cohérence (« est-ce déjà une card ? » ne se demande plus), réglage AVANT de créer, aucun
+  brouillon parasite ;
+- **un avis par NATURE d'entrée** : un événement discret et complet (dépôt, médiathèque, URL) crée
+  si le port suffit ; une saisie CONTINUE (texte, micro) reste une ébauche jusqu'au clic — c'est
+  presque la règle actuelle plus le temps réel ;
+- **deux avis pour garder** la création au dépôt (zéro clic pour le cas simple et les dépôts en
+  masse), dont un qui AJOUTE le bouton partout sans retirer le dépôt. Le décideur a retenu ce
+  maintien, en proposant aussi les deux boutons partout et un rappel pour un fichier déposé mais
+  non ajouté — une synthèse qui ne tranche pas entre les deux.
+- **Point ouvert du concile** : la fréquence réelle d'un réglage avant le lancement et le taux
+  d'abandon des brouillons ne sont pas mesurés — une card supprimée ne laisse pas de trace en base.
+**Position proposée (Claude)** : le geste explicite des deux premiers avis — c'est l'homogénéité
+que la philosophie place en premier, le bouton existe de toute façon pour le temps réel, et le
+dépôt en masse n'y coûte qu'un clic. La règle « par port » ne disparaît pas : elle dit quand
+« Ajouter » et « Lancer » deviennent ACTIFS, plus quand une card naît toute seule. Les autres voies
+(lot, URL, Envoyer vers, assistant, Studio) restent des gestes explicites qui créent. Décision de
+Fabien attendue.
 
 > **L'aperçu de voix du synthesizer ne passe par AUCUN chemin commun côté lecture, ni par le
 > chemin de la synthèse côté serveur** (mesuré le 2026-09-28, `synthesizer/views.py::voice_preview`

@@ -712,6 +712,21 @@ dans la preview commune une lecture par le service de vocalisation, un bouton à
    est souvent connue (`Transcript.language`, celle que la transcription a entendue) ; manquent une
    langue par demande à la route de voix et sa transmission par la face (la voix de cette langue :
    `voices.kokoro_voice`).
+   ✅ **Décidé par Fabien le 2026-11-25** (« ok pour utiliser la langue détectée par défaut, mais
+   laisser le choix de langue avec traduction instantanée ») — l'ORDRE des langues proposées à la
+   lecture : (1) la langue du TEXTE, par défaut — l'original, jamais déformé ; (2) la langue du
+   PROFIL, traduite (« tout automatiquement traduit selon sa langue préférée ») ; (3) toute autre
+   langue choisie, traduite à la volée. La traduction est LA brique de la chaîne LLM
+   (`common/utils/translator.translate_text`, source « auto » détectée, cache, glossaire), la langue
+   d'un texte sans langue connue se lit par `common/utils/text_language.detect_text_language`. C'est
+   le PRÉALABLE de la transcription traduite et de la lecture d'une traduction (`ROADMAP §8`
+   phase 4). ⚠ **L'assistant a le même défaut, mesuré le même jour** : il ÉCRIT dans la langue du
+   profil (consigne système, `assistant_engine._language_instruction`) et PARLE dans la voix du
+   profil (`assistant_voice.py:70`), quelle que soit la langue du message reçu ou du texte qu'il
+   dit (une citation anglaise est lue par une voix française). Même règle, même route de voix :
+   la voix suit la langue du texte DIT. Rien de codé.
+   **La mesure (point 2 ci-dessous) : décidée, APRÈS la page d'arrivée** (`CARD_DESIGN §11.8`
+   exigence 6, 2026-11-25).
    ⚠ Ce n'est pas un outil de VÉRIFICATION : réécouter le texte sans l'original ne dit pas ce qui
    a été mal entendu. La page de correction le fait déjà (segment rejoué sur l'original, mot lu en
    surbrillance).

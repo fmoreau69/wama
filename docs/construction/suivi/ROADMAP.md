@@ -1695,6 +1695,27 @@ quand l'app Converter sera reprise.
 - ⏳ Export WebVTT (sous-titres web) *(relevé du 2026-11-10 : le VTT est lu à l'import, aucun rendu ne le produit)*
 - Mode "révision rapide" : navigation clavier entre segments à corriger
 
+### Phase 4 — Vidéo sous-titrée et transcription traduite ⏳ *(décisions de Fabien du 2026-11-25)*
+> Des COMBINAISONS d'apps, offertes depuis la page d'arrivée (`CARD_DESIGN §11.8` exigence 6) et
+> faites par le PIPELINE commun (`ROUTE §10.6`), jamais dans la page. Rien de codé.
+- **Garder la vidéo, sur demande** — mesuré le 2026-11-25 : l'import par URL ne prend que l'audio
+  (`Transcript.WAMA_INGEST`, mode `audio`, `transcriber/models.py:20-23`) et un fichier vidéo
+  déposé est réduit à son audio, la vidéo jetée (`transcriber/views.py:311-331`). La vidéo se
+  garde quand l'utilisateur veut une vidéo sous-titrée (place disque), l'audio en étant toujours
+  extrait pour la transcription.
+- **Deux sorties vidéo au choix** — WAMA n'en produit aucune (aucun multiplexage ni incrustation
+  de sous-titres, mesuré par motif `subtitles=|mov_text|-c:s|incrust` dans `wama/`) :
+  (1) MKV à PISTES de sous-titres, une par langue, interchangeables au lecteur — le défaut à
+  plusieurs langues (le MP4 accepte des pistes `mov_text`, moins bien lues et sans style) ;
+  (2) MP4 aux sous-titres INCRUSTÉS dans la langue choisie (réencodage). Rangées parmi les
+  formats DÉCLARÉS du ⬇ de la card (aujourd'hui TXT · SRT…), comme le ZIP de lot les lit
+  (`WAMA_APP_CONVENTIONS §9.10`).
+- **La transcription traduite** — le transcriber n'a pas d'étape de traduction (ses process :
+  nivellement, débruitage, transcription, import, alignement, locuteurs, résumé, cohérence —
+  `transcriber/function_specs.py`) : une étape qui emprunte la brique de traduction
+  (`common/utils/translator.translate_text`) et le choix de langues de l'utilisateur. Préalable :
+  la langue d'une lecture (`WAMA_QUALITE §2` M4, ordre texte → profil → autre).
+
 ---
 
 ## 8b. Describer — Mode scientifique
