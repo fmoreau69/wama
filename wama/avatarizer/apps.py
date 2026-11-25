@@ -39,7 +39,7 @@ class AvatarizerConfig(AppConfig):
         register_app_preview(
             app_name='avatarizer',
             model_class=AvatarJob,
-            file_field=['work_image', 'work_object3d'],
+            file_field=list(AVATAR_PORTS),
             user_field='user',
         )
 
@@ -54,7 +54,7 @@ class AvatarizerConfig(AppConfig):
         # La source est l'AVATAR, nommé par ses PORTS (lus au lecteur commun, `spec_value`), à défaut
         # l'audio.
         register_app_detail_spec('avatarizer', AvatarJob, {
-            'source_file': ['work_image', 'work_object3d', 'audio_input'],
+            'source_file': [*AVATAR_PORTS, 'audio_input'],
             'source_type': {'const': 'video'},
             'source_text': 'text_content',
             'engine': {'const': 'musetalk'},

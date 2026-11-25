@@ -30,6 +30,8 @@ from wama.common.services.process_pipeline import ProcessSpec, register_app_pipe
 
 _APP = 'avatarizer'
 _IMPL = 'avatarizer.workers:generate_avatar'
+# Les ports de l'avatar, déclarés UNE fois (`models.AVATAR_PORTS`) — ceux d'`animate` ci-dessous.
+from wama.avatarizer.models import AVATAR_PORTS as _AVATAR_PORTS  # noqa: E402
 
 
 def _speak_applies(job, model_key) -> bool:
@@ -93,8 +95,7 @@ PIPELINE = register_app_pipeline(_APP, (
                 # L'avatar par ses PORTS (table commune des entrées, lus au lecteur par la photo des
                 # réglages surveillés, `process_runs.snapshot`) — l'ancienne clé `avatar_upload` sort
                 # de la photo : une clé absente aux deux dates ne périme rien (`_watched_changed`).
-                watched=('audio_input', 'avatar_source', 'avatar_gallery_name',
-                         'work_image', 'work_object3d'),
+                watched=('audio_input', 'avatar_source', 'avatar_gallery_name', *_AVATAR_PORTS),
                 gpu=True, share=4, outputs=('output_video',),
                 eta='avatarizer.workers:avatarizer_eta_key_size'),
     # Le process de SORTIE commun (`output_spec` : il surveille les réglages de sortie), sous la clé
