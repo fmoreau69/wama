@@ -30,29 +30,24 @@ AVATAR_PORTS = ('work_image', 'work_object3d')
 
 
 def avatar_file(job):
-    """Le FICHIER de l'avatar d'un job (photo ou objet 3D), lu au lecteur commun des entrées
-    (`port_fields.port_value` sur `AVATAR_PORTS`) — jamais une colonne nommée. None sans avatar de
+    """Le FICHIER de l'avatar d'un job (photo ou objet 3D), lu par la forme « premier non vide » de
+    la spec sur `AVATAR_PORTS` (un nom y est un port, lu au lecteur commun des entrées) — jamais une
+    colonne nommée. None sans avatar de
     fichier (un avatar de galerie se lit par `avatar_gallery_url`). Une FONCTION, et non seulement
     une méthode : elle vaut pour tout `AvatarJob`, celui d'une jumelle compris (son modèle est une
     copie figée — l'outil de l'assistant, `tool_api`, les sert tous deux)."""
-    from wama.common.utils.port_fields import port_value
-    return next((v for v in (port_value(job, p) for p in AVATAR_PORTS) if v), None)
+    from wama.common.utils.detail_registry import spec_value
+    return spec_value(job, list(AVATAR_PORTS)) or None      # « premier non vide », nom = port
 
 
 def set_avatar(job, received):
     """Pose l'AVATAR d'un job (déjà créé) : un `ReceivedInput` (téléversé ou désigné, depuis la
     card, un lot, l'assistant ou un avatar de la médiathèque), rangé sur le port que sa NATURE
-    désigne (`input_match.work_token_for`) ; l'autre port de l'avatar est vidé — un job n'a qu'un
-    avatar, et le moteur se dérive de sa nature. Rangement, provenance et libération de l'ancien
-    fichier : ceux du lecteur commun (`port_fields.store_port_inputs`)."""
-    from wama.common.utils.input_match import work_token_for
-    from wama.common.utils.port_fields import store_port_inputs
-    token = work_token_for(received.name)
-    port = token if token in AVATAR_PORTS else AVATAR_PORTS[0]
-    for other in AVATAR_PORTS:
-        if other != port:
-            store_port_inputs(job, other, [])
-    store_port_inputs(job, port, [received])
+    désigne, l'autre port vidé — un job n'a qu'un avatar, et le moteur se dérive de sa nature. La
+    règle est celle du lecteur commun (`port_fields.store_by_nature` : rangement, provenance,
+    libération de l'ancien fichier)."""
+    from wama.common.utils.port_fields import store_by_nature
+    store_by_nature(job, AVATAR_PORTS, received)
 
 
 class AvatarJob(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):

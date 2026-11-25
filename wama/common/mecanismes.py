@@ -1696,7 +1696,9 @@ MECHANISMS = (
               "(`ElementInput`, 2026-11-25 : un rang par fichier, `store_port_inputs` / "
               "`port_files`), libérés au retrait, recopiés à la duplication, suivis au transfert ; "
               "une app y DÉCLARE ses ports (`table=`) et lit en repli l'ancienne colonne d'un port "
-              "qui l'a quittée (`legacy=`, vidée à l'écriture). `element_value` : un NOM de "
+              "qui l'a quittée (`legacy=`, vidée à l'écriture) ; `store_by_nature` range une "
+              "entrée que plusieurs ports se disputent sur celui de sa nature (l'avatar : photo OU "
+              "objet 3D), les autres vidés. `element_value` : un NOM de "
               "déclaration (spec du volet, aperçu, réglages surveillés) désigne un champ OU un port",
               'wama/common/utils/port_fields.py', 'docs/construction/ui/INPUT_MODEL_MATCHING.md',
               depends_on=('source_ingest',)),

@@ -272,6 +272,22 @@ def store_port_inputs(element, port: str, received) -> int:
     return len(received)
 
 
+def store_by_nature(element, ports, received) -> str:
+    """UNE entrée que plusieurs ports se disputent (l'avatar : photo OU objet 3D) : `received`
+    (un `ReceivedInput`) se range sur celui des `ports` que sa NATURE désigne — la règle de
+    `_owned_by`, un fichier sans jeton dédié allant au premier port —, et les autres ports sont
+    VIDÉS (leurs fichiers libérés) : l'élément n'en garde qu'une. Rend le port choisi."""
+    from wama.common.utils.input_match import work_token_for
+    ports = list(ports)
+    token = work_token_for(received.name)
+    port = token if token in ports else ports[0]
+    for other in ports:
+        if other != port:
+            store_port_inputs(element, other, [])
+    store_port_inputs(element, port, [received])
+    return port
+
+
 def release_inputs(element, port=None) -> int:
     """La card part (ou un port est remplacé) : ses lignes de la table s'oublient, et chacun de
     leurs fichiers est LIBÉRÉ sous la règle de tout fichier d'une card

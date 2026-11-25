@@ -637,6 +637,31 @@ class APortLeavesItsColumnWithoutLosingAnythingTest(TestCase):
         self.assertTrue(ReleasedFile.objects.filter(user=self.user, path=old).exists(),
                         'the replaced file is released, never dropped silently')
 
+    def test_one_input_disputed_by_ports_goes_to_the_port_of_its_nature_and_empties_the_others(self):
+        """`store_by_nature` (the avatar : a photo OR a 3D object) — ports chosen from the table
+        declaration, extensions from the vocabulary."""
+        from wama.common.app_registry import _CAT_OF
+        from wama.common.models import ReleasedFile
+        from wama.common.utils.app_modes import INPUT_TYPES
+        from wama.common.utils.media_paths import designate
+        from wama.common.utils.port_fields import port_files, store_by_nature, table_ports
+        ext_of = {}
+        for ext, cat in _CAT_OF.items():
+            ext_of.setdefault(cat, ext)
+        ports = [p for p in table_ports(self.model)
+                 if (INPUT_TYPES.get(p) or {}).get('accept') in ext_of]
+        if len(ports) < 2:
+            self.skipTest('no element declares two table ports of distinct natures')
+        first, second = ports[:2]
+        exts = [ext_of[INPUT_TYPES[p]['accept']] for p in (first, second)]
+        a = self._file(f'one.{exts[0]}')
+        self.assertEqual(first, store_by_nature(self.card, ports, designate(a, self.user, self.app)))
+        b = self._file(f'two.{exts[1]}')
+        self.assertEqual(second, store_by_nature(self.card, ports, designate(b, self.user, self.app)))
+        self.assertEqual([], port_files(self.card, first), 'one input : the other port is emptied')
+        self.assertEqual([b], [f.name for f in port_files(self.card, second)])
+        self.assertTrue(ReleasedFile.objects.filter(user=self.user, path=a).exists())
+
     def test_the_readers_of_declarations_name_a_port(self):
         """The panel's spec, the preview and the watched settings of a process name the PORT."""
         from wama.common.services.process_runs import snapshot

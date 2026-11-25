@@ -828,7 +828,10 @@ natures est exclu aussi : décision du 2026-09-30, le vocabulaire des rôles sui
      ces lecteurs ne changera. La photo des réglages ne compare que les clés présentes aux deux dates
      (`_watched_changed`) : renommer une clé surveillée ne périme aucun rendu existant.
    - **Le geste de l'app** : `models.set_avatar(job, reçu)` range l'avatar sur le port de SA nature
-     et vide l'autre (un job n'a qu'un avatar) ; `models.avatar_file(job)` le lit. Des FONCTIONS de
+     et vide l'autre (un job n'a qu'un avatar) — la règle vit au commun,
+     `port_fields.store_by_nature` (ramenée à la revérification : une prochaine app à entrée
+     disputée l'aurait recopiée) ; `models.avatar_file(job)` le lit par la forme « premier non
+     vide » de la spec sur ses ports. Des FONCTIONS de
      module autant que des méthodes : l'outil de l'assistant sert aussi la jumelle, dont le modèle
      est une copie figée. Portés : la vue d'ajout, la ligne de lot, l'outil `add_to_avatarizer`, la
      tâche (`workers`), le moteur 3D (`function_specs.is_3d_avatar`), le rendu d'un avatar système à
