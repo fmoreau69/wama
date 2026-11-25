@@ -407,11 +407,14 @@ def forget_orphans(*, dry_run: bool = False, chunk: int = 5000) -> dict:
     BASE (un gestionnaire filtré ferait prendre un élément masqué pour un disparu). Un identifiant
     illisible est gardé, jamais deviné. Rend `{'orphans', 'deleted', 'by_type'}`.
 
-    Le même balayage tient ce qu'une card AJOUTE à son pipeline (`PipelineExtension`, 2026-11-11) :
-    même adressage, même raison — une ligne sans card ne se relit jamais."""
-    from wama.common.models import PipelineExtension, ProcessRun
+    Le même balayage tient ce qu'une card AJOUTE à son pipeline (`PipelineExtension`, 2026-11-11) et
+    ses ENTRÉES (`ElementInput`, 2026-11-25 — mesuré le jour même : sept lignes de témoins du
+    nocturne survivaient à leurs cards) : même adressage, même raison — une ligne sans card ne se
+    relit jamais. Seule la LIGNE s'oublie : son fichier n'est jamais effacé ici, il devient un
+    fichier que plus rien ne désigne, comme celui d'une colonne quand une card part sans son retrait."""
+    from wama.common.models import ElementInput, PipelineExtension, ProcessRun
     total = {'orphans': 0, 'deleted': 0, 'by_type': {}}
-    for model in (ProcessRun, PipelineExtension):
+    for model in (ProcessRun, PipelineExtension, ElementInput):
         found = _forget_orphans_of(model, dry_run=dry_run, chunk=chunk)
         total['orphans'] += found['orphans']
         total['deleted'] += found['deleted']
@@ -428,8 +431,12 @@ def _forget_orphans_of(table, *, dry_run: bool, chunk: int) -> dict:
 
     from wama.common.sandbox import sandbox_labels
 
+    # L'âge d'une ligne : sa dernière écriture, ou sa naissance pour une table qui ne se réécrit pas
+    # (`ElementInput` : une entrée remplacée est une ligne NOUVELLE).
+    stamp = 'updated_at' if any(f.name == 'updated_at' for f in table._meta.get_fields()) \
+        else 'created_at'
     old = table.objects.filter(
-        updated_at__lt=timezone.now() - timedelta(seconds=ORPHAN_GRACE_SECONDS))
+        **{f'{stamp}__lt': timezone.now() - timedelta(seconds=ORPHAN_GRACE_SECONDS)})
     twins = set(sandbox_labels())
     by_type, doomed = {}, []
     for app, object_type in old.values_list('app', 'object_type').distinct().order_by():

@@ -361,6 +361,38 @@ class OrphanLinesTest(TestCase):
         left = set(ProcessRun.objects.values_list('pk', flat=True))
         self.assertEqual({kept.pk, fresh_orphan.pk, illegible.pk, living_twin.pk}, left)
 
+    def test_the_inputs_of_a_vanished_card_go_and_their_file_stays(self):
+        """The common inputs table (`ElementInput`) is swept like the other tables addressed by
+        their card — seven nightly witnesses' rows outlived their cards (measured 2026-11-25). Only
+        the ROW goes : its file is never erased here."""
+        import shutil
+        import tempfile
+        from datetime import timedelta
+        from pathlib import Path
+        from django.test import override_settings
+        from django.utils import timezone
+        from wama.common.models import ElementInput
+        from wama.studio.models import StudioRun
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, True)
+        alive, gone = _studio_run('input_alive'), _studio_run('input_gone')
+        with override_settings(MEDIA_ROOT=tmp):
+            (Path(tmp) / 'x').mkdir()
+            (Path(tmp) / 'x' / 'kept.png').write_bytes(b'witness')
+            rows = {name: ElementInput.objects.create(
+                        app='studio', object_type='StudioRun', object_id=str(run.pk),
+                        port='work_image', rank=rank, file='x/kept.png', user=run.user)
+                    for name, run, rank in (('alive', alive, 0), ('gone', gone, 0),
+                                            ('fresh', gone, 1))}
+            ElementInput.objects.filter(pk__in=[rows['alive'].pk, rows['gone'].pk]).update(
+                created_at=timezone.now() - timedelta(seconds=process_runs.ORPHAN_GRACE_SECONDS + 60))
+            StudioRun.objects.filter(pk=gone.pk).delete()  # a queryset delete: no card removal
+            done = process_runs.forget_orphans()
+            self.assertEqual(1, done['by_type'].get('studio.StudioRun'))
+            self.assertEqual({rows['alive'].pk, rows['fresh'].pk},
+                             set(ElementInput.objects.values_list('pk', flat=True)))
+            self.assertTrue((Path(tmp) / 'x' / 'kept.png').is_file(), 'the file is never erased')
+
     def test_the_sweep_runs_every_night_on_the_default_queue(self):
         from django.conf import settings
         from wama.common import tasks
