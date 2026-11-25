@@ -870,6 +870,49 @@ natures est exclu aussi : décision du 2026-09-30, le vocabulaire des rôles sui
    (`common/models.DerivedCardMixin`). Comme les lots derrière `batch_of`, les apps rejoindraient la
    table une à une derrière le lecteur — rien n'est urgent (`ROUTE §10.7.11`, D12).
 
+**La suite — les ENTRÉES d'une card EXISTANTE : prompt, texte, fichiers (2026-11-25 ; plan proposé,
+avis du concile ; confirmation de Fabien attendue avant tout geste de code).**
+Né d'une remarque de Fabien : l'Imager porte son prompt dans la card d'entrée v4 et dans la modale ⚙,
+pas dans le volet ; l'anonymizer porte sa description au volet (un RÉGLAGE, `sam3_prompt`) ; et les
+fichiers d'entrée d'une card ne se remplacent pas. Mesuré le même jour : la cellule de prompt de la v4
+est rendue dès qu'un modèle déclare le port `prompt` (imager, composer, synthesizer, avatarizer,
+writer, translator) — l'anonymizer seul en est exclu, son port étant porté par un réglage.
+- **Décisions de Fabien (25/11)** : ① la card d'entrée v4 ne sert qu'à configurer une NOUVELLE entrée
+  — elle n'affiche jamais les entrées d'une card sélectionnée (essayé par le passé : perturbant) ;
+  ② la cellule de prompt dans la v4 de TOUTE app qui en a un ; ③ les entrées d'une card EXISTANTE
+  (prompt compris) s'éditent dans la modale ⚙ ET le volet (état ②), synchronisés avec la card DE LA
+  FILE ; ④ pas de rappel du prompt dans le volet sans sélection (état ① = la file) ; ⑤ accord de
+  principe pour distinguer la CONSIGNE (`prompt`) du CONTENU à traiter (`work_text`).
+- **Ce qui était déjà décidé et jamais construit** : `CARD_DESIGN §11.8` exigences 7 (remplacer les
+  fichiers d'une card) et 8 (sections Entrée / Réglages / Sortie de la modale et de l'inspecteur),
+  `§11.10` point 4 (la rangée de port de la v4 sert ces sections ; premier consommateur : la modale
+  d'entrée du Studio, 2026-10-20) ; `ROUTE §4.3` (STALE : « son entrée a été remplacée »). Un TROU
+  à combler, pas une décision à revoir.
+- **Mesuré pour `work_text`** : le nom existe déjà au catalogue de fonctions
+  (`synthesizer/function_specs.py:29`, « le texte à dire »), comme `work_document` (reader,
+  describer) — deux vocabulaires de ports divergent, `INPUT_TYPES` ne connaît ni l'un ni l'autre ;
+  le synthesizer reçoit ce texte sous DEUX ports de card, `prompt` (`text_content`) et `work_file`
+  (`text_file`), « l'un OU l'autre » (`app_registry.py:620-639`) ; l'avatarizer et le translator
+  rangent leur texte sous `prompt` ; le composer met description ET paroles balisées dans `prompt`.
+- **Avis du concile** (cinq agents + décideur, 285 s, dossier mot pour mot ; consultatif) : Q1
+  remplacer une entrée à tout moment SAUF pendant l'exécution, le résultat PÉRIMÉ et lisible, le
+  fichier remplacé LIBÉRÉ et annoncé — unanime, avec une précision : dire « à relancer pour
+  appliquer » ; Q2 le texte tapé devient une LIGNE de la table des entrées (4/5) plutôt que deux
+  colonnes derrière un port ; Q3 unifier les deux vocabulaires MAINTENANT, `work_document` →
+  `work_file` (le sens de la card) ; Q4 l'exclusivité « un seul à la fois » (l'avatar) en
+  DÉCLARATION commune, lisible par l'UI (3 contre 1) ; Q5 séparer description et paroles du composer,
+  après avoir vérifié que ses modèles acceptent les paroles à part ; Q6 ordre consigne → texte →
+  fichiers, « tapé » et « envoyé au modèle » côte à côte ; Q7 la séparation description (entrée) /
+  mode (réglage) de l'anonymizer est saine SI la cellule se masque en mode Classes par une
+  déclaration. Trois corrections retenues : écrire « la card de la FILE » (jamais la v4) ; une
+  EMPREINTE de la valeur texte pour la péremption (celle des fichiers ne suffit pas) ; une MIGRATION
+  des textes existants avec le même repli que l'avatar. Dossier, avis et décision : scratchpad de la
+  session (`concile_entrees_*`).
+- **Plan, dans l'ordre** (⏳ confirmation) : 1. jeton `work_text` ; 2. section Entrée générée de la
+  modale ⚙ et du volet (prompt, texte) ; 3. remplacement des fichiers dans cette section (rangée de
+  port de la v4, lecteur commun, péremption) ; 4. description de l'anonymizer dans la v4 (transmise à
+  la session de l'anonymizer).
+
 Gardes : `wama/common/tests/tests_port_fields.py` — tout port d'une card a le champ qui garde sa
 valeur (ports lus dans le corpus versionné des modèles ; écarts `GAPS` et jumelles en attente de
 projection, deux listes qui ne peuvent que baisser) ; aucun port ni champ fantôme ; les copies qui

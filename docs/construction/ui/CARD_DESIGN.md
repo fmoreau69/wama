@@ -1197,6 +1197,11 @@ Trois pièges, tous rencontrés :
    `WAMA_APP_GENERATION_ROUTE.md §10.6` ; `WAMA_MANIFEST_ARCHITECTURE`,
    proposition du même jour — la duplication PAR DESCRIPTION, où remplacer les entrées est
    l'usage nominal). Le domicile UI du remplacement est la section Entrée de l'exigence 8.
+   🔄 *Revu le 2026-11-25* (remarque de Fabien : les entrées d'une card ne sont pas remplaçables) :
+   la position « après exécution = dupliquer » est dépassée par le modèle de pipeline (`ROUTE §4.3`,
+   STALE « son entrée a été remplacée ») ; proposé — et soutenu à l'unanimité par le concile —
+   remplaçable à tout moment SAUF pendant l'exécution, le résultat devenant PÉRIMÉ et restant
+   lisible. ⏳ Confirmation de Fabien attendue ; plan et avis : `INPUT_MODEL_MATCHING §6.13`.
 8. **Modale ⚙ et inspecteur : sections EXPLICITES Entrée / Réglages / Sortie** (même message),
    comme les cards v3 — avec accordéons, Entrée et Sortie REPLIÉS par défaut (la place aux
    réglages), mais rouvrables pour re-modifier. Position (Claude) : oui, et c'est UN geste de
