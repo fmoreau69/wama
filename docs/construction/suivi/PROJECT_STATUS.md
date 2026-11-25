@@ -32624,3 +32624,62 @@ couverture des outils de l'assistant) : 3 rouges, les trois du budget d'identifi
 nomme aucune de mes lignes). `QualificationTest` est repassé vert entre-temps. 9 contre-épreuves
 rouges sur 9 pour la reprise (43 sur 43 en tout). `check_docs` : 0 cassée, 1 périmée pas d'ici.
 **Non vérifié** : la suite large ; HEAD dans un worktree ; aucune interface.
+
+## §PALIER — 2026-11-25 (soir), « LA PLAGE : une piste lue bornée, et l'outil de l'assistant » — marche 1quater de `ROUTE §10.7.14`, commité `a0731de79`, non poussé
+
+Demandée par Fabien (« enchaîne sur la lecture bornée à une plage »). Aucune décision n'était
+attendue : la plage active est décidée depuis T2 / ⑧ (`§10.7.13`, `§10.7.14`).
+
+**Livré** (`wama/common/catalog/marks.py`, glu inter-mondes) :
+
+- `read_span(card, start, end)` ou `read_span(card, key=piste, rank=rang)` : la PLAGE ACTIVE d'une
+  card côté serveur, posée par ses bornes ou par UNE marque. Elle rend, pour chaque piste, les
+  marques qui y sont ou la traversent (`bounded` : `rank`, la marque telle quelle, `inside`). Rien
+  n'est rogné ni calculé — calculer sur la plage reste le geste explicite du Segmenter (⑨).
+- Les bornes : une marque qui ne fait que TOUCHER la plage n'y est pas (la contenance `_holder`, la
+  partition, et la plage native visée en base — `numrange`, `&&`). `overlapping` du Segmenter
+  compte les bornes : la preuve croisée le dit (`wama_data/core/tests_segmentation`).
+- La PARENTÉ avant le temps, quand la plage est posée par une marque : dans les pistes qui
+  descendent de la sienne, les marques dont elle est la parente ou l'aïeule ; au-dessus, sa marque
+  parente à chaque étage.
+- `outline(card)` : l'index des pistes d'une card (`describe` — ce qu'une piste dit d'elle-même,
+  écrit une fois et lu aussi par le registre `tracks` —, le nombre de ses marques, leur étendue).
+- `get_item_marks` (`wama/tool_api.py`, lecture) : l'assistant lit les pistes d'un élément, puis
+  une piste, entière ou bornée (par `start`/`end`, ou par une marque d'une autre piste), par pages.
+  Aucun nom d'app : le modèle d'un élément est celui du journal, les pistes celles que l'app
+  déclare. L'API REST et le serveur MCP en dérivent.
+
+**Ce que la mesure sur le réel a changé** (lecture seule, base de service). La première écriture
+bornait tout par le temps. Sur 462 transcriptions, 158 183 phrases : 149 974 retrouvaient
+exactement leurs mots, 8 209 non — 10 098 mots sans durée, posés sur la borne de fin de leur
+phrase, manquaient, et 7 007 étaient rendus à la phrase voisine. D'où la règle de parenté. Remesuré
+sur un échantillon (6 800 phrases, 56 fenêtres de 5 sessions du cam_analyzer) : chaque plage rend
+exactement ses marques filles ; 78 conflits et 2 mots y sont dits débordants. Et le plafond d'une
+réponse : 200 phrases pesaient 38 686 caractères (budget d'un résultat d'outil : 24 000) — le
+plafond est à 100 (19 272 caractères sur la transcription la plus longue, 4 306 phrases).
+
+**Cherché avant d'écrire, et ce qui en a été fait.**
+- « Qui borne déjà à une plage ? » : `within` / `overlapping` / `times_within` du Segmenter
+  (`wama_data/core/segmentation.py:404-461`) et `Signal.overlapping` (`core/temporal.py:222`),
+  que le substrat ne peut pas importer. La route dit leur place à terme (« le modèle de marques et
+  ses opérations d'ensemble sont de la glu inter-mondes », `§10.7.3 ⑨`) sans l'avoir décidé pour
+  les opérations : elles n'ont PAS été déplacées. La lecture bornée suit la convention que le
+  lecteur de marques a déjà (`_holder`), et la différence avec `overlapping` est écrite et testée.
+- « Qui dit déjà ce qu'une piste déclare ? » : le registre `tracks` l'écrivait en ligne
+  (`registries_builtin._entries_tracks`) — sorti en `marks.describe`, lu par les deux.
+- « Qui garde déjà la lecture d'un élément ? » : la règle d'ownership était recopiée dans
+  `get_item_detail` et `get_item_result` — `_foreign_item`, écrite une fois, lue par les trois.
+- « Où trouver le modèle d'une card ? » : le journal (`services/journal.sources`), qui connaît les
+  trois mondes — le registre de détail seul ignore le cam_analyzer.
+
+**Vérifié.** Périmètre élargi : 1 899 tests, 1 rouge — `tests_gap_fill.TheOldCopiesDelegateTest`, le rouge d'ordre déjà connu (vert seul : 99 tests avec les lectures et les marques). Gardes transverses vertes : identifiants, disposition des tests, couverture et effets des outils de l'assistant, serveur MCP, budget d'un résultat d'outil. 23 contre-épreuves rouges sur 23 (⚠ celles qui lisent la base ne se lancent pas à quatre sur la même base de test : un interblocage a été vu, sans effet sur le verdict). `check_docs` : 0 cassée, 1 périmée pas d'ici (`PROJECT_STATUS:32181`).
+**Non vérifié** : la suite large ; HEAD dans un worktree ; l'outil dans une conversation réelle de
+l'assistant (il n'est servi qu'après relance de gunicorn, des workers, de la passerelle et du
+serveur MCP) ; aucune interface.
+
+**Restes.** Sous une piste DÉRIVÉE la parenté n'est pas suivie (reste de ①ter : `source_ranks`) ;
+une card du monde Data n'a pas de modèle, ses pistes ne se bornent que depuis le fichier
+(`read_span(référentiel, …, tracks=referential_tracks(…))`, testé) ; les opérations d'ensemble du
+Segmenter restent dans le monde Data (emplacement « à décider », `§10.7.3 ⑨`) ; les cards dérivées
+dont le pointage recouvre la plage (⑧) attendent le lien de composition (T7) ; la plage active à
+l'écran vient avec la zone temporelle, après les maquettes.
