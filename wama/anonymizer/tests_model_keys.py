@@ -310,6 +310,34 @@ class PromptModelTest(TestCase):
             self.assertEqual([], tasks.description_plan(media),
                              'a free text is shown once understood, never half guessed')
 
+    def test_an_understood_colour_or_plane_is_shown_and_switches_the_qualification_on(self):
+        """2026-11-25 (B, decision 1 of 2026-11-24 : « les réglages le reflètent ») : « red car »
+        searched by a classes detector shows its colour under the field, and the launch switches
+        the qualification on — its depth for a plane asked. Never switched off here."""
+        from wama.anonymizer import tasks
+        media = Media.objects.create(user=self.user, file='anonymizer/x/input/sample.png',
+                                     model_to_use='auto', target_mode='description',
+                                     sam3_prompt='la voiture rouge, un logo bleu',
+                                     sam3_prompt_processed='red car, blue logo')
+        cover = {'parallel': False, 'unsupported_classes': ['logo'], 'models': [
+            {'id': 'yolo:coco.pt', 'path': '/w/coco.pt', 'name': 'coco', 'classes': ['car'],
+             'model_key': YOLO_KEY}]}
+        with mock.patch.object(tasks, 'needs_parallel_detection', return_value=cover), \
+                mock.patch.object(tasks, 'check_sam3_installed', return_value=True), \
+                mock.patch.object(tasks, '_console'):
+            shown = tasks.description_plan(media)
+            self.assertEqual([('car', {'color': 'red'}), ('blue logo', None)],
+                             [(s['concept'], s.get('attrs')) for s in shown])
+            self.assertEqual(['qualify_objects'], tasks.switch_requested_qualification(media))
+            self.assertEqual([], tasks.switch_requested_qualification(media), 'already on')
+            media.sam3_prompt_processed = 'car in the foreground'
+            self.assertEqual(['qualify_depth'], tasks.switch_requested_qualification(media))
+            media.sam3_prompt_processed = 'blue logo'
+            self.assertEqual([], tasks.switch_requested_qualification(media),
+                             'SAM3 reads the colour itself : nothing to measure')
+        media.refresh_from_db()
+        self.assertEqual((True, True), (media.qualify_objects, media.qualify_depth))
+
 
 class OfferedClassesTest(SimpleTestCase):
     """2026-11-24 (A.1) — the classes the edit page offers for an added zone : the ASKED ones in the

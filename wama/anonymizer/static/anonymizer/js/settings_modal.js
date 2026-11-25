@@ -63,9 +63,14 @@
     const box = document.createElement('div');
     box.className = 'small text-body-secondary mt-1 anon-understood';
     box.innerHTML = '<i class="fas fa-route"></i> Compris : ' + plan.map(function (step) {
-      return '<b>' + esc(step.concept) + '</b> → ' +
+      // Les attributs qu'on MESURERA après ce détecteur (`attrs`, la qualification, 2026-11-25).
+      const attrs = Object.values(step.attrs || {});
+      return '<b>' + esc(step.concept) + '</b>' +
+        (attrs.length ? ' <span class="badge text-bg-secondary">' + esc(attrs.join(', ')) + '</span>' : '') +
+        ' → ' +
         (step.by && step.by.length ? esc(step.by.join(', ')) : '<span class="text-warning">aucun détecteur</span>');
-    }).join(' · ');
+    }).join(' · ') + (plan.some(function (step) { return step.attrs; })
+      ? ' — la qualification les mesurera (activée au lancement)' : '');
     const anchor = field.parentNode.querySelector('.wama-prompt-enrich-original') || field;
     anchor.insertAdjacentElement('afterend', box);
   }

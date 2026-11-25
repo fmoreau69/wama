@@ -109,12 +109,23 @@ def route_concepts(concepts, *, cover, open_model_key: str = '') -> dict:
     Rend `{'models': [descripteurs], 'plan': [{'concept', 'by': [clés]}], 'unrouted': [...]}` —
     le plan dit, concept par concept, QUI le cherche (ce que l'interface montre de « ce que le
     système a compris ») ; `unrouted` : ce que personne ne cherchera (aucun modèle à description
-    disponible), à DIRE."""
+    disponible), à DIRE.
+
+    Un concept peut porter des ATTRIBUTS (2026-11-25, `ROADMAP §17quater` B : « red car »,
+    `detection_attributes.read_concept`) : la couverture juge le concept NU (`car`, que YOLO
+    connaît) ; un détecteur dédié cherche la classe, et le pas du plan garde ses attributs
+    (`attrs`) — la qualification les mesure, la sélection les suit (`detections.within_request`).
+    Le modèle qui lit une description reçoit la phrase ENTIÈRE et l'entend lui-même : son pas
+    n'a pas d'`attrs`, il n'y a rien à mesurer après lui."""
     from wama.common.services.model_coverage import formes_equivalentes
-    wanted = []
-    for concept in concepts or ():
-        if concept and concept not in wanted:
-            wanted.append(concept)
+    from wama.common.utils.detection_attributes import read_concept
+    phrases, read, wanted = [], {}, []
+    for phrase in concepts or ():
+        if phrase and phrase not in phrases:
+            phrases.append(phrase)
+            read[phrase] = read_concept(phrase)
+            if read[phrase][0] not in wanted:
+                wanted.append(read[phrase][0])
     if not wanted:
         return {'models': [], 'plan': [], 'unrouted': []}
     covered = cover(wanted) or {}
@@ -126,19 +137,23 @@ def route_concepts(concepts, *, cover, open_model_key: str = '') -> dict:
         for name in m.get('classes') or []:
             claimed |= formes_equivalentes(name)
     left = [c for c in wanted if not (formes_equivalentes(c) & claimed)]
-    if left and open_model_key:
+    # Le modèle à description reçoit les PHRASES de ce qu'il cherche, attributs compris.
+    open_part = [p for p in phrases if read[p][0] in left]
+    if open_part and open_model_key:
         models.append({'model_key': open_model_key, 'path': None, 'name': open_model_key,
-                       'classes': None, 'prompt': ', '.join(left)})
+                       'classes': None, 'prompt': ', '.join(open_part)})
     plan = []
-    for concept in wanted:
+    for phrase in phrases:
+        concept, attrs = read[phrase]
+        if concept in left:
+            plan.append({'concept': phrase, 'by': [open_model_key] if open_model_key else []})
+            continue
         forms = formes_equivalentes(concept)
         by = [m.get('model_key') or m.get('name') for m in models
               if any(formes_equivalentes(c) & forms for c in m.get('classes') or [])]
-        if not by and concept in left and open_model_key:
-            by = [open_model_key]
-        plan.append({'concept': concept, 'by': by})
+        plan.append({'concept': concept, 'by': by, **({'attrs': attrs} if attrs else {})})
     return {'models': models, 'plan': plan,
-            'unrouted': [] if open_model_key else left}
+            'unrouted': [] if open_model_key else open_part}
 
 
 def detect_with_models(models, *, user=None, source_dir=None, destination_dir=None,

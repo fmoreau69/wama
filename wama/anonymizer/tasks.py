@@ -171,6 +171,13 @@ def process_single_media(self, media_id, force_individual=False, process=None):
         known = Media.objects.filter(pk=media_id).first()
         if known is not None:
             forget_lost_generation(known, 'output_file', 'blur')
+            # Une description déjà comprise qui demande des attributs active la qualification
+            # AVANT que le lancement ne choisisse ses étapes (2026-11-25). Jamais bloquant.
+            try:
+                switch_requested_qualification(known)
+            except Exception:
+                logger.warning("[anonymizer] média %s : qualification demandée non lue",
+                               media_id, exc_info=True)
         run_item_task(self, app_id='anonymizer', model=Media, item_id=media_id,
                       pipeline=PIPELINE,
                       processes={'detect': _detect, 'qualify': _qualify, 'blur': _blur,
@@ -263,7 +270,7 @@ def _routed_description(prompt, precision_level, user):
             _console(user.id, f"SAM3 ne peut pas chercher « {sam3_part['prompt']} » : {error}",
                      'warning')
     for step in route['plan']:
-        _console(user.id, f"Description — « {step['concept']} » : "
+        _console(user.id, f"Description — « {_said_step(step)} » : "
                           f"{', '.join(step['by']) or 'aucun détecteur'}")
     if route['unrouted']:
         _console(user.id, "Aucun détecteur ne cherchera : " + ', '.join(route['unrouted'])
@@ -274,16 +281,31 @@ def _routed_description(prompt, precision_level, user):
     return route
 
 
+def _said_step(step) -> str:
+    """Un pas du plan dit en clair : le concept, et les attributs qu'on mesurera après lui."""
+    attrs = step.get('attrs') or {}
+    return step['concept'] + (f" ({', '.join(attrs.values())})" if attrs else '')
+
+
 def description_plan(media) -> list:
     """Ce que le système a COMPRIS de la description d'un média, et QUI cherchera chaque concept —
-    `[{'concept', 'by': [noms de modèles]}]`, ou `[]` tant que rien n'a été compris (aucun texte
-    traité gardé : le lancement ou ✨ le poseront). Le MÊME routeur que le lancement
+    `[{'concept', 'by': [noms de modèles], 'attrs'?}]`, ou `[]` tant que rien n'a été compris
+    (aucun texte traité gardé : le lancement ou ✨ le poseront). Le MÊME routeur que le lancement
     (`_routed_description` → `route_concepts`), lu sans LLM ni console : la modale et la page le
     montrent (2026-11-24, décision de Fabien : « les réglages le reflètent »). Sous un modèle
-    désigné, c'est lui qui cherche tout."""
+    désigné, c'est lui qui cherche tout. `attrs` : ce que la qualification mesurera pour ce
+    concept (« red car » cherché par un détecteur à classes, 2026-11-25)."""
+    from wama.common.utils import card_chips
+    plan = understood_plan(media)
+    names = card_chips.catalog_names([k for step in plan for k in step['by']])
+    return [{**step, 'by': [names.get(k) or k for k in step['by']]} for step in plan]
+
+
+def understood_plan(media) -> list:
+    """`description_plan` sous les CLÉS de catalogue — ce que lisent la modale (noms en plus) et
+    le lancement (`switch_requested_qualification`)."""
     from wama.common.backends.detection_base import prompt_concepts
     from wama.common.services.detection_ensemble import route_concepts
-    from wama.common.utils import card_chips
     from .utils.yolo_utils import catalogue_key_for
     if media.target_mode != 'description':
         return []
@@ -298,14 +320,44 @@ def description_plan(media) -> list:
         return []
     designated = catalogue_key_for(media.model_to_use)
     if designated:
-        plan = [{'concept': c, 'by': [designated]} for c in concepts]
-    else:
-        plan = route_concepts(
-            concepts, open_model_key=SAM3_KEY if check_sam3_installed() else '',
-            cover=lambda wanted: needs_parallel_detection(wanted, media.precision_level))['plan']
-    names = card_chips.catalog_names([k for step in plan for k in step['by']])
-    return [{'concept': step['concept'], 'by': [names.get(k) or k for k in step['by']]}
-            for step in plan]
+        return [{'concept': c, 'by': [designated]} for c in concepts]
+    return route_concepts(
+        concepts, open_model_key=SAM3_KEY if check_sam3_installed() else '',
+        cover=lambda wanted: needs_parallel_detection(wanted, media.precision_level))['plan']
+
+
+def _requested_qualification():
+    """Les réglages de la qualification qu'une demande à attributs exige : l'interrupteur que son
+    process DÉCLARE (`ProcessSpec.toggle`), et la profondeur pour un plan demandé."""
+    from .function_specs import PIPELINE
+    return ((PIPELINE.spec('qualify').toggle, None), ('qualify_depth', 'plane'))
+
+
+def switch_requested_qualification(media, plan=None) -> list:
+    """La DEMANDE règle la qualification (2026-11-25, `ROADMAP §17quater` B ; décision de Fabien
+    du 2026-11-24 : « ce que le système a compris doit être montré […] et les réglages le
+    refléter ») : un concept demandé avec des attributs qu'un détecteur à classes cherchera
+    (`attrs` d'un pas du plan) ACTIVE la qualification, et sa profondeur pour un plan demandé —
+    écrit sur la card, dit à la console. Rend les réglages activés (`[]` : rien à changer).
+    `plan` : celui du lancement ; sinon ce que la card a déjà compris, lu sans LLM
+    (`understood_plan`). Rien n'est jamais DÉSACTIVÉ ici : c'est un choix de l'utilisateur."""
+    steps = [step for step in (understood_plan(media) if plan is None else plan)
+             if step.get('attrs')]
+    asked = [step['attrs'] for step in steps]
+    if not asked:
+        return []
+    switched = [name for name, attribute in _requested_qualification()
+                if not getattr(media, name, False)
+                and (attribute is None or any(attribute in attrs for attrs in asked))]
+    if switched:
+        for name in switched:
+            setattr(media, name, True)
+        type(media).objects.filter(pk=media.pk).update(**{name: True for name in switched})
+        said = ', '.join(f"« {_said_step(step)} »" for step in steps)
+        _console(media.user_id, f"La description demande {said} : la qualification est activée"
+                                + (" avec la profondeur" if 'qualify_depth' in switched else '')
+                                + '.', 'info')
+    return switched
 
 
 def _detection_kwargs(media, user, ensure_model=None):
@@ -620,6 +672,14 @@ def _detect(media, ctx):
         raise ValueError("Média sans fichier (ni URL rapatriée) : rien à traiter.")
     user = media.user
     kwargs, used_models = _detection_kwargs(media, user, ensure_model=ctx.ensure_model)
+    # Une description comprise À CE lancement (texte libre, jamais compris avant) qui demande des
+    # attributs : la qualification est activée maintenant, mais les étapes de ce lancement sont
+    # choisies (`steps_to_run`, au départ de la tâche) — elle aura lieu au suivant. Comprise
+    # avant (✨, lancement passé), le départ de la tâche l'a déjà activée (`process_single_media`).
+    if switch_requested_qualification(media, kwargs.get('plan') or []):
+        _console(user.id, "Ce lancement ne qualifie pas encore les objets : tous ceux des concepts "
+                          "demandés seront floutés. ▶ qualifie puis floute de nouveau, sans "
+                          "redétecter.", 'warning')
     # Un modèle employé absent (désigné sur la card — déjà demandé ci-dessus, avant d'être lu —,
     # ou SAM3) : la route l'installe, la tâche attend — jamais un téléchargement par la librairie
     # au chargement, ni un repli muet.
@@ -768,6 +828,14 @@ def _blur(media, ctx):
     # Les corrections humaines (page de correction, chantier SURFACES) : une couche à part,
     # réappliquée ici à chaque floutage — une détection relancée ne les perd pas.
     doc = detections.apply_corrections(doc, media.detection_corrections)
+    # La DEMANDE à attributs (« red car » cherché par un détecteur à classes, le `plan` du
+    # document, 2026-11-25) : ne restent que les objets compatibles — un objet non qualifié reste.
+    asked = detections.requested_attributes(doc.get('plan'))
+    if asked and not doc.get('qualified'):
+        _console(media.user_id, "Floutage : objets non qualifiés — tous les "
+                                + ', '.join(f"« {label} »" for label in asked)
+                                + " sont floutés.", 'warning')
+    doc = detections.within_request(doc)
     # « Ce qu'on floute » (2026-11-19) : les libellés décochés restent nets — choisis parmi ce que
     # la détection a trouvé, sans la refaire. Une zone ajoutée à la main suit sa classe.
     skipped = list(getattr(media, 'blur_skip_labels', None) or [])

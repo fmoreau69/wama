@@ -339,6 +339,45 @@ def without_attributes(doc: dict, skip) -> dict:
     return out
 
 
+def requested_attributes(plan) -> dict:
+    """`{libellé commun: [attributs demandés]}` des concepts qu'un plan du routeur
+    (`detection_ensemble.route_concepts`) demande AVEC des attributs — `{}` pour un concept aussi
+    demandé sans (« car, red car » : toutes les voitures)."""
+    wanted, free = {}, set()
+    for step in plan or ():
+        label = common_label(step.get('concept') or '')
+        if not label:
+            continue
+        if step.get('attrs'):
+            wanted.setdefault(label, []).append(dict(step['attrs']))
+        else:
+            free.add(label)
+    return {label: asked for label, asked in wanted.items() if label not in free}
+
+
+def within_request(doc: dict, plan=None) -> dict:
+    """Le document SANS les objets que la DEMANDE écarte (2026-11-25, `ROADMAP §17quater` B) : un
+    concept demandé avec des attributs (« red car » cherché par un détecteur à classes, `plan` du
+    routeur, gardé dans le document) ne garde que ses objets compatibles avec l'une des demandes
+    (`detection_attributes.compatible`). Un objet non qualifié, ou qui ne porte pas l'attribut,
+    est GARDÉ — ce qu'on n'a pas vu n'est pas laissé net ; les autres libellés aussi. Une copie,
+    l'original intact, comme `without_labels`. `plan` : celui du document par défaut."""
+    from wama.common.utils.detection_attributes import compatible
+    wanted = requested_attributes(doc.get('plan') if plan is None else plan)
+    if not wanted:
+        return doc
+    out = dict(doc)
+    out['frames'] = []
+    for frame in doc.get('frames') or []:
+        kept = [d for d in frame.get('d') or []
+                if common_label(d.get('label') or '') not in wanted
+                or any(compatible(d.get('attrs'), asked)
+                       for asked in wanted[common_label(d.get('label') or '')])]
+        if kept:
+            out['frames'].append({**frame, 'd': kept})
+    return out
+
+
 def objects_by_label(doc: dict, *, window: int = None) -> dict:
     """{libellé: nombre d'OBJETS} — ce que la card dit avoir trouvé (2026-11-19, Fabien : « voir
     directement sur les cards les classes des objets détectés »). Une image (ou un texte) : ses

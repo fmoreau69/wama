@@ -187,7 +187,8 @@ class RouteConceptsTest(SimpleTestCase):
 
     @staticmethod
     def _cover(wanted):
-        known = {'face': 'anonymizer:yolo:faces.pt', 'human face': 'anonymizer:yolo:faces.pt'}
+        known = {'face': 'anonymizer:yolo:faces.pt', 'human face': 'anonymizer:yolo:faces.pt',
+                 'car': 'anonymizer:yolo:coco.pt'}
         models = [{'model_key': known[w], 'classes': [w]} for w in wanted if w in known]
         return {'models': models, 'unsupported_classes': [w for w in wanted if w not in known]}
 
@@ -212,6 +213,22 @@ class RouteConceptsTest(SimpleTestCase):
         self.assertEqual([], [s['by'] for s in route['plan'] if s['concept'] == 'logo'][0])
         self.assertEqual({'models': [], 'plan': [], 'unrouted': []},
                          route_concepts([], cover=self._cover))
+
+    def test_a_concept_with_attributes_goes_bare_to_its_detector_and_whole_to_the_open_model(self):
+        """2026-11-25 (B) : « red car » — the coverage judges the bare class, the plan keeps the
+        colour for the qualification ; the open model reads the whole phrase itself, so its step
+        has nothing left to measure."""
+        from wama.common.services.detection_ensemble import route_concepts
+        route = route_concepts(['red car', 'blue logo', 'small face in the background'],
+                               cover=self._cover, open_model_key='anonymizer:sam3')
+        self.assertEqual([['car'], ['face'], None], [m['classes'] for m in route['models']])
+        self.assertEqual('blue logo', route['models'][2]['prompt'])
+        self.assertEqual([{'concept': 'car', 'by': ['anonymizer:yolo:coco.pt'], 'attrs': {'color': 'red'}},
+                          {'concept': 'blue logo', 'by': ['anonymizer:sam3']},
+                          {'concept': 'face', 'by': ['anonymizer:yolo:faces.pt'],
+                           'attrs': {'size': 'small', 'plane': 'background'}}], route['plan'])
+        self.assertEqual(['blue logo'], route_concepts(['blue logo'], cover=self._cover)['unrouted'],
+                         'what nobody looks for is named as it was asked')
 
     def test_the_open_model_of_a_detector_set_receives_its_own_part(self):
         from wama.common.services import detection_ensemble

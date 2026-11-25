@@ -184,6 +184,39 @@ class AnonymizerTaskOnSkeletonTest(TestCase):
         original, blurred = cv2.imread(str(self.input)), self._output_pixels()
         self.assertTrue((original == blurred).all(), 'the colour unticked stays sharp')
 
+    def test_a_description_asking_a_colour_qualifies_and_blurs_only_that_colour(self):
+        """2026-11-25 (`ROADMAP §17quater` B) : « red face » understood — the dedicated detector
+        looks for the face, the launch switches the qualification on BEFORE it chooses its steps,
+        and the face found (black and white stripes) is not the one asked : it stays sharp. Asked
+        « black face », the same face is blurred."""
+        def understood(text):
+            return {'prompt': text, 'original': text, 'enriched': True, 'translated': False}
+
+        Media.objects.filter(pk=self.media.pk).update(
+            target_mode='description', sam3_prompt='le visage rouge', sam3_prompt_processed='red face')
+        with mock.patch('wama.common.utils.app_metadata.process_prompt_for',
+                        return_value=understood('red face')), \
+                mock.patch.object(tasks, 'check_sam3_installed', return_value=False):
+            self._run()
+        self.assertEqual('SUCCESS', self.media.status, self.media.error_message)
+        self.assertEqual((True, False), (self.media.qualify_objects, self.media.qualify_depth),
+                         'the request switches the qualification on, no plane asked : no depth')
+        self.assertEqual({'detect': 'SUCCESS', 'qualify': 'SUCCESS', 'blur': 'SUCCESS',
+                          'output': 'SUCCESS'}, self._states())
+        doc = detections.read(os.path.join(self.root, self.media.detections_file.name))
+        self.assertEqual([{'concept': 'face', 'by': ['anonymizer:yolo:yolo11n.pt'],
+                           'attrs': {'color': 'red'}}], doc['plan'])
+        original = cv2.imread(str(self.input))
+        self.assertTrue((original == self._output_pixels()).all(), 'no red face : nothing blurred')
+        Media.objects.filter(pk=self.media.pk).update(sam3_prompt_processed='black face')
+        with mock.patch('wama.common.utils.app_metadata.process_prompt_for',
+                        return_value=understood('black face')), \
+                mock.patch.object(tasks, 'check_sam3_installed', return_value=False):
+            self._run()
+        inside = (slice(BOX[1] + 4, BOX[3] - 4), slice(BOX[0] + 4, BOX[2] - 4))
+        self.assertGreater(np.abs(original[inside].astype(int) - self._output_pixels()[inside]).mean(),
+                           20, 'the black face asked is blurred')
+
     def test_a_detection_setting_detects_again(self):
         self._run()
         outcome, detected = self._run(detection_threshold=0.6)

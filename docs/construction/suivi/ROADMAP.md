@@ -4761,9 +4761,26 @@ sont souvent les mêmes »*) ; puis B.
   description donnée en mode Classes (un nœud du Studio ne la transmettait plus) : elle est gardée
   comme au volet, qui la masque sans l'effacer ; le témoin de `tests_setting_keys` enregistrait
   le mode devenu défaut. Les 21 autres rouges ne touchent aucun fichier du chantier.
+- **B — attributs tirés de la DESCRIPTION** ✅ (même jour) : « la voiture rouge » est comprise
+  `red car` (skill `anonymizer-detection`, vocabulaires de `detection_attributes`), lue sans LLM en
+  concept + attributs (`detection_attributes.read_concept`). Le routeur commun
+  (`detection_ensemble.route_concepts`) fait chercher la classe NUE au détecteur dédié et garde
+  l'attribut dans son plan (`attrs`) ; le modèle qui lit une description reçoit la phrase entière et
+  l'entend lui-même (pas d'`attrs` : rien à mesurer après lui). Le floutage ne garde que les objets
+  compatibles (`detections.within_request`, un objet non qualifié reste flouté). La demande RÈGLE
+  la qualification (« les réglages le reflètent ») : `tasks.switch_requested_qualification` active
+  l'interrupteur du process (lu de `ProcessSpec.toggle`) et la profondeur pour un plan demandé, au
+  départ de la tâche (avant que le lancement ne choisisse ses étapes, `task_skeleton.
+  _selected_steps`) — ou à la détection pour un texte libre compris à CE lancement : la console dit
+  alors que ▶ qualifie et floute de nouveau, sans redétecter. La modale montre « Compris : car
+  [red] → … ». ⚠ Choix fait : la demande ÉCRIT l'interrupteur (jamais ne le coupe) plutôt que
+  d'être une troisième source d'IMPOSITION à côté de `required_by` / `required_by_steps` : la
+  demande n'est comprise qu'au lancement (LLM), que ni la bande ni la modale ne savent juger. À
+  reprendre au commun quand le Detector (§17bis) voudra la même règle.
 
-**Restes nommés (2026-11-25)** : ⏳ B : tirer les attributs de la DESCRIPTION (« la voiture rouge »
-→ concept + couleur, skill `anonymizer-detection`), puis relations et rang ; jouer la qualification
+**Restes nommés (2026-11-25)** : ✅ B : attributs tirés de la DESCRIPTION (ci-dessus) ; ⏳ relations
+(« le visage de la personne au pull rouge ») et rang (« la plus proche ») ; ⏳ un texte libre jamais
+compris avant ne qualifie qu'au second ▶ ; jouer la qualification
 avec profondeur sur une vraie vidéo (non fait) ; ⏳ le compte 22 a enregistré une description VIDE
 en mode Description (réglage du volet, antérieur) : ses cards neuves ne décrivent rien — à lui
 dire, rien n'est touché ; ⏳ la jumelle `anonymizer_01` n'a ni les champs de la qualification ni

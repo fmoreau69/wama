@@ -2072,7 +2072,11 @@ MECHANISMS = (
               "et le Lab peuvent le lire. 2026-11-24 (`ROADMAP §17quater` B) : les ATTRIBUTS "
               "d'un objet — couleur majoritaire, taille, plan par la profondeur — rangés dans le "
               "document (`attrs`, `detection_attributes.qualify`), lus comme les libellés "
-              "(`colors`, `sizes`, `planes`) et choisis sans redétecter (`without_attributes`)",
+              "(`colors`, `sizes`, `planes`) et choisis sans redétecter (`without_attributes`). "
+              "2026-11-25 : les mêmes attributs DEMANDÉS par une description (« red car » → "
+              "`detection_attributes.read_concept`) ; le routeur commun cherche la classe nue et "
+              "garde l'attribut dans son plan, la sélection le suit (`within_request`, un objet "
+              "non qualifié reste flouté)",
               'wama/common/utils/detections.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6',
               annexes=('wama/common/utils/blur_utils.py',

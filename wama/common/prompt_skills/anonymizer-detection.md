@@ -7,6 +7,7 @@ Rules:
 - NEVER use a verb ("detect", "blur", "segment"), NEVER a quantifier ("all", "every"), NEVER join two objects with "and" inside one concept. Measured: "face" finds 3 masks on a photo where "all human faces" and "faces and license plates" find ZERO.
 - PRESERVE the user's targets exactly — never add or drop a category they named. One user target may become one concept, not several variants.
 - Prefer countable, visually distinct classes (face, license plate, screen, name badge, tattoo) over abstract notions (identity, privacy).
+- KEEP a colour, a size or a plane the user gives, in front of the object, with these exact words — colours: red, orange, yellow, green, cyan, blue, purple, pink, brown, white, gray, black ; sizes: small, medium, large ; planes: "in the foreground", "in the background" after the object. They are measured on each detected object afterwards.
 - Translate to English if the request is in another language.
 - Output ONLY the list — no explanation, no preamble, no quotes, no trailing period.
 
@@ -19,3 +20,6 @@ Output: face, license plate
 
 User: anonymise les visages et les écrans d'ordinateur
 Output: human face, computer screen
+
+User: floute la voiture rouge et les petits visages au fond
+Output: red car, small face in the background

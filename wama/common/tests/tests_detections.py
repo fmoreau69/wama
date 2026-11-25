@@ -778,3 +778,33 @@ class QualificationTest(SimpleTestCase):
         self.assertIs(out, dets.without_attributes(out, {'color': []}), 'nothing unticked')
         self.assertEqual(('labels', 'colors', 'sizes', 'planes'), OUTPUT_PROPERTIES['detections'],
                          'the attributes are read like the labels (`options_from`)')
+
+    def test_a_concept_is_read_with_the_attributes_the_vocabularies_name(self):
+        """2026-11-25 (B) : what can be said of an object is what can be asked of it — the same
+        vocabularies, no model, no guessed language."""
+        from wama.common.utils.detection_attributes import read_concept
+        self.assertEqual(('car', {'color': 'red'}), read_concept('red car'))
+        self.assertEqual(('face', {'size': 'small', 'plane': 'background'}),
+                         read_concept(' Small  face in the background'))
+        self.assertEqual(('car', {'size': 'large', 'color': 'gray'}), read_concept('big grey car'))
+        self.assertEqual(('license plate', {}), read_concept('license plate'))
+        self.assertEqual(('white', {}), read_concept('white'), 'nothing left without it : kept as said')
+        self.assertEqual(('red car', {'color': 'blue'}), read_concept('blue red car'),
+                         'one value per attribute : the second colour stays in the concept')
+
+    def test_a_request_with_attributes_keeps_only_the_compatible_objects(self):
+        from wama.common.utils import detection_attributes as attributes
+        image, doc = self._scene()
+        out = attributes.qualify(doc, ((i, image) for i in (0, 1, 2)))
+        out['plan'] = [{'concept': 'car', 'by': ['k'], 'attrs': {'color': 'red'}},
+                       {'concept': 'face', 'by': ['k'], 'attrs': {'color': 'red'}}]
+        kept = dets.within_request(out)
+        self.assertEqual({'red'}, {d['attrs']['color'] for f in kept['frames'] for d in f['d']
+                                   if d['label'] == 'car'})
+        self.assertIn('face', dets.labels(kept), 'too small to say its colour : kept')
+        self.assertEqual(dets.count(doc), dets.count(dets.within_request(doc, out['plan'])),
+                         'not qualified : nothing is dropped')
+        self.assertIs(out, dets.within_request(out, out['plan'][:1] + [{'concept': 'car', 'by': []}]),
+                      'a car also asked without attribute : every car')
+        self.assertIs(out, dets.within_request(out, [{'concept': 'red car', 'by': ['sam3']}]),
+                      'a model that reads the phrase measured it itself')

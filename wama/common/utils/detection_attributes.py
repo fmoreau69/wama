@@ -25,6 +25,12 @@ vu n'est jamais laissé net.
 Aucun modèle n'est chargé ici : la carte de profondeur est passée par l'appelant
 (`depth_of`, typiquement `common/backends/depth_engine.estimate_depth`), qui l'obtient par la
 route des modèles.
+
+Les attributs se DEMANDENT aussi (2026-11-25, `ROADMAP §17quater` B) : un concept compris d'une
+description (« red car », « small face in the background ») se lit en concept + attributs
+(`read_concept`), avec les MÊMES vocabulaires — ce qu'on sait dire d'un objet est ce qu'on sait
+en demander. Le routeur commun en tire son plan (`detection_ensemble.route_concepts`), le
+document le garde, la sélection le suit (`detections.within_request`).
 """
 from __future__ import annotations
 
@@ -43,6 +49,12 @@ SMALL_AREA = 0.01
 LARGE_AREA = 0.10
 #: Pixels sous lesquels un objet est trop petit pour qu'on dise sa couleur.
 MIN_COLOR_PIXELS = 30
+
+#: Le nom de l'attribut que dit chaque valeur des vocabulaires (`red` → `color`).
+VALUE_ATTRIBUTE = {**{c: 'color' for c in COLORS}, **{s: 'size' for s in SIZES},
+                   **{p: 'plane' for p in PLANES}}
+#: Les graphies qu'un modèle de langue écrit pour une valeur sans écrire son nom.
+_SYNONYMS = {'grey': 'gray', 'violet': 'purple', 'big': 'large', 'tiny': 'small'}
 
 # Teintes OpenCV (0-180) → nom : bornes HAUTES exclues, dans l'ordre. Le rouge enjambe 0.
 _HUES = ((8, 'red'), (20, 'orange'), (33, 'yellow'), (78, 'green'), (95, 'cyan'),
@@ -163,6 +175,42 @@ def qualify(doc: dict, frames, *, color: bool = True, size: bool = True, depth=N
     out['qualified'] = [name for name, on in (('color', color), ('size', size),
                                               ('depth', depth is not None)) if on]
     return out
+
+
+def read_concept(phrase: str) -> tuple:
+    """`(concept, attributs)` d'un concept COMPRIS d'une description — « red car » →
+    `('car', {'color': 'red'})`, « small face in the background » → `('face', {'size': 'small',
+    'plane': 'background'})`. Lus : les valeurs des vocabulaires (`VALUE_ATTRIBUTE`) en tête du
+    groupe nominal, une par attribut, et le plan en fin (« in the foreground »). Un concept qui ne
+    serait plus rien sans eux reste tel quel (« white »), sans attribut. Aucun modèle, aucune
+    langue devinée : la description a déjà été comprise en anglais par la pipeline de prompts."""
+    text = ' '.join(str(phrase or '').split())
+    words = text.split(' ') if text else []
+    attrs = {}
+    for plane in PLANES:
+        for tail in (('in', 'the', plane), ('in', plane)):
+            if len(words) > len(tail) and tuple(w.casefold() for w in words[-len(tail):]) == tail:
+                attrs['plane'] = plane
+                words = words[:-len(tail)]
+                break
+        if 'plane' in attrs:
+            break
+    while len(words) > 1:
+        value = words[0].casefold()
+        value = _SYNONYMS.get(value, value)
+        name = VALUE_ATTRIBUTE.get(value)
+        if name is None or name in attrs:
+            break
+        attrs[name] = value
+        words = words[1:]
+    return ' '.join(words), attrs
+
+
+def compatible(attrs: dict, wanted: dict) -> bool:
+    """Un objet qualifié (`attrs`) répond-il à la demande (`wanted`) ? Un attribut qu'il ne porte
+    pas ne l'écarte jamais — ce qu'on n'a pas vu n'est pas laissé net."""
+    attrs = attrs or {}
+    return all(attrs.get(name) in (None, value) for name, value in (wanted or {}).items())
 
 
 def iter_frames(source: str, frame_numbers, *, media: str = 'image'):
