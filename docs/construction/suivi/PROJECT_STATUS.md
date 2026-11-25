@@ -32683,3 +32683,31 @@ une card du monde Data n'a pas de modèle, ses pistes ne se bornent que depuis l
 Segmenter restent dans le monde Data (emplacement « à décider », `§10.7.3 ⑨`) ; les cards dérivées
 dont le pointage recouvre la plage (⑧) attendent le lien de composition (T7) ; la plage active à
 l'écran vient avec la zone temporelle, après les maquettes.
+
+## §PALIER — 2026-11-25, « TABLE COMMUNE DES ENTRÉES (T1) ; LES ROUGES D'ORIGINE DES JUMELLES PASSENT AU VERT » — 🔚 une app entre dans la table (déplacer ses colonnes)
+
+- ✅ 01c1c2880 (décision de Fabien du 25/11) : `common.models.ElementInput` — un port SANS colonne
+  garde ses fichiers dans la table, un rang par fichier ; une seule vérité par port (une colonne
+  existante reste la place du port) ; lecteur `port_fields` (`store_port_inputs`, `port_files`,
+  `port_value`). Table à part d'`InputProvenance` (« deux natures ⇒ deux tables »). Migration
+  `common` 0043 (création de table) appliquée. Gestes de card : retrait, son aperçu, duplication,
+  transfert ; purge de rétention (5c1521ca3, trouvée à la revérification) ; l'index des fichiers la
+  voit sans une ligne de plus (`FileField`).
+- ✅ Premier consommateur, le générateur : la vue « Ajouter » générée range chaque port secondaire
+  là où le lecteur le dit — composer_01 (partition), avatarizer_01 (avatar), synthesizer_01 (voix)
+  le perdaient en silence ; 93048d88d : la consigne va au champ déclaré du port de consigne
+  (`text_content`). Gestes nocturnes rejoués après relance du serveur : avatarizer_01 et
+  synthesizer_01 35 verts / 2 rouges contre 32 / 5 (`add` ×2, `attach_lot` passent) ; les deux
+  restants sont la glu de traitement non générée (marche B). Un rejeu fait pendant la relance de
+  12:08 (`ERR_CONNECTION_REFUSED`) a été jeté et refait.
+- ✅ Gardes : `tests_port_fields` (table : rangs, une colonne n'y écrit jamais, remplacement,
+  retrait annoncé, copie et index, transfert, purge, vue générée d'une app réelle ; consigne
+  générée) ; contre-épreuves rouges (I, J, K, L, O, P). HEAD vérifié en worktree (seuil corrigé,
+  ea52cca27 : un clone sans jumelles compte exactement 20 ports). `R245` (tables recopiées des
+  lignes de lot) ; `WAMA_CONCEPTS` : « entrée d'une card ».
+- 🔚 restent : une app entre dans la table (déplacer une colonne, `register_port_fields` qui
+  baisse) ; les lignes de lot et les outils de l'assistant rangent un port sans colonne dans la
+  table (aujourd'hui : écarté avec son motif / port non lu, gardé) ; la vue générée de forme
+  « dépôt » ne reçoit aucun port secondaire ; la clé d'unicité d'`InputProvenance` ignore l'app ;
+  les littéraux de JS de trois pages réelles ; la coupe d'un fichier (session sœur) en ligne de la
+  table ; glu marche B (synthesizer_01 processing).

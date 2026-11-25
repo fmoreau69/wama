@@ -798,7 +798,15 @@ natures est exclu aussi : décision du 2026-09-30, le vocabulaire des rôles sui
    désormais dans la colonne de leur app réelle). ⚠ Trou nommé, antérieur : la vue générée d'une
    app dont le DÉPÔT CRÉE l'élément (forme « dépôt », l'anonymizer) ne reçoit que son port de
    travail — ses ports secondaires ne sont lus que par la forme « attache / mixte » (bouton
-   « Ajouter »). ⏳ Ensuite : une app rejoint la table en
+   « Ajouter »). ✅ La purge de rétention emporte aussi les lignes et leurs fichiers (2026-11-25,
+   trouvé à la revérification : `retention._purge_instance` efface une card sans son retrait). ✅
+   La consigne de la vue générée va au champ que l'app déclare pour son port de consigne
+   (`views_gen.prompt_port_field`) : `avatarizer_01.add`, `avatarizer_01.attach_lot`,
+   `synthesizer_01.add` passent au vert — les rouges d'origine de ce chantier. ⏳ Deux portes
+   d'entrée ne rangent pas encore dans la table, mais ne perdent rien en silence : une ligne de lot
+   sur un port sans colonne est écartée avec son motif (`batch_parsers.line_file_inputs`), et un
+   tel port n'a pas d'argument d'outil de l'assistant — il entre dans `UNWIRED_PORTS_BUDGET`, que
+   tient une garde. ⏳ Ensuite : une app rejoint la table en
    déplaçant ses colonnes, une à une, derrière le lecteur (`register_port_fields` qui baisse).
    ⚠ Corrigé à la mise en œuvre : la table n'est PAS `InputProvenance` agrandie, comme écrit
    d'abord — la règle de `common/models.py`, « deux natures de données ⇒ deux tables » : la
