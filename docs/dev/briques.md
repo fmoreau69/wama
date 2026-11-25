@@ -3346,6 +3346,7 @@ Décide seul qui voit quel élément, sur DEUX axes qui se cumulent : le TIER du
 - **API publique** (24) :
   - `is_guest_account(user) -> bool` — Ce compte est-il un compte de SERVICE pour visiteur non connecté — le compte `anonymous`
   - `account_kind(user) -> str` — 'test' pour un compte de test (préfixe `wama_`) ou le compte système anonyme, 'person'
+  - `is_directory_account(user) -> bool` — Ce compte est-il celui d'une personne que l'ANNUAIRE authentifie ? Un compte de personne
   - `app_group(app_id)`
   - `registry_page_prefixes() -> list` — Les chemins (sans `/` aux bords) des pages que les registres DÉCLARENT — elles se lisent
   - `account_page_prefixes() -> list` — Parmi elles, les pages où un compte règle ce qui est À LUI (`Registry.account_page` — la
@@ -3437,6 +3438,29 @@ REGISTRE des registres : une page catalogue déclare la CLÉ de son registre et 
   - `task_state(task_id: str) -> dict` — État d'une actualisation lancée en Celery — de quoi faire patienter l'utilisateur.
   - `overview(with_coverage: bool=False) -> List[dict]` — Photo de tous les registres, pour l'UI et pour la documentation générée.
   - `run_startup() -> Dict[str, RefreshResult]` — Passe les registres marqués `on_startup`. Appelé une fois par processus.
+
+### Annuaire lu par unité et comptes pré-inscrits
+
+Retrouve les personnes d'une unité de l'annuaire, avec l'état de leur compte (sans compte, ou l'état lu par `moderation.account_states` : actif, pré-inscrit, en attente, désactivé), et PRÉ-INSCRIT celles qui n'en ont pas : compte inactif, sans mot de passe local ni rôle, créé par le moteur de connexion lui-même — un administrateur peut l'activer avant la première venue. Lecture seule côté annuaire, liste FERMÉE d'attributs, le minimum sur le compte (identité, unité principale), personne de prévenu ; la liaison est aussi celle de `org_sync`. Une lecture (`lookup`) et une borne par passage pour ses trois surfaces : la commande `preregister_accounts` (sans effet sans `--apply`), la page des utilisateurs (« Importer depuis l'annuaire », « Activer la sélection ») et l'assistant (`list_directory_accounts`, `preregister_accounts`, `activate_accounts`)
+
+- **Domicile** : `wama/accounts/directory.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
+- **Module** : L'annuaire lu PAR UNITÉ, et les comptes préparés AVANT une première connexion (2026-11-25, demande de Fabien). Doc : `PROFILES_PERMISSIONS.md §1.12`.
+- **API publique** (15) :
+  - `class DirectoryUnavailable(Exception)` — L'annuaire n'est pas réglé, ne répond pas ou refuse la question — motif pour l'opérateur.
+  - `connect()` — Une liaison ouverte à l'annuaire des réglages — LA liaison de toute lecture hors connexion
+  - `session(conn=None)` — La liaison reçue, ou une liaison ouverte pour l'occasion et refermée ensuite.
+  - `unit_record(attrs)` — Fiche d'unité → `{code, name, type, parent}`, ou None sans code. Le libellé d'abord, le
+  - `search_units(conn, filterstr: str) -> list` — Les fiches d'unité qui répondent à `filterstr`, dans la base des structures des réglages.
+  - `find_units(text: str, *, exact: bool=False, conn=None) -> list` — Les unités que désigne `text` — contenu dans le code ou le libellé, ou le code EXACT —
+  - `login_attribute() -> str` — L'attribut qui porte l'identifiant de connexion — lu du filtre de recherche des réglages
+  - `person_attributes() -> tuple` — La liste FERMÉE de ce qu'on lit d'une fiche de personne : son identifiant, les champs
+  - `people_of(codes, *, conn=None) -> list` — Les personnes rattachées à l'une des unités `codes` (à titre principal ou non), triées par
+  - `person_org(username: str, *, conn=None) -> dict` — Ce que l'annuaire porte AUJOURD'HUI du rattachement de `username` : les champs de profil
+  - `accounts_named(usernames) -> dict` — Les comptes WAMA de ces identifiants, `{identifiant en minuscules: compte}` — sans la casse,
+  - `with_account_state(people) -> list` — Chaque personne avec l'état de son compte WAMA (`state`) : `STATE_ABSENT` sans compte,
+  - `lookup(text: str='', codes=()) -> dict` — Les unités que désignent `text` (contenu dans le code ou le libellé) et `codes` (exacts),
+  - `state_labels() -> dict` — Clé → libellé de tout état que `with_account_state` peut rendre.
+  - `preregister(usernames, *, limit: int=PREREGISTER_LIMIT) -> dict` — Crée, INACTIF, le compte de chaque identifiant qui n'en a pas ; rend
 
 ### Arbre organisationnel depuis l'annuaire
 
@@ -3535,6 +3559,22 @@ Une vidéo qu'une card porte et que le navigateur ne lit pas (conteneur, profil 
   - `playback_state(rel: str)` — Ce qu'une page doit DIRE de la lecture d'un média qu'elle montre (2026-11-16, Fabien : « on
   - `backfill_playback_copies(dry_run: bool=False, audio_only: bool=False) -> dict` — Le RATTRAPAGE : les médias que des cards portaient AVANT le récepteur (aucun import ne
   - `register_playback_copy_receivers()` — Branche le récepteur sur tout modèle à champ fichier (le recensement COMMUN,
+
+### Données d'annuaire choisies par la personne, rôle demandé
+
+Ce que l'annuaire propose d'ajouter à un profil (unité principale, autres unités, établissement, qualité — `DIRECTORY_DATA`) se choisit AVEC la personne : le minimum à la création du compte, puis une pastille par donnée au panneau d'accueil de la première connexion et sur le profil. `writable` est la règle que la connexion applique (ajoutée = rafraîchie, retirée = effacée et ne revient pas, sans choix = rien de neuf) ; une valeur vient toujours de l'annuaire, jamais du navigateur. Un rôle métier se DEMANDE (`role_requests`, ligne `AccessGrant` de famille `role`, page et réponse communes aux demandes d'accès) ; le droit reste le groupe `role:<clé>`. Outils : `get_my_directory_data`, `set_my_directory_data`, `request_role`, `list_role_requests`, `answer_role_request`
+
+- **Domicile** : `wama/accounts/directory_consent.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
+- **Module** : Les données d'annuaire d'un profil sont ajoutées AVEC la personne (2026-11-25, décision de Fabien — `PROFILES_PERMISSIONS.md §1.12`).
+- **API publique** (8) :
+  - `applies(user) -> bool` — Ce compte reçoit-il des données de l'annuaire ? Un compte d'annuaire
+  - `pending(user) -> bool` — La personne doit-elle encore voir le panneau d'accueil ? Elle n'a jamais choisi.
+  - `choice(profile, key: str) -> str` — Le choix de la personne pour la donnée `key`.
+  - `writable(profile, org: dict, *, created: bool=False) -> dict` — Ce que l'annuaire vient de rendre (`org`, clés de `ldap._parse_org`) et que le profil a le
+  - `offer(user) -> dict` — Ce que l'annuaire porte AUJOURD'HUI pour ce compte (champs de profil), ou {} — annuaire
+  - `state(user, proposed: dict=None) -> list` — Une ligne par donnée, pour le panneau d'accueil, le profil et l'assistant :
+  - `decide(user, accept=(), decline=()) -> list` — Enregistre le choix de la personne : les données `accept` sont ajoutées (leur valeur LUE de
+  - `acknowledge(user) -> None` — La personne a VU le panneau et ne change rien (« Garder ainsi ») : on ne le lui remontre
 
 ### Durées lisibles
 
@@ -4504,6 +4544,14 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `grant_app_access(user, app: str, username: str) -> dict` — Open a sandbox app to a developer so they can use and test it — for its creator or an
   - `answer_app_access(user, request_id: int, accept: bool) -> dict` — Accept or refuse a developer's request to use a sandbox app — for its creator or an
   - `revoke_app_access(user, grant_id: int) -> dict` — Withdraw a developer's access to a sandbox app — for its creator or an administrator.
+  - `list_directory_accounts(user, unit: str) -> dict` — List the people of a unit of the institution's directory (a laboratory, a department, a team
+  - `preregister_accounts(user, unit: str='', usernames: list=None, confirm: bool=False) -> dict` — Prepare the WAMA accounts of people who have none, from the institution's directory: every
+  - `activate_accounts(user, usernames: list, confirm: bool=False) -> dict` — Activate inactive WAMA accounts (preregistered, pending or disabled) so that their holders can
+  - `get_my_directory_data(user) -> dict` — Tell which data of the institution's directory WAMA keeps on your own profile (main unit,
+  - `set_my_directory_data(user, add: list=None, remove: list=None) -> dict` — Add to your own profile, or remove from it, data of the institution's directory. A removed
+  - `request_role(user, role: str, reason: str='') -> dict` — Ask for a business role, which opens the applications of that trade. The administrators are
+  - `list_role_requests(user) -> dict` — List the requests for a business role: your own with their state, and for an administrator
+  - `answer_role_request(user, request_id: int, accept: bool) -> dict` — Accept or refuse a person's request for a business role — for an administrator
   - `clear_my_queue(user, app: str, confirm: bool=False) -> dict` — Empty the user's WHOLE queue for one app — every item, at once.
   - `add_item_to_media_library(user, app: str, pk: int, asset_type: str='', name: str='', output_format: str='') -> dict` — Keep the RESULT of one of the user's items in their media library, so it can be reused as
   - `add_file_to_rag(user, path: str, level: str='', org_unit: str='') -> dict` — Add one of the user's FILES to their RAG, so `memory_recall` (and the lab context of every
