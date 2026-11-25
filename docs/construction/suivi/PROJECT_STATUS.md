@@ -33114,3 +33114,24 @@ les rapports s'y listent depuis leur déclaration) — observation, pas un chant
 **🔚 Point d'entrée** : après la discussion juridique, reporter ce qui est tranché dans
 `LICENSING.md §7` et son §8 (la question des établissements à caractère administratif), puis
 régénérer le rapport.
+
+---
+
+## §CLÔTURE (fin) — 2026-11-25, « LICENCES ET DÉPÔT : en service, vérifié » — plus rien à relancer — 🔚 les décisions de Fabien après sa discussion juridique
+
+Les deux blocs précédents de cette session disaient « relancer gunicorn ». **C'est fait** (Fabien,
+22:11, soit après le dernier commit de code de la session) **et vérifié au navigateur sur le service** :
+19 étapes, aucune erreur de console ; le rapport servi porte les références relues et la sixième
+question ; la constellation des licences se monte pour un compte admis (47 licences, 7 familles,
+10 apps) et le refus est DIT pour un compte refusé ; les deux exports PDF sont produits. Le compte
+de test élevé le temps de la sonde a été rétabli à son niveau.
+
+À la question de Fabien « tout est bien consigné ? », mesuré dans HEAD : les quatre commits de la
+session, les deux blocs de passation, `LICENSING.md §10`, le relevé de `ROADMAP §20`, la ligne du
+mécanisme des rapports, les trois leçons des skills. Deux trous comblés à cette occasion, dans
+`LICENSING.md` : les deux questions nées de la relecture entrent dans la liste des décisions en
+attente (§7), et le §8 porte la réserve sur l'alinéa qui fonde la dévolution des droits à
+l'employeur public.
+
+**Reste** : rien du périmètre de la session. Les deux rouges nommés au bloc précédent
+appartiennent au chantier des comptes pré-inscrits (mécanismes non commités). Rien n'est poussé.
