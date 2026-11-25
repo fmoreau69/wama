@@ -40,7 +40,7 @@
 | **route** ✅ | le chemin tracé pour faire une chose (générer une app, installer un modèle) — on le suit, on ne passe pas à côté | `WAMA_APP_GENERATION_ROUTE.md` ; `AGENTS.md` § installation par la route |
 | **domaine / mode** ✅ | un domaine est un workflow distinct d'une app (un onglet) ; un mode en est une variante d'entrée | `wama/common/utils/app_modes.py` ; `MODES_QUEUE_UX.md §2bis` |
 | **port** ✅ | ce qu'une app ou une fonction reçoit et rend, typé | `WAMA_APP_GENERATION_ROUTE.md §10.1` |
-| **entrée d'une card** 🔄 | la VALEUR d'un port sur une card : lue par un seul lecteur (`port_fields`), gardée par une colonne héritée OU par une ligne de la table commune des entrées — un rang par fichier, sans colonne par port. ✅ la table et le lecteur ; ⏳ les apps qui y déplacent leurs colonnes, la coupe d'un fichier | `INPUT_MODEL_MATCHING.md §6.13` |
+| **entrée d'une card** 🔄 | la VALEUR d'un port sur une card : lue par un seul lecteur (`port_fields`), gardée par une colonne héritée OU par une ligne de la table commune des entrées — un rang par fichier, sans colonne par port. ✅ la table et le lecteur ; 🔄 les apps qui y déplacent leurs colonnes (1ʳᵉ le 2026-11-25 : l'avatar de l'avatarizer, photo OU objet 3D) ; ⏳ la coupe d'un fichier | `INPUT_MODEL_MATCHING.md §6.13` |
 | **surface** ✅ | un écran déclaré d'une app (page d'édition, onglet), composé de briques d'interface | `WAMA_APP_GENERATION_ROUTE.md §F3b` |
 
 ## 4. La file

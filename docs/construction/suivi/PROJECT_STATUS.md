@@ -32711,3 +32711,33 @@ l'écran vient avec la zone temporelle, après les maquettes.
   « dépôt » ne reçoit aucun port secondaire ; la clé d'unicité d'`InputProvenance` ignore l'app ;
   les littéraux de JS de trois pages réelles ; la coupe d'un fichier (session sœur) en ligne de la
   table ; glu marche B (synthesizer_01 processing).
+
+### §PALIER 2026-11-25 (après-midi) — PREMIÈRE APP DANS LA TABLE DES ENTRÉES : l'avatar de l'avatarizer
+
+> Session « valeur d'un port » (`INPUT_MODEL_MATCHING §6.13`, étage 3). Commits `0101a1ed2`,
+> `11e4d0899`. Demande de Fabien : « la première app dans la table […] aucune régression admise. On
+> ne perd rien, on ne casse rien. »
+
+- ✅ L'AVATAR (photo de MuseTalk OU objet 3D de TalkingHead) vit dans `common.ElementInput` ; la
+  colonne `avatar_upload` n'est plus lue qu'en REPLI (`register_port_fields(…, table=, legacy=)`),
+  vidée quand le port s'écrit. Lecteurs de déclarations : un NOM = un champ OU un port
+  (`port_fields.element_value`) — spec du volet, aperçu, réglages surveillés, entrée d'un
+  pipeline, nom d'entrée d'un lot. Entrée disputée par N ports : `port_fields.store_by_nature`.
+- ✅ Générateur : `inspector.port_legacy_fields` / `port_table` extraits, rejoués, contrôlés ;
+  `avatarizer_01` régénérée (`apps`, `views`). Corpus : `inspector.port_fields` reporté pour 9 apps
+  (jamais exporté depuis le 24/11 — mon oubli, soldé).
+- 🔴 **RELANCER** (gunicorn + workers) : la migration `avatarizer/0027_avatar_to_element_inputs`
+  (non versionnée, `.gitignore:18`) se joue à la relance. Jouée à blanc sur la base réelle :
+  6 avatars → 6 lignes, 0 perdu, retour identique. Le code tient AVANT comme APRÈS elle (repli).
+- Preuves de non-régression : 446 + 1041 + 119 tests verts ; tests copiés d'`avatarizer_01` : les
+  mêmes 8 rouges ; gestes nocturnes sur serveur jetable : avatarizer et `avatarizer_01` identiques
+  au relevé précédent (seul rouge `avatarizer.voice_library_pick`, en échec depuis le 19/11, et la
+  suite copiée de la jumelle) ; 8 contre-épreuves rouges.
+- 🔚 Restes nommés : l'outil de l'assistant ne mappe pas un port de la table vers son argument
+  (`port_argument_name` → `avatar_image_path`) — la ligne avatarizer d'`UNWIRED_PORTS_BUDGET`
+  reste jusque-là ; retrait de la colonne `avatar_upload` et de `legacy=` APRÈS la relance (migration
+  à part) ; app suivante dans la table ; restes antérieurs de §6.13 inchangés (lignes de lot sur
+  un port sans colonne, ports secondaires d'une vue générée « dépôt », clé d'`InputProvenance`
+  sans l'app, littéraux de JS, coupe, glu marche B, `translator_01`, `prompt_file`).
+  Coordination : la session « add_to » a pris le point 2 (`acd78bb29`, jumelles jugées sur la ligne
+  de leur source) ; le point 1 (`add_to_enhancer` unique) attend le go de Fabien.
