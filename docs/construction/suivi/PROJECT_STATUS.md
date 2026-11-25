@@ -33049,3 +33049,68 @@ Le compte de test élevé le temps des sondes a été rétabli à son niveau (v�
 
 **🔚 Point d'entrée** : ce que la discussion juridique aura tranché se reporte dans `LICENSING.md §7`
 (et son §1 point 3 si la liste officielle ne nomme pas l'AGPL), puis le rapport se régénère.
+
+---
+
+## §CLÔTURE (suite) — 2026-11-25, « LICENCES ET DÉPÔT : les restes de la session soldés » — commité — 🔚 relancer gunicorn, puis les décisions de Fabien après sa discussion juridique
+
+**Demande** (Fabien, après la première clôture) : terminer ce qui restait, puis refaire la clôture.
+Le bloc précédent listait trois limites de la session ; les trois sont soldées (`1ba1a2165`, 7 fichiers).
+
+**1. Les références juridiques, relues sur les TEXTES.** La première passe avait buté sur les sites
+officiels (lecture automatique refusée) ; lus cette fois directement — les codes consolidés et les
+pages des organismes. Table complète : `LICENSING.md §10`. L'essentiel :
+- la liste des licences admises pour le code des administrations nomme bien la GNU Affero General
+  Public License v3.0 : l'article du code des relations entre le public et l'administration nomme
+  la FAMILLE « GNU General Public License », la liste publiée par data.gouv.fr, à laquelle il
+  renvoie, nomme l'AGPL ; aucune licence Creative Commons n'y figure pour le logiciel
+  (`LICENSING.md §1` point 3 précisé) ;
+- Creative Commons écrit elle-même qu'elle déconseille ses licences pour le logiciel (cité) ;
+- CeCILL 2.1, les articles de l'AGPL et ceux du Code de la propriété intellectuelle : conformes ;
+- les coûts du dépôt probatoire et de l'enveloppe Soleau, « à confirmer », sont remplacés par ceux
+  des grilles publiques.
+
+**2. Deux questions nées de la relecture**, ajoutées au rapport, aux diapositives (six questions sur
+les titulaires et le dépôt, au lieu de cinq) et à `LICENSING.md §10` :
+- l'alinéa du Code de la propriété intellectuelle qui donne les droits à l'employeur public vise
+  les « établissements publics à caractère administratif » ; une université est un établissement à
+  caractère scientifique, culturel et professionnel. C'est la lecture que pratiquent les
+  établissements, et elle conditionne tout le §8 de `LICENSING.md` : à faire confirmer ;
+- le régime des licences du code administratif s'applique-t-il à un établissement d'enseignement
+  supérieur et de recherche ? La page officielle dit que l'obligation ne vaut que lorsque
+  l'administration peut établir elle-même la licence.
+
+**3. Le mécanisme « Rapports publiés »** dit qu'un rapport peut être transversal — registre, table des
+mécanismes, doc des briques : ma seule ligne dans ces trois fichiers co-édités.
+
+**Mesuré dans cette suite de session**
+- Rapport régénéré par son script ; rendu sur un serveur jetable (arrêté par son PID) : 19 étapes,
+  aucune erreur de console, aucun nouveau débordement.
+- Tests, sous WSL, après le dernier commit : **398 joués, 2 rouges — aucun de cette session.**
+  `tests_docs_catalog.DocDeveloppeurTest.test_chaque_mecanisme_a_sa_section` (252 sections pour 253
+  mécanismes) et `tests_mecanismes_scan.OneFileOneOwnerTest.test_a_shared_file_is_counted_by_name_by_one_owner_at_most`
+  (le script de synchronisation de l'annuaire compté par deux mécanismes) : tous deux nomment les
+  mécanismes `directory_accounts` et `directory_consent`, ajoutés à `mecanismes.py` par le chantier
+  des comptes pré-inscrits et pas encore commités (`git diff` du registre). Ils étaient verts une
+  heure plus tôt, avant cet ajout. À solder par ce chantier avant son commit.
+- `check_docs` : 2 cassées, 1 périmée — les mêmes qu'à la première clôture, aucune de cette session.
+- `doc_facts --check` : la table des mécanismes et la doc des briques sont périmées par le travail
+  non commité d'autres sessions (huit lignes de la table ; ma ligne, elle, est identique dans le
+  registre et dans la doc — vérifié en produisant la table sans l'écrire).
+
+**Ce qui attend**
+- 🔴 **Relancer gunicorn** : le service lit ses gabarits une fois ; il montre encore le rapport et
+  les diapositives d'avant cette suite (et le code d'avant les remaniements de la revérification).
+  Aucun worker à relancer.
+- Rien n'est poussé.
+- Pendings hérités, inchangés (`ROADMAP §20`, `LICENSING.md §7`) : déclaration à la valorisation de
+  l'établissement, modèle interdit dans l'UE toujours au catalogue, dépôt, marque, lien « Source »
+  de l'interface, historique du dépôt à aborder de vive voix.
+
+**Reste à cette session** : rien de son périmètre. Le rapport est une photo datée, à régénérer
+quand l'inventaire bouge ; le menu de l'accueil garde ses présentations écrites à la main (seuls
+les rapports s'y listent depuis leur déclaration) — observation, pas un chantier ouvert.
+
+**🔚 Point d'entrée** : après la discussion juridique, reporter ce qui est tranché dans
+`LICENSING.md §7` et son §8 (la question des établissements à caractère administratif), puis
+régénérer le rapport.
