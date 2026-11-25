@@ -222,6 +222,26 @@ class ArrivalThroughTheAssistantTest(_ArrivalMedia, TestCase):
         self.assertIn('item_id', out)
         self.assertNotIn('item_ids', out)
 
+    def test_files_of_two_domains_arrive_as_one_batch_per_surface(self):
+        """The enhancer's one creator (2026-11-25) : two images and two sounds in ONE call are born
+        on two element models — one batch on each, each element followed under its surface, each
+        batch launched under it."""
+        from wama import tool_api as T
+        from wama.common.utils.detail_registry import DetailRegistry
+        wav = b'RIFF\x24\x00\x00\x00WAVEfmt ' + b'\0' * 32
+        files = [self._temp('a.png', b'x'), self._temp('a.wav', wav),
+                 self._temp('b.png', b'x'), self._temp('b.wav', wav)]
+        out = T.relay_next_step('add_to_enhancer', T.execute_tool(
+            'add_to_enhancer', {'file_path': files}, self.user, model_call=True))
+        self.assertEqual(4, out.get('count'), out)
+        surfaces = [surface for surface, _ in T.items_of_step('add_to_enhancer', {}, out)]
+        self.assertEqual(['enhancer', 'audio_enhancer', 'enhancer', 'audio_enhancer'], surfaces)
+        self.assertEqual({'enhancer', 'audio_enhancer'}, {b['app'] for b in out['batches']})
+        for surface, pk in T.items_of_step('add_to_enhancer', {}, out):
+            self.assertTrue(DetailRegistry.get(surface)['model'].objects.filter(pk=pk).exists())
+        self.assertIn("launch_batch(app='audio_enhancer'", out['next_step_hint'])
+        self.assertIn('`start_audio_enhancer`', out['next_step_hint'])
+
 
 class ArrivalArgumentsAreDeclaredTest(TestCase):
     """Les arguments qui prennent plusieurs fichiers sont ceux où arrive un fichier de TRAVAIL de la

@@ -161,11 +161,11 @@ _CATALOG_KEY_PATTERNS = (
 
 
 def _surface_renames(src: str, dst: str) -> list:
-    """`[(surface de la source, surface de la jumelle)]` — une par préfixe de routes que des
-    domaines DÉCLARENT (`app_modes.route_prefixes`), par LA règle `app_modes.surface_name`."""
+    """`[(surface de la source, surface de la jumelle)]` — la règle du bac à sable
+    (`sandbox.surface_pairs`), que lisent aussi les registres qui servent une jumelle."""
     try:
-        from wama.common.utils.app_modes import route_prefixes, surface_name
-        return [(surface_name(src, p), surface_name(dst, p)) for p in route_prefixes()]
+        from wama.common.sandbox import surface_pairs
+        return surface_pairs(src, dst)
     except Exception:
         return []
 

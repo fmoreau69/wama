@@ -1043,6 +1043,57 @@ def choice_values(p) -> List[str]:
             for c in (_pget(p, 'choices') or [])]
 
 
+def offered_values(p) -> List[str]:
+    """Les valeurs qu'un select PROPOSE : ses `choices`, sinon celles de ses `option_groups`
+    (`[(groupe, [(valeur, libellé)…])…]`), sans doublon — ce qu'un lecteur doit pouvoir dire, quand
+    `choice_values` ne lit que la liste qui fait refuser."""
+    values = choice_values(p)
+    for _group, options in _pget(p, 'option_groups') or []:
+        values += [str(o[0]) if isinstance(o, (list, tuple)) else str(o) for o in options]
+    return list(dict.fromkeys(values))
+
+
+def schema_union(labelled_schemas) -> List[dict]:
+    """La RÉUNION de plusieurs schémas, en dicts et dans l'ordre — ce qu'annonce un geste qui sert
+    plusieurs domaines, chacun avec son schéma (`tool_api.tool_param_schema` : l'outil d'ajout
+    unique d'une app, 2026-11-25). Reçoit `[(libellé, schéma)]`, le libellé nommant le domaine.
+
+    Un réglage que deux schémas déclarent différemment n'est jamais annoncé plus STRICT qu'aucun
+    d'eux : ses `choices` se réunissent quand tous en ont, sinon il n'en annonce aucune ; une
+    condition d'affichage propre à un domaine (`show_if`) tombe ; son aide dit, domaine par domaine,
+    l'aide ou les valeurs de chacun (« Audio : mp3, wav… »). Le contrôle exact reste celui du
+    domaine qui reçoit (`schema_refusals` sur son schéma)."""
+    merged, order, versions = {}, [], {}
+    for label, schema in labelled_schemas:
+        for p in schema or []:
+            entry = p.to_dict() if hasattr(p, 'to_dict') else dict(p)
+            name = entry.get('name')
+            versions.setdefault(name, []).append((label, entry))
+            if name not in merged:
+                merged[name] = dict(entry)
+                order.append(name)
+    for name, found in versions.items():
+        if len(found) < 2 or all(entry == found[0][1] for _, entry in found):
+            continue
+        known = merged[name]
+        if all(entry.get('choices') for _, entry in found):
+            known['choices'] = list({choice_values({'choices': [c]})[0]: c
+                                     for _, entry in found for c in entry['choices']}.values())
+        else:
+            known.pop('choices', None)
+        known.pop('option_groups', None)
+        if any(entry.get('show_if') != known.get('show_if') for _, entry in found):
+            known.pop('show_if', None)
+        helps = [entry.get('help') or '' for _, entry in found]
+        parts = [helps[0]] if len(set(helps)) == 1 else \
+            [f"{label} : {h}" for (label, _), h in zip(found, helps) if h]
+        if len({tuple(offered_values(entry)) for _, entry in found}) > 1:
+            parts += [f"{label} : {', '.join(offered_values(entry))}" for label, entry in found
+                      if offered_values(entry)]
+        known['help'] = ' — '.join(p for p in parts if p)
+    return [merged[name] for name in order]
+
+
 def catalog_options(p) -> List[Tuple[str, str]]:
     """[(valeur, libellé)] d'un select tiré du CATALOGUE (`options_source='catalog'`), lus sur le
     domaine qu'il DÉCLARE (`options_query`), « auto » en tête quand il l'offre (`options_auto`).

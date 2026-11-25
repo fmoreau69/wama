@@ -1014,6 +1014,21 @@ class TwinRegistriesInjectedTest(SimpleTestCase):
         self.assertEqual({'id': 'id'}, reg['converter_01']['status_fields'], 'non-paths untouched')
         self.assertEqual('wama.converter.models.Job', reg['converter']['model'], 'source untouched')
 
+    def test_a_twin_gets_the_entries_of_its_source_domain_surfaces(self):
+        """A domain with its own element model has its own SURFACE (`audio_enhancer`) : the twin
+        carries the same models, so it gets that entry too, under its own surface (2026-11-25 —
+        `enhancer_01`'s audio had neither start nor status at the assistant)."""
+        from wama.common.sandbox import surface_pairs
+        source, twin = surface_pairs('converter', 'converter_01')[0]
+        reg = self._inject({'converter': {'model': 'wama.converter.models.Job'},
+                            source: {'model': 'wama.converter.models.Other'}})
+        self.assertEqual('wama.converter_01.models.Other', reg[twin]['model'])
+        self.assertEqual('wama.converter.models.Other', reg[source]['model'], 'source untouched')
+        kept_out = self._inject({'converter': {'model': 'wama.converter.models.Job'},
+                                 source: {'model': 'wama.converter.models.Other'}},
+                                resolves=lambda dotted: not dotted.endswith('.Other'))
+        self.assertNotIn(twin, kept_out, 'what the twin does not define is not injected')
+
     def test_a_workers_module_follows_the_generated_tasks(self):
         """The generated `tasks.py` REPLACES `workers.py` in a twin (`app_sandbox substitute`)."""
         reg = self._inject({'converter': {'task': 'wama.converter.workers.convert'}})

@@ -233,10 +233,31 @@ class EveryToolHasItsOriginTest(SimpleTestCase):
 
 
 class EveryToolAnnouncesItsSurfaceSettingsTest(SimpleTestCase):
-    """A tool of a DOMAIN surface (`add_to_audio_enhancer` : the enhancer's audio domain) announces
+    """A tool of a DOMAIN surface (`start_audio_enhancer` : the enhancer's audio domain) announces
     its signature and the settings of ITS domain — never those of another domain of the app
     (2026-11-18 : the audio tool announced and took five IMAGE settings of the enhancer). Read
-    against the domain declarations (`app_modes`), for every tool whose surface is not its app."""
+    against the domain declarations (`app_modes`), for every tool whose surface is not its app.
+    The app's ONE creator (2026-11-25) announces the settings of every domain it receives a file
+    in, and nothing else."""
+
+    def test_a_creator_announces_the_settings_of_every_domain_it_receives_and_only_them(self):
+        import inspect
+
+        from wama.common.utils.app_modes import arrival_domains, domain_schema
+        described = T.tool_descriptions()
+        seen = []
+        for name in T.TOOL_REGISTRY:
+            app = T.app_id_for_tool(name)
+            if T.tool_role(name) != 'add' or not app or len(arrival_domains(app)) < 2:
+                continue
+            served = {p['name'] if isinstance(p, dict) else p.name
+                      for d in arrival_domains(app) for p in domain_schema(app, d)}
+            signature = set(inspect.signature(T.TOOL_REGISTRY[name]).parameters)
+            with self.subTest(tool=name):
+                self.assertEqual(set(), served - set(described[name]['args']))
+                self.assertEqual(set(), set(described[name]['args']) - served - signature)
+            seen.append(name)
+        self.assertIn('add_to_enhancer', seen)
 
     def test_a_domain_tool_announces_only_its_domain_settings(self):
         import inspect

@@ -3071,6 +3071,30 @@ Fabien. Mesuré d'abord :
    L'ASSISTANT »`. Gardes : `tests_arrival_consolidation.ArrivalThroughTheAssistantTest`,
    `ArrivalArgumentsAreDeclaredTest`, `tests_card_lot_from_files`, `tests_score_input`,
    `tests_born_app_tools` (une consigne en liste).
+   ✅ **Porté le 2026-11-25** (la session de la table des entrées l'a rendu : il ne touche pas
+   ses tables ; `REMOVAL_LEDGER R246`). `add_to_enhancer` est le seul créateur de l'enhancer :
+   le domaine qui reçoit est celui que l'appel nomme (`domain`, pour l'audio d'une plateforme
+   vidéo), sinon celui de la nature du fichier (`app_modes.arrival_domain`) ; l'élément naît sur le
+   modèle de la SURFACE du domaine (`DetailRegistry`), par la fonction de naissance de sa card, et
+   le résultat rend cette surface (`surface`). L'outil d'ajout d'une app annonce la RÉUNION des
+   schémas des domaines où arrive un fichier (`app_modes.arrival_domains`,
+   `param_schema.schema_union` : jamais plus stricte qu'aucun d'eux, l'aide d'un réglage qui
+   diffère nomme les valeurs de chaque domaine) ; le schéma du domaine qui reçoit s'applique une
+   fois le fichier reçu (`tool_api._domain_settings` : un réglage de l'autre domaine est refusé,
+   jamais jeté). Le suivi lit la surface rendue (`created_surface` : `items_of_step`, les relais
+   du curseur et de l'étape suivante — `start_audio_enhancer` —, le regroupement à l'arrivée, un
+   lot par surface). La jumelle `enhancer_01`, qui n'avait AUCUN créateur audio, a son ajout
+   re-ciblé et la triade de sa surface audio (`sandbox.surface_pairs`, lu aussi par la copie
+   d'une jumelle). Mesuré avant / après sur les 175 outils : quatre annonces changent —
+   l'enhancer et sa jumelle (le domaine, les réglages audio), l'anonymizer et sa jumelle
+   (`ocr_scanned_pages`, le réglage du domaine document qu'il traitait sans l'annoncer). Reste
+   au Studio : le nœud de l'enhancer ne sert que l'image / vidéo — un nœud PAR DOMAINE, décidé le
+   2026-11-14 (`ROUTE §11 #42` ⑥), n'est pas construit ; le port `work_audio` garde sa ligne de
+   `UNWIRED_PORTS_BUDGET`. Gardes : `tests_tool_item_contract.OneCreatorForEveryDomainTest` et
+   ses deux contrats génériques (une surface servie a son détail, son lancement, son suivi ;
+   aucune surface n'a de créateur à elle), `tests_arrival_consolidation` (deux domaines, un lot
+   par surface), `tests_mcp_server` (la réunion), `tests_tool_api_coverage` (ce qu'annonce un
+   créateur), `tests_sandbox_coherence` (les surfaces d'une jumelle) — dix contre-épreuves rouges.
 
    ~~⏳ Les routes d'app ne sont pas toutes des gestes […] un outil « les choix d'un réglage » les
    ferait toutes~~ — **sans objet, mesuré le 2026-11-17** : `list_media_assets` rend les voix et

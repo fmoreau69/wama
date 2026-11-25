@@ -784,6 +784,19 @@ def arrival_domain(app: str, path) -> str | None:
     return domain_for_category(app, category_of_path(path))
 
 
+def arrival_domains(app: str) -> list:
+    """Les domaines qui REÇOIVENT un fichier arrivé hors de leur card (`arrival_domain`), dans
+    l'ordre déclaré : ceux qu'au moins une extension DÉCLARÉE par l'app (`input_extensions`)
+    rejoint. Ce que sert l'outil d'ajout unique de l'app (`tool_api.tool_param_schema`, 2026-11-25 :
+    l'enhancer en avait deux, l'audio à part). Une app qui ne déclare aucune extension n'en a
+    aucun ; un domaine qu'aucun fichier ne désigne n'y est pas (la vidéo de l'imager se désigne
+    par son mode : une image arrivée va au domaine image)."""
+    from wama.common.app_registry import APP_CATALOG
+    found = {arrival_domain(app, f"x.{str(e).lstrip('.')}")
+             for e in (APP_CATALOG.get(app) or {}).get('input_extensions') or ()}
+    return [d.get('id') for d in get_domains(app) if d.get('id') in found]
+
+
 def surface_file_nature(app: str, surface: str, path) -> str | None:
     """La nature d'un fichier qui entre par une SURFACE (la vue d'upload d'une famille de routes,
     l'outil `add_to_<surface>`) : celle du premier des domaines qu'elle sert à le prendre, None

@@ -84,6 +84,51 @@ class SchemaArgumentsTest(SimpleTestCase):
                         self.assertTrue(set(prop['enum']) <= set(choice_values(index.get(arg))))
         self.assertGreater(vus, 0, "aucun enum mesuré : la garde tournerait à vide")
 
+    def test_the_union_of_schemas_opens_a_setting_open_in_any_domain_whatever_the_order(self):
+        """The rule itself, on declared schemas : the counter-proof of the catalogue test stayed
+        green — in the enhancer the OPEN domain comes first, so a union keeping the first
+        `choices` passed. Both orders, and the help that names each domain's values."""
+        from wama.common.utils.param_schema import choice_values, schema_union
+        closed = {'name': 'fmt', 'type': 'select', 'choices': [['mp3', 'MP3']]}
+        grouped = {'name': 'fmt', 'type': 'select', 'option_groups': [['Image', [['png', 'PNG']]]]}
+        for pair in (('Audio', [closed]), ('Image', [grouped])), (('Image', [grouped]), ('Audio', [closed])):
+            with self.subTest(order=[label for label, _ in pair]):
+                union = schema_union(pair)[0]
+                self.assertEqual([], choice_values(union))
+                self.assertIn('Audio : mp3', union['help'])
+                self.assertIn('Image : png', union['help'])
+        both = schema_union([('A', [closed]), ('B', [dict(closed, choices=[['wav', 'WAV']])])])[0]
+        self.assertEqual(['mp3', 'wav'], choice_values(both))
+
+    def test_a_creator_of_several_domains_is_never_stricter_than_any_of_them(self):
+        """The app's one creator announces the UNION of its domains' schemas (2026-11-25,
+        `param_schema.schema_union`) : every value one domain offers passes the announced gate —
+        `png` for an image, `flac` for a sound. The exact gate is the receiving domain's."""
+        from wama.common.utils.app_modes import arrival_domains, domain_schema
+        from wama.common.utils.param_schema import choice_values
+        from wama.tool_api import app_id_for_tool, tool_param_schema, tool_role
+        seen = 0
+        for name in TOOL_REGISTRY:
+            app = app_id_for_tool(name)
+            if tool_role(name) != 'add' or not app or len(arrival_domains(app)) < 2:
+                continue
+            announced = {p['name']: p for p in tool_param_schema(name)}
+            versions = {}
+            for domain in arrival_domains(app):
+                for p in domain_schema(app, domain):
+                    entry = p if isinstance(p, dict) else p.to_dict()
+                    versions.setdefault(entry['name'], []).append(set(choice_values(entry)))
+            for setting, offered in versions.items():
+                gate = set(choice_values(announced[setting]))
+                with self.subTest(tool=name, setting=setting):
+                    if not all(offered):
+                        # Open in one domain (no `choices`) : the union is open too.
+                        self.assertEqual(set(), gate)
+                    else:
+                        self.assertLessEqual(set().union(*offered), gate)
+                seen += sum(bool(o) for o in offered)
+        self.assertGreater(seen, 0, 'no domain choice measured : the guard would run empty')
+
 
 class OneRuleForCatalogueSelectsTest(TestCase):
     """2026-10-07 (Fabien: « une route unique ») — `options_domain` is gone. A select drawn from

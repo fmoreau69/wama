@@ -2716,7 +2716,12 @@ MECHANISMS = (
               "sans la porte (`domain_nature`), et une SOURCE pas encore arrivée dit sa nature par "
               "son adresse (`surface_source_nature`, 2026-11-10) ; les lots d'une page se rangent "
               "par domaine par `batch_common.batches_by_domain` (2026-11-15 : le premier élément "
-              "du lot dit son domaine, la règle de la card — anonymizer, imager)",
+              "du lot dit son domaine, la règle de la card — anonymizer, imager) ; l'outil d'ajout "
+              "de l'assistant est UN par app et sert tous les domaines où arrive un fichier "
+              "(`arrival_domains`, 2026-11-25 : l'enhancer avait un second créateur pour l'audio), "
+              "la réunion de leurs schémas annoncée (`param_schema.schema_union`), celui du domaine "
+              "qui reçoit appliqué ; une jumelle reçoit les surfaces de domaine de sa source "
+              "(`sandbox.surface_pairs`)",
               'wama/common/utils/app_modes.py', 'docs/construction/ui/MODES_QUEUE_UX.md',
               annexes=('wama/common/static/common/js/wama-modes.js',
                        'wama/common/templates/common/_domain_tabs.html')),

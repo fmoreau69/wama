@@ -72,10 +72,35 @@ class EveryFamilyHasItsDetailAndItsStatusTest(SimpleTestCase):
                 self.assertIn(f'get_{family}_status', tool_api.TOOL_REGISTRY)
 
     def test_the_family_tells_apart_two_models_of_one_app(self):
-        self.assertEqual('enhancer', tool_api.app_id_for_tool('add_to_audio_enhancer'))
-        self.assertEqual('audio_enhancer', tool_api.tool_family('add_to_audio_enhancer'))
+        self.assertEqual('enhancer', tool_api.app_id_for_tool('start_audio_enhancer'))
+        self.assertEqual('audio_enhancer', tool_api.tool_family('start_audio_enhancer'))
         self.assertNotEqual(DetailRegistry.get('enhancer')['model'],
                             DetailRegistry.get('audio_enhancer')['model'])
+
+    def test_every_surface_a_creator_serves_has_its_detail_and_its_status_tool(self):
+        """One creator per app serves EVERY domain a file arrives in (2026-11-25 : the enhancer had
+        a second creator for its audio) — each domain's surface gives the element's model and the
+        tool that reads it, twins included (`sandbox.surface_pairs`)."""
+        from wama.common.utils.app_modes import arrival_domains, domain_surface
+        checked = []
+        for name in sorted(_creators()):
+            app = tool_api.app_id_for_tool(name)
+            for domain in arrival_domains(app):
+                surface = domain_surface(app, domain)
+                with self.subTest(tool=name, surface=surface):
+                    self.assertIsNotNone(DetailRegistry.get(surface), f'no detail adapter for {surface}')
+                    self.assertIn(f'start_{surface}', tool_api.TOOL_REGISTRY)
+                    self.assertIn(f'get_{surface}_status', tool_api.TOOL_REGISTRY)
+                checked.append(surface)
+        self.assertIn('audio_enhancer', checked)
+
+    def test_no_surface_of_an_app_has_a_creator_of_its_own(self):
+        """`add_to_<surface>` beside `add_to_<app>` was the porting leftover of `ROUTE §11 #42` ⑥ :
+        a domain is a level of the app's structure, its file arrives by the app's creator."""
+        from wama.common.utils.app_modes import surface_app
+        doubles = [name for name in tool_api.TOOL_REGISTRY if tool_api.tool_role(name) == 'add'
+                   and surface_app(name[len('add_to_'):]) != name[len('add_to_'):]]
+        self.assertEqual([], doubles)
 
     def test_a_historical_creator_has_the_family_of_its_app(self):
         self.assertEqual('imager', tool_api.tool_family('create_image'))
@@ -129,15 +154,22 @@ class ItemsOfStepTest(SimpleTestCase):
         self.assertEqual([], tool_api.items_of_step(
             'install_model', {'model_key': 'm'}, {'started': True, 'model_key': 'm', 'task_id': 't'}))
 
-    def test_the_family_of_an_audio_creation_is_its_own(self):
+    def test_the_family_of_a_creation_is_the_surface_it_returns(self):
+        """The app's one creator returns the SURFACE of what it created (`created_surface`) : an
+        audio received by the enhancer is followed as an audio element, never as an image."""
         self.assertEqual([('audio_enhancer', 5)], tool_api.items_of_step(
-            'add_to_audio_enhancer', {}, {'audio_enhancement_id': 5, 'item_id': 5}))
+            'add_to_enhancer', {}, {'audio_enhancement_id': 5, 'item_id': 5,
+                                    'surface': 'audio_enhancer'}))
+        # Counter-check : a surface of ANOTHER app is not believed — the tool's own family stays.
+        self.assertEqual([('enhancer', 5)], tool_api.items_of_step(
+            'add_to_enhancer', {}, {'item_id': 5, 'surface': 'anonymizer'}))
 
 
-class AudioCreationReturnsItemIdTest(TestCase):
-    """The one family that did not return the key — measured by a REAL call, not by reading."""
+class OneCreatorForEveryDomainTest(TestCase):
+    """The enhancer's two domains by ONE creator, measured by REAL calls : the domain read from
+    the file's nature (or named), the settings judged on the schema of the domain that receives."""
 
-    def test_add_to_audio_enhancer_returns_item_id(self):
+    def setUp(self):
         import shutil
         import tempfile
         from pathlib import Path
@@ -147,11 +179,63 @@ class AudioCreationReturnsItemIdTest(TestCase):
 
         root = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, root, True)
-        with override_settings(MEDIA_ROOT=root):
-            user = get_user_model().objects.create_user('audio_item_id', password='x')
-            sound = Path(root) / 'users' / str(user.pk) / 'temp' / 'voix.wav'
-            sound.parent.mkdir(parents=True)
-            sound.write_bytes(b'RIFF\x24\x00\x00\x00WAVEfmt ' + b'\0' * 32)
-            result = tool_api.add_to_audio_enhancer(user, f'users/{user.pk}/temp/voix.wav')
+        setting = override_settings(MEDIA_ROOT=root)
+        setting.enable()
+        self.addCleanup(setting.disable)
+        self.user = get_user_model().objects.create_superuser('one_creator', password='x')
+        self.temp = Path(root) / 'users' / str(self.user.pk) / 'temp'
+        self.temp.mkdir(parents=True)
+
+    def _file(self, name, content=b'RIFF\x24\x00\x00\x00WAVEfmt ' + b'\0' * 32):
+        (self.temp / name).write_bytes(content)
+        return f'users/{self.user.pk}/temp/{name}'
+
+    def test_an_audio_file_is_born_in_the_audio_domain_with_its_item_id(self):
+        result = tool_api.execute_tool('add_to_enhancer', {'file_path': self._file('voix.wav')},
+                                       self.user, model_call=True)
         self.assertNotIn('error', result)
+        self.assertEqual(('audio_enhancer', 'audio'), (result['surface'], result['domain']))
         self.assertEqual(result['audio_enhancement_id'], result['item_id'])
+        model = DetailRegistry.get('audio_enhancer')['model']
+        self.assertTrue(model.objects.filter(pk=result['item_id'], user=self.user).exists())
+
+    def test_an_image_file_is_born_in_the_image_domain(self):
+        result = tool_api.execute_tool('add_to_enhancer', {'file_path': self._file('photo.png', b'x')},
+                                       self.user, model_call=True)
+        self.assertNotIn('error', result)
+        self.assertEqual(('enhancer', 'image', result['item_id']),
+                         (result['surface'], result['media_type'], result['enhancement_id']))
+
+    def test_a_setting_of_the_other_domain_is_turned_down_and_nothing_is_created(self):
+        model = DetailRegistry.get('audio_enhancer')['model']
+        before = model.objects.count()
+        result = tool_api.execute_tool('add_to_enhancer', {'file_path': self._file('voix.wav'),
+                                                           'upscale_factor': 4},
+                                       self.user, model_call=True)
+        self.assertIn('upscale_factor', result.get('error', ''))
+        self.assertEqual(before, model.objects.count())
+
+    def test_a_value_of_the_receiving_domain_is_judged_on_its_own_schema(self):
+        """`output_format` exists in both domains : `png` is offered to an image, never to an
+        audio — the announcement is the union, the gate is the receiving domain's."""
+        result = tool_api.execute_tool('add_to_enhancer', {'file_path': self._file('voix.wav'),
+                                                           'output_format': 'png'},
+                                       self.user, model_call=True)
+        self.assertIn('output_format', result.get('error', ''))
+        result = tool_api.execute_tool('add_to_enhancer', {'file_path': self._file('voix2.wav'),
+                                                           'output_format': 'flac'},
+                                       self.user, model_call=True)
+        self.assertNotIn('error', result)
+        model = DetailRegistry.get('audio_enhancer')['model']
+        self.assertEqual('flac', model.objects.get(pk=result['item_id']).output_format)
+
+    def test_a_named_domain_that_does_not_take_the_file_turns_it_down(self):
+        result = tool_api.execute_tool('add_to_enhancer', {'file_path': self._file('photo.png', b'x'),
+                                                           'domain': 'audio'},
+                                       self.user, model_call=True)
+        self.assertIn('error', result)
+
+    def test_the_next_step_is_the_start_of_the_surface_created(self):
+        result = tool_api.relay_next_step('add_to_enhancer', tool_api.execute_tool(
+            'add_to_enhancer', {'file_path': self._file('voix.wav')}, self.user, model_call=True))
+        self.assertEqual('start_audio_enhancer', result['next_step'])

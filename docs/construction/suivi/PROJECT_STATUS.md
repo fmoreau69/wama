@@ -32900,3 +32900,35 @@ domaine par une AUTRE surface que la sienne : l'enhancer (10 extensions audio, q
   session de l'anonymizer).
 - Reste de la session soldé ailleurs : `avatarizer_01.add` / `attach_lot` verts depuis `93048d88d`
   (session de la table des entrées).
+
+## §PALIER 2026-11-25 (suite), « UN CRÉATEUR PAR APP : l'enhancer reçoit ses deux domaines par `add_to_enhancer` » — commit local, non poussé — 🔚 le nœud du Studio par domaine (`ROUTE §11 #42` ⑥, décidé le 2026-11-14) ; l'imager vidéo à l'assistant
+
+Go de Fabien (« lance le portage de l'enhancer en te coordonnant […] sans rien réinventer, schéma-driven »),
+la session de la table des entrées l'ayant rendu (elle n'a rien en cours dans `tool_api.py`, `app_modes.py`,
+`enhancer/views.py` — mesuré par elle à `git diff --numstat HEAD`).
+- ✅ `add_to_audio_enhancer` retiré (`REMOVAL_LEDGER R246`) ; `add_to_enhancer` reçoit dans le domaine nommé
+  (`domain`, l'audio d'une plateforme vidéo), sinon celui de la nature du fichier (`arrival_domain`, la règle
+  de l'import ③), fait naître l'élément sur le modèle de la SURFACE du domaine par la fonction de naissance de
+  sa card, et rend cette surface. Suivi, relais du curseur et de l'étape suivante, regroupement à l'arrivée (un
+  lot par surface) la lisent (`created_surface`). Annonce : la réunion des schémas des domaines d'arrivée
+  (`app_modes.arrival_domains`, `param_schema.schema_union`) ; porte exacte : le schéma du domaine qui reçoit
+  (`tool_api._domain_settings`, un réglage de l'autre domaine refusé, la validation des selects de catalogue
+  écrite une fois au lieu de deux). `enhancer_01` : créateur audio et triade audio (`sandbox.surface_pairs`,
+  lu aussi par `app_sandbox._surface_renames`).
+- ✅ Avant / après sur les 175 outils (HEAD chargé à côté de l'arbre) : quatre annonces changent, toutes
+  visées — l'enhancer et sa jumelle ; l'anonymizer et sa jumelle gagnent `ocr_scanned_pages`, le réglage du
+  domaine document qu'ils traitaient sans l'annoncer (même règle, pas un cas).
+- ✅ Gardes étendues (aucun fichier de test neuf) : `tests_tool_item_contract` (appels réels des deux domaines,
+  refus d'un réglage de l'autre domaine, porte du domaine qui reçoit, étape suivante ; deux contrats génériques :
+  une surface servie a détail, lancement, suivi — aucune surface n'a de créateur à elle), `tests_arrival_consolidation`
+  (deux images et deux sons en un appel : deux lots), `tests_mcp_server` (réunion jamais plus stricte, sur le
+  catalogue et sur un cas déclaré — la contre-épreuve sur le seul catalogue était restée VERTE, le domaine ouvert
+  venant en premier), `tests_tool_api_coverage`, `tests_sandbox_coherence`. Dix contre-épreuves rouges
+  (`mutate_in_process`), empreintes des fichiers intactes. Batterie élargie : 1438 tests, deux rouges étrangers
+  (un module de test mal nommé dans ma commande ; `enhancer.tests_declared_weights.NoParallelDownloaderTest`, les
+  fichiers d'ACE-Step déposés dans `vendor/` le 2026-11-05, non versionnés).
+- ⏳ Restent : le nœud du Studio par domaine (l'enhancer n'y offre que l'image / vidéo ; `work_audio` garde sa
+  ligne de `UNWIRED_PORTS_BUDGET`) ; la VIDÉO de l'imager, que `add_to_imager` (`create_image`, txt2img) ne
+  crée pas — ses domaines se désignent par le mode, pas par un fichier ; les gestes nocturnes de l'assistant
+  sur un serveur relancé (le code tourne dans les tests, pas encore dans le service en marche). Copie de test de
+  `enhancer_01` (`tests_panel_memory`, non versionnée) alignée sur sa source.

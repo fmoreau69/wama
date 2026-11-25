@@ -849,8 +849,9 @@ class JobFollowUpTests(TestCase):
 
     def test_the_same_number_in_another_family_is_not_mistaken(self):
         """Deux modèles, deux numérotations : l'élément n° N d'une autre famille n'est pas celui-ci."""
-        self._thread_with('add_to_audio_enhancer', {},
-                          {'audio_enhancement_id': self.card.pk, 'item_id': self.card.pk})
+        self._thread_with('add_to_enhancer', {},
+                          {'audio_enhancement_id': self.card.pk, 'item_id': self.card.pk,
+                           'surface': 'audio_enhancer'})
         self._end()
         self.assertEqual([], core.collect_job_follow_ups(CANAL))
 

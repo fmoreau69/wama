@@ -147,8 +147,14 @@ def tool_schema(provider):
 def tool_param_schema(tool_name: str) -> list:
     """Le schéma (liste de dicts) des arguments que lit l'outil : celui qu'il déclare
     (`tool_schema`) ; sinon celui de la SURFACE qui le garde — le schéma du domaine qu'elle sert
-    quand elle n'est pas l'app (`add_to_audio_enhancer` → le domaine audio de l'enhancer,
+    quand elle n'est pas l'app (`start_audio_enhancer` → le domaine audio de l'enhancer,
     `app_modes.domain_schema`), le schéma principal de l'app sinon ; [] pour un outil transverse.
+
+    L'outil d'AJOUT d'une app sert TOUS les domaines où arrive un fichier (`app_modes.arrival_domains`,
+    2026-11-25 — l'enhancer avait un second créateur pour l'audio) : à partir de deux, il annonce la
+    RÉUNION de leurs schémas (`param_schema.schema_union`, jamais plus stricte qu'aucun d'eux), et le
+    choix du domaine quand il le prend (`domain`). Le schéma du domaine qui reçoit le fichier est
+    appliqué par le créateur, une fois le fichier reçu (`_domain_settings`).
 
     ⚠ Le domaine (2026-11-18, revérification) : la lecture par l'app seule annonçait au modèle les
     réglages IMAGE de l'enhancer (`ai_model`, `denoise`, `upscale_factor`…) sur son outil audio,
@@ -168,7 +174,27 @@ def tool_param_schema(tool_name: str) -> list:
             domains = surface_domains(app_id, family)
             if len(domains) == 1:
                 schema = domain_schema(app_id, domains[0])
+        elif tool_role(tool_name) == 'add':
+            schema = _creator_schema(tool_name, app_id) or schema
     return [p if isinstance(p, dict) else p.to_dict() for p in schema or []]
+
+
+def _creator_schema(tool_name: str, app_id: str) -> list:
+    """Ce qu'annonce l'outil d'ajout d'une app à PLUSIEURS domaines d'arrivée — la réunion de leurs
+    schémas, précédée du choix du domaine quand l'outil le prend — ; [] pour un seul domaine."""
+    from wama.common.utils.app_modes import arrival_domains, domain_schema, get_domain
+    from wama.common.utils.param_schema import schema_union
+    served = arrival_domains(app_id)
+    if len(served) < 2:
+        return []
+    labels = {d: get_domain(app_id, d).get('label') or d for d in served}
+    union = schema_union((labels[d], domain_schema(app_id, d)) for d in served)
+    if 'domain' not in tool_arg_names(tool_name):
+        return union
+    choice = {'name': 'domain', 'type': 'select', 'label': 'Domaine', 'default': '',
+              'choices': [[d, labels[d]] for d in served],
+              'help': "Le domaine qui reçoit le fichier ; vide : celui de sa nature."}
+    return [choice] + union
 
 
 def sub_agent_tools() -> frozenset:
@@ -494,203 +520,155 @@ def create_image(
 def add_to_enhancer(
     user,
     file_path: str,
-    ai_model: str = '',
-    denoise: bool = None,
-    blend_factor: float = None,
+    domain: str = '',
     app_label: str = 'enhancer',
     **params,
 ) -> dict:
     """
-    Register a file for enhancement and create the Enhancement DB entry.
+    Register a file for enhancement: an image or a video is upscaled and restored, an audio
+    recording is denoised and restored — the app's two domains, one gesture, as on its card and
+    in « Envoyer vers ».
 
     Args:
-        user:         Django User instance
-        file_path:    Path from find_user_files (relative to MEDIA_ROOT, or mounts/… for a connected folder), or an http(s) URL (downloaded first) (from list_user_files)
-        ai_model:     'auto' or the catalog key of an upscaler (`list_ai_models`)
-        denoise:      Apply denoising before upscaling
-        blend_factor: 0.0 = full AI, 1.0 = original
-        **params:     Any other setting DECLARED by the image/video schema (`enhancer/params.py`,
-                      `MEDIA_PARAMS`) — `upscale_factor`, `quality_intent`, `output_format`…
-                      `media_type` stays DETECTED from the file.
+        user:      Django User instance
+        file_path: Path from find_user_files (relative to MEDIA_ROOT, or mounts/… for a connected folder), or an http(s) URL (downloaded first) (from list_user_files)
+        domain:    the domain that receives the file; left empty, the one its nature designates.
+                   Name it for an address whose nature only the download tells (the audio of a
+                   video platform).
+        **params:  Any setting DECLARED by the schema of the receiving domain (`enhancer/params.py`);
+                   a setting of the other domain is refused, not ignored.
         A setting left out takes the author's retained panel setting, else the schema default —
-        the element is born like a card deposit, as the audio tool (2026-10-29 : it took fixed
-        defaults here, `ai_model='RealESR_Gx4'`, against the schema's « auto »).
-        app_label:    INTERNE (jamais annoncé) — la jumelle visée par `add_to_<jumelle>`
+        the element is born like a card deposit.
+        app_label: INTERNE (jamais annoncé) — la jumelle visée par `add_to_<jumelle>`
 
     Returns:
-        {"enhancement_id": int, "name": str, "media_type": str, "status": "pending"}
+        {"item_id": int, "surface": str, "domain": str, "name": str, "media_type": str,
+         "status": "pending", …the receiving domain's choices}
     """
-    from wama.common.utils.model_keys import catalog_key
-    from wama.common.utils.param_schema import catalog_options
-    from wama.enhancer.params import MEDIA_PARAMS
-
-    # Les valeurs valides se LISENT au domaine du select (catalogue) : `schema_choice_values` ne
-    # rendait rien pour un select de catalogue, donc aucun modèle n'était jamais refusé.
-    declared = {p.name: p for p in MEDIA_PARAMS}
-    if ai_model:
-        ai_model = catalog_key(ai_model, 'enhancer')
-        models = {value for value, _ in catalog_options(declared['ai_model'])}
-        if models and ai_model not in models:
-            return {'error': f"Modèle inconnu : '{ai_model}'. Disponibles : "
-                             f"{', '.join(sorted(models))}"}
-    posted = {name: value for name, value in
-              _given({'ai_model': ai_model, 'denoise': denoise, 'blend_factor': blend_factor,
-                      **params}).items() if name in declared}
-
-    # Le fichier est DÉSIGNÉ (2026-09-28) : pointé s'il est dans l'espace de l'utilisateur, jamais
-    # recopié ; sa nature lue à la déclaration du domaine que sert cet outil
-    # (`app_modes.surface_file_nature`, la lecture du dépôt de la card), pas dans une liste de plus.
-    from wama.common.utils.app_modes import surface_file_nature
+    # UN créateur pour les deux domaines (2026-11-25, `ROUTE §11 #42` ⑥) : `add_to_audio_enhancer`
+    # écrivait l'app en dur (la jumelle n'avait aucun créateur audio) et doublait la règle de
+    # l'import. Le domaine qui reçoit se LIT comme à l'import (`import_to_enhancer`) : celui que
+    # l'appel nomme, sinon celui de la nature du fichier (`app_modes.arrival_domain`).
+    from wama.common.utils import app_modes
+    from wama.common.utils.detail_registry import DetailRegistry
     from wama.common.utils.media_paths import InputRefused
+    from wama.common.utils.source_ingest import app_mode
+
+    served = app_modes.arrival_domains(app_label)
+    if domain and domain not in served:
+        return {'error': f"Domaine inconnu : '{domain}'. Domaines : {', '.join(served)}"}
     try:
-        received = _receive(file_path, user, app_label)
+        # Une adresse se télécharge dans le mode que DÉCLARE la surface du domaine nommé.
+        local = _local_input(file_path, user, app_label,
+                             app_mode(app_modes.domain_surface(app_label, domain)) if domain else None)
     except InputRefused as e:
         return {'error': str(e)}
-    media_type = surface_file_nature(app_label, app_label, received.name)
-    if not media_type:
-        return {'error': f"Format non supporté pour l'enhancer : {Path(received.name).suffix}"}
+    domain = domain or app_modes.arrival_domain(app_label, local)
+    nature = app_modes.file_nature(app_label, domain, local) if domain else None
+    if not nature:
+        return {'error': f"Format non supporté par l'enhancer : "
+                         f"{Path(str(local)).suffix or 'sans extension'}"}
+    posted, refused = _domain_settings(app_label, domain, params)
+    if refused:
+        return {'error': refused}
+
+    surface = app_modes.domain_surface(app_label, domain)
+    Model = DetailRegistry.get(surface)['model']
+    upload_to = Model._meta.get_field('input_file').upload_to
+    try:
+        received = _receive(local, user, app_label, getattr(upload_to, 'subfolder', 'input'))
+    except InputRefused as e:
+        return {'error': str(e)}
 
     try:
-        from django.apps import apps as django_apps
-        from wama.enhancer.views import new_enhancement_settings
+        from wama.enhancer.views import new_audio_settings, new_enhancement_settings
+        from wama.common.utils.user_settings import inputs_by_port
+
+        # Naissance COMMUNE : défauts du schéma du domaine ← réglages retenus de l'auteur ← ce que
+        # l'outil a reçu, par la fonction de naissance de la card de ce domaine.
+        born = new_enhancement_settings if surface == app_label else new_audio_settings
+        values = born(user, model=Model, app=app_label, post=posted,
+                      inputs=inputs_by_port(app_label, received))
+        extra = {'media_type': nature} if surface == app_label else {}
+        element = Model.objects.create(user=user, input_file=received.value, file_size=received.size,
+                                       status='PENDING', **extra, **values)
+        received.record(element, 'input_file')
+        if surface == app_label:
+            _measure_media(element)
+    except Exception as e:
+        return {'error': f"Erreur création ({Model.__name__}) : {e}"}
+
+    from wama.common.utils.param_schema import _pget
+    chosen = {_pget(p, 'name'): getattr(element, _pget(p, 'name'))
+              for p in app_modes.domain_schema(app_label, domain)
+              if _pget(p, 'type') == 'select' and hasattr(element, _pget(p, 'name'))}
+    id_kwarg = (TRIAD_SPECS.get(surface) or {}).get('id_kwarg')
+    return {
+        **({id_kwarg: element.id} if id_kwarg else {}),
+        'item_id': element.id,   # clé UNIFORME du contrat méta-app (STUDIO_VISION 2026-07-12)
+        'surface': surface,      # la famille de l'élément : celle que suivent start / status
+        'domain': domain,
+        'name': received.name,
+        'media_type': nature,
+        'status': 'pending',
+        **chosen,
+    }
+
+
+def _measure_media(element) -> None:
+    """Dimensions, durée et taille d'une image ou d'une vidéo reçue — lues au fichier, comme au
+    dépôt de la card ; un échec n'empêche pas l'élément d'exister."""
+    try:
         from wama.common.utils.video_utils import get_media_info
-
-        # Naissance COMMUNE (2026-10-29) : défauts du schéma ← réglages retenus de l'auteur ← ce
-        # que l'outil a reçu — comme un dépôt de la card, et comme l'outil du domaine audio.
-        Enhancement = django_apps.get_model(app_label, 'Enhancement')
-        enhancement = Enhancement.objects.create(
-            user=user,
-            media_type=media_type,
-            input_file=received.value,
-            status='PENDING',
-            **new_enhancement_settings(user, model=Enhancement, app=app_label, post=posted,
-                                       inputs=inputs_by_port(app_label, received)),
-        )
-        received.record(enhancement, 'input_file')
-
-        # Analyse dimensions / durée
-        try:
-            info = get_media_info(enhancement.input_file.path)
-            enhancement.width     = info.get('width', 0)
-            enhancement.height    = info.get('height', 0)
-            enhancement.duration  = info.get('duration', 0)
-            enhancement.file_size = info.get('file_size', 0)
-            enhancement.save(update_fields=['width', 'height', 'duration', 'file_size'])
-        except Exception as e:
-            logger.warning(f'[tool_api] add_to_enhancer analyze failed: {e}')
-
+        info = get_media_info(element.input_file.path)
+        element.width = info.get('width', 0)
+        element.height = info.get('height', 0)
+        element.duration = info.get('duration', 0)
+        element.file_size = info.get('file_size', 0)
+        element.save(update_fields=['width', 'height', 'duration', 'file_size'])
     except Exception as e:
-        return {'error': f'Erreur création Enhancement : {e}'}
-
-    return {
-        'enhancement_id': enhancement.id,
-        'item_id': enhancement.id,   # clé UNIFORME du contrat méta-app (STUDIO_VISION 2026-07-12)
-        'name': received.name,
-        'media_type': media_type,
-        'ai_model': enhancement.ai_model,
-        'status': 'pending',
-    }
+        logger.warning(f'[tool_api] add_to_enhancer analyze failed: {e}')
 
 
-# `start_enhancer` / `get_enhancer_status` : construits depuis TRIAD_SPECS['enhancer'] (marche A4).
-
-
-# ===========================================================================
-# Audio Enhancer tools
-# ===========================================================================
-
-@tool_effect(WRITE)
-def add_to_audio_enhancer(
-    user,
-    file_path: str,
-    engine: str = '',
-    mode: str = '',
-    denoising_strength: float = None,
-    quality: int = None,
-    **params,
-) -> dict:
-    """
-    Register an audio file for speech enhancement.
-
-    Args:
-        user:               Django User instance
-        file_path:          Path from find_user_files (relative to MEDIA_ROOT, or mounts/… for a connected folder), or an http(s) URL (downloaded first) (from list_user_files)
-        engine:             'auto' or the catalog key of an audio engine (`list_ai_models`) —
-                            e.g. 'enhancer:resemble' (quality), 'enhancer:deepfilternet' (speed)
-        mode:               'both' | 'denoise' | 'enhance'  (Resemble only)
-        denoising_strength: 0.0–1.0 denoising amount (Resemble only)
-        quality:            NFE steps 32/64/128 (Resemble only)
-        **params:           Any other setting DECLARED by the audio schema (`enhancer/params.py`,
-                            `AUDIO_PARAMS`) — `quality_intent`, `output_format`, `output_quality`…
-        A setting left out takes the author's retained panel setting, else the schema default —
-        the element is born like a card deposit (2026-10-28 : it took fixed defaults here,
-        `engine='resemble'`, against the schema's « auto »).
-
-    Returns:
-        {"audio_enhancement_id": int, "item_id": int, "name": str, "status": "pending"}
-    """
+def _domain_settings(app_label: str, domain: str, given: dict):
+    """`(réglages, refus)` de ce qu'un créateur a reçu, jugés sur le schéma du DOMAINE qui reçoit le
+    fichier — l'annonce de l'outil est la réunion des schémas de ses domaines
+    (`tool_param_schema`), la porte d'`execute_tool` ne sait donc pas encore lequel s'applique.
+    Refusés : un réglage d'un AUTRE domaine (le donner change le sens de l'appel, il n'est jamais
+    jeté en silence), une valeur hors du schéma du domaine (`schema_refusals`), un modèle tiré du
+    catalogue qui n'y est pas (`catalog_options` : la porte ne valide pas un select de catalogue)."""
+    from wama.common.sandbox import declaring_app
+    from wama.common.utils.app_modes import arrival_domains, domain_schema
     from wama.common.utils.model_keys import catalog_key
-    from wama.common.utils.param_schema import catalog_options, choice_values
-    from wama.enhancer.params import AUDIO_PARAMS
-
-    # Les valeurs valides se LISENT : le domaine du select de moteur (catalogue) et les choix du
-    # schéma — deux listes recopiées ici (`resemble`, `deepfilternet` ; les trois modes) jusqu'au
-    # 2026-10-28.
-    declared = {p.name: p for p in AUDIO_PARAMS}
-    if engine:
-        engine = catalog_key(engine, 'enhancer')
-        engines = {value for value, _ in catalog_options(declared['engine'])}
-        if engines and engine not in engines:
-            return {'error': f"Moteur inconnu : '{engine}'. Disponibles : "
-                             f"{', '.join(sorted(engines))}"}
-    modes = set(choice_values(declared['mode']))
-    if mode and mode not in modes:
-        return {'error': f"Mode inconnu : '{mode}'. Disponibles : {', '.join(sorted(modes))}"}
-    posted = {name: value for name, value in
-              _given({'engine': engine, 'mode': mode, 'denoising_strength': denoising_strength,
-                      'quality': quality, **params}).items() if name in declared}
-
-    # Désigné, pointé, nature lue à la déclaration du domaine (2026-09-28) — cf. `add_to_enhancer`.
-    from wama.common.utils.app_modes import surface_file_nature
-    from wama.common.utils.media_paths import InputRefused
-    try:
-        received = _receive(file_path, user, 'enhancer', 'input/audio', mode='audio')
-    except InputRefused as e:
-        return {'error': str(e)}
-    from wama.common.utils.app_modes import domain_surface
-    if not surface_file_nature('enhancer', domain_surface('enhancer', 'audio'), received.name):
-        return {'error': f'Format audio non supporté : {Path(received.name).suffix}'}
-
-    try:
-        from wama.enhancer.models import AudioEnhancement
-        from wama.enhancer.views import new_audio_settings
-
-        # Naissance COMMUNE (2026-10-28) : défauts du schéma ← réglages retenus de l'auteur ← ce
-        # que l'outil a reçu — comme un dépôt de la card audio.
-        ae = AudioEnhancement.objects.create(
-            user=user,
-            input_file=received.value,
-            file_size=received.size,
-            status='PENDING',
-            **new_audio_settings(user, post=posted, inputs=inputs_by_port('enhancer', received)),
-        )
-        received.record(ae, 'input_file')
-    except Exception as e:
-        return {'error': f'Erreur création AudioEnhancement : {e}'}
-
-    return {
-        'audio_enhancement_id': ae.id,
-        # Clé UNIFORME du contrat méta-app (`STUDIO_VISION §2`) — la seule famille d'ajout qui ne
-        # la rendait pas (2026-10-06) : la passerelle retrouve par elle le fil d'où vient une tâche.
-        'item_id': ae.id,
-        'name': received.name,
-        'engine': ae.engine,
-        'mode': ae.mode,
-        'status': 'pending',
-    }
+    from wama.common.utils.param_schema import (_pget, catalog_options, describe_refusals,
+                                                schema_refusals)
+    schema = domain_schema(app_label, domain)
+    names = {_pget(p, 'name') for p in schema}
+    elsewhere = {_pget(p, 'name') for d in arrival_domains(app_label) if d != domain
+                 for p in domain_schema(app_label, d)} - names
+    stray = sorted(n for n, v in given.items() if n in elsewhere and v not in (None, ''))
+    if stray:
+        return None, (f"Réglage(s) d'un autre domaine que « {domain} », qui reçoit ce fichier : "
+                      f"{', '.join(stray)}.")
+    posted = {n: v for n, v in _given(given).items() if n in names}
+    refusals = schema_refusals(schema, posted)
+    if refusals:
+        return None, f"Valeur hors schéma du domaine « {domain} » : {describe_refusals(refusals)}"
+    for p in schema:
+        name = _pget(p, 'name')
+        if _pget(p, 'options_source') != 'catalog' or not posted.get(name):
+            continue
+        posted[name] = catalog_key(posted[name], declaring_app(app_label))
+        valid = {value for value, _ in catalog_options(p)}
+        if valid and posted[name] not in valid:
+            return None, (f"Modèle inconnu : '{posted[name]}'. Disponibles : "
+                          f"{', '.join(sorted(valid))}")
+    return posted, None
 
 
-# `start_audio_enhancer` / `get_audio_enhancer_status` : construits depuis TRIAD_SPECS['audio_enhancer'] (marche A4).
+# `start_enhancer` / `get_enhancer_status`, `start_audio_enhancer` / `get_audio_enhancer_status` :
+# construits depuis TRIAD_SPECS, une triade par SURFACE (marche A4) — un élément s'identifie par
+# la surface que la création rend.
 
 
 # ===========================================================================
@@ -6167,8 +6145,7 @@ TOOL_REGISTRY = {
     'sam3_examples':         sam3_examples,
     'create_image':          create_image,
     'add_to_imager':         add_to_imager,   # alias canonique §17.2 (runner générique)
-    'add_to_enhancer':           add_to_enhancer,
-    'add_to_audio_enhancer':     add_to_audio_enhancer,
+    'add_to_enhancer':           add_to_enhancer,   # ses deux domaines (l'audio : 2026-11-25)
     'synthesize_text':        synthesize_text,
     'add_to_synthesizer':     add_to_synthesizer,  # alias canonique §17.2 (runner générique)
     'compose_music':          compose_music,
@@ -6961,10 +6938,12 @@ def app_id_for_tool(tool_name):
 
 def tool_family(tool_name):
     """La FAMILLE d'un outil : la clé d'adapter de détail (`DetailRegistry`) des éléments qu'il
-    crée, lance ou suit — `add_to_audio_enhancer` → `audio_enhancer` (son modèle propre), là où
+    crée, lance ou suit — `start_audio_enhancer` → `audio_enhancer` (son modèle propre), là où
     `app_id_for_tool` rend l'app GARDÉE (`enhancer`, qui porte deux modèles). Les créateurs
     historiques (`create_image`…) ont la famille de leur app. None pour un outil transverse.
-    C'est aussi la clé que le squelette de tâche reçoit (`run_item_task(app_id=…)`)."""
+    C'est aussi la clé que le squelette de tâche reçoit (`run_item_task(app_id=…)`).
+    ⚠ L'outil d'AJOUT d'une app sert tous ses domaines (2026-11-25) : la famille de ce qu'il a
+    créé se lit à la surface que la création rend (`created_surface`), pas ici."""
     if tool_name in TOOL_APP_OVERRIDE:
         return TOOL_APP_OVERRIDE[tool_name]
     for _role, prefix, suffix in _TRIAD:
@@ -6977,7 +6956,8 @@ def tool_family(tool_name):
 def items_of_step(tool_name, args, result) -> list:
     """Les éléments qu'un appel d'outil a CRÉÉS ou LANCÉS, en `(famille, id)` — lus au CONTRAT
     méta-app, jamais à une clé propre à l'app :
-      - une création rend la clé UNIFORME `item_id` (`STUDIO_VISION §2`) ;
+      - une création rend la clé UNIFORME `item_id` (`STUDIO_VISION §2`), et la SURFACE de son
+        élément quand l'outil en sert plusieurs (`created_surface`) ;
       - un lancement nomme l'élément par son argument principal, dérivé de la signature
         (`primary_arg_name` — la convention par laquelle le Studio l'appelle) ; un lancement de
         toute la file rend ses `ids` ;
@@ -7007,21 +6987,41 @@ def items_of_step(tool_name, args, result) -> list:
     if not family or role == 'status':
         return []
     if role == 'batch':
-        ids = list(result.get('ids') or [])
+        pairs = [(family, raw) for raw in result.get('ids') or []]
     elif role == 'start':
         one = (args or {}).get(primary_arg_name(tool_name) or '')
-        ids = [one] if one not in (None, '') else list(result.get('ids') or [])
+        pairs = [(family, raw) for raw in
+                 ([one] if one not in (None, '') else list(result.get('ids') or []))]
     else:
-        # `item_ids` : des fichiers arrivés ensemble dans un ajout (`_add_arrived_together`).
-        ids = list(result.get('item_ids') or ([result['item_id']] if result.get('item_id')
-                                                  not in (None, '') else []))
+        # Des fichiers arrivés ensemble (`_add_arrived_together`) : chaque création, sous SA
+        # surface — un appel peut en toucher deux (une image et un audio à l'enhancer).
+        if result.get('item_ids') and isinstance(result.get('items'), list):
+            created = result['items']
+        elif result.get('item_ids'):
+            created = [{**result, 'item_id': raw} for raw in result['item_ids']]
+        else:
+            created = [result]
+        pairs = [(created_surface(tool_name, one) if role == 'add' else family, one.get('item_id'))
+                 for one in created
+                 if isinstance(one, dict) and one.get('item_id') not in (None, '')]
     found = []
-    for raw in ids:
+    for surface, raw in pairs:
         try:
-            found.append((family, int(raw)))
+            found.append((surface, int(raw)))
         except (TypeError, ValueError):
             continue
     return found
+
+
+def created_surface(tool_name, result) -> str | None:
+    """La SURFACE de l'élément qu'un outil d'ajout a créé — celle que la création rend (`surface`,
+    2026-11-25 : l'outil unique de l'enhancer crée sous `enhancer` ou `audio_enhancer`), quand
+    elle est bien une surface de l'app de l'outil ; sinon la famille lue au nom de l'outil."""
+    from wama.common.utils.app_modes import surface_app
+    surface = result.get('surface') if isinstance(result, dict) else None
+    if surface and surface_app(surface) == app_id_for_tool(tool_name):
+        return surface
+    return tool_family(tool_name)
 
 
 def batch_of_step(tool_name, result):
@@ -7351,8 +7351,8 @@ def arrival_arguments(tool_name: str) -> frozenset:
     Un dépôt de N fichiers sur la card, un « Envoyer vers » de N fichiers, un lot du Studio créent
     UN élément par fichier par la naissance de l'app, puis rangent ceux arrivés ensemble en lot
     (`consolidate_arrival`). L'outil fait de même au point d'exécution unique (`execute_tool`).
-    Un outil hors du Studio (`add_to_audio_enhancer` : domaine audio de l'enhancer, port
-    `work_audio` encore non lu, `UNWIRED_PORTS_BUDGET`) n'en a aucun."""
+    Un port que le nœud de l'app ne lit pas encore (`UNWIRED_PORTS_BUDGET` : l'audio de l'enhancer,
+    dont le nœud ne sert que le domaine image / vidéo) n'en donne aucun."""
     if tool_role(tool_name) != 'add':
         return frozenset()
     from wama.studio.services.generic_runner import work_arguments
@@ -7443,9 +7443,6 @@ def relay_quality_intent(user, tool_name: str, result: dict) -> dict:
     tous le même niveau."""
     if not isinstance(result, dict) or 'error' in result:
         return result
-    ids = result.get('item_ids') or [i for i in [result.get('item_id')] if i is not None]
-    if not ids:
-        return result
     role, app_id = _split_triad(tool_name)
     if role != 'add' or not app_id:
         return result
@@ -7453,11 +7450,16 @@ def relay_quality_intent(user, tool_name: str, result: dict) -> dict:
     if intent_field_for(app_id) != 'quality_intent':
         return result
     from wama.common.utils.detail_registry import DetailRegistry
-    raw_app = tool_name[len('add_to_'):]
-    entry = DetailRegistry.get(raw_app) or DetailRegistry.get(app_id)
-    if not entry:
-        return result
-    items = [item for item in entry['model'].objects.filter(pk__in=ids)
+    # Chaque élément sous SA surface (`items_of_step`) : un ajout peut en créer sur deux modèles.
+    by_surface = {}
+    for surface, pk in items_of_step(tool_name, {}, result):
+        by_surface.setdefault(surface, []).append(pk)
+    items = []
+    for surface, ids in by_surface.items():
+        entry = DetailRegistry.get(surface) or DetailRegistry.get(app_id)
+        if entry:
+            items += list(entry['model'].objects.filter(pk__in=ids))
+    items = [item for item in items
              if hasattr(item, 'quality_intent')
              and getattr(getattr(item, 'user', None), 'pk', getattr(user, 'pk', None))
              == getattr(user, 'pk', None)]
@@ -7511,31 +7513,38 @@ def relay_next_step(tool_name: str, result: dict) -> dict:
             JOB_STATUS_NOT_STARTED | {_LEGACY_QUEUED}):
         return result
 
-    raw_app = tool_name[len('add_to_'):]
-    start_tool = next((f'start_{name}' for name in (raw_app, app_id)
-                       if f'start_{name}' in TOOL_REGISTRY), None)
-    if not start_tool:
-        return result
-
     # L'élément, lu au CONTRAT (`items_of_step` : la clé uniforme `item_id`, rendue à la source
-    # par chaque ajout et tenue par `tests_tool_item_contract`) — plus de liste de clés d'app.
+    # par chaque ajout et tenue par `tests_tool_item_contract`) — plus de liste de clés d'app —, et
+    # lancé par le `start_*` de SA surface (`created_surface` : `start_audio_enhancer` pour un audio
+    # reçu par l'outil unique de l'enhancer).
+    raw_app = tool_name[len('add_to_'):]
     items = items_of_step(tool_name, {}, result)
-    item_ids = ', '.join(str(i) for _, i in items) or None
+    starts = {}
+    for surface, pk in items or [(created_surface(tool_name, result), None)]:
+        tool = next((f'start_{name}' for name in (surface, raw_app, app_id)
+                     if name and f'start_{name}' in TOOL_REGISTRY), None)
+        if tool:
+            starts.setdefault(tool, []).extend([pk] if pk is not None else [])
+    if not starts:
+        return result
+    start_tool = next(iter(starts))
+    calls = ' ; '.join(f"`{tool}` ({', '.join(map(str, ids)) or '—'})" for tool, ids in starts.items())
     result['started'] = False
     result['next_step'] = start_tool
     result['next_step_hint'] = (
-        f"L'élément est dans la file et RIEN NE TOURNE. Appelle `{start_tool}` "
-        f"({item_ids}) pour lancer le traitement. N'annonce jamais une tâche « lancée » "
-        f"ni « terminée » après un simple ajout."
+        f"L'élément est dans la file et RIEN NE TOURNE. Appelle {calls} pour lancer le "
+        f"traitement. N'annonce jamais une tâche « lancée » ni « terminée » après un simple ajout."
     )
-    # Des fichiers arrivés ensemble forment un LOT (`_add_arrived_together`) : son ▶ les lance tous.
+    # Des fichiers arrivés ensemble forment un LOT (`_add_arrived_together`) : son ▶ les lance tous,
+    # sous la surface de ses éléments.
     if result.get('batch_ids'):
-        batches = ', '.join(str(b) for b in result['batch_ids'])
+        batches = result.get('batches') or [{'app': raw_app, 'batch_id': b} for b in result['batch_ids']]
+        launches = ' ; '.join(f"`launch_batch(app='{b['app']}', batch_id={b['batch_id']})`"
+                              for b in batches)
         result['next_step_hint'] = (
-            f"Les {len(items)} éléments sont dans la file, rangés en lot ({batches}), et RIEN NE "
-            f"TOURNE. `launch_batch(app='{raw_app}', batch_id=…)` lance un lot entier, "
-            f"`{start_tool}` un élément ({item_ids}). N'annonce jamais une tâche « lancée » ni "
-            f"« terminée » après un simple ajout.")
+            f"Les {len(items)} éléments sont dans la file, rangés en lot, et RIEN NE TOURNE. "
+            f"{launches} lance un lot entier, {calls} un élément. N'annonce jamais une tâche "
+            f"« lancée » ni « terminée » après un simple ajout.")
     return result
 
 
@@ -7746,13 +7755,22 @@ def _add_arrived_together(tool_name: str, args: dict, user, name: str, files: li
         answer['status'] = statuses.pop()
     if errors:
         answer['errors'] = errors
-    if len(ids) > 1:
-        from django.utils.module_loading import import_string
+    # Un lot par SURFACE (`created_surface`, 2026-11-25) : une image et un audio reçus ensemble par
+    # l'enhancer naissent sur deux modèles — deux lots, chacun sur le modèle de sa triade.
+    by_surface = {}
+    for surface, pk in items_of_step(tool_name, {}, answer):
+        by_surface.setdefault(surface, []).append(pk)
+    from django.utils.module_loading import import_string
 
-        from wama.common.utils.queue_manipulation import consolidate_arrival
+    from wama.common.utils.queue_manipulation import consolidate_arrival
+    for surface, surface_ids in by_surface.items():
+        if len(surface_ids) < 2:
+            continue
         try:
-            model = import_string(TRIAD_SPECS[tool_name[len('add_to_'):]]['model'])
-            answer['batch_ids'] = [b.id for b in consolidate_arrival(model, ids, user)]
+            model = import_string(TRIAD_SPECS[surface]['model'])
+            for b in consolidate_arrival(model, surface_ids, user):
+                answer.setdefault('batch_ids', []).append(b.id)
+                answer.setdefault('batches', []).append({'app': surface, 'batch_id': b.id})
         except Exception as e:
             logger.warning(f'[tool_api] {tool_name} : regroupement à l\'arrivée échoué : {e}')
             answer['batch_warning'] = f"Éléments créés, mais non rangés en lot : {e}"

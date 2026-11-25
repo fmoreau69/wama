@@ -48,7 +48,7 @@
     list_user_files: '📂', add_to_anonymizer: '➕', start_anonymizer: '▶️',
     get_anonymizer_status: '📊', sam3_examples: '💡', create_image: '🎨',
     start_imager: '▶️', get_imager_status: '📊', add_to_enhancer: '✨',
-    start_enhancer: '▶️', get_enhancer_status: '📊', add_to_audio_enhancer: '🎙️',
+    start_enhancer: '▶️', get_enhancer_status: '📊',
     start_audio_enhancer: '▶️', get_audio_enhancer_status: '📊', synthesize_text: '🗣️',
     start_synthesizer: '▶️', get_synthesizer_status: '📊', add_to_describer: '🔍',
     start_describer: '▶️', get_describer_status: '📊', add_to_transcriber: '🎤',

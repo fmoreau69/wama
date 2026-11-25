@@ -244,6 +244,24 @@ def inject_sandbox_registry(registry: dict, *, runnable=None, born=None) -> None
         entry = _retarget(copy.deepcopy(declared), written_for, label)
         if all(resolves(p) for p in _paths_in(entry, f'wama.{label}.')):
             registry[label] = entry
+            # Les SURFACES de domaine de la source (`audio_enhancer` → `audio_enhancer_01`,
+            # 2026-11-25) : la jumelle porte les mêmes modèles d'élément, et sans leur entrée
+            # l'élément audio d'`enhancer_01` n'avait ni lancement ni suivi à l'assistant.
+            for surface, twin_surface in (surface_pairs(src, label) if src else ()):
+                if surface not in registry or twin_surface in registry:
+                    continue
+                entry = _retarget(copy.deepcopy(registry[surface]), src, label)
+                if all(resolves(p) for p in _paths_in(entry, f'wama.{label}.')):
+                    registry[twin_surface] = entry
+
+
+def surface_pairs(src: str, dst: str) -> list:
+    """`[(surface de la source, surface de la jumelle)]` — une par préfixe de routes que des
+    domaines DÉCLARENT (`app_modes.route_prefixes`), par LA règle `app_modes.surface_name`. Lue par
+    la copie d'une jumelle (`app_sandbox._surface_renames`) et par les registres indexés par app
+    qui la servent (`inject_sandbox_registry`)."""
+    from wama.common.utils.app_modes import route_prefixes, surface_name
+    return [(surface_name(src, p), surface_name(dst, p)) for p in route_prefixes()]
 
 
 def born_declaration(label: str, facet: str):

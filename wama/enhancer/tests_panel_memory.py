@@ -225,15 +225,16 @@ class AudioPanelMemoryTest(TestCase):
                          (sent.mode, sent.denoising_strength, sent.output_format))
 
     def test_the_assistant_audio_tool_is_born_with_the_author_settings(self):
-        """The fourth way in of the audio port (2026-10-28), until then without a guard."""
+        """The fourth way in of the audio port (2026-10-28), until then without a guard ; by the
+        app's one creator since 2026-11-25 (the audio had its own tool)."""
         self._deposit(**self.PANEL)
-        result = _call_tool(self, 'add_to_audio_enhancer', self.me, 'audio')
+        result = _call_tool(self, 'add_to_enhancer', self.me, 'audio')
         self.assertNotIn('error', result)
         from wama.enhancer.models import AudioEnhancement
         item = AudioEnhancement.objects.get(pk=result['item_id'])
         self.assertEqual((self.ENGINE, 'denoise', 0.8, 'flac'),
                          (item.engine, item.mode, item.denoising_strength, item.output_format))
-        result = _call_tool(self, 'add_to_audio_enhancer', self.me, 'audio', mode='enhance')
+        result = _call_tool(self, 'add_to_enhancer', self.me, 'audio', mode='enhance')
         self.assertEqual('enhance', AudioEnhancement.objects.get(pk=result['item_id']).mode)
 
     def test_the_batch_modal_of_each_domain_has_its_settings(self):

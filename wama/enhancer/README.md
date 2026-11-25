@@ -117,7 +117,9 @@ par son squelette (le moteur résolu est le modèle de la card), le banc `asr_ev
 
 **Même modèle de réglages que l'image/vidéo (2026-10-28, porté d'un bloc)** : l'élément audio
 NAÎT avec le volet — dépôt de card ou de lot, « Envoyer vers » du gestionnaire de fichiers, outil
-`add_to_audio_enhancer` de l'assistant, tous par `views.new_audio_settings` (défauts du schéma ←
+`add_to_enhancer` de l'assistant (le seul créateur des deux domaines depuis le 2026-11-25 : le
+domaine se lit à la nature du fichier, ou se nomme — `add_to_audio_enhancer` retiré,
+`REMOVAL_LEDGER R246`), tous par `views.new_audio_settings` (défauts du schéma ←
 volet retenu de l'auteur ← ce qui est posté) ; ce qui est posté devient la mémoire du volet
 (`save_panel_settings`), réaffichée à la page ; ▶ d'une card ou d'un lot lance avec les réglages
 STOCKÉS de l'élément (avant : le volet était réappliqué en silence à chaque ▶) ; « Tout démarrer »
