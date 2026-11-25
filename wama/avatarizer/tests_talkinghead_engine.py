@@ -359,7 +359,11 @@ class AddTimeVerdictTest(TestCase):
         response = self._create(self._glb(complete=True))
         self.assertEqual(200, response.status_code, response.content[:300])
         job = AvatarJob.objects.get(pk=response.json()['id'])
-        self.assertTrue(job.avatar_upload.name.endswith('.glb'))
+        # Rangé sur le port de SA nature, dans la table commune des entrées (2026-11-25).
+        from wama.common.utils.port_fields import port_files
+        self.assertTrue(job.avatar_file.name.endswith('.glb'))
+        self.assertEqual([], port_files(job, 'work_image'))
+        self.assertTrue(port_files(job, 'work_object3d')[0].name.endswith('.glb'))
 
     def test_a_3d_avatar_is_designated_by_its_name(self):
         from wama.media_library.models import UserAsset

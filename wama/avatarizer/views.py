@@ -264,8 +264,9 @@ def create(request):
             return JsonResponse({'error': f"Cet objet 3D ne peut pas servir d'avatar parlant ({reason}) : "
                                           "il faut un avatar riggé portant les 52 formes ARKit du visage."},
                                 status=400)
+    # L'avatar se POSE une fois le job créé (`AvatarJob.set_avatar` : table commune des entrées,
+    # sur le port de sa nature, provenance comprise).
     job.avatar_source = 'upload'
-    job.avatar_upload = avatar_file.value
 
     # --- Modèle d'animation (2026-10-03) : « auto » ou un modèle `lip-sync` de l'app ---
     # Validé contre le CATALOGUE (la même liste que sert le select) ; une valeur inconnue vaut
@@ -278,11 +279,10 @@ def create(request):
     _derive_quality_mode(job)
 
     job.save()
-    # Provenance des ports réellement employés (rien pour un téléversement).
-    for received, field in ((audio_file if mode == 'standalone' else None, 'audio_input'),
-                            (avatar_file, 'avatar_upload')):
-        if received:
-            received.record(job, field)
+    job.set_avatar(avatar_file)
+    # Provenance de l'audio employé (rien pour un téléversement) — celle de l'avatar, `set_avatar`.
+    if mode == 'standalone' and audio_file:
+        audio_file.record(job, 'audio_input')
     # Ce que le dépôt a posté se retient pour le suivant — la voix seulement si elle a servi.
     _remember_settings(user, request.POST, spoke=mode == 'pipeline')
     # Clé `id` — contrat COMMUN des vues qui créent un élément (trou #24 de la route). Cette vue
@@ -694,11 +694,9 @@ def batch_create(request):
             avatar_gallery_name='' if avatar else row['avatar_gallery_name'],
         )
         _derive_quality_mode(job)
-        if avatar:
-            job.avatar_upload = avatar.value
         job.save()
         if avatar:
-            avatar.record(job, 'avatar_upload')
+            job.set_avatar(avatar)        # table commune des entrées, provenance comprise
         attach_line_inputs(job, received, remote)
         return job
 
@@ -740,7 +738,7 @@ remove_from_batch = _qm['remove_from_batch']
 # réglages = le SCHÉMA + l'héritage du mode pipeline (`mode`, `tts_model`, `language`,
 # `voice_preset` — TTS relève du synthesizer, standalone-only 2026-07-15) ; `quality_mode`
 # DÉRIVÉ de `use_enhancer` après application (`after_update` — le mode UI est mort le 03/08) ;
-# trois champs fichier (`audio_input`, `avatar_upload`, `output_video`), la vidéo vidée à la
+# ses fichiers (`audio_input`, l'avatar — table commune des entrées —, `output_video`), la vidéo vidée à la
 # duplication et servie au téléchargement (mono-format MP4, nom `batch_avatarizer_<id>.zip`) ;
 # un lot PARTAGÉ se télécharge (`visible_or_404`, jamais pour écrire) ; cache de progression
 # purgé à la suppression ; tâche importée paresseusement (`_ensure_workers_imported`).

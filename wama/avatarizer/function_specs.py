@@ -40,8 +40,9 @@ def is_3d_avatar(job) -> bool:
     """L'avatar de la card est-il un objet 3D ? Lu sur la NATURE du fichier (la brique du
     tirage) — le même jugement que l'ETA (`workers.avatarizer_eta_key_size`)."""
     from wama.common.utils.input_match import work_token_for
+    avatar = job.avatar_file if job.avatar_source != 'gallery' else None
     name = (job.avatar_gallery_name if job.avatar_source == 'gallery'
-            else (job.avatar_upload.name if job.avatar_upload else '')) or ''
+            else (avatar.name if avatar else '')) or ''
     return work_token_for(name) == 'work_object3d'
 
 
@@ -89,7 +90,11 @@ PIPELINE = register_app_pipeline(_APP, (
                 gpu=True, share=1, applies=_speak_applies, outputs=('audio_input',),
                 eta='avatarizer.workers:speak_eta_key_size'),
     ProcessSpec('animate', label='Animation', depends_on=('speak',),
-                watched=('audio_input', 'avatar_source', 'avatar_gallery_name', 'avatar_upload'),
+                # L'avatar par ses PORTS (table commune des entrées, lus au lecteur par la photo des
+                # réglages surveillés, `process_runs.snapshot`) — l'ancienne clé `avatar_upload` sort
+                # de la photo : une clé absente aux deux dates ne périme rien (`_watched_changed`).
+                watched=('audio_input', 'avatar_source', 'avatar_gallery_name',
+                         'work_image', 'work_object3d'),
                 gpu=True, share=4, outputs=('output_video',),
                 eta='avatarizer.workers:avatarizer_eta_key_size'),
     # Le process de SORTIE commun (`output_spec` : il surveille les réglages de sortie), sous la clé

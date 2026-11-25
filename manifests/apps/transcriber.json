@@ -1186,6 +1186,11 @@
           "const": "audio"
         }
       },
+      "port_fields": {
+        "Transcript": {
+          "work_audio": "audio"
+        }
+      },
       "preview": {
         "file_field": "audio",
         "user_field": "user"

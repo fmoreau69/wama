@@ -821,6 +821,11 @@
           "const": "document"
         }
       },
+      "port_fields": {
+        "ReadingItem": {
+          "work_file": "input_file"
+        }
+      },
       "preview": {
         "file_field": "input_file",
         "user_field": "user"

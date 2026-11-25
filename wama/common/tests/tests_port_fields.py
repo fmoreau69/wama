@@ -83,14 +83,15 @@ class _CardPorts:
 class EveryPortOfACardHasItsFieldTest(SimpleTestCase):
 
     def test_every_port_a_card_offers_has_the_field_that_keeps_its_value(self):
-        from wama.common.utils.port_fields import port_field
+        from wama.common.utils.port_fields import port_field, table_ports
         missing, seen, resolved_twins = [], 0, set()
         unresolved_twins = set()
         for app, domain, model, ports, _carried in _CardPorts.rows():
             for port in ports:
                 seen += 1
                 pid = port['id']
-                if port_field(model, pid) or (app, pid) in GAPS:
+                # Kept by a column, or DECLARED to live in the common inputs table (`table=`).
+                if port_field(model, pid) or pid in table_ports(model) or (app, pid) in GAPS:
                     continue
                 if app in TWINS_AWAITING_PROJECTION:
                     unresolved_twins.add(app)
@@ -107,11 +108,12 @@ class EveryPortOfACardHasItsFieldTest(SimpleTestCase):
                          'these twins carry the listing now : remove them from the exemption')
 
     def test_an_exemption_is_still_needed(self):
-        from wama.common.utils.port_fields import port_field
+        from wama.common.utils.port_fields import port_field, table_ports
         from wama.common.app_registry import APP_CATALOG
         needed = set()
         for app, _domain, model, ports, _carried in _CardPorts.rows():
-            needed |= {(app, p['id']) for p in ports if not port_field(model, p['id'])}
+            needed |= {(app, p['id']) for p in ports
+                       if not port_field(model, p['id']) and p['id'] not in table_ports(model)}
         present = {gap for gap in GAPS if gap[0] in APP_CATALOG}   # a twin may be absent (not versioned)
         self.assertEqual(set(), present - needed, 'these gaps are closed : remove them')
 
@@ -133,6 +135,20 @@ class TheListingNamesRealFieldsTest(SimpleTestCase):
                     wrong.append(f'{model._meta.label}: port « {port} » is no input token')
                 if field not in names:
                     wrong.append(f'{model._meta.label}: « {field} » is no field of the model')
+        # The ports DECLARED in the common inputs table, and the old column a port left (`legacy`).
+        from wama.common.utils.port_fields import registered_legacy, registered_table
+        for label, ports in registered_table().items():
+            model = apps.get_model(label)
+            names = {f.name for f in model._meta.get_fields() if getattr(f, 'concrete', False)}
+            for port in ports:
+                if port not in INPUT_TYPES:
+                    wrong.append(f'{label}: table port « {port} » is no input token')
+                if port_field_map(model).get(port):
+                    wrong.append(f'{label}: « {port} » is listed in a column AND in the table')
+                # The DECLARED old column (raw : `legacy_field` hides a phantom by design).
+                old = (registered_legacy().get(label) or {}).get(port)
+                if old and old not in names:
+                    wrong.append(f'{label}: legacy « {old} » of « {port} » is no field of the model')
         self.assertGreater(listed, 10)
         self.assertEqual([], wrong)
 
@@ -189,9 +205,12 @@ class TheCopiesThatRemainAgreeTest(SimpleTestCase):
             shown = spec.get('source_file')
             shown = [shown] if isinstance(shown, str) else [f for f in shown or [] if isinstance(f, str)]
             listed = set(port_field_map(model).values())
+            from wama.common.utils.port_fields import table_ports
             for field in shown:
                 compared += 1
-                if field not in fields | listed and (app, field) not in NOT_A_PORT:
+                # A field of a port, or a PORT that lives in the common inputs table (by its name).
+                if (field not in fields | listed | set(table_ports(model))
+                        and (app, field) not in NOT_A_PORT):
                     disagree.append(f'{surface} panel source_file « {field} » is the field of no '
                                     f'port ({sorted(fields | listed)})')
         self.assertGreater(compared, 10)
@@ -335,21 +354,30 @@ class AGeneratedCopyKeepsWhatTheUserGaveTest(TestCase):
 
 
 class AFieldSharedByTwoPortsTest(SimpleTestCase):
-    """A legacy field that keeps two ports (one avatar : a photo OR a 3D object) gives each port
-    the file of ITS nature — read by the translation the model draw already uses."""
+    """A field that keeps two ports (one avatar : a photo OR a 3D object) gives each port the file
+    of ITS nature — read by the translation the model draw already uses. A listed column
+    (`port_value`) and the OLD column of ports that left for the table (`legacy`, read as a
+    fallback until the relaunch migration copies it — the avatarizer's avatar, 2026-11-25) follow
+    the same rule."""
 
     def test_each_port_gets_only_the_file_of_its_nature(self):
         from django.apps import apps
         from wama.common.app_registry import _CAT_OF
         from wama.common.utils.app_modes import INPUT_TYPES
-        from wama.common.utils.port_fields import port_field_map, port_value, ports_sharing
+        from wama.common.utils.port_fields import (_LEGACY, _label, port_field_map, port_files,
+                                                   port_value, ports_sharing)
         extension = {}
         for ext, category in _CAT_OF.items():
             extension.setdefault(category, ext)
         checked = 0
         for model in apps.get_models():
-            for field in set(port_field_map(model).values()):
-                sharing = ports_sharing(model, field)
+            legacy = _LEGACY.get(_label(model)) or {}
+            groups = [(field, ports_sharing(model, field), port_value)
+                      for field in set(port_field_map(model).values())]
+            groups += [(field, [p for p, f in legacy.items() if f == field],
+                        lambda element, port: (port_files(element, port) or [None])[0])
+                       for field in set(legacy.values())]
+            for field, sharing, read in groups:
                 if len(sharing) < 2:
                     continue
                 for port in sharing:
@@ -357,7 +385,7 @@ class AFieldSharedByTwoPortsTest(SimpleTestCase):
                     if not nature or nature not in extension:
                         continue
                     element = model(**{field: f'input/sample.{extension[nature]}'})
-                    got = {p: bool(port_value(element, p)) for p in sharing}
+                    got = {p: bool(read(element, p)) for p in sharing}
                     self.assertEqual({p: p == port for p in sharing}, got,
                                      f'{model._meta.label}.{field} holding a {nature} file')
                     checked += 1
@@ -534,3 +562,90 @@ class TheCommonTableKeepsAPortWithoutColumnTest(TestCase):
                 self.assertIn('store_port_inputs(item, _port, _r)', source)
                 return
         self.fail('no app manifest renders an add view with a port without column')
+
+
+class APortLeavesItsColumnWithoutLosingAnythingTest(TestCase):
+    """An app moves a port from its column to the table (`register_port_fields(…, legacy=)`, the
+    avatarizer's avatar, 2026-11-25) : the code that reads the table is served BEFORE the relaunch
+    plays the migration that copies the column — so the old column is read as a FALLBACK, emptied
+    (its file released) when the port is written to the table, and every reader of declarations
+    names the port where it named the column. Model and port chosen from the declarations."""
+
+    def setUp(self):
+        import shutil
+        import tempfile
+        from django.apps import apps
+        from django.contrib.auth import get_user_model
+        from django.db.models.signals import post_save
+        from django.test import override_settings
+        from wama.common.app_registry import APP_CATALOG
+        from wama.common.utils.port_fields import registered_legacy
+        self.tmp = tempfile.mkdtemp()
+        media = override_settings(MEDIA_ROOT=self.tmp)
+        media.enable()
+        self.addCleanup(media.disable)
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        legacy = {label: m for label, m in registered_legacy().items()      # a real app, not a twin
+                  if not (APP_CATALOG.get(label.split('.')[0]) or {}).get('generated_from')
+                  and not (APP_CATALOG.get(label.split('.')[0]) or {}).get('sandbox')}
+        if not legacy:
+            self.skipTest('no app has moved a port to the table yet')
+        label, mapping = sorted(legacy.items())[0]
+        self.model = apps.get_model(label)
+        self.app = self.model._meta.app_label
+        self.port, self.column = sorted(mapping.items())[0]
+        self.user = get_user_model().objects.create_user('legacy_port_owner', password='x')
+        with mock.patch.object(post_save, 'send', return_value=[]):
+            self.card = self.model.objects.create(user=self.user)
+
+    def _file(self, name):
+        from wama.common.utils.media_paths import app_media_dir, get_app_media_path
+        folder = get_app_media_path(self.app, self.user.id, 'input')
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / name).write_bytes(b'witness')
+        return f"{app_media_dir(self.app, self.user.id, 'input')}/{name}"
+
+    def _extension(self):
+        from wama.common.app_registry import _CAT_OF
+        from wama.common.utils.app_modes import INPUT_TYPES
+        nature = (INPUT_TYPES.get(self.port) or {}).get('accept')
+        return next((ext for ext, cat in _CAT_OF.items() if cat == nature), 'bin')
+
+    def test_the_old_column_is_read_until_the_card_has_a_row(self):
+        from wama.common.utils.port_fields import port_field, port_files, port_value
+        self.assertEqual('', port_field(self.model, self.port), 'the port has left its column')
+        path = self._file(f'old.{self._extension()}')
+        self.model.objects.filter(pk=self.card.pk).update(**{self.column: path})
+        self.card.refresh_from_db()
+        self.assertEqual([path], [f.name for f in port_files(self.card, self.port)])
+        self.assertEqual(path, port_value(self.card, self.port).name)
+
+    def test_writing_the_port_empties_the_old_column_and_releases_its_file(self):
+        from wama.common.models import ReleasedFile
+        from wama.common.utils.media_paths import designate
+        from wama.common.utils.port_fields import input_rows, store_port_inputs
+        ext = self._extension()
+        old = self._file(f'before.{ext}')
+        self.model.objects.filter(pk=self.card.pk).update(**{self.column: old})
+        self.card.refresh_from_db()
+        store_port_inputs(self.card, self.port,
+                          [designate(self._file(f'after.{ext}'), self.user, self.app)])
+        self.card.refresh_from_db()
+        self.assertFalse(getattr(self.card, self.column), 'one place per value : the table')
+        self.assertEqual([f'after.{ext}'], [r.file.name.rsplit('/', 1)[-1]
+                                            for r in input_rows(self.card, self.port)])
+        self.assertTrue(ReleasedFile.objects.filter(user=self.user, path=old).exists(),
+                        'the replaced file is released, never dropped silently')
+
+    def test_the_readers_of_declarations_name_a_port(self):
+        """The panel's spec, the preview and the watched settings of a process name the PORT."""
+        from wama.common.services.process_runs import snapshot
+        from wama.common.utils.detail_registry import spec_value
+        from wama.common.utils.media_paths import designate
+        from wama.common.utils.port_fields import store_port_inputs
+        path = self._file(f'named.{self._extension()}')
+        store_port_inputs(self.card, self.port, [designate(path, self.user, self.app)])
+        self.assertEqual(path, spec_value(self.card, self.port).name)
+        self.assertEqual(path, spec_value(self.card, [self.port, 'no_such_field']).name)
+        self.assertEqual({self.port: path}, snapshot(self.card, (self.port,)))
+        self.assertIsNone(spec_value(self.card, 'no_such_field'), 'an unknown name stays None')

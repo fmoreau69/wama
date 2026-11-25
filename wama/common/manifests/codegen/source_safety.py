@@ -155,6 +155,14 @@ def _is_view(value) -> bool:
                       and value.endswith('.as_view()') else value)
 
 
+def _is_names(value) -> bool:
+    """Un nom, ou une LISTE de noms (la forme « premier non vide » de la spec) — chacun vérifié ;
+    l'aperçu de l'avatarizer nomme ainsi ses deux ports d'avatar (2026-11-25)."""
+    if isinstance(value, (list, tuple)):
+        return bool(value) and all(is_name(v) for v in value)
+    return is_name(value)
+
+
 def _is_named_form(value) -> bool:
     """Un champ du schéma de détail : un NOM quand il est une chaîne (le gabarit en crée la
     colonne) ; ses formes calculées (liste « premier non vide », dict) ne s'écrivent pas en code."""
@@ -194,7 +202,6 @@ DECLARED_VALUES = (
                'processing.tasks[].function', 'processing.tasks[].model', 'processing.item_model',
                'processing.batch_link_model', 'processing.endpoints[]',
                'processing.backend_nature_field', 'processing.backend_result.field',
-               'inspector.preview.file_field',
                'prompts.targets[].field', 'ports.inputs[].id', 'params.primary',
                'params.schemas{}', 'params.schemas*[].name', 'modes{}', 'surfaces[].key')),
     (_is_named_form, ('inspector.detail_spec.result_file', 'inspector.detail_spec.result_text',
@@ -215,12 +222,17 @@ DECLARED_VALUES = (
                'inspector.tracks*[].fields*', 'inspector.tracks*[].attributes{}',
                'inspector.tracks*[].attributes*')),
     (_is_track_source, ('inspector.tracks*[].source',)),
+    # Le champ de chaque port (`inspector.port_fields`, 2026-11-24, `apps_gen`) : le modèle, le
+    # port et le champ — trois noms.
+    (is_name, ('inspector.port_fields{}', 'inspector.port_fields*{}', 'inspector.port_fields**',
+               'inspector.port_legacy_fields{}', 'inspector.port_legacy_fields*{}',
+               'inspector.port_legacy_fields**', 'inspector.port_table{}',
+               'inspector.port_table*[]')),
+    # Le fichier de l'aperçu : un nom, ou une liste de noms (champs ou PORTS, lus au lecteur commun).
+    (_is_names, ('inspector.preview.file_field',)),
     (_is_prose, ('inspector.tracks*[].label',)),
     # Les crochets d'une surface (2026-11-10, `surfaces_gen.SURFACE_HOOKS`) : un import ou un nom.
     (is_path, ('surfaces[].available', 'surfaces[].validate')),
-    # Le champ de chaque port (`inspector.port_fields`, 2026-11-24, `apps_gen`) : le modèle, le
-    # port et le champ — trois noms.
-    (is_name, ('inspector.port_fields{}', 'inspector.port_fields*{}', 'inspector.port_fields**')),
     (_is_view, ('processing.extra_routes[].view',)),
     (_is_dotted, ('processing.tasks[].task_name',)),
     (_is_text, ('processing.extra_routes[].pattern', 'processing.extra_routes[].name',

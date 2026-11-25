@@ -1274,7 +1274,10 @@ class AppPipeline:
         if upstream:
             return os.path.join(settings.MEDIA_ROOT, upstream)
         field = (PreviewRegistry.get(self.app) or {}).get('file_field') or ''
-        value = getattr(item, field, None) if field else None
+        # Lu comme l'aperçu le lit (`detail_registry.spec_value`, 2026-11-25) : un champ, un PORT
+        # (lecteur commun des entrées), ou une liste dont le premier non vide.
+        from wama.common.utils.detail_registry import spec_value
+        value = spec_value(item, field) if field else None
         return value.path if value and getattr(value, 'name', '') else ''
 
     def backfill_prior_runs(self, item) -> dict:

@@ -347,14 +347,18 @@ class EveryRegisteredSpecIsSoundTest(SimpleTestCase):
                                         or {'when_any', 'then'} <= set(form), (key, form))
 
     def test_every_field_a_spec_names_exists_on_its_model(self):
-        """A misspelt field is read as empty by `getattr` — the line would vanish silently."""
+        """A misspelt field is read as empty by `getattr` — the line would vanish silently. A name
+        may also be a PORT the model keeps in the common inputs table (`port_fields.table_ports`,
+        read by `element_value`, 2026-11-25) — declared, never guessed."""
+        from wama.common.utils.port_fields import table_ports
         for app, model, spec in _declared_specs():
             names = [n for key in VALUE_KEYS for n in _named_fields(spec.get(key))]
             names += [e.get('field') for e in (spec.get('extra') or [])]
             names += list(spec.get('aliases') or {})
             if isinstance(spec.get('extra_from_params'), str):
                 names.append(spec['extra_from_params'])
-            missing = sorted(n for n in names if n and not hasattr(model, n))
+            missing = sorted(n for n in names if n and not hasattr(model, n)
+                             and n not in table_ports(model))
             with self.subTest(app=app):
                 self.assertEqual([], missing, f'{model.__name__} has no such attribute')
 

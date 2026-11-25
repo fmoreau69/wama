@@ -68,6 +68,10 @@ retrouve-t-elle TOUT ? »*
 
 ### 2a. 🔴 LES TESTS DE TON PÉRIMÈTRE — inconditionnel, jamais « si la session l'a rendu nécessaire »
 
+> **Aucune régression admise — on ne perd rien, on ne casse rien** (Fabien, 2026-11-25) : le
+> critère et ses trois preuves (code, données, comportement) vivent dans `/reverif §2`, qu'on
+> applique ici tel quel.
+
 ```bash
 python manage.py test <tes modules>      # ciblé, quelques secondes
 ```

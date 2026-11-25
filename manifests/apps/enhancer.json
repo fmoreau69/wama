@@ -1233,6 +1233,14 @@
         "source_file": "input_file",
         "source_type": "media_type"
       },
+      "port_fields": {
+        "AudioEnhancement": {
+          "work_audio": "input_file"
+        },
+        "Enhancement": {
+          "work_file": "input_file"
+        }
+      },
       "preview": {
         "file_field": "input_file",
         "user_field": "user"

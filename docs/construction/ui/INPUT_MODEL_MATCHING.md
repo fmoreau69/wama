@@ -716,7 +716,7 @@ source) :
 | app | port → champ | ce qu'aucune source ne disait |
 |---|---|---|
 | anonymizer | `work_file` → `file` | `prompt` : un RÉGLAGE (`sam3_prompt`), sans champ |
-| avatarizer | `prompt` → `text_content`, `work_audio` → `audio_input`, **`work_image` ET `work_object3d` → `avatar_upload`** | les deux ports de l'avatar ; et sa 3ᵉ forme, un avatar de GALERIE (`avatar_source`, `avatar_gallery_name`), n'est pas un fichier |
+| avatarizer | `prompt` → `text_content`, `work_audio` → `audio_input`, **`work_image` ET `work_object3d` → `avatar_upload`** | les deux ports de l'avatar ; et sa 3ᵉ forme, un avatar de GALERIE (`avatar_source`, `avatar_gallery_name`), n'est pas un fichier. *Depuis le 2026-11-25 l'avatar vit dans la table commune des entrées (étage 3), `avatar_upload` n'étant plus lue qu'en repli* |
 | composer | `work_audio` → `melody_reference`, `work_score` → `reference_score`, `prompt` homonyme | — |
 | converter | `work` → `input_file` | `work` est le port générique COMMUN (`app_registry.studio_node_ports`, repli sans modèle déclarant), pas un port du converter |
 | describer, reader | `work_file` → `input_file` | — |
@@ -808,6 +808,50 @@ natures est exclu aussi : décision du 2026-09-30, le vocabulaire des rôles sui
    tel port n'a pas d'argument d'outil de l'assistant — il entre dans `UNWIRED_PORTS_BUDGET`, que
    tient une garde. ⏳ Ensuite : une app rejoint la table en
    déplaçant ses colonnes, une à une, derrière le lecteur (`register_port_fields` qui baisse).
+   ✅ **Première app dans la table : l'avatarizer, son AVATAR (2026-11-25)** — choisie sur mesure
+   (6 cards portent un avatar ; le seul champ partagé par deux ports, photo de MuseTalk et objet 3D
+   de TalkingHead, donc le cas qui motivait la table). Ce qui a été fait, et pourquoi chaque pièce :
+   - **La déclaration** : `register_port_fields(AvatarJob, {…}, table=AVATAR_PORTS,
+     legacy={'work_image': 'avatar_upload', 'work_object3d': 'avatar_upload'})`. `table` dit, pour
+     durer, quels ports vivent dans la table (`port_fields.table_ports`) ; `legacy` nomme
+     l'ANCIENNE colonne le temps de la transition : le code neuf est servi AVANT que la relance joue
+     la migration qui recopie la colonne, il la lit donc en REPLI tant qu'une card n'a pas de ligne
+     (`port_fields._legacy_value`, même règle de nature qu'un champ partagé — `_owned_by`, écrite
+     une fois), et la VIDE quand le port s'écrit dans la table (`store_port_inputs` : ancien fichier
+     LIBÉRÉ et annoncé, provenance réécrite sous le port). Une seule place par valeur, à tout instant.
+   - **La règle des lecteurs de déclarations** : un NOM désigne un attribut OU un port
+     (`port_fields.element_value`) — lu par la spec du volet (`detail_registry.spec_value`),
+     l'aperçu (`preview_registry`), la photo des réglages surveillés d'un process
+     (`process_runs.snapshot`), l'entrée d'un pipeline (`process_pipeline.input_of`) et le nom
+     d'entrée d'un lot (`batch_identity`). L'avatarizer déclare donc ses PORTS là où il nommait sa
+     colonne (`source_file`, aperçu, `watched` de l'animation) ; quand la colonne partira, aucun de
+     ces lecteurs ne changera. La photo des réglages ne compare que les clés présentes aux deux dates
+     (`_watched_changed`) : renommer une clé surveillée ne périme aucun rendu existant.
+   - **Le geste de l'app** : `models.set_avatar(job, reçu)` range l'avatar sur le port de SA nature
+     et vide l'autre (un job n'a qu'un avatar) ; `models.avatar_file(job)` le lit. Des FONCTIONS de
+     module autant que des méthodes : l'outil de l'assistant sert aussi la jumelle, dont le modèle
+     est une copie figée. Portés : la vue d'ajout, la ligne de lot, l'outil `add_to_avatarizer`, la
+     tâche (`workers`), le moteur 3D (`function_specs.is_3d_avatar`), le rendu d'un avatar système à
+     son auteur (`system_assets`, désigné par `media_paths.designate` comme depuis la card), la card.
+     La page poste toujours sous `avatar_upload` (son contrat d'envoi, cf. les littéraux de JS
+     ci-dessus) ; la vue range par `set_avatar`.
+   - **La migration** `avatarizer/0027_avatar_to_element_inputs` (RunPython réversible) recopie
+     chaque avatar sur le port de sa nature, passe sa provenance sous le port, vide la colonne — la
+     colonne elle-même reste, son retrait sera une migration à part après la relance. Jouée À BLANC
+     sur la base réelle dans une transaction annulée : 6 avatars, 6 lignes, **0 perdu**, ports
+     `work_image` et `work_object3d`, 1 provenance déplacée, retour (`backward`) identique à l'état
+     d'avant ; un fichier déjà absent du disque avant la migration (`smoke_h1908.png`, une card de
+     smoke) l'est resté. **Elle se joue à la relance**, pas à la main.
+   - **Le générateur suit** : l'extracteur porte `inspector.port_legacy_fields` et
+     `inspector.port_table`, `apps_gen` les rejoue (`legacy=`, `table=`), `source_safety` contrôle
+     ces noms et accepte une LISTE de noms pour le fichier de l'aperçu ; `views_gen` compte
+     l'ancienne colonne parmi les champs de port (⧉ ne la vide pas). `avatarizer_01` régénérée
+     (`apps`, `views`) : ses tests copiés gardent les mêmes 8 rouges, nommément.
+   - **Trouvé en chemin, soldé** : le corpus versionné ne portait `inspector.port_fields` que pour
+     l'anonymizer — l'export des neuf autres avait été omis le 24/11 ; reporté (ces clés seules).
+   Restes nommés : l'outil de l'assistant ne mappe pas encore un port de la table vers son argument
+   (`port_argument_name` → `avatar_image_path`) — la ligne avatarizer de `UNWIRED_PORTS_BUDGET` reste
+   jusque-là ; retrait de la colonne `avatar_upload` (et de `legacy=`) après la relance.
    ⚠ Corrigé à la mise en œuvre : la table n'est PAS `InputProvenance` agrandie, comme écrit
    d'abord — la règle de `common/models.py`, « deux natures de données ⇒ deux tables » : la
    provenance est une trace au mieux (un échec n'arrête jamais un import), la valeur d'un port fait
@@ -828,7 +872,12 @@ valeur (ports lus dans le corpus versionné des modèles ; écarts `GAPS` et jum
 projection, deux listes qui ne peuvent que baisser) ; aucun port ni champ fantôme ; les copies qui
 restent disent ce que dit le lecteur ; un champ partagé rend à chaque port le fichier de sa nature.
 Contre-épreuves en mémoire, cinq rouges (déclaration retirée, homonyme oublié, partage ignoré, champ
-fantôme, copie divergente).
+fantôme, copie divergente). Le passage d'un port dans la table (2026-11-25,
+`APortLeavesItsColumnWithoutLosingAnythingTest`, et l'ancienne colonne partagée dans
+`AFieldSharedByTwoPortsTest`) : repli lu, colonne vidée et fichier libéré à l'écriture, lecteurs de
+déclarations qui nomment un port ; sept contre-épreuves rouges (repli retiré, colonne gardée, nom de
+port ignoré, nature ignorée, déclaration `table` retirée, ancienne colonne fantôme, `set_avatar` qui
+range tout sur la photo).
 
 ## 7. Les RÉGLAGES bornés par la capacité du modèle choisi — `cap_from` (2026-09-23)
 

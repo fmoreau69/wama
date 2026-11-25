@@ -70,8 +70,9 @@ class NamedAvatarTest(TestCase):
                                    avatar_gallery_name='colleague')
         self.assertNotIn('error', result, result)
         job = AvatarJob.objects.get(pk=result['job_id'])
+        # L'avatar se lit au lecteur commun des entrées (table, 2026-11-25), plus à sa colonne.
         self.assertEqual(('upload', self.shared, ''),
-                         (job.avatar_source, job.avatar_upload.name, job.avatar_gallery_name))
+                         (job.avatar_source, job.avatar_file.name, job.avatar_gallery_name))
 
     def test_the_assistant_tool_rejects_an_unknown_name_before_creating(self):
         from wama.tool_api import add_to_avatarizer
@@ -92,4 +93,4 @@ class NamedAvatarTest(TestCase):
                                                             'avatar_gallery_name': 'face.png'})
         self.assertEqual(200, response.status_code, response.content[:300])
         job = AvatarJob.objects.get(pk=response.json()['id'])
-        self.assertEqual(('upload', self.mine), (job.avatar_source, job.avatar_upload.name))
+        self.assertEqual(('upload', self.mine), (job.avatar_source, job.avatar_file.name))

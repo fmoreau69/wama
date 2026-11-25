@@ -949,6 +949,11 @@
           ]
         }
       },
+      "port_fields": {
+        "ImageGeneration": {
+          "work_image": "reference_image"
+        }
+      },
       "preview": {
         "file_field": "reference_image",
         "user_field": "user"

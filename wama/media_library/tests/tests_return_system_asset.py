@@ -50,7 +50,7 @@ class ReturnSystemAssetTest(TestCase):
         self.assertFalse(SystemAsset.objects.filter(pk=self.asset.pk).exists())
         self.job.refresh_from_db()
         self.assertEqual(('upload', owned.file.name, ''),
-                         (self.job.avatar_source, self.job.avatar_upload.name,
+                         (self.job.avatar_source, self.job.avatar_file.name,
                           self.job.avatar_gallery_name))
 
     def test_refused_while_someone_else_names_it(self):

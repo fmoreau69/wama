@@ -1207,6 +1207,12 @@
         ],
         "source_text": "prompt"
       },
+      "port_fields": {
+        "ComposerGeneration": {
+          "work_audio": "melody_reference",
+          "work_score": "reference_score"
+        }
+      },
       "preview": {
         "file_field": null,
         "user_field": "user"

@@ -489,11 +489,31 @@ def _inspector(app_id):
     try:
         from django.apps import apps as django_apps
         from wama.common.utils.port_fields import registered as registered_port_fields
+        from wama.common.utils.port_fields import registered_legacy
         port_fields = {django_apps.get_model(label).__name__: mapping
                        for label, mapping in registered_port_fields().items()
-                       if label.split('.')[0] == app_id}
+                       if label.split('.')[0] == app_id and mapping}
         if port_fields:
             info['port_fields'] = port_fields
+        # Les ports PASSÉS dans la table commune des entrées dont l'ancienne colonne existe encore
+        # (`register_port_fields(…, legacy=)`, 2026-11-25) : la jumelle les lit en repli, comme sa source.
+        legacy = {django_apps.get_model(label).__name__: mapping
+                  for label, mapping in registered_legacy().items()
+                  if label.split('.')[0] == app_id}
+        if legacy:
+            info['port_legacy_fields'] = legacy
+        # Les ports que l'app DÉCLARE vivre dans la table (`table=`), sans ceux que `legacy` dit déjà.
+        from wama.common.utils.port_fields import registered_table
+        table = {}
+        for label, ports in registered_table().items():
+            if label.split('.')[0] != app_id:
+                continue
+            name = django_apps.get_model(label).__name__
+            own = [p for p in ports if p not in (legacy.get(name) or {})]
+            if own:
+                table[name] = own
+        if table:
+            info['port_table'] = table
     except Exception:
         logger.debug("[manifest app] champs des ports de %s illisibles", app_id, exc_info=True)
     return info

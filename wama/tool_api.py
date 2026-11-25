@@ -1959,9 +1959,9 @@ def add_to_avatarizer(
         return {'error': str(e)}
     if category_of_path(image.name) != 'image':
         return {'error': f'Format image non supporté : {Path(image.name).suffix}.'}
+    # L'avatar se POSE une fois le job créé (`AvatarJob.set_avatar` : table commune des entrées,
+    # provenance comprise), comme depuis la card.
     job.avatar_source = 'upload'
-    job.avatar_upload = image.value
-    designated.append((image, 'avatar_upload'))
 
     # Les règles PROPRES de la card : modèle d'animation validé au catalogue, qualité dérivée.
     job.animation_model = _animation_model_or_auto(job.animation_model)
@@ -1971,6 +1971,8 @@ def add_to_avatarizer(
         job.save()
     except Exception as e:
         return {'error': f'Erreur création AvatarJob : {e}'}
+    from wama.avatarizer.models import set_avatar
+    set_avatar(job, image)        # une fonction : le modèle d'une jumelle est une copie figée
     for received, field in designated:
         received.record(job, field)
 

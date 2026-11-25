@@ -61,7 +61,8 @@
             "audio_input",
             "avatar_source",
             "avatar_gallery_name",
-            "avatar_upload"
+            "work_image",
+            "work_object3d"
           ]
         }
       },

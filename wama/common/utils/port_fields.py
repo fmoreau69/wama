@@ -30,20 +30,33 @@ LA RÉSOLUTION, dans cet ordre :
      `apps_gen` la rejoue dans le `ready()` généré ;
   2. sinon un champ HOMONYME du port (les apps nées d'un manifeste nomment déjà leurs colonnes
      ainsi : `reference_layout` du Writer, `work_result` du transcriber) ;
-  3. sinon '' — le port n'a pas de champ (porté par un réglage, une capture en direct…).
+  3. sinon '' — le port n'a pas de champ (porté par un réglage, une capture en direct…) : sa valeur
+     vit dans la TABLE COMMUNE DES ENTRÉES (`common.models.ElementInput`, plus bas), un rang par
+     fichier. Une app DÉCLARE les ports qui y vivent (`register_port_fields(…, table=…)`).
 
-UN CHAMP POUR PLUSIEURS PORTS (l'avatar de l'avatarizer : la photo de MuseTalk ou l'objet 3D de
-TalkingHead dans `avatar_upload`) : la valeur ne revient qu'au port que le fichier FOURNIT d'après
-sa nature (`input_match.work_token_for`, la traduction que lit déjà le tirage du modèle) — le
-stockage hérité ne fait pas mentir le lecteur. ⚠ C'est une lecture du stockage d'AUJOURD'HUI, pas
+UN CHAMP POUR PLUSIEURS PORTS : la valeur ne revient qu'au port que le fichier FOURNIT d'après sa
+nature (`input_match.work_token_for`, la traduction que lit déjà le tirage du modèle, `_owned_by`)
+— le stockage hérité ne fait pas mentir le lecteur. ⚠ C'est une lecture d'un stockage HÉRITÉ, pas
 une forme à imiter : la cible qui ne bloque aucune évolution est que la valeur d'un port ne demande
 AUCUNE colonne (une nature de plus = un port de plus, sans migration) — `INPUT_MODEL_MATCHING §6.13`.
+L'avatar de l'avatarizer (photo de MuseTalk ou objet 3D de TalkingHead, tous deux dans
+`avatar_upload`) en était le cas : depuis le 2026-11-25 il vit dans la table, première app à y
+passer, et son ancienne colonne n'est plus lue qu'en REPLI (`legacy=`, même règle de nature) le
+temps que la migration de la relance la recopie.
 """
 from __future__ import annotations
 
 
 #: `{'app_label.Modèle': {port: champ}}` — écrit par `register_port_fields`, au `ready()` des apps.
 _LISTED: dict = {}
+#: `{'app_label.Modèle': {port: colonne}}` — les ports PASSÉS dans la table commune des entrées dont
+#: l'ancienne colonne existe encore : lue en REPLI tant qu'une card n'a pas de ligne (le code neuf
+#: est servi avant que la relance joue la migration qui recopie la colonne), vidée quand le port
+#: s'écrit dans la table. Se retire avec la colonne (`register_port_fields(…, legacy=)`).
+_LEGACY: dict = {}
+#: `{'app_label.Modèle': (port, …)}` — les ports qu'une app DÉCLARE vivre dans la table commune des
+#: entrées (sans colonne) : la déclaration durable, que `legacy` accompagne le temps d'une transition.
+_TABLE: dict = {}
 
 
 def _label(model) -> str:
@@ -53,17 +66,66 @@ def _label(model) -> str:
     return model._meta.label
 
 
-def register_port_fields(model, mapping: dict) -> None:
+def register_port_fields(model, mapping: dict, *, table=(), legacy: dict = None) -> None:
     """Déclare, pour le modèle d'élément `model` (classe, instance ou `'app.Modèle'`), le champ des
     ports qui ne portent pas son nom. Une seconde déclaration du même modèle la remplace (un
     rechargement de `ready()` ne double rien). Rien n'est vérifié ici — un `ready()` qui lève
-    arrêterait tout WAMA ; la garde `tests_port_fields` refuse un port ou un champ fantôme."""
+    arrêterait tout WAMA ; la garde `tests_port_fields` refuse un port ou un champ fantôme.
+
+    `table` (2026-11-25) : les ports qui vivent dans la table commune des entrées — la déclaration
+    durable (`_TABLE`). `legacy` : `{port: colonne}` de ceux qui ont QUITTÉ leur colonne, la colonne
+    existant encore — lue en repli, vidée à l'écriture (`_LEGACY`) ; un port `legacy` est un port
+    de la table."""
+    legacy = {str(port): str(field) for port, field in dict(legacy or {}).items()}
     _LISTED[_label(model)] = {str(port): str(field) for port, field in dict(mapping or {}).items()}
+    _LEGACY[_label(model)] = legacy
+    _TABLE[_label(model)] = tuple(dict.fromkeys([str(p) for p in table or ()] + list(legacy)))
+
+
+def table_ports(model) -> tuple:
+    """Les ports que le modèle déclare vivre dans la table commune des entrées (`table` / `legacy`)."""
+    return tuple(_TABLE.get(_label(model)) or ())
+
+
+def registered_table() -> dict:
+    """Les ports déclarés « dans la table », par étiquette de modèle (`_TABLE`)."""
+    return {label: list(ports) for label, ports in _TABLE.items() if ports}
 
 
 def registered() -> dict:
     """Toutes les déclarations, par étiquette de modèle — ce que lisent l'extracteur et la garde."""
     return {label: dict(mapping) for label, mapping in _LISTED.items()}
+
+
+def registered_legacy() -> dict:
+    """Les anciennes colonnes des ports passés dans la table, par étiquette de modèle (`_LEGACY`)."""
+    return {label: dict(mapping) for label, mapping in _LEGACY.items() if mapping}
+
+
+def legacy_field(model, port: str) -> str:
+    """L'ancienne colonne de `port` si elle existe encore sur le modèle, sinon ''."""
+    model = model if isinstance(model, type) else type(model)
+    field = (_LEGACY.get(_label(model)) or {}).get(port) or ''
+    return field if field and field in _field_names(model) else ''
+
+
+def element_value(element, name: str):
+    """La valeur que désigne `name` sur un élément : son ATTRIBUT (champ, propriété) — ou, quand
+    l'élément n'en a pas et que `name` est un PORT (`app_modes.INPUT_TYPES`), la valeur du port
+    lue au lecteur (`port_value`). La règle commune des lecteurs de déclarations (2026-11-25) : la
+    spec du volet (`detail_registry.spec_value`), l'aperçu (`preview_registry`) et la photo des
+    réglages surveillés d'un process (`process_runs.snapshot`) nomment un champ OU un port — une
+    app peut déclarer ses ports là où elle nommait sa colonne, et la colonne disparaître sans
+    qu'aucun de ces lecteurs change. Un attribut existant prime toujours : rien ne change pour
+    un nom qui était déjà lu."""
+    marker = object()
+    value = getattr(element, name, marker)
+    if value is not marker:
+        return value
+    from wama.common.utils.app_modes import INPUT_TYPES
+    if name in INPUT_TYPES and getattr(element, '_meta', None) is not None:
+        return port_value(element, name)
+    return None
 
 
 def port_field_map(model) -> dict:
@@ -105,17 +167,19 @@ def port_value(element, port: str):
     value = getattr(element, field, None)
     if not value:
         return None
-    sharing = ports_sharing(element, field)
-    if len(sharing) > 1:
-        # Le jeton que le fichier FOURNIT, d'après sa nature — la traduction que le tirage du
-        # modèle lit déjà (`input_match.work_token_for`, 2026-09-30) ; un fichier sans jeton dédié
-        # revient au premier port déclaré.
-        from wama.common.utils.input_match import work_token_for
-        token = work_token_for(getattr(value, 'name', value))
-        owner = token if token in sharing else sharing[0]
-        if owner != port:
-            return None
-    return value
+    return value if _owned_by(value, port, ports_sharing(element, field)) else None
+
+
+def _owned_by(value, port: str, sharing: list) -> bool:
+    """Le fichier d'une colonne que gardent plusieurs ports (`sharing`) revient-il à `port` ? Au
+    jeton que le fichier FOURNIT, d'après sa nature — la traduction que le tirage du modèle lit déjà
+    (`input_match.work_token_for`, 2026-09-30) ; un fichier sans jeton dédié revient au premier port
+    déclaré. Une colonne d'un seul port lui rend toujours son fichier."""
+    if len(sharing) < 2:
+        return True
+    from wama.common.utils.input_match import work_token_for
+    token = work_token_for(getattr(value, 'name', value))
+    return (token if token in sharing else sharing[0]) == port
 
 
 # ── LA TABLE COMMUNE DES ENTRÉES (`common.models.ElementInput`, 2026-11-25) ────────────────────────
@@ -148,7 +212,23 @@ def port_files(element, port: str) -> list:
     if port_field(element, port):
         value = port_value(element, port)
         return [value] if value else []
-    return [row.file for row in input_rows(element, port)]
+    rows = [row.file for row in input_rows(element, port)]
+    if rows:
+        return rows
+    value = _legacy_value(element, port)
+    return [value] if value else []
+
+
+def _legacy_value(element, port: str):
+    """REPLI sur l'ancienne colonne d'un port passé dans la table (`legacy`) : la valeur qu'elle
+    garde POUR CE PORT, ou None. Une colonne qu'ont partagée plusieurs ports rend son fichier au
+    port que sa NATURE désigne (la règle de `port_value`)."""
+    old = legacy_field(element, port)
+    value = getattr(element, old, None) if old else None
+    if not value:
+        return None
+    sharing = [p for p, f in ((_LEGACY.get(_label(element)) or {}).items()) if f == old]
+    return value if _owned_by(value, port, sharing) else None
 
 
 def store_port_inputs(element, port: str, received) -> int:
@@ -170,6 +250,14 @@ def store_port_inputs(element, port: str, received) -> int:
     from wama.common.services.process_runs import address
     with transaction.atomic():
         release_inputs(element, port)
+        # L'ancienne colonne d'un port passé dans la table (`legacy`) ne garde plus rien : son
+        # fichier est remplacé — LIBÉRÉ comme tout fichier qu'une card lâche, la colonne vidée.
+        old = legacy_field(element, port)
+        if old and _legacy_value(element, port):
+            from wama.common.utils.queue_duplication import release_card_file
+            release_card_file(element, old)
+            setattr(element, old, None)
+            element.save(update_fields=[old])
         for rank, item in enumerate(received):
             row = ElementInput(**address(element), port=port, rank=rank,
                                original_name=(item.name or '')[:255], user_id=element.user_id)
@@ -178,6 +266,9 @@ def store_port_inputs(element, port: str, received) -> int:
             else:
                 row.file.save(item.name, item.value, save=False)
             row.save()
+            # La PROVENANCE d'un fichier désigné, sous le nom du PORT (rien pour un téléversement :
+            # il n'a pas de source dans WAMA) — comme `ReceivedInput.assign` pour une colonne.
+            item.record(element, port)
     return len(received)
 
 

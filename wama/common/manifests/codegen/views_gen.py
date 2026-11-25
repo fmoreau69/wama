@@ -562,8 +562,11 @@ def _render_element(manifest: dict, surface: str = '', prefix: str = '',
     # `ROUTE §10.6` couche 2, point 4.6 : « le champ du port au manifeste, puis la liste du générateur
     # dérivée de lui ») : le ⧉ d'une jumelle vidait l'avatar, la voix ou la partition de référence
     # que l'utilisateur avait donnés, rangés dans un champ au nom hérité.
-    port_field_names = set((((manifest.get('body') or {}).get('inspector') or {}).get('port_fields')
-                            or {}).get(d['item'], {}).values())
+    _insp = (manifest.get('body') or {}).get('inspector') or {}
+    port_field_names = set(((_insp.get('port_fields') or {}).get(d['item']) or {}).values())
+    # … et l'ANCIENNE colonne d'un port passé dans la table (`port_legacy_fields`, 2026-11-25) :
+    # elle garde encore l'entrée d'une card que la migration n'a pas recopiée — une copie la garde.
+    port_field_names |= set(((_insp.get('port_legacy_fields') or {}).get(d['item']) or {}).values())
     # Ce que les PROCESS déclarent écrire, la brique de duplication le vide elle-même — et
     # seulement s'ils l'ont écrit (`AppPipeline.produced_fields`, 2026-10-21) : la liste n'en
     # garde que le reste, comme les vues des apps réelles (2026-10-22, garde

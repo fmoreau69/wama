@@ -119,7 +119,11 @@ def snapshot(settings, watched) -> dict:
         return {}
     if isinstance(settings, dict):
         return {key: json_safe(settings.get(key)) for key in watched}
-    return {key: json_safe(getattr(settings, key, None)) for key in watched}
+    # Un nom surveillé désigne un attribut — ou un PORT, lu au lecteur commun (`port_fields.
+    # element_value`, 2026-11-25) : changer l'avatar de l'avatarizer, passé dans la table des
+    # entrées, périme toujours son animation.
+    from wama.common.utils.port_fields import element_value
+    return {key: json_safe(element_value(settings, key)) for key in watched}
 
 
 def settle_setting(item, nodes, name: str, value) -> int:

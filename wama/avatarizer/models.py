@@ -22,6 +22,38 @@ User = get_user_model()
 #: écrite deux fois). Le moteur se dérive de la nature du fichier (`workers.generate_avatar`).
 AVATAR_FILE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'glb']
 
+#: Les PORTS de l'avatar — la photo (MuseTalk) ou l'objet 3D riggé (TalkingHead), ceux que déclare
+#: la fonction d'animation (`function_specs`, `avatarizer.animate`). Un job n'en a qu'UN à la fois :
+#: l'avatar. Gardés dans la table commune des entrées depuis le 2026-11-25 (`port_fields`), l'ancienne
+#: colonne `avatar_upload` n'étant plus lue qu'en repli, le temps que la migration la recopie.
+AVATAR_PORTS = ('work_image', 'work_object3d')
+
+
+def avatar_file(job):
+    """Le FICHIER de l'avatar d'un job (photo ou objet 3D), lu au lecteur commun des entrées
+    (`port_fields.port_value` sur `AVATAR_PORTS`) — jamais une colonne nommée. None sans avatar de
+    fichier (un avatar de galerie se lit par `avatar_gallery_url`). Une FONCTION, et non seulement
+    une méthode : elle vaut pour tout `AvatarJob`, celui d'une jumelle compris (son modèle est une
+    copie figée — l'outil de l'assistant, `tool_api`, les sert tous deux)."""
+    from wama.common.utils.port_fields import port_value
+    return next((v for v in (port_value(job, p) for p in AVATAR_PORTS) if v), None)
+
+
+def set_avatar(job, received):
+    """Pose l'AVATAR d'un job (déjà créé) : un `ReceivedInput` (téléversé ou désigné, depuis la
+    card, un lot, l'assistant ou un avatar de la médiathèque), rangé sur le port que sa NATURE
+    désigne (`input_match.work_token_for`) ; l'autre port de l'avatar est vidé — un job n'a qu'un
+    avatar, et le moteur se dérive de sa nature. Rangement, provenance et libération de l'ancien
+    fichier : ceux du lecteur commun (`port_fields.store_port_inputs`)."""
+    from wama.common.utils.input_match import work_token_for
+    from wama.common.utils.port_fields import store_port_inputs
+    token = work_token_for(received.name)
+    port = token if token in AVATAR_PORTS else AVATAR_PORTS[0]
+    for other in AVATAR_PORTS:
+        if other != port:
+            store_port_inputs(job, other, [])
+    store_port_inputs(job, port, [received])
+
 
 class AvatarJob(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
     """Représente une tâche de génération d'avatar animé (pipeline MuseTalk)."""
@@ -147,9 +179,19 @@ class AvatarJob(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
         tri de la file (`views._batch_display_name`)."""
         if self.avatar_gallery_name:
             return self.avatar_gallery_name
-        if self.avatar_upload:
-            return self.avatar_upload.name.rsplit('/', 1)[-1]
+        avatar = self.avatar_file
+        if avatar:
+            return avatar.name.rsplit('/', 1)[-1]
         return ''
+
+    @property
+    def avatar_file(self):
+        """Le fichier de l'avatar — `avatar_file(job)`, la fonction du module."""
+        return avatar_file(self)
+
+    def set_avatar(self, received):
+        """Pose l'avatar — `set_avatar(job, received)`, la fonction du module."""
+        set_avatar(self, received)
 
     # MODÈLE D'ANIMATION (2026-10-03) — « auto » ou la CLÉ de catalogue d'un modèle `lip-sync`
     # (`avatarizer:musetalk-v1.5`… — clés entières depuis la route F4b ⑤, 2026-10-07, migration

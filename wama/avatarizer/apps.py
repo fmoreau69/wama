@@ -24,17 +24,22 @@ class AvatarizerConfig(AppConfig):
         from wama.common.utils.detail_registry import register_app_detail_spec
         from .models import AvatarJob
         # Le champ de chaque port d'entrée qui ne porte pas son nom (`common/utils/port_fields`).
-        # L'avatar (photo de MuseTalk OU objet 3D de TalkingHead) partage `avatar_upload` : le
-        # lecteur rend le fichier au port que sa nature désigne. Stockage hérité, pas une forme à imiter.
+        # L'AVATAR (photo de MuseTalk OU objet 3D de TalkingHead, `models.AVATAR_PORTS`) vit dans la
+        # table commune des entrées depuis le 2026-11-25 — la première app qui y passe. Son ancienne
+        # colonne `avatar_upload` (qui gardait les DEUX ports) n'est plus lue qu'en REPLI (`legacy`),
+        # le temps que la migration la recopie ; elle se retirera ensuite, avec cette clé.
         from wama.common.utils.port_fields import register_port_fields
-        register_port_fields(AvatarJob, {'prompt': 'text_content', 'work_audio': 'audio_input',
-                                         'work_image': 'avatar_upload',
-                                         'work_object3d': 'avatar_upload'})
+        from .models import AVATAR_PORTS
+        register_port_fields(AvatarJob, {'prompt': 'text_content', 'work_audio': 'audio_input'},
+                             table=AVATAR_PORTS,
+                             legacy={'work_image': 'avatar_upload', 'work_object3d': 'avatar_upload'})
 
+        # L'aperçu montre l'AVATAR : le premier de ses ports qui porte un fichier (forme « premier
+        # non vide » de la spec, lue au lecteur commun — `preview_registry.create_simple_adapter`).
         register_app_preview(
             app_name='avatarizer',
             model_class=AvatarJob,
-            file_field='avatar_upload',
+            file_field=['work_image', 'work_object3d'],
             user_field='user',
         )
 
@@ -46,8 +51,10 @@ class AvatarizerConfig(AppConfig):
         # `source_text` (2026-10-18) : le texte à dire est l'entrée-texte de l'élément, comme celle du
         # synthesizer — aperçu de la face Entrée, et champ que remplit le lien « Texte » d'un nœud
         # du Studio (`studio/services/graph_flow`, `generic_runner.port_argument_name`).
+        # La source est l'AVATAR, nommé par ses PORTS (lus au lecteur commun, `spec_value`), à défaut
+        # l'audio.
         register_app_detail_spec('avatarizer', AvatarJob, {
-            'source_file': ['avatar_upload', 'audio_input'],
+            'source_file': ['work_image', 'work_object3d', 'audio_input'],
             'source_type': {'const': 'video'},
             'source_text': 'text_content',
             'engine': {'const': 'musetalk'},

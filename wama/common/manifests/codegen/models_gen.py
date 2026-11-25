@@ -133,8 +133,14 @@ def declared_result_fields(body: dict, input_field: str = '') -> list:
 
 def declared_preview_field(body: dict) -> str:
     """Le champ fichier que l'aperçu déclare (`inspector.preview.file_field`), ou ''.
-    `apps_gen` l'enregistre tel quel : il doit donc EXISTER sur le modèle généré."""
-    return ((body.get('inspector') or {}).get('preview') or {}).get('file_field') or ''
+    `apps_gen` l'enregistre tel quel : il doit donc EXISTER sur le modèle généré.
+
+    ⚠ Un aperçu qui nomme un PORT (ou une liste de ports — l'avatar de l'avatarizer, 2026-11-25)
+    ne désigne AUCUNE colonne : le port vit dans la table commune des entrées (`port_fields`), il
+    ne redevient jamais un champ du modèle généré. Rend '' dans ce cas."""
+    from wama.common.utils.app_modes import INPUT_TYPES
+    value = ((body.get('inspector') or {}).get('preview') or {}).get('file_field') or ''
+    return value if isinstance(value, str) and value not in INPUT_TYPES else ''
 
 
 def _is_django_model(path: str) -> bool:

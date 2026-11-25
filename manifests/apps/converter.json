@@ -971,6 +971,11 @@
         "source_file": "input_file",
         "source_type": "media_type"
       },
+      "port_fields": {
+        "ConversionJob": {
+          "work": "input_file"
+        }
+      },
       "preview": {
         "file_field": "input_file",
         "user_field": "user"

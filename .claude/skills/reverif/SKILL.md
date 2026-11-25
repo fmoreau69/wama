@@ -115,6 +115,22 @@ un autre lecteur du même cache), puis le lire ; et comparer le neuf à ce qu'il
 
 ## 2. Testé — lancer, garder, prouver
 
+🔴 **AUCUNE RÉGRESSION ADMISE — ON NE PERD RIEN, ON NE CASSE RIEN** (Fabien, 2026-11-25, à
+chaque passe). Ce n'est pas un souhait, c'est un critère qui se PROUVE, sur trois plans :
+1. **Le code** : la liste NOMINATIVE des rouges avant/après (tests du périmètre, gardes
+   transverses, tests des jumelles régénérées, gestes nocturnes `run_nightly_tests --app`) — pas
+   des totaux. Un rouge NOUVEAU est bloquant tant qu'il n'est pas établi passager (rejoué seul) ou
+   étranger (liste filtrée sur ses fichiers). Un relevé pris pendant une relance du serveur
+   (`ERR_CONNECTION_REFUSED`) ne mesure rien : il se jette et se refait.
+2. **Les données** : une migration qui DÉPLACE une valeur se compte avant/après sur la base
+   réelle (lecture seule) — autant de valeurs à l'arrivée qu'au départ, aucun fichier orphelin ni
+   effacé ; l'ancienne place reste LISIBLE (repli du lecteur) jusqu'à la relance qui joue la
+   migration, et rien de destructif ne s'applique à la main (`feedback_migration_additive…`).
+3. **Le comportement** : ce qui était vert pour l'utilisateur le reste — même photo d'un rendu
+   (rien ne passe « périmé » à tort), même fichier annoncé au retrait, même entrée reçue par la
+   card. Une décision partagée qui change se mesure AVANT/APRÈS sur toutes ses entrées réelles
+   (ci-dessous).
+
 - Lancer : `/cloture §2a` (périmètre ciblé, puis la suite si le substrat a bougé ; lire les NOMS
   des rouges ; « à qui il appartient » s'ÉTABLIT, ses cinq gestes y sont).
 - 🔴 **Et les gardes TRANSVERSES, que tout fichier neuf peut faire rougir sans toucher leur

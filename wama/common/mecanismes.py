@@ -1694,7 +1694,10 @@ MECHANISMS = (
               "nature désigne (`input_match.work_token_for`). Un consommateur ne nomme plus de "
               "colonne. Un port SANS colonne garde ses fichiers dans la table commune des entrées "
               "(`ElementInput`, 2026-11-25 : un rang par fichier, `store_port_inputs` / "
-              "`port_files`), libérés au retrait, recopiés à la duplication, suivis au transfert",
+              "`port_files`), libérés au retrait, recopiés à la duplication, suivis au transfert ; "
+              "une app y DÉCLARE ses ports (`table=`) et lit en repli l'ancienne colonne d'un port "
+              "qui l'a quittée (`legacy=`, vidée à l'écriture). `element_value` : un NOM de "
+              "déclaration (spec du volet, aperçu, réglages surveillés) désigne un champ OU un port",
               'wama/common/utils/port_fields.py', 'docs/construction/ui/INPUT_MODEL_MATCHING.md',
               depends_on=('source_ingest',)),
     # Garde de SORTIE, distincte de l'ingest : l'ingest sait CHERCHER, celle-ci dit OÙ il a le

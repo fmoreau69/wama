@@ -292,9 +292,11 @@ def _animate(job, ctx):
             if not image_path or not os.path.exists(image_path):
                 raise FileNotFoundError(f"Avatar introuvable : {job.avatar_gallery_name}")
         else:
-            if not job.avatar_upload:
+            # L'avatar se lit au lecteur commun des entrées (`AvatarJob.avatar_file`), 2026-11-25.
+            avatar = job.avatar_file
+            if not avatar:
                 raise ValueError("Upload : aucune image avatar fournie.")
-            image_path = job.avatar_upload.path
+            image_path = avatar.path
 
         ctx.progress(12)
 

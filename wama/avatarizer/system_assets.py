@@ -2,7 +2,7 @@
 
 Cette référence ne se voit pas par le chemin : quand la médiathèque rend un avatar système à son
 auteur (`media_library.services.return_system_asset`, 2026-09-29), c'est ici qu'on la fait
-suivre. Les travaux de l'auteur passent sur le fichier rendu (`avatar_upload`, un pointeur) et
+suivre. Les travaux de l'auteur passent sur le fichier rendu (leur avatar, un pointeur) et
 restent relançables ; ceux d'un AUTRE utilisateur ne sont jamais touchés — ils sont comptés, et
 la médiathèque refuse alors l'opération.
 """
@@ -35,7 +35,7 @@ def designate_named_avatar(name, user):
 
     Le NOM reste la façon dont un lot, un nœud du Studio ou l'assistant citent un avatar ; il se
     résout parmi ce que l'utilisateur VOIT (`resolve_visible_asset` : les siens, les partagés, le
-    système), photo ou objet 3D (`AVATAR_NATURES`), et le job reçoit le FICHIER (`avatar_upload`),
+    système), photo ou objet 3D (`AVATAR_NATURES`), et le job reçoit le FICHIER (son avatar),
     comme depuis la card. Plus aucun job neuf ne stocke un nom de galerie. Lève `InputRefused`
     si l'avatar est introuvable."""
     from wama.common.utils.media_paths import InputRefused, designate
@@ -54,6 +54,14 @@ def gallery_name_holder(name, user, new_path, apply):
     mine = named.filter(user=user)
     count = mine.count()
     if apply and new_path:
-        mine.update(avatar_source='upload', avatar_upload=new_path, avatar_gallery_name='')
+        # Le fichier rendu devient l'AVATAR de chaque job (table commune des entrées, 2026-11-25) :
+        # DÉSIGNÉ par la fonction de la card (`media_paths.designate` : confinement, existence,
+        # lisibilité pour son auteur), posé par `AvatarJob.set_avatar`.
+        from wama.common.utils.media_paths import designate
+        avatar = designate(str(new_path), user, 'avatarizer')
+        for job in mine:
+            job.avatar_source, job.avatar_gallery_name = 'upload', ''
+            job.save(update_fields=['avatar_source', 'avatar_gallery_name'])
+            job.set_avatar(avatar)
     return {'label': "avatarizer — travaux qui citent l'avatar par son nom",
             'mine': count, 'others': named.exclude(user=user).count()}

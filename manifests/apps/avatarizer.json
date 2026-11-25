@@ -763,7 +763,8 @@
           "const": "video"
         },
         "source_file": [
-          "avatar_upload",
+          "work_image",
+          "work_object3d",
           "audio_input"
         ],
         "source_text": "text_content",
@@ -771,8 +772,23 @@
           "const": "video"
         }
       },
+      "port_fields": {
+        "AvatarJob": {
+          "prompt": "text_content",
+          "work_audio": "audio_input"
+        }
+      },
+      "port_legacy_fields": {
+        "AvatarJob": {
+          "work_image": "avatar_upload",
+          "work_object3d": "avatar_upload"
+        }
+      },
       "preview": {
-        "file_field": "avatar_upload",
+        "file_field": [
+          "work_image",
+          "work_object3d"
+        ],
         "user_field": "user"
       },
       "preview_registered": true

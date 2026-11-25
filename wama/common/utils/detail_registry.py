@@ -110,8 +110,9 @@ def register_app_detail_spec(app_name, model_class, spec):
                  {'label': 'Mode', 'field': 'mode', 'display': True}],   # get_<f>_display()
        # FORMES GÉNÉRIQUES ajoutées le 2026-10-03 (décision Fabien : « aligner, porter au
        # commun ») — cinq adapters code ne faisaient RIEN d'autre que ceci, chacun à sa main :
-       #   • PREMIER CHAMP NON VIDE — une LISTE de noms : `['avatar_upload', 'audio_input']`
-       #     (ce que l'adapter écrivait `a or b`) ;
+       #   • PREMIER CHAMP NON VIDE — une LISTE de noms : `['work_image', 'audio_input']`
+       #     (ce que l'adapter écrivait `a or b`) ; un nom est un champ OU un PORT de la table
+       #     commune des entrées (`port_fields.element_value`, 2026-11-25) ;
        #   • VALEUR SELON LA PRÉSENCE — `{'when_any': ['text_file', 'text_content'],
        #     'then': 'text', 'else': 'audio'}` : `then` si l'un des champs est renseigné ;
        #   • TEXTE TRONQUÉ dans `extra` — `{'field': 'prompt', 'max_chars': 60}` ;
@@ -158,11 +159,15 @@ def spec_value(instance, form):
     nom de champ · `{'const': x}` · `{'field': f, 'map': table, 'default'?: x}` · LISTE de champs
     (le premier non vide — d'une COLLECTION, son premier élément) · `{'when_any': [champs],
     'then': x, 'else': y}` (selon la présence)."""
+    # Un NOM désigne un attribut de l'élément — ou un PORT, lu au lecteur commun quand l'élément n'a
+    # pas d'attribut de ce nom (`port_fields.element_value`, 2026-11-25) : une app déclare ses ports
+    # là où elle nommait sa colonne (l'avatar de l'avatarizer, passé dans la table des entrées).
+    from wama.common.utils.port_fields import element_value
     if not form:
         return None
     if isinstance(form, (list, tuple)):
         for name in form:
-            value = getattr(instance, name, None)
+            value = element_value(instance, name)
             if value:
                 # « Premier élément d'une liste » (2026-10-05) : la vidéo, sinon la PREMIÈRE des
                 # images de l'imager — le représentant d'une collection est son premier élément.
@@ -170,7 +175,7 @@ def spec_value(instance, form):
         return None
     if isinstance(form, dict):
         if 'when_any' in form:
-            present = any(getattr(instance, name, None) for name in (form.get('when_any') or ()))
+            present = any(element_value(instance, name) for name in (form.get('when_any') or ()))
             return form.get('then') if present else form.get('else')
         # `{'field': 'media_type', 'map': {...}}` (2026-09-18) : la valeur d'un champ TRADUITE
         # par une table — né pour `result_role` (la catégorie d'un média n'est pas un rôle
@@ -182,7 +187,7 @@ def spec_value(instance, form):
             return (form['map'] or {}).get(getattr(instance, form.get('field', ''), None),
                                            form.get('default'))
         return form.get('const')
-    return getattr(instance, form, None)
+    return element_value(instance, form)
 
 
 def spec_schema(instance, spec, app_name):

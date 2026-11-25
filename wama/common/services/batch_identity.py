@@ -58,10 +58,13 @@ def _spec_of(element_model):
 def _source_field(element, form):
     """Le champ fichier que la spec désigne comme entrée — un nom, ou le premier non vide d'une
     liste (la forme « premier champ non vide » de `spec_value`)."""
+    # Un nom désigne un champ ou un PORT (`port_fields.element_value`, la règle de `spec_value`,
+    # 2026-11-25) : l'avatar de l'avatarizer est déclaré par ses ports.
+    from wama.common.utils.port_fields import element_value
     if isinstance(form, str):
         return form
     if isinstance(form, (list, tuple)):
-        return next((n for n in form if getattr(element, n, None)), None)
+        return next((n for n in form if element_value(element, n)), None)
     return None
 
 
@@ -75,9 +78,10 @@ def entry_file(element) -> str:
     chemin relatif à `media/` — '' s'il n'en porte pas. Lu par qui doit savoir ce que l'élément
     reçoit, pas seulement comment le nommer : les réglages qu'il tire de son fichier
     (`batch_settings.computed_values`, 2026-11-05)."""
+    from wama.common.utils.port_fields import element_value
     _, spec = _spec_of(type(element))
     field = _source_field(element, spec.get('source_file'))
-    value = getattr(element, field, None) if field else None
+    value = element_value(element, field) if field else None
     name = getattr(value, 'name', None) if not isinstance(value, str) else value
     return str(name or '')
 
@@ -91,8 +95,9 @@ def element_entry(element, origins=None) -> dict:
     field = _source_field(element, spec.get('source_file'))
     origin = (origins or {}).get((element._meta.app_label, type(element).__name__, element.pk,
                                   field)) if field else None
+    from wama.common.utils.port_fields import element_value
     name = (origin.original_name if origin is not None and origin.original_name
-            else _file_name(getattr(element, field, None) if field else None))
+            else _file_name(element_value(element, field) if field else None))
     text = ' '.join(str(spec_value(element, spec.get('source_text')) or '').split())
     nature = spec_value(element, spec.get('source_type'))
     if not isinstance(nature, str) or not nature:

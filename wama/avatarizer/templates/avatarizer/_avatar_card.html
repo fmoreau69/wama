@@ -40,8 +40,8 @@ pas la variable de gabarit.
           <img src="{{ elem.avatar_gallery_url }}"
                style="width:100%;height:100%;object-fit:cover;border-radius:4px;"
                alt="{{ elem.avatar_gallery_name }}">
-          {% elif elem.avatar_upload %}
-          <img src="{{ elem.avatar_upload.url }}"
+          {% elif elem.avatar_file %}
+          <img src="{{ elem.avatar_file.url }}"
                style="width:100%;height:100%;object-fit:cover;border-radius:4px;" alt="Avatar">
           {% else %}
           <i class="fas fa-user text-muted"></i>

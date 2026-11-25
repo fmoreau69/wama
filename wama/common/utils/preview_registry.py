@@ -172,7 +172,11 @@ def create_simple_adapter(file_field: str = 'input_file',
     def adapter(instance, request):
         # `file_field=None` : l'app n'a pas de média d'ENTRÉE à décrire (le composer part d'une
         # consigne) — ses faces viennent de la spec de détail (`preview_utils._input_preview`).
-        file = getattr(instance, file_field, None) if file_field else None
+        # Le fichier se lit comme une valeur de la spec (`detail_registry.spec_value`, 2026-11-25) :
+        # un champ, un PORT (lu au lecteur commun, `port_fields`), ou une LISTE dont le premier non
+        # vide — l'avatar de l'avatarizer, photo OU objet 3D, passé dans la table des entrées.
+        from .detail_registry import spec_value
+        file = spec_value(instance, file_field) if file_field else None
         if not file:
             return {'error': 'No file available'}
 

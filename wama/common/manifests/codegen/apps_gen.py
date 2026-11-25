@@ -161,15 +161,23 @@ def render_apps(manifest: dict) -> tuple:
     # `common/utils/port_fields`) : la déclaration de l'app, rejouée telle quelle — même règle que les
     # pistes, un modèle que ce `ready()` n'importe pas refuse le rendu.
     port_fields = insp.get('port_fields') or {}
-    if port_fields:
-        unknown = sorted(set(port_fields) - set(modeles))
+    # … et l'ancienne colonne des ports passés dans la table commune des entrées
+    # (`inspector.port_legacy_fields`, 2026-11-25), rejouée en `legacy=`.
+    legacy_fields = insp.get('port_legacy_fields') or {}
+    table_fields = insp.get('port_table') or {}
+    if port_fields or legacy_fields or table_fields:
+        unknown = sorted((set(port_fields) | set(legacy_fields) | set(table_fields)) - set(modeles))
         if unknown:
             return None, f"inspector.port_fields : modèle(s) hors de l'app {', '.join(unknown)}"
         lignes.append('        from wama.common.utils.port_fields import register_port_fields')
         for model_name in modeles:
-            if model_name in port_fields:
-                mapping = {str(p): str(f) for p, f in dict(port_fields[model_name]).items()}
-                lignes.append(f'        register_port_fields({model_name}, {mapping!r})')
+            if model_name in port_fields or model_name in legacy_fields or model_name in table_fields:
+                mapping = {str(p): str(f) for p, f in dict(port_fields.get(model_name) or {}).items()}
+                legacy = {str(p): str(f) for p, f in dict(legacy_fields.get(model_name) or {}).items()}
+                table = tuple(str(p) for p in table_fields.get(model_name) or ())
+                lignes.append(f'        register_port_fields({model_name}, {mapping!r}'
+                              + (f', table={table!r}' if table else '')
+                              + (f', legacy={legacy!r}' if legacy else '') + ')')
     item_model = proc.get('item_model')
     revisions = proc.get('revisions')
     if revisions:
