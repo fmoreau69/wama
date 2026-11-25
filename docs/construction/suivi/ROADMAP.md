@@ -6122,6 +6122,19 @@ RÉFUTÉ** (test demandé par Fabien, 3 appels identiques sur le même dépôt) 
    (`manifests/libraries/codeformer.json:11` « S-Lab License 1.0 », `:17` `vendor`), lus par
    l'audit (`license_audit.py`) ; ⏳ `static/vendors/` reste hors registre.
 
+**Relevé du 2026-11-25 — supports d'une discussion juridique, et inventaire remesuré.**
+- ✅ Deux pages disent le chantier à un lecteur non développeur (`LICENSING.md §10`) : la
+  présentation `/licensing/` (chiffres calculés à l'affichage, `license_audit.briefing`,
+  constellation des licences intégrée) et le document de travail `/reports/licensing/`
+  (généré, `scripts/reports/build_licensing_report.py`). Elles ne portent aucune politique.
+- Les chiffres du « LIVRÉ » ci-dessus datent du 2026-08-21 ; mesuré ce jour : **459 éléments,
+  391 licences établies**, 42 non commerciaux, 68 inconnus, et sous AGPL-3.0 **36 modèles et
+  3 librairies** (`ultralytics`, `PyMuPDF`, `LibreTranslate`) — le motif de l'AGPL ne tient donc
+  pas au seul Ultralytics.
+- Les points 1 à 4 de « ce qui reste » sont INCHANGÉS : rien n'est déclaré ni déposé, et
+  `hunyuan-image-2.1` est toujours au catalogue (l'Imager en hérite « interdite »). ⏳ Le lien
+  « Source » de l'interface (AGPL art. 13, `LICENSING.md §7`) n'est pas posé non plus.
+
 ---
 
 ## 21. App **Writer** (ex-« Editor ») — mise en forme assistée des sorties TEXTE (vision Fabien, 2026-09-01) → élargie le 2026-09-30 : documents HTML générés et hébergés (§21.5)

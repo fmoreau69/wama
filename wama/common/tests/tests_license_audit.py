@@ -229,3 +229,53 @@ class TransitiveLicencesTest(SimpleTestCase):
             found = library_index.installed_distributions()
         self.assertEqual({'some-engine': {'name': 'Some_Engine', 'version': '1.2', 'license': 'MIT',
                                           'requires': ['deep-lib', 'plain']}}, found)
+
+
+class BriefingTest(SimpleTestCase):
+    """2026-11-25 — `license_audit.briefing` : the ONE reading that the « Licences et dépôt » slides
+    (`wama.views.licensing_context`) and their report (`scripts/reports/build_licensing_report.py`)
+    both state, so the two cannot give different figures."""
+
+    def _facts(self):
+        from unittest import mock
+        lines = [
+            {'registre': 'library', 'nom': 'ultralytics', 'licence': 'AGPL-3.0'},
+            {'registre': 'library', 'nom': 'two-ways', 'licence': 'AGPL-3.0 OR Artifex Commercial License'},
+            {'registre': 'library', 'nom': 'free-way', 'licence': 'AGPL-3.0 OR MIT'},
+            {'registre': 'model', 'nom': 'detector.pt', 'licence': 'agpl-3.0'},
+            {'registre': 'model', 'nom': 'Territory', 'licence': 'hunyuan-community'},
+            {'registre': 'media', 'nom': 'a private voice', 'licence': 'hunyuan-community'},
+            {'registre': 'media', 'nom': 'a private song', 'licence': 'cc-by-nc-sa-3.0'},
+            {'registre': 'model', 'nom': 'Unread', 'licence': ''},
+        ]
+        for line in lines:
+            line['q'] = audit.qualifier(line['licence'])
+        crossed = [{'app': 'reader', 'requires': 3, 'pire': audit.qualifier('cc-by-nc-4.0')},
+                   {'app': 'converter', 'requires': 0, 'pire': None}]
+        with mock.patch.object(audit, 'par_app', return_value=crossed):
+            return audit.briefing(lines)
+
+    def test_every_family_is_counted_in_rank_order_empty_ones_included(self):
+        facts = self._facts()
+        self.assertEqual((8, 7, 1), (facts['total'], facts['known'], facts['unknown']))
+        self.assertEqual(list(audit.FAMILY_KEYS.values()), [f['key'] for f in facts['families']])
+        self.assertEqual(set(audit.FAMILLES), set(audit.FAMILY_KEYS), 'a family without a key cannot be named')
+        self.assertEqual({'permissive': 1, 'weak_copyleft': 0, 'strong_copyleft': 3, 'non_commercial': 1,
+                          'to_qualify': 0, 'unknown': 1, 'forbidden': 2},
+                         {key: f['count'] for key, f in facts['family'].items()})
+        self.assertEqual(1, facts['family']['non_commercial']['registries']['media'],
+                         'cc-by-nc-sa-3.0 is non commercial, not a licence left to read')
+
+    def test_agpl_counts_what_agpl_qualifies_and_a_media_is_never_named(self):
+        facts = self._facts()
+        self.assertEqual({'models': 1, 'libraries': ['ultralytics', 'two-ways']}, facts['agpl'],
+                         '« AGPL OR MIT » is taken under MIT')
+        self.assertEqual(['Territory'], facts['forbidden'])
+        self.assertNotIn('private', repr(facts))
+
+    def test_each_app_states_the_most_constraining_family_it_crosses(self):
+        by_key = {a['key']: a for a in self._facts()['apps']}
+        self.assertEqual(('non_commercial', 'Non commerciale'),
+                         (by_key['reader']['worst_key'], by_key['reader']['worst_label']))
+        self.assertEqual(('', ''), (by_key['converter']['worst_key'], by_key['converter']['worst_label']))
+        self.assertTrue(by_key['reader']['label'])

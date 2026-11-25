@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="wama-evaluations" content="{}">
+<title>WAMA — Licences et dépôt de WAMA</title>
+{% comment %}
+  Document de travail « Licences et dépôt de WAMA » — GÉNÉRÉ par
+  `scripts/reports/build_licensing_report.py` depuis l'audit des licences (`license_audit` :
+  inventaire, familles, traversée par app, dépendances lues). Ne pas l'éditer à la main : relancer
+  le script. La politique et les décisions vivent dans LICENSING.md ; la version courte est la
+  présentation `licensing/` (`wama_licensing.html`). Même enveloppe que les autres rapports.
+{% endcomment %}
+<style>
+  :root{
+    --paper:#eaeef4; --card:#ffffff; --card-2:#f4f7fb;
+    --ink:#141922; --ink-soft:#525c6b; --ink-faint:#8a94a3;
+    --line:#d5dce6; --line-soft:#e4e9f1;
+    --accent:#2f56d9; --accent-ink:#213fa3; --accent-soft:#e7edfd;
+    --muted-bar:#aab4c3;
+    --shadow:0 1px 2px rgba(20,25,34,.04), 0 8px 24px rgba(20,25,34,.06);
+    --shadow-lg:0 2px 4px rgba(20,25,34,.05), 0 20px 50px rgba(20,25,34,.12);
+    --r:14px; --r-sm:9px;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"Cascadia Code","SF Mono",Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --paper:#0c0f16; --card:#161c27; --card-2:#1c2431;
+      --ink:#eef2f8; --ink-soft:#a6b0c0; --ink-faint:#6f7b8d;
+      --line:#28313f; --line-soft:#212936;
+      --accent:#7d97ff; --accent-ink:#a9bcff; --accent-soft:#1a2237;
+      --muted-bar:#4a5567;
+      --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+      --shadow-lg:0 2px 4px rgba(0,0,0,.35), 0 24px 60px rgba(0,0,0,.5);
+    }
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0; background:var(--paper); color:var(--ink); font-family:var(--sans);
+       line-height:1.6; -webkit-font-smoothing:antialiased}
+  .wrap{max-width:980px; margin:0 auto; padding:0 24px 80px}
+
+  .home-btn{position:fixed; top:18px; left:18px; z-index:50; display:inline-flex; align-items:center;
+    gap:8px; text-decoration:none; font-family:var(--mono); font-size:.8rem; font-weight:600;
+    color:var(--ink); background:var(--card); border:1px solid var(--line); padding:9px 14px;
+    border-radius:999px; box-shadow:var(--shadow); transition:transform .16s ease, box-shadow .16s ease}
+  .home-btn:hover{transform:translateY(-1px); box-shadow:var(--shadow-lg)}
+  .pdf-btn{left:auto; right:18px}
+
+  .hero{padding:96px 0 28px}
+  .kicker{font-family:var(--mono); font-size:.78rem; letter-spacing:.18em; text-transform:uppercase;
+    color:var(--ink-faint); font-weight:600; margin-bottom:18px}
+  .hero h1{font-size:clamp(2rem,5vw,3.2rem); font-weight:780; letter-spacing:-.03em; line-height:1.1;
+    margin:0; text-wrap:balance}
+  .hero .sub{color:var(--ink-soft); margin-top:14px; font-size:1rem}
+
+  article{background:var(--card); border:1px solid var(--line); border-radius:var(--r);
+    box-shadow:var(--shadow); padding:36px 40px}
+  article h2{font-size:1.45rem; font-weight:720; letter-spacing:-.015em; margin:44px 0 12px;
+    padding-top:20px; border-top:1px solid var(--line-soft); text-wrap:balance}
+  article h2:first-of-type{margin-top:28px}
+  article p{margin:0 0 12px; color:var(--ink)}
+  article > p:first-child{font-size:1.1rem; line-height:1.65}
+  article ul, article ol{margin:0 0 14px; padding-left:22px}
+  article li{margin:4px 0}
+  article a{color:var(--accent-ink)}
+  article strong{font-weight:680}
+  .tbl{overflow-x:auto}
+  article table{border-collapse:collapse; width:100%; margin:8px 0 18px; font-size:.92rem}
+  article th, article td{border-bottom:1px solid var(--line-soft); padding:8px 10px; text-align:left;
+    vertical-align:top}
+  article th{background:var(--card-2); font-weight:650; border-bottom:1px solid var(--line)}
+
+  .chart{margin:16px 0 22px; padding:20px 22px; background:var(--card-2); border:1px solid var(--line-soft);
+    border-radius:var(--r-sm)}
+  .chart figcaption strong{display:block; font-size:1rem}
+  .chart figcaption span{display:block; color:var(--ink-soft); font-size:.86rem; margin:2px 0 14px}
+  .chart .note{color:var(--ink-faint); font-size:.8rem; margin:12px 0 0}
+  .lab{color:var(--ink); font-size:.86rem}
+  .best .lab, .best b{font-weight:680}
+
+  /* 1 — étendue + moyenne */
+  .rr{display:grid; grid-template-columns:minmax(150px,240px) 1fr; gap:12px; align-items:center;
+    min-height:28px}
+  .rr .lab{text-align:right}
+  .track{position:relative; height:24px; margin-right:64px}
+  .ticks{border-bottom:1px solid var(--line)}
+  .ticks span{position:absolute; bottom:4px; transform:translateX(-50%); font-size:.74rem; white-space:nowrap;
+    color:var(--ink-faint); font-family:var(--mono)}
+  .rng{position:absolute; top:11px; height:2px; background:var(--muted-bar)}
+  .dot{position:absolute; top:6px; width:12px; height:12px; margin-left:-6px; border-radius:50%;
+    background:var(--muted-bar)}
+  .val{position:absolute; top:2px; padding-left:10px; font-size:.82rem; color:var(--ink-soft);
+    white-space:nowrap}
+  .best .rng, .best .dot{background:var(--accent)}
+  .best .val{color:var(--ink); font-weight:680}
+
+  /* 2 et 3 — barres */
+  .br{display:grid; grid-template-columns:150px 1fr 1fr; gap:14px; align-items:center; min-height:24px}
+  .br.head span{font-size:.8rem; font-weight:650; color:var(--ink-soft)}
+  .br3{display:grid; grid-template-columns:190px repeat(3,1fr); gap:14px; align-items:center;
+    min-height:26px}
+  .br3.head span{font-size:.8rem; font-weight:650; color:var(--ink-soft)}
+  .grp{margin-top:10px}
+  .eng{font-weight:680; font-size:.9rem; margin-bottom:2px}
+  .bar{position:relative; display:flex; align-items:center; gap:6px; height:16px}
+  .bar i{display:block; height:12px; border-radius:2px; background:var(--muted-bar)}
+  .bar b{font-weight:500; font-size:.8rem; color:var(--ink-soft); white-space:nowrap}
+  .best .bar i{background:var(--accent)}
+  .best .bar b{color:var(--ink); font-weight:680}
+  .bar em{position:absolute; top:-3px; bottom:-3px; width:0; border-left:1px dashed var(--ink-faint)}
+  .cell{display:block}
+  .cnd{display:none; font-size:.74rem; color:var(--ink-faint); margin-top:4px}
+
+  .foot{color:var(--ink-faint); font-size:.82rem; margin-top:22px; text-align:center}
+
+  @media (max-width:720px){
+    article{padding:24px 18px}
+    .rr{grid-template-columns:1fr} .rr .lab{text-align:left}
+    .br{grid-template-columns:1fr} .br3{grid-template-columns:1fr} .br.head, .br3.head{display:none}
+    .cnd{display:block} .br, .br3{gap:2px; margin-bottom:10px}
+  }
+</style>
+</head>
+<body>
+<a href="/" class="home-btn">← WAMA</a>
+<a href="pdf/" class="home-btn pdf-btn" title="Télécharger ce document en PDF">⤓ PDF</a>
+<div class="wrap">
+  <header class="hero">
+    <div class="kicker">Document de travail · licences · propriété intellectuelle</div>
+    <h1>Licences et dépôt de WAMA</h1>
+    <p class="sub">Sous quelle licence publier, ce que permettent les licences traversées, comment déposer · généré le 25 novembre 2026</p>
+  </header>
+  <article>
+{% verbatim %}
+
+<p>Ce document prépare une discussion juridique sur deux sujets liés : la <strong>licence</strong> sous laquelle
+WAMA est publié, et le <strong>dépôt</strong> du logiciel. Il rassemble ce que WAMA mesure lui-même — chaque
+modèle, chaque librairie, chaque média y porte sa licence — et ce que disent les textes, lus par un ingénieur.
+Les points marqués « à confirmer » sont ceux où l'interprétation appartient au droit ; ils sont repris à la fin,
+dans la liste des questions à trancher. Une <a href="/licensing/">présentation en diapositives</a> en donne
+la version courte.</p>
+
+<h2>En bref</h2>
+<ul>
+<li>WAMA est publié sous <strong>GNU AGPL-3.0</strong>. Cette licence n'est pas « non commerciale » : elle
+permet tout usage, commercial compris, et oblige à partager les modifications — y compris quand le logiciel est
+offert comme un service en ligne.</li>
+<li>Elle ne relève pas d'une préférence. WAMA utilise 3 librairies
+et 36 modèles sous AGPL-3.0 ; leur licence veut que l'ensemble soit
+distribué sous AGPL, et interdit d'y ajouter une restriction.</li>
+<li>Une licence <strong>non commerciale</strong> ne gêne pas le travail de recherche. Elle compte à trois
+endroits : ce qu'on fait des <em>résultats</em>, ce qu'on <em>redistribue</em>, et ce qu'on pourrait un jour
+<em>valoriser</em>.</li>
+<li>Passer WAMA lui-même sous une licence <strong>Creative Commons non commerciale</strong> n'est ni possible
+sans retirer des composants essentiels, ni utile : le titulaire des droits dispose déjà de ce qu'elle
+apporterait.</li>
+<li>Les <strong>droits d'exploitation</strong> du logiciel appartiennent à l'université, la
+<strong>paternité</strong> à son auteur. Le choix de licence doit donc être entériné par l'établissement.</li>
+<li>Le <strong>dépôt</strong> commence par la déclaration du logiciel à l'établissement ; viennent ensuite
+l'archive ouverte, le dépôt probatoire et, pour le nom, la marque.</li>
+</ul>
+
+<h2>Trois objets, trois régimes</h2>
+<p>La plupart des malentendus sur « la licence de WAMA » viennent de ce qu'on parle de trois choses à la fois.</p>
+<p><strong>Le code de WAMA</strong> — ce qui est écrit au laboratoire et publié dans le dépôt. Sa licence est
+choisie par le titulaire des droits : c'est l'AGPL-3.0, portée par le fichier <code>LICENSE</code>, et le fichier
+<code>COPYRIGHT</code> nomme le titulaire et l'auteur.</p>
+<p><strong>Ce que WAMA embarque ou utilise</strong> — des librairies, des modèles d'intelligence artificielle
+(leurs « poids »), des médias. Chacun garde la licence que son éditeur lui a donnée. WAMA ne les relicencie pas :
+il doit les respecter, et c'est pour cela qu'il les inventorie.</p>
+<p><strong>Ce que WAMA produit</strong> — une transcription, une image, une voix, une vidéo anonymisée. Un
+résultat n'est pas couvert par la licence du code : il a traversé les licences des modèles qui l'ont produit, et
+ce sont elles qui disent ce qu'on peut en faire.</p>
+<p>La licence du code ne règle donc ni les modèles ni les résultats, et une clause attachée à un modèle ne
+change pas la licence du code.</p>
+
+<h2>Qui détient quoi</h2>
+<p>WAMA est écrit par un agent public dans l'exercice de ses fonctions. Le droit d'auteur français se dédouble
+alors, et ce partage commande la suite : qui choisit la licence, qui signe un dépôt, qui est nommé.</p>
+<div class="tbl"><table><thead><tr><th>Ce qui est détenu</th><th>Par qui</th><th>Ce que cela veut dire ici</th><th>Texte</th></tr></thead><tbody><tr><td><strong>Droits patrimoniaux</strong> : reproduire, adapter, distribuer — donc choisir la licence</td><td>l'Université Gustave Eiffel</td><td>le choix de l'AGPL-3.0 est une proposition d'ingénierie tant que l'établissement ne l'a pas entériné ; c'est lui qui signerait un dépôt probatoire ou une cession</td><td>Code de la propriété intellectuelle, art. L113-9, al. 1 et 3</td></tr><tr><td><strong>Droit moral</strong>, dont la paternité</td><td>l'auteur, Fabien Moreau</td><td>être nommé comme auteur, y compris dans une version exploitée par un tiers ; inaliénable. Pour un logiciel, les autres attributs sont réduits : pas de droit de retrait, opposition à la modification très encadrée</td><td>CPI, art. L121-1 et L121-7</td></tr><tr><td><strong>Intéressement</strong> en cas de valorisation</td><td>partagé</td><td>50 % de la base (produits hors taxes perçus par la personne publique, moins les frais directs, pondérés par la contribution de l'agent) jusqu'à un plafond de traitement, 25 % au-delà ; versé chaque année, y compris après le départ de l'agent</td><td>Code de la recherche, art. D532-2 à D532-6</td></tr></tbody></table></div>
+<p>Une disposition mérite d'être connue : « lorsque la personne publique décide de ne pas procéder à la
+valorisation de la création […], les agents […] peuvent en disposer librement, dans les conditions prévues par
+une convention conclue avec cette personne publique » (art. D532-2, dernier alinéa). Déclarer le logiciel à
+l'établissement est ce qui déclenche cet arbitrage : la déclaration ouvre les options, elle n'en ferme aucune.</p>
+<p>Deux points restent à confirmer. L'article L113-9 vise « les logiciels et leur documentation » : les documents
+de conception et de vision de WAMA, écrits en marge du code, suivent-ils ce régime ou celui, plus favorable à
+l'agent, des autres œuvres ? Et tant que l'historique du dépôt ne compte qu'un auteur — c'est le cas —, la
+titularité est simple ; elle cessera de l'être à la première contribution externe.</p>
+
+<h2>La licence de WAMA : AGPL-3.0</h2>
+<p>L'AGPL est une licence libre à réciprocité. Trois choses la résument.</p>
+<p><strong>Ce qu'elle permet.</strong> Utiliser le logiciel pour tout usage, commercial compris ; l'étudier, le
+modifier, le redistribuer. Rien dans l'AGPL ne distingue un laboratoire d'une entreprise.</p>
+<p><strong>Ce qu'elle oblige.</strong> Celui qui distribue une version modifiée la distribue sous la même
+licence, sources comprises (art. 5). Et celui qui la fait fonctionner comme un service en réseau doit offrir
+à ses utilisateurs le moyen d'en obtenir les sources (art. 13) : c'est ce qui distingue l'AGPL de la GPL, et ce
+qui la rend adaptée à une application web.</p>
+<p><strong>Ce qu'elle n'empêche pas.</strong> Qu'un tiers installe WAMA et vende un service fondé dessus, à
+condition de publier ses sources. Ni que le titulaire des droits, qui n'est pas lié par sa propre licence,
+concède en parallèle le même code sous une licence propriétaire : c'est la « double licence », un modèle courant.</p>
+<p><strong>Pourquoi celle-là.</strong> Parce que WAMA utilise déjà du code sous AGPL. L'inventaire mesure
+aujourd'hui 3 librairies sous AGPL-3.0
+(LibreTranslate, PyMuPDF, ultralytics) et 36 modèles de vision publiés sous la même
+licence. Selon la lecture de leurs éditeurs et de la Free Software Foundation, un programme qui importe une
+librairie sous AGPL forme avec elle un ensemble qui doit être distribué « as a whole, under this License »
+(art. 5), sans qu'on puisse « impose any further restrictions » (art. 10). Deux conséquences :</p>
+<ul>
+<li>une licence <em>plus permissive</em> pour WAMA (MIT, Apache) supposerait de retirer ces composants, qui
+portent la détection dans plusieurs apps ;</li>
+<li>une licence <em>plus restrictive</em> — non commerciale, par exemple — est exclue par la leur.</li>
+</ul>
+<p>C'est aussi de là que vient, pour WAMA, l'obligation de l'article 13 : servi à des utilisateurs distants, il
+doit leur offrir un lien vers ses sources. Ce lien n'est pas encore dans l'interface ; il est dû dès que WAMA
+est ouvert au-delà du poste de développement.</p>
+<div class="tbl"><table><thead><tr><th>Licence à réciprocité forte</th><th>Où</th><th>Éléments</th></tr></thead><tbody><tr><td><code>agpl-3.0</code></td><td>36 modèles, 2 librairies</td><td>LibreTranslate, ultralytics, license-plate-finetune-v1l.onnx, license-plate-finetune-v1m.onnx, license-plate-finetune-v1n.onnx, license-plate-finetune-v1s.onnx et 32 autres</td></tr><tr><td><code>agpl-3.0 OR artifex commercial</code></td><td>1 librairie</td><td>PyMuPDF</td></tr><tr><td><code>gpl-3.0</code></td><td>1 librairie</td><td>phonemizer</td></tr></tbody></table></div>
+<p>À confirmer : que l'import d'une librairie fasse, en droit français, de l'ensemble une œuvre dérivée au sens
+de la licence — c'est la lecture dominante, pas une décision de justice ; et que les poids d'un modèle, qui ne
+sont pas dans le dépôt mais téléchargés à l'installation, relèvent de la même analyse que le code.</p>
+
+<h2>Le non-commercial : où est le problème</h2>
+<p>Une licence non commerciale autorise la recherche et l'enseignement : c'est exactement l'usage du
+laboratoire. Elle n'est donc pas un obstacle au travail quotidien, et WAMA en utilise sciemment. Elle pèse
+ailleurs, à trois endroits.</p>
+<p><strong>Sur les résultats.</strong> Ce qu'un modèle non commercial a produit reste borné à un usage non
+commercial : une publication, un cours, une expérimentation, oui ; un livrable vendu, une prestation, non. La
+frontière n'est pas toujours nette. Creative Commons définit le non-commercial comme ce qui n'est pas
+« primarily intended for or directed towards commercial advantage or monetary compensation » : c'est l'usage
+qui compte, pas la nature de celui qui s'en sert. Une recherche menée avec un partenaire industriel, ou financée
+par un contrat, est le cas à faire trancher. Les licences ne disent d'ailleurs pas toutes la même chose :
+certaines laissent les sorties libres et ne bornent que le modèle.</p>
+<p><strong>Sur la redistribution.</strong> Du code sous licence non commerciale ne peut pas être distribué
+mêlé à du code AGPL, pour la raison donnée plus haut. WAMA en utilise un — un moteur de restauration de
+visages — et le tient hors du dépôt : il est téléchargé à l'installation, jamais versionné. Cette séparation
+doit tenir dans toute distribution future.</p>
+<p><strong>Sur une valorisation.</strong> Si l'établissement voulait un jour exploiter WAMA commercialement,
+chaque modèle non commercial serait à remplacer par un équivalent libre, ou à licencier auprès de son éditeur.
+L'inventaire rend ce travail visible ; il ne le supprime pas.</p>
+<p>L'inventaire compte aujourd'hui 42 éléments non commerciaux :</p>
+<div class="tbl"><table><thead><tr><th>Licence</th><th>Où</th><th>Éléments</th></tr></thead><tbody><tr><td><code>cc-by-nc-sa-3.0</code></td><td>21 médias</td><td>21 médias</td></tr><tr><td><code>cc-by-nc-4.0</code></td><td>8 modèles, 1 librairie, 1 média</td><td>encodec, AudioGen Medium, MusicGen Medium, MusicGen Melody, MusicGen Small, MuScriptor large, Phonon 40m (French), SheetSage2, YuE2-3B ; 1 média</td></tr><tr><td><code>flux-1-dev-non-commercial</code></td><td>3 modèles</td><td>FLUX.1-dev Q8_0 (GGUF), FLUX.1-dev, FLUX Logo Design LoRA</td></tr><tr><td><code>s-lab-1.0</code></td><td>1 modèle, 1 librairie</td><td>CodeFormer</td></tr><tr><td><code>apache-2.0 AND fair-noncommercial-research</code></td><td>1 librairie</td><td>perception_models</td></tr><tr><td><code>apple-amlr</code></td><td>1 modèle</td><td>Apple Depth Pro</td></tr><tr><td><code>cc-by-nc-sa-4.0</code></td><td>1 modèle</td><td>FrWhisper</td></tr><tr><td><code>cogvideox-license</code></td><td>1 modèle</td><td>CogVideoX 5B</td></tr><tr><td><code>cpml-1.0</code></td><td>1 modèle</td><td>Coqui XTTS v2</td></tr><tr><td><code>polyform-noncommercial OR artifex commercial</code></td><td>1 librairie</td><td>PyMuPDF Layout</td></tr></tbody></table></div>
+<p>Un cas est plus strict que le non-commercial : une licence qui <strong>exclut le territoire</strong>. Elle ne
+concède aucun droit dans l'Union européenne, recherche comprise. WAMA la classe au-dessus de tout le reste :</p>
+<div class="tbl"><table><thead><tr><th>Licence</th><th>Éléments</th></tr></thead><tbody><tr><td><code>hunyuan-community</code></td><td>HunyuanImage 2.1</td></tr></tbody></table></div>
+<p>La décision de retirer ou de désactiver ce modèle est en attente ; elle ne demande pas d'interprétation.</p>
+
+<h2>Faut-il passer WAMA en Creative Commons non commerciale ?</h2>
+<p>La question est légitime : si l'on veut que WAMA serve la recherche et pas un concurrent, pourquoi ne pas
+l'écrire dans la licence ? Cinq raisons conduisent à répondre non.</p>
+<ol>
+<li><strong>Les licences Creative Commons ne sont pas faites pour le logiciel.</strong> Creative Commons le dit
+elle-même dans sa foire aux questions et recommande une licence de logiciel : les siennes ne disent rien de la
+distribution du code source ni des brevets, et ne sont pas compatibles avec les grandes licences libres.</li>
+<li><strong>Elle serait incompatible avec ce que WAMA utilise.</strong> Une clause non commerciale est une
+restriction supplémentaire, que l'AGPL des composants liés interdit (art. 7 et 10). Il faudrait retirer ces
+composants, ou acheter à leurs éditeurs une licence commerciale — pour publier un logiciel non commercial.</li>
+<li><strong>WAMA ne serait plus un logiciel libre.</strong> Interdire un champ d'usage sort de la définition du
+logiciel libre comme de l'open source. Or la liste des licences sous lesquelles une administration peut publier
+le code qu'elle produit (Code des relations entre le public et l'administration, art. D323-2-1, liste publiée
+sur data.gouv.fr) ne comprend que des licences libres, permissives ou à réciprocité, et aucune licence Creative
+Commons ; une autre licence passe par une homologation (art. D323-2-2). La politique de science ouverte va dans
+le même sens. <em>À confirmer : l'application de ce régime à un établissement d'enseignement supérieur et de
+recherche.</em></li>
+<li><strong>Elle n'apporterait rien au titulaire.</strong> L'université peut déjà concéder une licence
+commerciale à qui en veut une. Et l'AGPL empêche déjà qu'un tiers reprenne WAMA dans un produit fermé. Ce
+qu'une clause non commerciale ajouterait, c'est d'interdire à un tiers d'offrir WAMA en service <em>même en
+publiant ses sources</em> — au prix d'écarter les partenaires dont l'activité est en partie commerciale, et
+qui ne sauraient plus s'ils ont le droit de l'utiliser.</li>
+<li><strong>Elle ne vaudrait que pour l'avenir.</strong> Les droits accordés par l'AGPL sont irrévocables tant
+que ses conditions sont respectées (art. 2) : les versions déjà publiées resteraient utilisables sous AGPL.</li>
+</ol>
+<p>Si l'objectif est de <em>réserver</em> une exploitation commerciale à l'établissement, le chemin est connu et
+ne demande pas de changer de licence : garder l'AGPL, garder un seul titulaire des droits (un accord de
+contribution avant toute contribution externe), et proposer une licence commerciale à côté. Le droit français
+offre aussi une licence à réciprocité rédigée pour lui, CeCILL, dont la version 2.1 prévoit sa compatibilité
+avec les licences GNU ; l'ensemble resterait régi par l'AGPL du fait des composants liés. <em>À confirmer :
+l'intérêt d'une telle option pour l'établissement.</em></p>
+
+<h2>Ce qu'un résultat traverse, app par app</h2>
+<p>Au moment de publier un résultat, la question utile est : quelle est la licence la plus contraignante de ce
+que l'app a utilisé ? WAMA la calcule depuis la composition que chaque app déclare. « Inconnue » signifie qu'au
+moins un élément requis n'a pas encore de licence établie : elle est classée plus contraignante que le
+non-commercial, parce qu'une licence qu'on n'a pas lue ne permet rien.</p>
+<div class="tbl"><table><thead><tr><th>App</th><th>La plus contraignante</th><th>Ce qui pèse (réciprocité forte et au-delà)</th><th>Éléments requis</th></tr></thead><tbody><tr><td><strong>Anonymizer</strong></td><td>Inconnue</td><td><code>(inconnue)</code> ×15 (yolo26n-face.pt, yolo26s-face.pt, yolov11l-face.pt…) ; <code>other</code> ×1 (LocateAnything-3B) ; <code>agpl-3.0</code> ×37 (license-plate-finetune-v1l.onnx, license-plate-finetune-v1m.onnx, license-plate-finetune-v1n.onnx…)</td><td>67</td></tr><tr><td><strong>Avatarizer</strong></td><td>Inconnue</td><td><code>(inconnue)</code> ×2 (kokoro-onnx, suno-bark) ; <code>cc-by-nc-4.0</code> ×2 (Phonon 40m (French), encodec) ; <code>cpml-1.0</code> ×1 (Coqui XTTS v2) ; <code>s-lab-1.0</code> ×1 (CodeFormer) ; <code>gpl-3.0</code> ×1 (phonemizer)</td><td>34</td></tr><tr><td><strong>Composer</strong></td><td>Inconnue</td><td><code>(inconnue)</code> ×1 (vibevoice) ; <code>cc-by-nc-4.0</code> ×6 (AudioGen Medium, MusicGen Medium, MusicGen Melody…) ; <code>cc-by-nc-sa-4.0</code> ×1 (FrWhisper)</td><td>44</td></tr><tr><td><strong>Converter</strong></td><td>Copyleft faible</td><td>—</td><td>8</td></tr><tr><td><strong>Describer</strong></td><td>Inconnue</td><td><code>(inconnue)</code> ×1 (vibevoice) ; <code>cc-by-nc-sa-4.0</code> ×1 (FrWhisper)</td><td>33</td></tr><tr><td><strong>Enhancer</strong></td><td>Inconnue</td><td><code>(inconnue)</code> ×1 (resemble-enhance)</td><td>20</td></tr><tr><td><strong>Imager</strong></td><td>Interdite (territoire)</td><td><code>hunyuan-community</code> ×1 (HunyuanImage 2.1) ; <code>(inconnue)</code> ×1 (torchao) ; <code>other</code> ×1 (flux-3-image-klein-GGUF) ; <code>cogvideox-license</code> ×1 (CogVideoX 5B) ; <code>flux-1-dev-non-commercial</code> ×2 (FLUX.1-dev, FLUX Logo Design LoRA)</td><td>23</td></tr><tr><td><strong>Reader (OCR)</strong></td><td>Non commerciale</td><td><code>polyform-noncommercial OR artifex commercial</code> ×1 (PyMuPDF Layout) ; <code>agpl-3.0 OR artifex commercial</code> ×1 (PyMuPDF)</td><td>23</td></tr><tr><td><strong>Synthesizer</strong></td><td>Inconnue</td><td><code>(inconnue)</code> ×2 (kokoro-onnx, suno-bark) ; <code>cc-by-nc-4.0</code> ×2 (Phonon 40m (French), encodec) ; <code>cpml-1.0</code> ×1 (Coqui XTTS v2) ; <code>gpl-3.0</code> ×1 (phonemizer)</td><td>27</td></tr><tr><td><strong>Transcriber</strong></td><td>Inconnue</td><td><code>(inconnue)</code> ×2 (pyannote-audio, vibevoice) ; <code>cc-by-nc-sa-4.0</code> ×1 (FrWhisper)</td><td>28</td></tr></tbody></table></div>
+<p>Ce tableau dit ce que l'app <em>peut</em> traverser, pas ce qu'un résultat donné a traversé : cela dépend du
+modèle choisi pour le produire. Une transcription faite avec un modèle sous licence permissive n'hérite pas des
+contraintes d'un autre modèle de la même app.</p>
+
+<h2>L'état de l'inventaire</h2>
+<p>WAMA tient 459 éléments sous licence, dont 391 à la licence établie. Rien
+n'est saisi dans une table à part : la page des licences lit les registres des modèles, des librairies, des
+médias et des services distants à chaque affichage.</p>
+<figure class="chart"><figcaption><strong>Éléments par famille de licence</strong>
+<span>De la plus permissive à l'interdite. En couleur : les familles qui restreignent l'usage ou demandent une
+lecture.</span></figcaption><svg viewBox="0 0 900 246" role="img" aria-label="Éléments par famille de licence" style="width:100%;height:auto;font-family:var(--sans)"><text x="208" y="23" text-anchor="end" style="fill:var(--ink);font-size:14px">Permissive</text><rect x="220" y="8" width="560.0" height="20" rx="3" style="fill:var(--muted-bar)"/><text x="790.0" y="23" style="fill:var(--ink-soft);font-size:14px">248</text><text x="208" y="57" text-anchor="end" style="fill:var(--ink);font-size:14px">Copyleft faible</text><rect x="220" y="42" width="121.9" height="20" rx="3" style="fill:var(--muted-bar)"/><text x="351.9" y="57" style="fill:var(--ink-soft);font-size:14px">54</text><text x="208" y="91" text-anchor="end" style="fill:var(--ink);font-size:14px">Copyleft fort</text><rect x="220" y="76" width="90.3" height="20" rx="3" style="fill:var(--muted-bar)"/><text x="320.3" y="91" style="fill:var(--ink-soft);font-size:14px">40</text><text x="208" y="125" text-anchor="end" style="fill:var(--ink);font-size:14px">Non commerciale</text><rect x="220" y="110" width="94.8" height="20" rx="3" style="fill:var(--accent)"/><text x="324.8" y="125" style="fill:var(--ink-soft);font-size:14px">42</text><text x="208" y="159" text-anchor="end" style="fill:var(--ink);font-size:14px">À qualifier</text><rect x="220" y="144" width="13.5" height="20" rx="3" style="fill:var(--accent)"/><text x="243.5" y="159" style="fill:var(--ink-soft);font-size:14px">6</text><text x="208" y="193" text-anchor="end" style="fill:var(--ink);font-size:14px">Inconnue</text><rect x="220" y="178" width="153.5" height="20" rx="3" style="fill:var(--accent)"/><text x="383.5" y="193" style="fill:var(--ink-soft);font-size:14px">68</text><text x="208" y="227" text-anchor="end" style="fill:var(--ink);font-size:14px">Interdite (territoire)</text><rect x="220" y="212" width="2.3" height="20" rx="3" style="fill:var(--accent)"/><text x="232.3" y="227" style="fill:var(--ink-soft);font-size:14px">1</text></svg></figure>
+<div class="tbl"><table><thead><tr><th>Famille</th><th>Ce qu’elle veut dire</th><th>Total</th><th>Modèles</th><th>Librairies</th><th>Médias</th><th>Services</th></tr></thead><tbody><tr><td><strong>Permissive</strong></td><td>Usage libre, y compris commercial.</td><td>248</td><td>96</td><td>120</td><td>32</td><td>0</td></tr><tr><td><strong>Copyleft faible</strong></td><td>Redistribution des modifications de la brique elle-même.</td><td>54</td><td>0</td><td>5</td><td>49</td><td>0</td></tr><tr><td><strong>Copyleft fort</strong></td><td>Contamine l’œuvre dérivée ; AGPL couvre l’usage en réseau.</td><td>40</td><td>36</td><td>4</td><td>0</td><td>0</td></tr><tr><td><strong>Non commerciale</strong></td><td>Recherche et enseignement seulement.</td><td>42</td><td>16</td><td>4</td><td>22</td><td>0</td></tr><tr><td><strong>À qualifier</strong></td><td>Licence maison — à lire une par une.</td><td>6</td><td>2</td><td>1</td><td>0</td><td>3</td></tr><tr><td><strong>Inconnue</strong></td><td>Non établie : ne permet rien tant qu’elle n’est pas lue.</td><td>68</td><td>18</td><td>9</td><td>39</td><td>2</td></tr><tr><td><strong>Interdite (territoire)</strong></td><td>Lue : aucun droit concédé dans l’UE — ne pas utiliser.</td><td>1</td><td>1</td><td>0</td><td>0</td><td>0</td></tr></tbody></table></div>
+<p><strong>À qualifier</strong> — des licences « maison », à lire une par une :</p>
+<div class="tbl"><table><thead><tr><th>Licence</th><th>Où</th><th>Éléments</th></tr></thead><tbody><tr><td><code>conditions du service</code></td><td>3 services</td><td>API Anthropic (Claude), Claude Code, OpenRouter</td></tr><tr><td><code>other</code></td><td>2 modèles</td><td>LocateAnything-3B, flux-3-image-klein-GGUF</td></tr><tr><td><code>dual</code></td><td>1 librairie</td><td>python-dateutil</td></tr></tbody></table></div>
+<p><strong>Inconnues</strong> — 39 médias, 18 modèles, 9 librairies, 2 services. Les médias sont des fichiers que leur propriétaire doit
+renseigner dans la médiathèque. Les modèles sont surtout des détecteurs de visages et de plaques dont l'origine
+n'est pas établie. S'y ajoutent des librairies dont le dépôt amont reste à lire, et des services distants qui
+ne publient pas de conditions d'usage. On ne déduit jamais une licence d'un nom de fichier.</p>
+<p><strong>Les dépendances indirectes.</strong> Au-delà de ce que WAMA importe lui-même, l'environnement
+d'exécution contient 510 distributions tirées par d'autres : permissive 440, inconnue 27, à qualifier 20, copyleft faible 19, copyleft fort 4. WAMA les lit
+sans les inscrire, et ne signale que les exceptions (51) — parmi elles les
+bibliothèques propriétaires du constructeur de la carte graphique, et quelques licences à réciprocité forte
+(espeakng, phonemizer-fork, pyphen, ultralytics-thop). Cette lecture vaut tant que WAMA ne distribue que son code ; distribuer une image prête à
+l'emploi, binaires compris, poserait une question de plus.</p>
+
+<h2>Le dépôt de WAMA</h2>
+<p><strong>Le premier geste est la déclaration.</strong> Les droits d'exploitation appartenant à l'université,
+le dépôt commence par une déclaration de logiciel auprès de sa direction de la valorisation. C'est elle qui
+entérine la licence, établit les titulaires et signe ce qui doit l'être. Trois dépôts viennent ensuite, qui ne
+se concurrencent pas : chacun prouve autre chose.</p>
+<div class="tbl"><table><thead><tr><th>Dépôt</th><th>Ce qu’il apporte</th><th>Au nom de</th><th>Coût</th></tr></thead><tbody><tr><td><strong>HAL et Software Heritage</strong></td><td>l'archivage pérenne du code source, un identifiant citable (SWHID), une date publique. C'est le dépôt attendu d'un logiciel de recherche ; il se prépare par un fichier <code>codemeta.json</code> (nom, licence, auteurs) et un fichier des auteurs</td><td>les auteurs, rattachés à leur établissement</td><td>gratuit</td></tr><tr><td><strong>Agence pour la protection des programmes</strong></td><td>un dépôt probatoire : la preuve du contenu et de la date, opposable en cas de litige ou lors d'une cession. Utile si une exploitation est envisagée</td><td>l'établissement, titulaire des droits</td><td>payant — à confirmer auprès de l'agence</td></tr><tr><td><strong>Enveloppe Soleau</strong> (INPI)</td><td>la preuve de date d'un document — par exemple l'état des documents de conception à un moment donné. Ce n'est pas un titre de propriété</td><td>le déposant</td><td>une quinzaine d'euros — à confirmer auprès de l'INPI</td></tr></tbody></table></div>
+<p>Côté WAMA, quatre choses sont à préparer : la liste des auteurs, la fiche <code>codemeta.json</code>, le lien
+« Source » dans l'interface, et la mise au net de l'inventaire pour les éléments encore inconnus.</p>
+
+<h2>Peut-on déposer l'idée ?</h2>
+<p>Non, et c'est vrai partout : les idées sont de libre parcours. Le principe de WAMA — décrire une fois,
+réutiliser partout, une interface qui se construit à partir de descriptions — n'est pas appropriable en tant
+que tel. Ce qui se protège ou s'oppose est autour :</p>
+<ul>
+<li><strong>l'expression</strong> : le code, les documents de conception, l'interface sont protégés par le droit
+d'auteur, sans formalité ;</li>
+<li><strong>la date</strong> : elle se prouve, par un dépôt public horodaté ou une enveloppe Soleau ;</li>
+<li><strong>la publication</strong> : publier la vision — un article, un dépôt dans une archive ouverte — crée
+l'art antérieur, et empêche qu'un tiers se l'approprie ensuite ;</li>
+<li><strong>le nom</strong> : « WAMA » peut se déposer comme marque, au nom de l'établissement, après une
+recherche d'antériorité (190 € pour une classe en dépôt électronique, 40 € par classe supplémentaire, selon
+l'INPI) ;</li>
+<li><strong>le brevet</strong> n'est pas une voie : un logiciel « en tant que tel » n'est pas brevetable en
+Europe.</li>
+</ul>
+
+<h2>Questions à trancher</h2>
+<p><strong>Sur la licence</strong></p>
+<ol>
+<li>L'AGPL-3.0 est-elle entérinée par l'établissement ? Par quelle procédure, et qui signe ?</li>
+<li>L'import d'une librairie sous AGPL fait-il de WAMA une œuvre dérivée, en droit français ? Si oui, WAMA
+entier relève de l'AGPL, lien vers les sources compris.</li>
+<li>Les poids d'un modèle, téléchargés à l'installation et jamais distribués avec WAMA, relèvent-ils de la
+même analyse que le code ? Leur licence borne-t-elle seulement l'usage et les résultats ?</li>
+<li>Une double licence — AGPL et licence commerciale — est-elle envisageable pour l'établissement ? Que
+suppose-t-elle pour les composants d'autrui ?</li>
+</ol>
+<p><strong>Sur le non-commercial</strong></p>
+<ol start="5">
+<li>Recherche partenariale, contrat avec un industriel, prestation : où commence le « commercial » au sens des
+licences des modèles ?</li>
+<li>Un résultat produit par un modèle non commercial peut-il entrer dans un livrable de projet financé ? Dans
+un jeu de données publié ?</li>
+<li>Le modèle dont la licence exclut l'Union européenne : confirmer qu'il doit être retiré.</li>
+<li>Deux services distants utilisés ne publient pas de conditions d'usage : que leur demander, et à qui ?</li>
+</ol>
+<p><strong>Sur les titulaires et le dépôt</strong></p>
+<ol start="9">
+<li>Les documents de conception et de vision suivent-ils le régime du logiciel (« et leur documentation ») ou
+celui des autres œuvres de l'agent ?</li>
+<li>Qui dépose, et au nom de qui : archive ouverte, dépôt probatoire, marque ?</li>
+<li>Si l'établissement ne valorise pas : quelle convention permet à l'auteur d'en disposer ?</li>
+<li>Avant toute contribution externe : quel accord de contribution, pour que l'établissement reste seul
+titulaire ?</li>
+<li>Le dépôt est public depuis plusieurs années : les points d'historique sont à aborder de vive voix (leurs
+éléments sont réunis hors du dépôt).</li>
+</ol>
+
+<h2>Pour aller plus loin dans WAMA</h2>
+<ul>
+<li><a href="/licensing/">La présentation « Licences et dépôt »</a> — la version courte de ce document, en
+diapositives, avec la constellation intégrée.</li>
+<li><a href="/common/licenses/">La page des licences</a> — l'inventaire vivant : chaque élément, sa licence, sa
+famille, et la traversée par app.</li>
+<li><a href="/common/scenes/licenses/">La constellation des licences</a> — les mêmes faits en trois dimensions : une étoile
+par licence, les apps reliées à ce qu'elles traversent.</li>
+<li><a href="/common/scenes/models/">La constellation des modèles</a> et <a href="/model-manager/">la gestion des
+modèles</a> — le parc des modèles et la fiche de chacun.</li>
+<li><a href="/model-manager/libraries/">Les librairies</a> et <a href="/common/sources/">les sources externes</a> — ce
+que WAMA importe, et les services distants avec leurs conditions d'usage.</li>
+<li><a href="/common/docs/licensing/">La politique des licences</a> (<code>LICENSING.md</code>) — les décisions, le code
+tiers embarqué, la marche à suivre pour le dépôt.</li>
+</ul>
+
+<h2>Textes cités</h2>
+<div class="tbl"><table><thead><tr><th>Texte</th><th>Ce qu’on en tire</th><th>Lecture</th></tr></thead><tbody><tr><td>GNU Affero General Public License, version 3 — art. 2, 5, 7, 10, 13</td><td>droits irrévocables ; licence de l'ensemble ; pas de restriction supplémentaire ; sources offertes aux utilisateurs d'un service en réseau</td><td>texte de la licence, fichier <code>LICENSE</code> du dépôt</td></tr><tr><td>Code de la propriété intellectuelle — art. L113-9, L121-1, L121-7</td><td>droits patrimoniaux à l'employeur, y compris public ; paternité à l'auteur ; droit moral réduit pour le logiciel</td><td>à confirmer par le juriste</td></tr><tr><td>Code de la recherche — art. D532-2 à D532-6 (décret n° 2023-1321 du 27 décembre 2023)</td><td>prime d'intéressement ; libre disposition par convention si la personne publique ne valorise pas</td><td>relu sur le code consolidé, édition du 24 novembre 2026</td></tr><tr><td>Code des relations entre le public et l'administration — art. D323-2-1 et D323-2-2 (décret n° 2017-638)</td><td>liste des licences de réutilisation des logiciels des administrations ; homologation des autres</td><td>non relu sur le texte officiel ce jour — à confirmer, ainsi que son application à l'établissement</td></tr><tr><td>Creative Commons — licence BY-NC 4.0 (définition de « NonCommercial ») et foire aux questions (logiciel)</td><td>le non-commercial se juge à l'usage ; les licences Creative Commons sont déconseillées pour le logiciel</td><td>définition citée du texte de la licence ; position de la foire aux questions reprise sans citation</td></tr><tr><td>Licence CeCILL, version 2.1</td><td>licence à réciprocité de droit français, compatible avec les licences GNU</td><td>non relue sur le texte officiel ce jour — à confirmer</td></tr><tr><td>INPI — coût d'un dépôt de marque</td><td>190 € pour une classe, 40 € par classe supplémentaire</td><td>page de l'INPI publiée le 5 décembre 2024</td></tr></tbody></table></div>
+
+{% endverbatim %}
+  </article>
+  <p class="foot">Généré depuis l'audit des licences de WAMA (modèles, librairies, médias, services distants, composition déclarée des apps). Ce document prépare une discussion ; il ne vaut pas avis juridique. La politique et les décisions en attente sont dans LICENSING.md.</p>
+</div>
+</body>
+</html>

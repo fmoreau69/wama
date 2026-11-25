@@ -1864,7 +1864,7 @@ de P4 (ci-dessus) : une case recalculée la nuit → le rapport se régénère.
 | `asr_eval_corpus` (`--user wama_evaluation`, un lot par enregistrement) | la campagne elle-même ; son `--report` donne déjà un tableau texte |
 | `docs_catalog.render_markdown` | Markdown → HTML neutralisé |
 | `fact_tags` (`WAMA:FAIT`) | le principe : un CHIFFRE s'injecte depuis la source, il ne se recopie pas |
-| `common/reports.py::REPORTS` + `/reports/<slug>/` | le lieu de publication : un rapport s'ajoute par sa déclaration (dont les `apps` dont il parle), le menu le liste et l'onglet « À propos » de chaque app concernée le lie avec sa date (lue dans la page) — déplacé de `wama.views` le 2026-11-03 |
+| `common/reports.py::REPORTS` + `/reports/<slug>/` | le lieu de publication : un rapport s'ajoute par sa déclaration (dont les `apps` dont il parle — aucune pour un rapport TRANSVERSAL, comme le document de travail `licensing` du 2026-11-25, que seul le menu porte), le menu le liste et l'onglet « À propos » de chaque app concernée le lie avec sa date (lue dans la page) — déplacé de `wama.views` le 2026-11-03 |
 | `scripts/reports/` (générateur + enveloppe de la page) | la GRAINE : rendu, graphiques HTML/CSS, enveloppe |
 
 **Ce qui a été fait à la main, et qu'il faut transformer en briques** :

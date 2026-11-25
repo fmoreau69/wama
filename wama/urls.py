@@ -17,11 +17,13 @@ urlpatterns = [
     path('presentation/archive/<slug:slug>/', views.presentation_archive, name='presentation_archive'),
     path('architecture/', views.architecture, name='architecture'),
     path('fiches/', views.fiches, name='fiches'),
+    path('licensing/', views.licensing, name='licensing'),
     path('reports/<slug:slug>/', views.report, name='report'),
     # Export PDF (`views.PDF_PAGES`, `REPORTS`) : `pdf/` sous la page, lien relatif depuis la page.
     path('presentation/pdf/', views.page_pdf, {'page': 'presentation'}, name='presentation_pdf'),
     path('architecture/pdf/', views.page_pdf, {'page': 'architecture'}, name='architecture_pdf'),
     path('fiches/pdf/', views.page_pdf, {'page': 'fiches'}, name='fiches_pdf'),
+    path('licensing/pdf/', views.page_pdf, {'page': 'licensing'}, name='licensing_pdf'),
     path('reports/<slug:slug>/pdf/', views.page_pdf, {'page': 'report'}, name='report_pdf'),
     # Les RÉGLAGES d'un export (`views.page_pdf_options`, 2026-11-19) : lus par la modale commune.
     path('presentation/pdf/options/', views.page_pdf_options, {'page': 'presentation'},
@@ -29,6 +31,8 @@ urlpatterns = [
     path('architecture/pdf/options/', views.page_pdf_options, {'page': 'architecture'},
          name='architecture_pdf_options'),
     path('fiches/pdf/options/', views.page_pdf_options, {'page': 'fiches'}, name='fiches_pdf_options'),
+    path('licensing/pdf/options/', views.page_pdf_options, {'page': 'licensing'},
+         name='licensing_pdf_options'),
     path('reports/<slug:slug>/pdf/options/', views.page_pdf_options, {'page': 'report'},
          name='report_pdf_options'),
     path('api/ai-chat/', views.ai_chat, name='ai_chat'),

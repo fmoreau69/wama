@@ -121,10 +121,16 @@ class PresentationRoutesTests(TestCase):
     def test_the_architecture_runs_on_the_canvas_engine_and_its_former_version_is_archived(self):
         """Rewritten on 2026-10-03 in the style of the v2 presentation: same engine, same chrome.
         The v1 slideshow is archived, never destroyed."""
-        import re
-
         from wama.views import ARCHIVED_PRESENTATIONS
-        r = self.client.get(reverse('architecture'))
+        page = self._canvas_page('architecture')
+        self.assertIn(reverse('report', args=['transcription']), page)
+        self.assertIn('architecture-2026-v1', ARCHIVED_PRESENTATIONS)
+        self.assertIn(reverse('presentation_archive', args=['architecture-2026-v1']), page)
+
+    def _canvas_page(self, name):
+        """The page `name`, checked for what the canvas engine needs of ANY page it runs."""
+        import re
+        r = self.client.get(reverse(name))
         self.assertEqual(200, r.status_code)
         page = r.content.decode()
         self.assertIn('presentation/wama-presentation.js', page)
@@ -135,10 +141,65 @@ class PresentationRoutesTests(TestCase):
         for frame in frames:
             for attribute in ('data-x=', 'data-y=', 'data-s=', 'data-title='):
                 self.assertIn(attribute, frame, 'a frame without a position is skipped by the camera')
+        self.assertEqual(len(frames), len(set(re.findall(r'<section class="frame[^"]*" id="([^"]+)"', page))),
+                         'two frames under one id : a deep link reaches the first only')
         self.assertNotIn('{%', page, 'no template syntax may leak into the page')
-        self.assertIn(reverse('report', args=['transcription']), page)
-        self.assertIn('architecture-2026-v1', ARCHIVED_PRESENTATIONS)
-        self.assertIn(reverse('presentation_archive', args=['architecture-2026-v1']), page)
+        self.assertNotIn('{{', page)
+        return page
+
+    def test_the_licensing_slides_show_measured_figures_and_lead_to_the_fuller_report(self):
+        """« Licences et dépôt » (2026-11-25): the slides state what the licence audit MEASURES
+        (`license_audit.briefing`, the reading its report shares), embed the licences scene as it
+        is, and send the reader to the fuller report and to the pages that hold the facts."""
+        from unittest import mock
+
+        from django.core.cache import cache
+
+        from wama.common.services import license_audit
+        from wama.views import PDF_PAGES, licensing_context
+        families = [{'key': key, 'rank': rank, 'label': license_audit.FAMILLES[rank][0], 'explanation': '',
+                     'count': 100 + rank, 'registries': dict.fromkeys(license_audit.REGISTRES, 7)}
+                    for rank, key in license_audit.FAMILY_KEYS.items()]
+        facts = {'total': 4321, 'known': 4000, 'unknown': 321, 'families': families,
+                 'family': {f['key']: f for f in families},
+                 'agpl': {'models': 36, 'libraries': ['ultralytics', 'WitnessLib']},
+                 'forbidden': ['WitnessModel'],
+                 'apps': [{'key': 'reader', 'label': 'Reader', 'requires': 3,
+                           'worst_key': 'non_commercial', 'worst_label': 'Non commerciale'}]}
+        cache.delete('licensing:briefing')
+        self.addCleanup(cache.delete, 'licensing:briefing')
+        with mock.patch.object(license_audit, 'briefing', return_value=facts) as measured:
+            page = self._canvas_page('licensing')
+            self._canvas_page('licensing')
+        self.assertEqual(1, measured.call_count, 'the audit is read once, then kept')
+        for shown in ('4321', '4000', '321', 'WitnessLib', 'Non commerciale · 103', 'Reader'):
+            self.assertIn(shown, page, 'a measured figure is missing from the slides')
+        self.assertIn(reverse('report', args=['licensing']), page)
+        self.assertIn(reverse('common:licenses_catalog'), page)
+        # A reader the scene REFUSES (here : no account) is told so — framing it would show, inside
+        # the slide, the page the refusal redirects to. One it admits gets the scene, embedded.
+        self.assertNotIn('<iframe', page)
+        self.assertIn('embed-closed', page)
+        from django.contrib.auth import get_user_model
+        scene = reverse('common:scene', args=['licenses'])
+        # The scene's own guard counts too : were its page open to all, a reader without an
+        # account still does not get it (found blind by a counter-proof : nothing told the two apart).
+        with mock.patch.object(license_audit, 'briefing', return_value=facts), \
+                mock.patch('wama.accounts.permissions.can_open_page', return_value=True):
+            self.assertIn('embed-closed', self.client.get(reverse('licensing')).content.decode())
+        self.client.force_login(get_user_model().objects.create_user('licensing_reader', password='x'))
+        with mock.patch.object(license_audit, 'briefing', return_value=facts):
+            # An account alone is not enough : the scene's page is read under the Registries right.
+            with mock.patch('wama.accounts.permissions.can_open_page', return_value=False):
+                self.assertIn('embed-closed', self.client.get(reverse('licensing')).content.decode())
+            with mock.patch('wama.accounts.permissions.can_open_page', return_value=True) as asked:
+                admitted = self.client.get(reverse('licensing')).content.decode()
+        self.assertIn(f'<iframe data-src="{scene}?embed=1"', admitted)
+        self.assertNotIn('embed-closed', admitted)
+        # (the page's menu asks the same decision for its own entries : read every call)
+        self.assertIn(('public', scene), [call.args[1:] for call in asked.call_args_list],
+                      'the decision of the real request, asked for the scene')
+        self.assertIs(PDF_PAGES['licensing']['context'], licensing_context)
 
     def test_archived_presentations_stay_reachable(self):
         from wama.views import ARCHIVED_PRESENTATIONS
@@ -159,7 +220,9 @@ class PageExportTests(TestCase):
                 + [(reverse('report', args=[slug]), False) for slug in REPORTS])
 
     def _render_into(self, written):
-        def fake(html, output_path, *, fetch, path='/', slides=False, origin=''):
+        # `quality` : le réglage d'export que `page_pdf` passe depuis le 2026-11-19 — sans lui ce faux
+        # moteur levait TypeError, et la garde ne mesurait plus aucune page.
+        def fake(html, output_path, *, fetch, path='/', slides=False, origin='', quality=''):
             written.append((path, slides, html))
             with open(output_path, 'wb') as f:
                 f.write(b'%PDF-1.4 test')

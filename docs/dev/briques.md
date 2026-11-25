@@ -2086,7 +2086,7 @@ Vue dérivée : licences+auteurs des 4 registres, traversée par app. Un modèle
 
 - **Domicile** : `wama/common/services/license_audit.py` · **doc** : [docs/construction/exploitation/LICENSING.md](../construction/exploitation/LICENSING.md)
 - **Module** : Audit des licences — VUE DÉRIVÉE sur les registres, jamais un registre de plus.
-- **API publique** (10) :
+- **API publique** (11) :
   - `normaliser_licence(brut) -> str` — Texte libre → identifiant canonique. `''` si rien d'exploitable.
   - `license_terms(expression) -> tuple[str, list]` — `(opérateur, [identifiants normalisés])` d'une expression SPDX à un niveau (2026-11-05).
   - `qualifier(licence: str) -> dict` — `{id, famille, rang, libelle, attribution}` — `rang` croît avec la contrainte.
@@ -2096,6 +2096,7 @@ Vue dérivée : licences+auteurs des 4 registres, traversée par app. Un modèle
   - `inventaire(user=None) -> list` — Toutes les lignes des registres, chacune qualifiée. Aucune écriture.
   - `transitives(installed=None, registry_keys=None) -> dict` — Les distributions installées que le registre ne porte PAS — les dépendances des librairies
   - `par_app(lignes=None) -> list` — Pour chaque app : les licences TRAVERSÉES par ce qu'elle requiert, et la plus contraignante.
+  - `briefing(lines=None, crossed=None) -> dict` — Les MESURES que citent la présentation « Licences et dépôt » (`wama.views.licensing`) et
   - `synthese(user=None) -> dict` — Photo complète : lignes, répartition, plus contraignante, et ce qu'il faut citer.
 
 ### Bac à sable d'apps (jumelles exécutables)
@@ -4035,13 +4036,14 @@ Une scène DÉCLARE ce qu'elle montre — couches, facteurs de distance pondér�
 
 - **Domicile** : `wama/common/scenes.py` · **doc** : [docs/construction/ui/WAMA_SCENES_3D.md](../construction/ui/WAMA_SCENES_3D.md)
 - **Module** : Les SCÈNES DE PROXIMITÉ (constellations 3D) — déclarées par leur domaine, montées par UNE brique.
-- **API publique** (11) :
+- **API publique** (12) :
   - `class Scene`
   - `register_scene(scene: Scene) -> Scene` — Déclare une scène. Les incohérences se voient À LA DÉCLARATION, pas dans le navigateur.
   - `get_scene(key: str) -> Optional[Scene]`
   - `scene_for_registry(registry_key: str) -> Optional[Scene]` — La scène qui projette ce registre, s'il y en a une (bouton de l'en-tête de sa page).
   - `can_view(scene: Scene, user) -> bool`
   - `page_url(scene: Scene) -> str`
+  - `openable_url(key: str, user) -> str` — L'adresse de la scène `key` si `user` peut l'OUVRIR, sinon '' — ce que lit une page qui
   - `data_url(scene: Scene) -> str`
   - `scene_data(scene: Scene, user) -> dict` — Le contrat de la scène, lu de sa source (`data`).
   - `scene_spec(scene: Scene) -> dict` — La déclaration, telle que la page la sert à la brique (`<script type="application/json">`).

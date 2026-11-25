@@ -124,11 +124,12 @@ def presentation(request):
     La frise de la roadmap est LUE dans `ROADMAP.md` (`common/roadmap_timeline.py`), jamais
     recopiée dans le gabarit. Illisible, elle le DIT sur sa diapositive au lieu de casser la page.
     """
-    return render(request, 'includes/wama_presentation.html', presentation_context())
+    return render(request, 'includes/wama_presentation.html', presentation_context(request))
 
 
-def presentation_context():
-    """Ce que le gabarit de la présentation reçoit — partagé par la page et son export PDF."""
+def presentation_context(request=None):
+    """Ce que le gabarit de la présentation reçoit — partagé par la page et son export PDF.
+    `request` : passé à tout contexte de `PDF_PAGES` (celui des licences lit qui regarde)."""
     from wama.common.roadmap_timeline import milestones
     try:
         timeline, timeline_error = milestones(), ''
@@ -192,6 +193,28 @@ def fiches(request):
     return render(request, 'includes/wama_fiches.html')
 
 
+def licensing(request):
+    """« Licences et dépôt de WAMA » — présentation sur le canvas de l'architecture (2026-11-25,
+    demande de Fabien : un support clair pour une discussion juridique, qui renvoie au document
+    plus étoffé `reports/licensing/`). La politique vit dans `LICENSING.md` ; les chiffres sont
+    MESURÉS à l'affichage (`licensing_context`), jamais recopiés dans le gabarit."""
+    return render(request, 'includes/wama_licensing.html', licensing_context(request))
+
+
+def licensing_context(request=None):
+    """Ce que le gabarit « Licences et dépôt » reçoit — partagé par la page et son export PDF :
+    les mesures de l'audit des licences (`license_audit.briefing`), gardées cinq minutes, et
+    l'adresse de la constellation des licences SI le lecteur peut l'ouvrir."""
+    from django.core.cache import cache
+    facts = cache.get('licensing:briefing')
+    if facts is None:
+        from wama.common.services.license_audit import briefing
+        facts = briefing()
+        cache.set('licensing:briefing', facts, 300)
+    from wama.common.scenes import openable_url
+    return {'licences': facts, 'scene_url': openable_url('licenses', getattr(request, 'user', None))}
+
+
 # RAPPORTS servis depuis l'accueil (« Présentations & annexes », catégorie Rapports) : leur
 # déclaration vit dans `common/reports.py`, que lisent aussi les onglets « À propos » des apps.
 from wama.common.reports import REPORTS  # noqa: E402
@@ -215,6 +238,8 @@ PDF_PAGES = {
                      'context': presentation_context},
     'architecture': {'template': 'includes/wama_architecture.html', 'slides': True},
     'fiches': {'template': 'includes/wama_fiches.html', 'slides': False},
+    'licensing': {'template': 'includes/wama_licensing.html', 'slides': True,
+                  'context': licensing_context},
 }
 
 
@@ -239,7 +264,7 @@ def page_pdf(request, page, slug=None):
     except ValueError as e:
         return HttpResponse(f"Réglage d'export refusé : {e}", status=400,
                             content_type='text/plain; charset=utf-8')
-    context = entry['context']() if entry.get('context') else None
+    context = entry['context'](request) if entry.get('context') else None
     pdf = build_pdf(request, template, page_path=page_path, slides=slides, context=context,
                     options=options)
     if pdf is None:

@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+{% load static %}
+{% load wama_static %}
+{% comment %}
+  « Licences et dépôt de WAMA » (2026-11-25) — support d'une discussion juridique, sur le moteur
+  « canvas zoomable » de la présentation et de l'architecture (static/presentation/ : frames posées
+  par data-x / data-y / data-s, caméra qui vole de l'une à l'autre). Ordre de parcours = ordre du DOM.
+
+  Anatomie : une frame de section (s=1.5, texte à gauche) porte deux frames enfants (s=0.5) posées
+  dans sa moitié droite ; la caméra y plonge.
+
+  Trois sources, aucune recopiée ici :
+    • la POLITIQUE et les décisions : docs/construction/exploitation/LICENSING.md ;
+    • les CHIFFRES : `license_audit.briefing()` (`wama.views.licensing_context`), calculés à
+      l'affichage sur les registres — `licences.*` ci-dessous ;
+    • le DÉTAIL rédigé, avec les textes cités : le rapport `reports/licensing/`
+      (scripts/reports/build_licensing_report.py), vers lequel cette page renvoie.
+  La constellation des licences est la page de la scène, INTÉGRÉE telle quelle (`?embed=1`), comme
+  celle des utilisateurs dans la présentation.
+
+  Règle de contenu (celle de la présentation v3) : une phrase et des mots-clés, pas d'état
+  d'avancement ni de dates.
+{% endcomment %}
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WAMA — Licences et dépôt</title>
+  <link rel="stylesheet" href="{% static_v 'vendors/font-awesome-6.4.0/css/all.min.css' %}">
+  {# Tokens de thème d'abord : la feuille de la scène lit ses couleurs dans wama-theme.css (ROADMAP §28). #}
+  <link rel="stylesheet" href="{% static_v 'common/css/wama-theme.css' %}">
+  <link rel="stylesheet" href="{% static_v 'presentation/wama-presentation.css' %}">
+</head>
+<body>
+  <canvas id="bg-layer"></canvas>
+  <div id="progress"></div>
+
+  <div id="viewport">
+    <div id="world">
+
+      <!-- Halos de sections et liaisons : décor du plan, visibles surtout en vue d'ensemble -->
+      <div class="zone" style="--c:var(--trans);left:-3800px;top:1900px;width:3000px;height:3000px"></div>
+      <div class="zone" style="--c:var(--data);left:0px;top:1900px;width:3000px;height:3000px"></div>
+      <div class="zone" style="--c:var(--lab);left:3800px;top:1900px;width:3000px;height:3000px"></div>
+      <div class="zone" style="--c:var(--media);left:-3800px;top:4500px;width:3000px;height:3000px"></div>
+      <div class="zone" style="--c:var(--trans);left:0px;top:4700px;width:3400px;height:3400px"></div>
+      <div class="zone" style="--c:var(--data);left:3800px;top:4500px;width:3000px;height:3000px"></div>
+      <svg class="links" viewBox="-6000 -1000 12000 9000" style="left:-6000px;top:-1000px;width:12000px;height:9000px">
+        <path d="M-800 300 C-2000 700 -3000 1000 -3800 1250" /><path d="M0 450 L0 1250" />
+        <path d="M800 300 C2000 700 3000 1000 3800 1250" />
+        <path d="M-2600 1900 L-1200 1900" class="flow" /><path d="M1200 1900 L2600 1900" class="flow" />
+        <path d="M3800 2560 C3600 3300 -3000 3200 -3800 3840" />
+        <path d="M-2600 4500 L-1200 4500" class="flow" /><path d="M1200 4500 L2600 4500" class="flow" />
+        <path d="M3800 5160 C3000 6100 1600 6500 900 6700" />
+      </svg>
+
+      <!-- ═════════════════════ 0 · TITRE ═════════════════════ -->
+      <section class="frame" id="titre" data-x="0" data-y="0" data-s="1" data-title="Licences et dépôt">
+        <div class="kicker">WAMA · Licences et dépôt</div>
+        <h1 style="font-size:132px">Licences<br>et dépôt</h1>
+        <p class="lead" style="margin-top:30px">Sous quelle licence WAMA se publie, ce que les licences des modèles
+          permettent de faire des <b>résultats</b>, et comment <b>déposer</b> le logiciel.</p>
+        <p style="margin-top:30px"><a class="hud-btn" style="height:46px;font-size:17px" href="{% url 'report' 'licensing' %}">
+          <i class="fas fa-file-lines"></i> Le document de travail, plus détaillé</a></p>
+        <p style="margin-top:26px;font-size:20px;color:var(--ink-mute)">
+          <i class="fas fa-keyboard"></i>&nbsp; → espace pour avancer · O vue d'ensemble · F plein écran · clic pour plonger</p>
+      </section>
+
+      <!-- ═════════════════════ 1 · TROIS OBJETS ═════════════════════ -->
+      <section class="frame" id="objets" data-x="-3800" data-y="1900" data-s="1.5" data-section="1" data-title="Trois objets, trois régimes">
+        <div style="width:740px">
+          <div class="kicker trans">01 — De quoi parle-t-on</div>
+          <h2 style="font-size:56px">Trois objets, trois régimes</h2>
+          <p style="font-size:23px">Le <b>code</b> de WAMA, ce qu'il <b>embarque</b> et ce qu'il <b>produit</b> ne relèvent
+            pas de la même licence. Régler l'un ne règle pas les autres.</p>
+          <div class="kw">
+            <span>le code de WAMA : AGPL-3.0</span>
+            <span>modèles, librairies, médias : leur propre licence</span>
+            <span>un résultat : les licences qu'il a traversées</span>
+          </div>
+        </div>
+        <div class="src">LICENSE · COPYRIGHT · LICENSING.md §1 et §2</div>
+      </section>
+
+      <section class="frame boxed" id="titulaires" data-x="-3185" data-y="1655" data-s="0.5" data-title="Trois objets · Qui détient quoi">
+        <div class="kicker trans">Zoom — qui détient quoi</div>
+        <h2 style="font-size:52px">Un logiciel d'agent public, deux titulaires</h2>
+        <div class="cards c3">
+          <div class="card"><h3><i class="fas fa-building-columns c-trans"></i> L'université</h3>
+            <p>Les droits d'<b>exploitation</b> : reproduire, adapter, distribuer. C'est elle qui choisit la
+               licence et qui signe un dépôt.</p>
+            <div class="kw"><span>Code de la propriété intellectuelle, L113-9</span></div></div>
+          <div class="card"><h3><i class="fas fa-signature c-trans"></i> L'auteur</h3>
+            <p>La <b>paternité</b> : être nommé comme auteur, toujours. Elle ne se cède pas et ne dépend
+               d'aucune licence.</p>
+            <div class="kw"><span>droit moral, L121-1 et L121-7</span></div></div>
+          <div class="card"><h3><i class="fas fa-scale-balanced c-trans"></i> Les deux</h3>
+            <p>L'<b>intéressement</b> : si le logiciel rapporte, l'auteur en reçoit une part fixée par
+               les textes, même après son départ.</p>
+            <div class="kw"><span>Code de la recherche, D532-2 à D532-6</span></div></div>
+        </div>
+        <p style="margin-top:24px">Si l'établissement décide de ne pas valoriser, l'auteur peut en disposer,
+           par une <b>convention</b> avec lui.</p>
+        <div class="src">COPYRIGHT · LICENSING.md §8 · Code de la recherche, art. D532-2, dernier alinéa</div>
+      </section>
+
+      <section class="frame boxed" id="inventaire" data-x="-3185" data-y="2145" data-s="0.5" data-title="Trois objets · L'inventaire">
+        <div class="kicker trans">Zoom — ce que WAMA embarque</div>
+        <h2 style="font-size:52px">Tout est compté, par famille de licence</h2>
+        <div class="stats">
+          <div class="stat"><div class="big grad">{{ licences.total }}</div><span>éléments sous licence</span></div>
+          <div class="stat"><div class="big">{{ licences.known }}</div><span>licences établies</span></div>
+          <div class="stat"><div class="big">{{ licences.family.non_commercial.count }}</div><span>non commerciales</span></div>
+          <div class="stat"><div class="big">{{ licences.unknown }}</div><span>à établir</span></div>
+        </div>
+        <div class="kw" style="margin-top:34px">
+          {% for f in licences.families %}<span>{{ f.label }} · {{ f.count }}</span>{% endfor %}
+        </div>
+        <p style="margin-top:26px"><a class="hud-btn" style="height:44px;font-size:16px" href="{% url 'common:licenses_catalog' %}">
+           <i class="fas fa-scale-balanced"></i> La page des licences</a></p>
+        <div class="src">calculé à l'affichage : license_audit.briefing() sur les modèles, les librairies, les médias et les services</div>
+      </section>
+
+      <!-- ═════════════════════ 2 · AGPL ═════════════════════ -->
+      <section class="frame" id="agpl" data-x="0" data-y="1900" data-s="1.5" data-section="1" data-title="La licence de WAMA">
+        <div style="width:740px">
+          <div class="kicker data">02 — La licence de WAMA</div>
+          <h2 style="font-size:56px">AGPL-3.0 : <span class="grad">partager</span>, pas interdire</h2>
+          <p style="font-size:23px">L'AGPL <b>autorise</b> l'usage commercial. Elle <b>oblige</b> celui qui modifie WAMA
+            et le distribue, ou l'offre en service, à publier ses sources sous la même licence.</p>
+          <div class="kw">
+            <span>usage commercial permis</span><span>mêmes libertés pour les suivants</span>
+            <span>service en réseau compris</span>
+          </div>
+        </div>
+        <div class="src">GNU AGPL version 3, art. 5, 10 et 13 · LICENSING.md §1</div>
+      </section>
+
+      <section class="frame boxed" id="agpl-pourquoi" data-x="615" data-y="1655" data-s="0.5" data-title="AGPL · Pourquoi elle s'impose">
+        <div class="kicker data">Zoom — pourquoi cette licence</div>
+        <h2 style="font-size:52px">Elle vient de ce que WAMA utilise</h2>
+        <div class="chain data">
+          <div class="node"><span class="n">01</span><h3>WAMA importe</h3>
+            <p>{{ licences.agpl.libraries|length }} librairie{{ licences.agpl.libraries|length|pluralize }} et
+               {{ licences.agpl.models }} modèles de vision sous AGPL-3.0</p></div>
+          <div class="arrow">→</div>
+          <div class="node"><span class="n">02</span><h3>Un ensemble</h3><p>le tout se distribue sous la même licence (art. 5)</p></div>
+          <div class="arrow">→</div>
+          <div class="node"><span class="n">03</span><h3>Rien de plus</h3><p>aucune restriction ajoutée (art. 10)</p></div>
+          <div class="arrow">→</div>
+          <div class="node"><span class="n">04</span><h3>En réseau</h3><p>offrir les sources à qui utilise le service (art. 13)</p></div>
+        </div>
+        <div class="cards c2" style="margin-top:26px">
+          <div class="card"><h3>Plus permissif ?</h3><p>MIT ou Apache : impossible sans retirer ces composants.</p></div>
+          <div class="card"><h3>Plus restrictif ?</h3><p>Non commercial : leur licence l'interdit.</p></div>
+        </div>
+        <div class="src">license_audit.briefing().agpl : {{ licences.agpl.libraries|join:", " }} · lecture de l'éditeur et de la FSF, à confirmer en droit français</div>
+      </section>
+
+      <section class="frame boxed" id="agpl-ouvert" data-x="615" data-y="2145" data-s="0.5" data-title="AGPL · Ce qu'elle laisse ouvert">
+        <div class="kicker data">Zoom — et une exploitation commerciale ?</div>
+        <h2 style="font-size:52px">L'AGPL ne ferme pas la porte</h2>
+        <div class="cards c3">
+          <div class="card"><h3><i class="fas fa-file-contract c-data"></i> Double licence</h3>
+            <p>Le titulaire n'est pas lié par sa propre licence : il peut concéder le même code sous une
+               licence propriétaire.</p></div>
+          <div class="card"><h3><i class="fas fa-right-left c-data"></i> À remplacer</h3>
+            <p>Les composants AGPL d'autrui, ou acheter leur licence commerciale ; et les modèles non
+               commerciaux.</p></div>
+          <div class="card"><h3><i class="fas fa-user-check c-data"></i> Un seul titulaire</h3>
+            <p>Changer de licence reste possible tant que le code a un seul auteur. Une contribution
+               externe demande un accord de contribution.</p></div>
+        </div>
+        <p style="margin-top:24px">Ce que l'AGPL n'empêche pas : qu'un tiers offre WAMA en service, <b>sources publiées</b>.</p>
+        <div class="src">LICENSING.md §8 · historique du dépôt : un auteur</div>
+      </section>
+
+      <!-- ═════════════════════ 3 · NON COMMERCIAL ═════════════════════ -->
+      <section class="frame" id="non-commercial" data-x="3800" data-y="1900" data-s="1.5" data-section="1" data-title="Le non-commercial">
+        <div style="width:740px">
+          <div class="kicker lab">03 — Le non-commercial</div>
+          <h2 style="font-size:56px">Il borne les résultats, pas la recherche</h2>
+          <p style="font-size:23px">Une licence non commerciale ne gêne pas le travail du laboratoire. Elle limite ce
+            qu'on fait des <b>résultats</b>, et elle ne se <b>mélange pas</b> à l'AGPL dans un même code.</p>
+          <div class="kw">
+            <span>au labo : oui</span><span>publier, enseigner : oui</span>
+            <span>livrable commercial : non</span><span>redistribuer avec WAMA : non</span>
+          </div>
+        </div>
+        <div class="src">LICENSING.md §2 · license_audit.FAMILLES</div>
+      </section>
+
+      <section class="frame boxed" id="nc-ou" data-x="4415" data-y="1655" data-s="0.5" data-title="Non-commercial · Où il pèse">
+        <div class="kicker lab">Zoom — où il pèse</div>
+        <h2 style="font-size:52px">Quatre endroits, quatre conséquences</h2>
+        <div class="cards c2">
+          <div class="card lab"><h3><span class="ico"><i class="fas fa-cubes"></i></span> Les modèles</h3>
+            <p><b>{{ licences.family.non_commercial.registries.model }}</b> modèles de génération et d'analyse : leurs
+               résultats servent la recherche et l'enseignement, pas un produit.</p></div>
+          <div class="card lab"><h3><span class="ico"><i class="fas fa-code"></i></span> Le code</h3>
+            <p>Un moteur sous licence non commerciale n'entre jamais dans le dépôt : il s'installe à part,
+               et sort de toute distribution.</p></div>
+          <div class="card lab"><h3><span class="ico"><i class="fas fa-earth-europe"></i></span> Le territoire</h3>
+            <p><b>{{ licences.forbidden|length }}</b> modèle{{ licences.forbidden|length|pluralize }} dont la licence exclut
+               l'Union européenne : aucun droit, même en recherche. Plus strict qu'un non-commercial.</p></div>
+          <div class="card lab"><h3><span class="ico"><i class="fas fa-circle-question"></i></span> La zone grise</h3>
+            <p>Recherche partenariale, contrat industriel, prestation : commercial ou non ? Chaque licence
+               a sa définition.</p></div>
+        </div>
+        <div class="src">license_audit.briefing() · LICENSING.md §2 et §3 · wama/common/backends/vendor/ (non versionné)</div>
+      </section>
+
+      <section class="frame boxed" id="nc-wama" data-x="4415" data-y="2145" data-s="0.5" data-title="Non-commercial · WAMA en CC BY-NC ?">
+        <div class="kicker lab">Zoom — passer WAMA en Creative Commons NC ?</div>
+        <h2 style="font-size:52px">Quatre obstacles, aucun gain</h2>
+        <div class="cards c2">
+          <div class="card"><h3>Pas faite pour le logiciel</h3>
+            <p>Creative Commons déconseille ses licences pour du code : rien sur les sources, rien sur les brevets.</p></div>
+          <div class="card"><h3>Incompatible avec l'AGPL</h3>
+            <p>Une clause non commerciale est une restriction ajoutée : il faudrait retirer les composants AGPL.</p></div>
+          <div class="card"><h3>Ni libre, ni open source</h3>
+            <p>Hors de la liste des licences prévues pour le code des administrations, hors science ouverte.</p></div>
+          <div class="card accent"><h3>Rien de plus pour le titulaire</h3>
+            <p>Il peut déjà vendre une licence ; l'AGPL empêche déjà qu'un tiers referme le code.</p></div>
+        </div>
+        <div class="src">FAQ Creative Commons · GNU AGPL v3 art. 7 et 10 · CRPA art. D323-2-1 et data.gouv.fr/licences</div>
+      </section>
+
+      <!-- ═════════════════════ 4 · LE DÉPÔT ═════════════════════ -->
+      <section class="frame" id="depot" data-x="-3800" data-y="4500" data-s="1.5" data-section="1" data-title="Le dépôt">
+        <div style="width:740px">
+          <div class="kicker media">04 — Le dépôt</div>
+          <h2 style="font-size:56px">Déposer, c'est d'abord déclarer</h2>
+          <p style="font-size:23px">Le premier geste est la <b>déclaration du logiciel</b> à l'établissement : c'est lui
+            qui entérine la licence et signe un dépôt. Déclarer n'engage à rien, et ouvre les options.</p>
+          <div class="kw">
+            <span>déclaration de logiciel</span><span>archive ouverte</span>
+            <span>dépôt probatoire</span><span>preuve de date</span><span>marque</span>
+          </div>
+        </div>
+        <div class="src">LICENSING.md §5 à §7</div>
+      </section>
+
+      <section class="frame boxed" id="depot-voies" data-x="-3185" data-y="4255" data-s="0.5" data-title="Dépôt · Trois dépôts complémentaires">
+        <div class="kicker media">Zoom — trois dépôts, complémentaires</div>
+        <h2 style="font-size:52px">Chacun prouve autre chose</h2>
+        <div class="chain media">
+          <div class="node"><span class="n">01</span><h3>Déclarer</h3><p>à la valorisation de l'université : licence entérinée, titulaires établis</p></div>
+          <div class="arrow">→</div>
+          <div class="node"><span class="n">02</span><h3>HAL et Software Heritage</h3><p>archive pérenne, identifiant citable, gratuit : le dépôt attendu d'un logiciel de recherche</p></div>
+          <div class="arrow">→</div>
+          <div class="node"><span class="n">03</span><h3>APP</h3><p>dépôt probatoire du code, au nom de l'établissement, avant une exploitation</p></div>
+          <div class="arrow">→</div>
+          <div class="node"><span class="n">04</span><h3>Enveloppe Soleau</h3><p>preuve de date d'un document de conception ; pas un titre de propriété</p></div>
+        </div>
+        <p style="margin-top:28px">À préparer côté WAMA : la liste des auteurs, la fiche du logiciel (<code>codemeta.json</code>),
+           et un lien « Source » dans l'interface.</p>
+        <div class="src">LICENSING.md §5 et §7 · GNU AGPL v3 art. 13 (lien vers les sources)</div>
+      </section>
+
+      <section class="frame boxed" id="depot-idee" data-x="-3185" data-y="4745" data-s="0.5" data-title="Dépôt · Déposer l'idée ?">
+        <div class="kicker media">Zoom — déposer l'idée ?</div>
+        <h2 style="font-size:52px">Une idée ne se dépose pas, son expression oui</h2>
+        <div class="cards c2">
+          <div class="card media"><h3><span class="ico"><i class="fas fa-pen-nib"></i></span> L'expression</h3>
+            <p>Le droit d'auteur protège le code, les documents de conception, l'interface. Il naît sans formalité.</p></div>
+          <div class="card media"><h3><span class="ico"><i class="fas fa-calendar-check"></i></span> La date</h3>
+            <p>Elle se prouve : un dépôt public horodaté, une enveloppe Soleau.</p></div>
+          <div class="card media"><h3><span class="ico"><i class="fas fa-registered"></i></span> Le nom</h3>
+            <p>Il se dépose comme marque, au nom de l'établissement, après une recherche d'antériorité.</p></div>
+          <div class="card media"><h3><span class="ico"><i class="fas fa-bullhorn"></i></span> La publication</h3>
+            <p>Publier la vision crée l'art antérieur : personne ne peut ensuite se l'approprier.</p></div>
+        </div>
+        <div class="src">LICENSING.md §6 · un logiciel « en tant que tel » n'est pas brevetable en Europe</div>
+      </section>
+
+      <!-- ═════════════════════ 5 · CONSTELLATION ═════════════════════ -->
+      {% comment %}La constellation des licences : la page de la scène (`common/scenes.py`, scène
+      `licenses`), INTÉGRÉE telle quelle (`?embed=1` : sans barre ni volet) — pas une seconde scène
+      écrite pour cette page. `scene_url` n'est donnée que si le lecteur peut l'ouvrir
+      (`scenes.openable_url`, les gardes de la requête réelle) : un compte refusé verrait sinon,
+      dans le cadre, la page d'accueil vers laquelle le refus redirige. L'iframe ne se charge qu'à
+      l'arrivée de la caméra (`data-src`, wama-presentation.js).{% endcomment %}
+      <section class="frame" id="constellation" data-x="0" data-y="4500" data-s="1.5" data-section="1" data-title="Constellation des licences">
+        <div style="width:470px">
+          <div class="kicker trans">05 — En direct</div>
+          <h2 style="font-size:50px">La <span class="grad">constellation</span> des licences</h2>
+          <p style="font-size:21px">Chaque étoile est une <b>licence</b> : sa taille dit ce qu'elle couvre, sa place
+            sa permissivité. Les <b>apps</b> sont reliées aux licences que leur composition traverse.</p>
+          <div class="kw">
+            <span>familles : de permissive à interdite</span>
+            <span>satellites : modèles, librairies, médias</span>
+            <span>liens : ce qu'une app hérite</span>
+          </div>
+          <p style="font-size:17px;margin-top:14px;color:var(--ink-soft)">Cliquer une étoile ouvre ce qu'elle couvre.</p>
+        </div>
+        {% if scene_url %}
+        <div class="embed-slot" style="left:560px;top:40px;width:1000px;height:820px">
+          <iframe data-src="{{ scene_url }}?embed=1" title="Constellation des licences"></iframe>
+        </div>
+        {% else %}
+        <div class="embed-slot embed-closed" style="left:560px;top:40px;width:1000px;height:820px">
+          <p><i class="fas fa-lock"></i> La constellation lit les registres de WAMA : elle s'ouvre aux comptes
+            qui y ont accès.</p>
+        </div>
+        {% endif %}
+        <div class="src">license_scene.py · scène « licenses »</div>
+      </section>
+
+      <section class="frame boxed" id="apps" data-x="0" data-y="5760" data-s="0.9" data-title="Ce qu'un résultat traverse">
+        <div class="kicker trans">06 — Par app</div>
+        <h2 style="font-size:54px">Ce qu'un résultat traverse, app par app</h2>
+        <p>Avant de publier un résultat, une question : quelle est la licence <b>la plus contraignante</b> de ce que
+           l'app a utilisé ? WAMA la calcule depuis la composition déclarée de chaque app.</p>
+        <div class="cards c5 compact" style="margin-top:22px">
+          {% for a in licences.apps %}
+          <div class="card"><h3>{{ a.label }}</h3><p>{{ a.worst_label|default:"aucune licence connue" }}</p></div>
+          {% endfor %}
+        </div>
+        <p style="margin-top:20px;font-size:21px">« Inconnue » : au moins un élément dont la licence reste à établir —
+           elle ne permet rien tant qu'elle n'est pas lue.</p>
+        <div class="src">license_audit.par_app() : `requires` des manifestes d'app · /common/licenses/</div>
+      </section>
+
+      <!-- ═════════════════════ 6 · À TRANCHER ═════════════════════ -->
+      <section class="frame" id="questions" data-x="3800" data-y="4500" data-s="1.5" data-section="1" data-title="À trancher">
+        <div style="width:740px">
+          <div class="kicker data">07 — À trancher</div>
+          <h2 style="font-size:56px">Ce qui relève du droit et de l'établissement</h2>
+          <p style="font-size:23px">Les choix techniques sont faits et mesurés. Les décisions qui restent ne sont pas
+            celles d'un ingénieur.</p>
+          <div class="kw">
+            <span>licence entérinée</span><span>définition du « commercial »</span>
+            <span>titulaires</span><span>dépôt</span>
+          </div>
+        </div>
+        <div class="src">LICENSING.md §7 (décisions en attente)</div>
+      </section>
+
+      <section class="frame boxed" id="questions-licence" data-x="4415" data-y="4255" data-s="0.5" data-title="À trancher · Licence et non-commercial">
+        <div class="kicker data">Zoom — licence et non-commercial</div>
+        <h2 style="font-size:52px">Cinq questions sur la licence</h2>
+        <ul>
+          <li>L'AGPL-3.0 est-elle <b>entérinée</b> par l'établissement, et par quelle procédure ?</li>
+          <li>Importer une librairie AGPL fait-il de WAMA une <b>œuvre dérivée</b>, en droit français ?</li>
+          <li>Les <b>poids</b> d'un modèle, installés à part, suivent-ils la même analyse que le code ?</li>
+          <li>Recherche partenariale, contrat, prestation : où commence le <b>« commercial »</b> ?</li>
+          <li>Un résultat produit par un modèle non commercial peut-il entrer dans un <b>livrable de projet</b> ?</li>
+        </ul>
+        <div class="src">détail et textes cités : le document de travail, « Questions à trancher »</div>
+      </section>
+
+      <section class="frame boxed" id="questions-depot" data-x="4415" data-y="4745" data-s="0.5" data-title="À trancher · Titulaires et dépôt">
+        <div class="kicker data">Zoom — titulaires et dépôt</div>
+        <h2 style="font-size:52px">Cinq questions sur le dépôt</h2>
+        <ul>
+          <li>Les <b>documents de conception</b> suivent-ils le régime du logiciel ?</li>
+          <li>Qui <b>dépose</b>, et au nom de qui : archive ouverte, dépôt probatoire, marque ?</li>
+          <li>Si l'établissement ne valorise pas : quelle <b>convention</b> pour l'auteur ?</li>
+          <li>Contributions à venir : quel <b>accord</b> pour garder un seul titulaire ?</li>
+          <li>Services distants sans <b>conditions d'usage</b> publiées : que leur demander ?</li>
+        </ul>
+        <div class="src">détail et textes cités : le document de travail, « Questions à trancher »</div>
+      </section>
+
+      <!-- ═════════════════════ FIN ═════════════════════ -->
+      <section class="frame" id="fin" data-x="0" data-y="6900" data-s="1.3" data-title="En résumé">
+        <div class="kicker">En résumé</div>
+        <h2 style="font-size:72px">Une licence qui <span class="grad">partage</span>, un inventaire <span class="grad">mesuré</span></h2>
+        <p class="lead" style="margin-top:14px">WAMA reste en AGPL-3.0. Le non-commercial se gère modèle par modèle, sur
+          les résultats. Le dépôt commence par la déclaration à l'établissement.</p>
+        <div style="display:flex;gap:14px;margin-top:40px;flex-wrap:wrap">
+          <a class="hud-btn" style="height:48px;font-size:17px" href="{% url 'report' 'licensing' %}"><i class="fas fa-file-lines"></i> Le document de travail</a>
+          <a class="hud-btn" style="height:48px;font-size:17px" href="{% url 'common:licenses_catalog' %}"><i class="fas fa-scale-balanced"></i> La page des licences</a>
+          <a class="hud-btn" style="height:48px;font-size:17px" href="{% url 'common:scene' 'licenses' %}"><i class="fas fa-star"></i> La constellation des licences</a>
+          <a class="hud-btn" style="height:48px;font-size:17px" href="{% url 'common:scene' 'models' %}"><i class="fas fa-cubes"></i> La constellation des modèles</a>
+          <a class="hud-btn" style="height:48px;font-size:17px" href="{% url 'common:doc_read' 'licensing' %}"><i class="fas fa-book"></i> La politique (LICENSING.md)</a>
+          <a class="hud-btn" style="height:48px;font-size:17px" href="/"><i class="fas fa-house"></i> Ouvrir WAMA</a>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <!-- Chrome -->
+  <div id="hud-top">
+    <a class="brand" href="/">WAMA <span>· licences et dépôt</span></a>
+    <div class="tools">
+      <button class="hud-btn" id="btn-help" title="Raccourcis (?)"><i class="fas fa-keyboard"></i></button>
+      <button class="hud-btn" id="btn-full" title="Plein écran (F)"><i class="fas fa-expand"></i></button>
+      <a class="hud-btn" href="{% url 'report' 'licensing' %}" title="Le document de travail, plus détaillé"><i class="fas fa-file-lines"></i></a>
+      <a class="hud-btn" href="pdf/" title="Télécharger en PDF (une page par étape)"><i class="fas fa-file-pdf"></i></a>
+      <a class="hud-btn" href="/" title="Retour à WAMA"><i class="fas fa-house"></i></a>
+    </div>
+  </div>
+  <div id="help">
+    <kbd>→</kbd> <kbd>espace</kbd> suivant · <kbd>←</kbd> précédent<br>
+    <kbd>O</kbd> / <kbd>Échap</kbd> vue d'ensemble<br>
+    <kbd>F</kbd> plein écran · <kbd>Début</kbd> / <kbd>Fin</kbd><br>
+    Clic sur une zone : y plonger
+  </div>
+  <div id="hud-bottom">
+    <button class="hud-btn" id="btn-overview" title="Vue d'ensemble (O)"><i class="fas fa-map"></i></button>
+    <button class="hud-btn" id="btn-prev" title="Précédent (←)"><i class="fas fa-chevron-left"></i></button>
+    <span id="hud-count"></span>
+    <span id="hud-title"></span>
+    <span id="hud-dots"></span>
+    <button class="hud-btn" id="btn-next" title="Suivant (→)"><i class="fas fa-chevron-right"></i></button>
+  </div>
+
+  <script src="{% static_v 'presentation/wama-presentation.js' %}"></script>
+</body>
+</html>

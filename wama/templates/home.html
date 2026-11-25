@@ -411,6 +411,14 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
                   </a>
                   <a class="dropdown-item w-auto px-3 text-muted" href="{% url 'fiches' %}pdf/" title="Télécharger en PDF" data-wama-export-options="{% url 'fiches_pdf_options' %}"><i class="fas fa-file-pdf"></i></a>
                 </li>
+                <li class="d-flex align-items-center">
+                  <a class="dropdown-item py-2 flex-grow-1" href="{% url 'licensing' %}">
+                    <i class="fas fa-scale-balanced fa-fw me-2 text-primary"></i>
+                    <span class="fw-semibold">Licences et dépôt</span>
+                    <small class="d-block text-muted">Licence du code, non-commercial, dépôt du logiciel</small>
+                  </a>
+                  <a class="dropdown-item w-auto px-3 text-muted" href="{% url 'licensing' %}pdf/" title="Télécharger en PDF" data-wama-export-options="{% url 'licensing_pdf_options' %}"><i class="fas fa-file-pdf"></i></a>
+                </li>
                 {% if reports %}
                 <li><hr class="dropdown-divider"></li>
                 <li><h6 class="dropdown-header">Rapports</h6></li>

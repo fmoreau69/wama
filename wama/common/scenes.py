@@ -129,6 +129,22 @@ def page_url(scene: Scene) -> str:
     return reverse('common:scene', args=[scene.key])
 
 
+def openable_url(key: str, user) -> str:
+    """L'adresse de la scène `key` si `user` peut l'OUVRIR, sinon '' — ce que lit une page qui
+    INTÈGRE la scène (`?embed=1`, la présentation « Licences et dépôt », 2026-11-25).
+
+    Les deux gardes de la requête réelle : celle que la scène déclare (`can_view`), et le droit
+    sous lequel sa PAGE se lit (`permissions.can_open_page` — une scène de registre se lit sous le
+    droit des Registres). `can_view` seule ne suffit pas à qui intègre : mesuré le 2026-11-25, un
+    compte connecté sans ce droit recevait, dans le cadre, l'accueil vers lequel le refus redirige."""
+    scene = get_scene(key)
+    if scene is None or not can_view(scene, user):
+        return ''
+    from wama.accounts.permissions import can_open_page
+    url = page_url(scene)
+    return url if can_open_page(user, 'public', url) else ''
+
+
 def data_url(scene: Scene) -> str:
     from django.urls import reverse
     if scene.data_url_name:

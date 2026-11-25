@@ -237,7 +237,8 @@ class ReportsTest(TestCase):
         from wama.common.reports import REPORTS, report_date
         for slug, entry in REPORTS.items():
             with self.subTest(report=slug):
-                self.assertTrue(entry.get('apps'))
+                # `apps` is always DECLARED ; empty for a transversal report, which no About tab carries.
+                self.assertIn('apps', entry)
                 self.assertEqual([], [a for a in entry['apps'] if a not in app_about.ABOUT])
                 # The generator writes the date at the end of the envelope's subtitle
                 # (`scripts/reports/report_shell.html`) : a page that stops doing so is seen here.
@@ -304,7 +305,9 @@ class ReportsStateWhatTheyEvaluateTest(SimpleTestCase):
                 self.assertEqual([], [s for v in declared.values() for s in v
                                       if not re.fullmatch(r'internal_[a-z_]+_[a-z0-9_]+', s)])
         self.assertEqual({}, report_evaluations('cam-analyzer'), 'a pipeline analysis measures no model')
-        self.assertEqual(set(REPORTS), {'transcription', 'anonymizer', 'cam-analyzer'},
+        self.assertEqual({}, report_evaluations('licensing'), 'a licensing brief measures no model')
+        self.assertEqual((), REPORTS['licensing']['apps'], 'transversal : it is about no app in particular')
+        self.assertEqual(set(REPORTS), {'transcription', 'anonymizer', 'cam-analyzer', 'licensing'},
                          'a new report : say here whether it evaluates models')
 
     def test_each_model_receives_the_reports_that_evaluate_it(self):

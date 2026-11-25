@@ -9,7 +9,6 @@
 # La capture du Studio (`wama/static/presentation/rapports/cam_analyzer_studio.png`) se refait à la main
 # (pipeline déclaré `cam_analyzer` ouvert dans le Studio) quand le pipeline change.
 import datetime as dt
-import html
 import sys
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -22,12 +21,11 @@ from wama_lab.cam_analyzer.utils.pass_tracking import PASSES
 
 HERE = Path('scripts/reports')
 sys.path.insert(0, str(HERE))
-from shell_page import fill_shell  # noqa: E402
+from shell_page import date_fr, esc, fill_shell  # noqa: E402
 
 OUT = Path('wama/templates/includes/wama_rapport_cam_analyzer.html')
 SESSION_NAME = 'ENA_CASA_P97_20220404_124000_seg'
 IMG = '/static/presentation/rapports/cam_analyzer_studio.png'
-esc = lambda s: html.escape(str(s), quote=False)  # noqa: E731
 
 fc.load_all()
 s = AnalysisSession.objects.get(name=SESSION_NAME)
@@ -35,9 +33,6 @@ prof = s.profile
 rs = s.results_summary or {}
 eff = effective(s)
 today = dt.date.today()
-MONTHS = ('janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre',
-          'novembre', 'décembre')
-date_fr = f'{today.day} {MONTHS[today.month - 1]} {today.year}'
 
 
 def first_sentence(text):
@@ -48,6 +43,8 @@ def first_sentence(text):
     return t
 
 
+# Ce rapport sépare les milliers par une espace fine insécable (U+202F), pas par l'espace de
+# `shell_page.nb` : sa page ne change pas d'un caractère au passage des aides communes (2026-11-25).
 def nb(n):
     return f'{n:,}'.replace(',', ' ')
 
@@ -308,7 +305,7 @@ rapport.</li>
 page = fill_shell(
     title="Analyse vidéo d'une navette autonome aux intersections",
     kicker='Analyse · navette autonome · WAMA Lab',
-    sub=f'Pipeline du cam_analyzer appliqué aux données ENA · généré le {date_fr}',
+    sub=f'Pipeline du cam_analyzer appliqué aux données ENA · généré le {date_fr(today)}',
     comment=("  Rapport « pipeline du cam_analyzer » sur les données ENA — GÉNÉRÉ par\n"
              "  `scripts/reports/build_cam_analyzer_report.py` depuis les registres (passes, fonctions,\n"
              "  bascules) et la base (session, profil, indicateurs). Ne pas l'éditer à la main : relancer le\n"

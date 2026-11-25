@@ -15,6 +15,8 @@ from functools import lru_cache
 
 #: slug → gabarit, titre, ligne de détail, et les apps dont le rapport parle (leur clé de
 #: déclaration : une jumelle hérite des rapports de sa source, `app_about.declaration_key`).
+#: `apps` vide : un rapport TRANSVERSAL, qui ne parle d'aucune app en particulier — il se lit
+#: depuis le menu de l'accueil, aucun onglet « À propos » ne le porte.
 REPORTS = {
     'transcription': {
         'template': 'includes/wama_rapport_transcription.html',
@@ -33,6 +35,14 @@ REPORTS = {
         'label': "Évaluation des détecteurs de l'Anonymizer",
         'detail': 'Visages (WIDER FACE) et plaques, généré depuis les mesures du banc',
         'apps': ('anonymizer',),
+    },
+    # Le pendant rédigé de la présentation `licensing/` (2026-11-25) : politique dans LICENSING.md,
+    # chiffres de `license_audit`.
+    'licensing': {
+        'template': 'includes/wama_rapport_licensing.html',
+        'label': 'Licences et dépôt de WAMA',
+        'detail': "Document de travail : licence du code, non-commercial, dépôt — généré depuis l'audit des licences",
+        'apps': (),
     },
 }
 

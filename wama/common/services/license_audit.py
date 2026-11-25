@@ -80,6 +80,7 @@ _CATALOGUE = {
     'cc-by-sa-4.0':           (COPYLEFT_FAIBLE, True),
     'cc-by-nc-4.0':           (NON_COMMERCIAL, True),
     'cc-by-nc-sa-4.0':        (NON_COMMERCIAL, True),
+    'cc-by-nc-sa-3.0':        (NON_COMMERCIAL, True),  # 21 médias le portaient, comptés « à qualifier » (2026-11-25)
     'cc-by-nc-nd-4.0':        (NON_COMMERCIAL, True),
     'apple-amlr':             (NON_COMMERCIAL, True),
     'other':                  (A_QUALIFIER, True),
@@ -420,6 +421,55 @@ def par_app(lignes=None) -> list:
     return apps
 
 
+#: Clé stable d'une famille, à côté de son rang : ce par quoi un gabarit ou un rapport la nomme
+#: (`briefing()['family']['non_commercial']`) sans écrire un numéro de rang.
+FAMILY_KEYS = {PERMISSIVE: 'permissive', COPYLEFT_FAIBLE: 'weak_copyleft',
+               COPYLEFT_FORT: 'strong_copyleft', NON_COMMERCIAL: 'non_commercial',
+               A_QUALIFIER: 'to_qualify', INCONNUE: 'unknown', INTERDITE: 'forbidden'}
+
+
+def briefing(lines=None, crossed=None) -> dict:
+    """Les MESURES que citent la présentation « Licences et dépôt » (`wama.views.licensing`) et
+    son rapport (`scripts/reports/build_licensing_report.py`) — une lecture, pour que les deux
+    disent les mêmes chiffres (2026-11-25).
+
+    `families` : TOUTES les familles dans l'ordre des rangs, vides comprises (`family` : les
+    mêmes par clé) ; `agpl` : ce que WAMA lie sous AGPL-3.0 — la raison de sa propre licence ;
+    `forbidden` : les modèles et librairies sans aucun droit sur notre territoire ; `apps` : la
+    famille la plus contraignante que chaque app traverse (`crossed` : la traversée `par_app`
+    déjà faite par l'appelant). Aucun média n'est NOMMÉ : la lecture compte ceux de tous les
+    comptes (`inventaire()` sans utilisateur) et n'en montre aucun. Les comptes de la page des
+    licences (`synthese()['stats']`) se lisent ici aussi : un compte ne se calcule qu'une fois."""
+    from wama.common.app_registry import app_identity
+
+    lines = lines if lines is not None else inventaire()
+    families = [{'key': FAMILY_KEYS[rank], 'rank': rank, 'label': label, 'explanation': explanation,
+                 'count': 0, 'registries': dict.fromkeys(REGISTRES, 0)}
+                for rank, (label, explanation) in FAMILLES.items()]
+    agpl = {'models': 0, 'libraries': []}
+    forbidden = []
+    for line in lines:
+        family = families[line['q']['rang']]
+        family['count'] += 1
+        family['registries'][line['registre']] += 1
+        # « AGPL-3.0 OR MIT » se prend sous MIT : seule compte la ligne que l'AGPL QUALIFIE.
+        if line['q']['rang'] == COPYLEFT_FORT and 'agpl-3.0' in license_terms(line['licence'])[1]:
+            if line['registre'] == 'model':
+                agpl['models'] += 1
+            elif line['registre'] == 'library':
+                agpl['libraries'].append(line['nom'])
+        if line['q']['rang'] == INTERDITE and line['registre'] != 'media':
+            forbidden.append(line['nom'])
+    known = sum(1 for line in lines if line['q']['id'])
+    apps = [{'key': a['app'], 'label': app_identity(a['app'])['label'], 'requires': a['requires'],
+             'worst_key': FAMILY_KEYS[a['pire']['rang']] if a['pire'] else '',
+             'worst_label': a['pire']['famille'] if a['pire'] else ''}
+            for a in (crossed if crossed is not None else par_app(lines))]
+    return {'total': len(lines), 'known': known, 'unknown': len(lines) - known,
+            'families': families, 'family': {f['key']: f for f in families},
+            'agpl': agpl, 'forbidden': forbidden, 'apps': apps}
+
+
 def synthese(user=None) -> dict:
     """Photo complète : lignes, répartition, plus contraignante, et ce qu'il faut citer."""
     lignes = inventaire(user)
@@ -444,17 +494,19 @@ def synthese(user=None) -> dict:
     attribution_sans_auteur = [l for l in lignes
                                if l['q']['attribution'] and l['q']['id'] and not l['auteur']]
 
+    apps = par_app(lignes)
+    counts = briefing(lignes, apps)
     return {
         'lignes': lignes,
         'repartition': repartition,
         'pire': pire,
-        'apps': par_app(lignes),
+        'apps': apps,
         'stats': {
-            'total': len(lignes),
-            'connues': len(connues),
-            'inconnues': len(lignes) - len(connues),
-            'non_commercial': sum(1 for l in lignes if l['q']['rang'] == NON_COMMERCIAL),
-            'a_qualifier': sum(1 for l in lignes if l['q']['rang'] == A_QUALIFIER),
+            'total': counts['total'],
+            'connues': counts['known'],
+            'inconnues': counts['unknown'],
+            'non_commercial': counts['family']['non_commercial']['count'],
+            'a_qualifier': counts['family']['to_qualify']['count'],
             'a_citer': len(a_citer),
             'attribution_sans_auteur': len(attribution_sans_auteur),
         },

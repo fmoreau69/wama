@@ -24,25 +24,14 @@ from wama.model_manager.services.internal_quality import scale_name
 
 HERE = Path('scripts/reports')
 sys.path.insert(0, str(HERE))
-from shell_page import fill_shell  # noqa: E402
+from shell_page import date_fr, esc, fill_shell, nb  # noqa: E402
 
 OUT = Path('wama/templates/includes/wama_rapport_anonymizer.html')
 FACES = 'faces_wider_val_v1'
-esc = lambda s: html.escape(str(s), quote=False)  # noqa: E731
-MONTHS = ('janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre',
-          'novembre', 'décembre')
-
-
-def date_fr(d):
-    return f'{d.day} {MONTHS[d.month - 1]} {d.year}'
 
 
 def pct(v, digits=1):
     return '—' if v is None else f'{100 * v:.{digits}f}'.replace('.', ',') + ' %'
-
-
-def nb(n):
-    return f'{n:,}'.replace(',', ' ')
 
 
 # D'où vient chaque famille de détecteurs : ce que ni le catalogue ni la mesure ne disent. Écrit pour le

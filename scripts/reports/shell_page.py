@@ -7,6 +7,25 @@ from pathlib import Path
 
 SHELL = Path(__file__).resolve().parent / 'report_shell.html'
 
+# Écritures communes aux générateurs (2026-11-25 : chacun des trois en portait sa copie).
+MONTHS = ('janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre',
+          'novembre', 'décembre')
+
+
+def esc(text):
+    """Un texte de nœud HTML — une apostrophe reste une apostrophe."""
+    return html.escape(str(text), quote=False)
+
+
+def date_fr(day):
+    """« 25 novembre 2026 » — la date que l'enveloppe porte en fin de sous-titre (`reports.report_date`)."""
+    return f'{day.day} {MONTHS[day.month - 1]} {day.year}'
+
+
+def nb(n):
+    """Un entier à la française : 12 151 (espace des milliers)."""
+    return f'{n:,}'.replace(',', ' ')
+
 
 def fill_shell(*, title, kicker, sub, comment, foot, body, evaluations=None):
     """La page complète : `title`, `kicker`, `sub`, `foot` sont du TEXTE (échappé) ; `comment` est le bloc
