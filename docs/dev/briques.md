@@ -2685,7 +2685,7 @@ Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queu
   - `class ProjectMembership(models.Model)` — Adhésion d'un utilisateur à un projet, avec son rôle et son org (traçabilité
   - `user_projects(user)` — Ids des projets dont l'utilisateur est membre (tous rôles).
   - `user_scope_org_ids(user)` — Ensemble des OrgUnit ids « couvrant » l'utilisateur : ses unités de rattachement
-  - `profile_org_codes(prof)` — Les codes d'annuaire qui RATTACHENT un profil : tous ses rattachements, puis son entité
+  - `profile_org_codes(prof)` — Le code d'annuaire qui RATTACHE un profil : son unité PRINCIPALE, et elle seule — la règle
   - `class ElementPreference(models.Model)` — ABONNEMENT d'un utilisateur à un élément de catalogue (app, modèle, fonction, skill…).
   - `class UserAppSetting(models.Model)` — RÉGLAGE GLOBAL d'un utilisateur pour une app — DURABLE (brique `utils/user_settings.py`).
   - `class Notification(models.Model)` — Notification DANS WAMA — la brique de `WAMA_COLLABORATION.md §2.3` : destinataire, type
@@ -3454,12 +3454,15 @@ Retrouve les personnes d'une unité de l'annuaire, avec l'état de leur compte (
   - `find_units(text: str, *, exact: bool=False, conn=None) -> list` — Les unités que désigne `text` — contenu dans le code ou le libellé, ou le code EXACT —
   - `login_attribute() -> str` — L'attribut qui porte l'identifiant de connexion — lu du filtre de recherche des réglages
   - `person_attributes() -> tuple` — La liste FERMÉE de ce qu'on lit d'une fiche de personne : son identifiant, les champs
-  - `people_of(codes, *, conn=None) -> list` — Les personnes rattachées à l'une des unités `codes` (à titre principal ou non), triées par
+  - `people_of(codes, *, conn=None) -> list` — Les personnes dont l'unité PRINCIPALE est l'une des unités `codes`, triées par
   - `person_org(username: str, *, conn=None) -> dict` — Ce que l'annuaire porte AUJOURD'HUI du rattachement de `username` : les champs de profil
   - `accounts_named(usernames) -> dict` — Les comptes WAMA de ces identifiants, `{identifiant en minuscules: compte}` — sans la casse,
   - `with_account_state(people) -> list` — Chaque personne avec l'état de son compte WAMA (`state`) : `STATE_ABSENT` sans compte,
   - `lookup(text: str='', codes=()) -> dict` — Les unités que désignent `text` (contenu dans le code ou le libellé) et `codes` (exacts),
   - `state_labels() -> dict` — Clé → libellé de tout état que `with_account_state` peut rendre.
+  - `followed_units() -> list` — Les codes EXACTS des unités que cette instance suit (réglage
+  - `reconcile(codes=None, *, conn=None) -> dict` — Rapproche WAMA de l'annuaire pour les unités `codes` (défaut : `followed_units`), sous-unités
+  - `report_reconciliation(report: dict) -> int` — Prévient les administrateurs, DANS WAMA, de ce qu'un rapprochement a trouvé — rien s'il n'a
   - `preregister(usernames, *, limit: int=PREREGISTER_LIMIT) -> dict` — Crée, INACTIF, le compte de chaque identifiant qui n'en a pas ; rend
 
 ### Arbre organisationnel depuis l'annuaire
@@ -3562,7 +3565,7 @@ Une vidéo qu'une card porte et que le navigateur ne lit pas (conteneur, profil 
 
 ### Données d'annuaire choisies par la personne, rôle demandé
 
-Ce que l'annuaire propose d'ajouter à un profil (unité principale, autres unités, établissement, qualité — `DIRECTORY_DATA`) se choisit AVEC la personne : le minimum à la création du compte, puis une pastille par donnée au panneau d'accueil de la première connexion et sur le profil. `writable` est la règle que la connexion applique (ajoutée = rafraîchie, retirée = effacée et ne revient pas, sans choix = rien de neuf) ; une valeur vient toujours de l'annuaire, jamais du navigateur. Un rôle métier se DEMANDE (`role_requests`, ligne `AccessGrant` de famille `role`, page et réponse communes aux demandes d'accès) ; le droit reste le groupe `role:<clé>`. Outils : `get_my_directory_data`, `set_my_directory_data`, `request_role`, `list_role_requests`, `answer_role_request`
+Ce que l'annuaire propose d'ajouter à un profil (unité — la principale, la seule appartenance que WAMA lise —, établissement, qualité : `DIRECTORY_DATA`) se choisit AVEC la personne : le minimum à la création du compte, puis une pastille par donnée au panneau d'accueil de la première connexion et sur le profil. `writable` est la règle que la connexion applique (ajoutée = rafraîchie, retirée = effacée et ne revient pas, sans choix = rien de neuf) ; une valeur vient toujours de l'annuaire, jamais du navigateur. Un rôle métier se DEMANDE (`role_requests`, ligne `AccessGrant` de famille `role`, page et réponse communes aux demandes d'accès) ; le droit reste le groupe `role:<clé>`. Outils : `get_my_directory_data`, `set_my_directory_data`, `request_role`, `list_role_requests`, `answer_role_request`
 
 - **Domicile** : `wama/accounts/directory_consent.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : Les données d'annuaire d'un profil sont ajoutées AVEC la personne (2026-11-25, décision de Fabien — `PROFILES_PERMISSIONS.md §1.12`).
@@ -4313,7 +4316,7 @@ Privé / unité / public : filtrage des lectures, mutations inchangées. Depuis 
   - `class ProjectMembership(models.Model)` — Adhésion d'un utilisateur à un projet, avec son rôle et son org (traçabilité
   - `user_projects(user)` — Ids des projets dont l'utilisateur est membre (tous rôles).
   - `user_scope_org_ids(user)` — Ensemble des OrgUnit ids « couvrant » l'utilisateur : ses unités de rattachement
-  - `profile_org_codes(prof)` — Les codes d'annuaire qui RATTACHENT un profil : tous ses rattachements, puis son entité
+  - `profile_org_codes(prof)` — Le code d'annuaire qui RATTACHE un profil : son unité PRINCIPALE, et elle seule — la règle
   - `class ElementPreference(models.Model)` — ABONNEMENT d'un utilisateur à un élément de catalogue (app, modèle, fonction, skill…).
   - `class UserAppSetting(models.Model)` — RÉGLAGE GLOBAL d'un utilisateur pour une app — DURABLE (brique `utils/user_settings.py`).
   - `class Notification(models.Model)` — Notification DANS WAMA — la brique de `WAMA_COLLABORATION.md §2.3` : destinataire, type
