@@ -202,10 +202,14 @@ alors, et ce partage commande la suite : qui choisit la licence, qui signe un d�
 valorisation de la création […], les agents […] peuvent en disposer librement, dans les conditions prévues par
 une convention conclue avec cette personne publique » (art. D532-2, dernier alinéa). Déclarer le logiciel à
 l'établissement est ce qui déclenche cet arbitrage : la déclaration ouvre les options, elle n'en ferme aucune.</p>
-<p>Deux points restent à confirmer. L'article L113-9 vise « les logiciels et leur documentation » : les documents
-de conception et de vision de WAMA, écrits en marge du code, suivent-ils ce régime ou celui, plus favorable à
-l'agent, des autres œuvres ? Et tant que l'historique du dépôt ne compte qu'un auteur — c'est le cas —, la
-titularité est simple ; elle cessera de l'être à la première contribution externe.</p>
+<p>Trois points restent à confirmer. Le troisième alinéa de l'article L113-9 étend la dévolution « aux agents de
+l'Etat, des collectivités publiques et des établissements publics à caractère administratif » : une université
+est un établissement public à caractère scientifique, culturel et professionnel — relève-t-elle de cet alinéa ?
+C'est la lecture que pratiquent les établissements ; elle mérite d'être confirmée. Ensuite, l'article vise « les logiciels et leur documentation », et le code
+définit le logiciel « y compris le matériel de conception préparatoire » (art. L112-2, 13°) : les documents de
+conception et de vision de WAMA, écrits en marge du code, suivent-ils ce régime ou celui, plus favorable à
+l'agent, des autres œuvres (art. L111-1) ? Enfin, tant que l'historique du dépôt ne compte qu'un auteur — c'est
+le cas —, la titularité est simple ; elle cessera de l'être à la première contribution externe.</p>
 
 <h2>La licence de WAMA : AGPL-3.0</h2>
 <p>L'AGPL est une licence libre à réciprocité. Trois choses la résument.</p>
@@ -266,19 +270,24 @@ concède aucun droit dans l'Union européenne, recherche comprise. WAMA la class
 <p>La question est légitime : si l'on veut que WAMA serve la recherche et pas un concurrent, pourquoi ne pas
 l'écrire dans la licence ? Cinq raisons conduisent à répondre non.</p>
 <ol>
-<li><strong>Les licences Creative Commons ne sont pas faites pour le logiciel.</strong> Creative Commons le dit
-elle-même dans sa foire aux questions et recommande une licence de logiciel : les siennes ne disent rien de la
-distribution du code source ni des brevets, et ne sont pas compatibles avec les grandes licences libres.</li>
+<li><strong>Les licences Creative Commons ne sont pas faites pour le logiciel.</strong> Creative Commons l'écrit
+elle-même : « We recommend against using Creative Commons licenses for software. » Elle renvoie aux licences
+de logiciel libres ou open source, et donne ses raisons : ses licences ne disent rien de la distribution du
+code source, rien des brevets, et ne sont pas compatibles avec les grandes licences de logiciel.</li>
 <li><strong>Elle serait incompatible avec ce que WAMA utilise.</strong> Une clause non commerciale est une
 restriction supplémentaire, que l'AGPL des composants liés interdit (art. 7 et 10). Il faudrait retirer ces
 composants, ou acheter à leurs éditeurs une licence commerciale — pour publier un logiciel non commercial.</li>
 <li><strong>WAMA ne serait plus un logiciel libre.</strong> Interdire un champ d'usage sort de la définition du
-logiciel libre comme de l'open source. Or la liste des licences sous lesquelles une administration peut publier
-le code qu'elle produit (Code des relations entre le public et l'administration, art. D323-2-1, liste publiée
-sur data.gouv.fr) ne comprend que des licences libres, permissives ou à réciprocité, et aucune licence Creative
-Commons ; une autre licence passe par une homologation (art. D323-2-2). La politique de science ouverte va dans
-le même sens. <em>À confirmer : l'application de ce régime à un établissement d'enseignement supérieur et de
-recherche.</em></li>
+logiciel libre comme de l'open source. Or le Code des relations entre le public et l'administration fixe les
+licences sous lesquelles une administration peut publier un logiciel (art. D323-2-1) : des licences
+« permissives » (BSD, Apache, CeCILL-B, MIT) et des licences « avec obligation de réciprocité » (Mozilla
+Public License, GNU General Public License, CeCILL, European Union Public License, Eclipse Public License).
+La liste détaillée, publiée sur data.gouv.fr comme l'article le prévoit, nomme la GNU Affero General Public
+License v3.0 — celle de WAMA — et ne compte aucune licence Creative Commons pour le logiciel. Toute autre
+licence demande une homologation, prononcée par décision du Premier ministre (art. D323-2-2). <em>À
+confirmer : l'application de ce régime à un établissement d'enseignement supérieur et de recherche — la page
+officielle précise que l'obligation ne vaut que lorsque l'administration peut établir elle-même la
+licence.</em></li>
 <li><strong>Elle n'apporterait rien au titulaire.</strong> L'université peut déjà concéder une licence
 commerciale à qui en veut une. Et l'AGPL empêche déjà qu'un tiers reprenne WAMA dans un produit fermé. Ce
 qu'une clause non commerciale ajouterait, c'est d'interdire à un tiers d'offrir WAMA en service <em>même en
@@ -290,9 +299,10 @@ que ses conditions sont respectées (art. 2) : les versions déjà publiées res
 <p>Si l'objectif est de <em>réserver</em> une exploitation commerciale à l'établissement, le chemin est connu et
 ne demande pas de changer de licence : garder l'AGPL, garder un seul titulaire des droits (un accord de
 contribution avant toute contribution externe), et proposer une licence commerciale à côté. Le droit français
-offre aussi une licence à réciprocité rédigée pour lui, CeCILL, dont la version 2.1 prévoit sa compatibilité
-avec les licences GNU ; l'ensemble resterait régi par l'AGPL du fait des composants liés. <em>À confirmer :
-l'intérêt d'une telle option pour l'établissement.</em></p>
+offre aussi une licence à réciprocité rédigée pour lui, CeCILL. Sa version 2.1 organise sa compatibilité
+(art. 5.3.4) : du code sous CeCILL peut être inclus dans un code sous GNU GPL, GNU Affero GPL ou EUPL,
+l'ensemble étant alors distribué sous cette licence-là. WAMA resterait donc régi par l'AGPL, du fait des
+composants liés. <em>À confirmer : l'intérêt d'une telle option pour l'établissement.</em></p>
 
 <h2>Ce qu'un résultat traverse, app par app</h2>
 <p>Au moment de publier un résultat, la question utile est : quelle est la licence la plus contraignante de ce
@@ -337,13 +347,17 @@ se concurrencent pas : chacun prouve autre chose.</p>
      "licence, auteurs) et un fichier des auteurs",
      "les auteurs, rattachés à leur établissement", "gratuit"),
     ("<strong>Agence pour la protection des programmes</strong>",
-     "un dépôt probatoire : la preuve du contenu et de la date, opposable en cas de litige ou lors d'une "
-     "cession. Utile si une exploitation est envisagée",
-     "l'établissement, titulaire des droits", "payant — à confirmer auprès de l'agence"),
-    ("<strong>Enveloppe Soleau</strong> (INPI)",
-     "la preuve de date d'un document — par exemple l'état des documents de conception à un moment donné. "
-     "Ce n'est pas un titre de propriété",
-     "le déposant", "une quinzaine d'euros — à confirmer auprès de l'INPI"),
+     "un dépôt probatoire : la preuve du contenu et de la date, avec un certificat horodaté (numéro IDDN), "
+     "opposable en cas de litige ou lors d'une cession. Utile si une exploitation est envisagée",
+     "l'établissement, titulaire des droits",
+     "un abonnement annuel préalable (830 € HT par an pour la formule affichée), puis 195 € HT par dépôt "
+     "standard — grille publique de l'agence"),
+    ("<strong>Enveloppe Soleau</strong> (INPI, en ligne)",
+     "la date d'un document — par exemple l'état des documents de conception à un moment donné. Ce n'est "
+     "pas un titre de propriété",
+     "le déposant",
+     "15 € jusqu'à 50 Mo, puis 10 € par tranche de 50 Mo, pour cinq ans ; conservation prolongeable "
+     "jusqu'à vingt ans"),
 ))}
 <p>Côté WAMA, quatre choses sont à préparer : la liste des auteurs, la fiche <code>codemeta.json</code>, le lien
 « Source » dans l'interface, et la mise au net de l'inventaire pour les éléments encore inconnus.</p>
@@ -387,8 +401,10 @@ un jeu de données publié ?</li>
 </ol>
 <p><strong>Sur les titulaires et le dépôt</strong></p>
 <ol start="9">
-<li>Les documents de conception et de vision suivent-ils le régime du logiciel (« et leur documentation ») ou
-celui des autres œuvres de l'agent ?</li>
+<li>L'université, établissement public à caractère scientifique, culturel et professionnel, relève-t-elle bien
+de la dévolution que l'article L113-9 étend aux « établissements publics à caractère administratif » ?</li>
+<li>Les documents de conception et de vision suivent-ils le régime du logiciel (« et leur documentation »,
+« matériel de conception préparatoire ») ou celui des autres œuvres de l'agent ?</li>
 <li>Qui dépose, et au nom de qui : archive ouverte, dépôt probatoire, marque ?</li>
 <li>Si l'établissement ne valorise pas : quelle convention permet à l'auteur d'en disposer ?</li>
 <li>Avant toute contribution externe : quel accord de contribution, pour que l'établissement reste seul
@@ -417,23 +433,32 @@ tiers embarqué, la marche à suivre pour le dépôt.</li>
 {table(('Texte', 'Ce qu’on en tire', 'Lecture'), (
     ("GNU Affero General Public License, version 3 — art. 2, 5, 7, 10, 13",
      "droits irrévocables ; licence de l'ensemble ; pas de restriction supplémentaire ; sources offertes aux "
-     "utilisateurs d'un service en réseau", "texte de la licence, fichier <code>LICENSE</code> du dépôt"),
-    ("Code de la propriété intellectuelle — art. L113-9, L121-1, L121-7",
-     "droits patrimoniaux à l'employeur, y compris public ; paternité à l'auteur ; droit moral réduit pour "
-     "le logiciel", "à confirmer par le juriste"),
+     "utilisateurs d'un service en réseau",
+     "relu sur le texte publié par la Free Software Foundation (le fichier <code>LICENSE</code> du dépôt)"),
+    ("Code de la propriété intellectuelle — art. L111-1, L112-2 (13°), L113-9, L121-1, L121-7",
+     "droits patrimoniaux à l'employeur, étendus aux agents publics ; logiciel « y compris le matériel de "
+     "conception préparatoire » ; paternité à l'auteur ; droit moral réduit pour le logiciel",
+     "relu sur le code consolidé, édition du 18 novembre 2026 ; leur application à l'établissement reste "
+     "à confirmer"),
     ("Code de la recherche — art. D532-2 à D532-6 (décret n° 2023-1321 du 27 décembre 2023)",
      "prime d'intéressement ; libre disposition par convention si la personne publique ne valorise pas",
      "relu sur le code consolidé, édition du 24 novembre 2026"),
-    ("Code des relations entre le public et l'administration — art. D323-2-1 et D323-2-2 (décret n° 2017-638)",
-     "liste des licences de réutilisation des logiciels des administrations ; homologation des autres",
-     "non relu sur le texte officiel ce jour — à confirmer, ainsi que son application à l'établissement"),
+    ("Code des relations entre le public et l'administration — art. D323-2-1 et D323-2-2",
+     "licences sous lesquelles une administration publie un logiciel ; homologation des autres",
+     "relu sur le code consolidé, édition du 23 novembre 2026, et sur la liste publiée par data.gouv.fr ; "
+     "son application à l'établissement reste à confirmer"),
     ("Creative Commons — licence BY-NC 4.0 (définition de « NonCommercial ») et foire aux questions (logiciel)",
      "le non-commercial se juge à l'usage ; les licences Creative Commons sont déconseillées pour le logiciel",
-     "définition citée du texte de la licence ; position de la foire aux questions reprise sans citation"),
-    ("Licence CeCILL, version 2.1", "licence à réciprocité de droit français, compatible avec les licences GNU",
-     "non relue sur le texte officiel ce jour — à confirmer"),
-    ("INPI — coût d'un dépôt de marque", "190 € pour une classe, 40 € par classe supplémentaire",
-     "page de l'INPI publiée le 5 décembre 2024"),
+     "relus sur le site de Creative Commons, cités dans leur langue"),
+    ("Licence CeCILL, version 2.1 — art. 5.3.4",
+     "licence à réciprocité de droit français ; compatibilité avec GNU GPL, GNU Affero GPL et EUPL",
+     "relue sur le texte publié par ses auteurs"),
+    ("Agence pour la protection des programmes — grille tarifaire",
+     "abonnement annuel préalable à tout dépôt ; dépôt standard à 195 € HT", "page de l'agence, relue ce jour"),
+    ("INPI — enveloppe Soleau en ligne et dépôt de marque",
+     "enveloppe : 15 € jusqu'à 50 Mo pour cinq ans ; marque : 190 € pour une classe, 40 € par classe "
+     "supplémentaire",
+     "pages de l'INPI publiées le 18 février 2025 et le 5 décembre 2024"),
 ))}
 '''
 

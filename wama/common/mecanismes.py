@@ -2675,7 +2675,8 @@ MECHANISMS = (
                        'wama/common/tests/tests_app_about.py')),
     Mechanism('reports', 'Rapports publiés',
               "Les rapports servis à `/reports/<slug>/` (évaluations de modèles, analyses) se "
-              "DÉCLARENT une fois — gabarit, titre, apps dont ils parlent. Le menu « Présentations "
+              "DÉCLARENT une fois — gabarit, titre, apps dont ils parlent (aucune pour un rapport "
+              "TRANSVERSAL, que seul le menu porte). Le menu « Présentations "
               "& annexes » de l'accueil les liste, l'onglet « À propos » d'une app montre les siens ; "
               "leur date se LIT dans la page, où le générateur l'écrit (`scripts/reports/`)",
               'wama/common/reports.py',

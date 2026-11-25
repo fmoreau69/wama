@@ -3110,7 +3110,7 @@ L'APPARENCE d'un état (libellé, classe de badge, classe de texte, icône) déc
 
 ### Rapports publiés
 
-Les rapports servis à `/reports/<slug>/` (évaluations de modèles, analyses) se DÉCLARENT une fois — gabarit, titre, apps dont ils parlent. Le menu « Présentations & annexes » de l'accueil les liste, l'onglet « À propos » d'une app montre les siens ; leur date se LIT dans la page, où le générateur l'écrit (`scripts/reports/`)
+Les rapports servis à `/reports/<slug>/` (évaluations de modèles, analyses) se DÉCLARENT une fois — gabarit, titre, apps dont ils parlent (aucune pour un rapport TRANSVERSAL, que seul le menu porte). Le menu « Présentations & annexes » de l'accueil les liste, l'onglet « À propos » d'une app montre les siens ; leur date se LIT dans la page, où le générateur l'écrit (`scripts/reports/`)
 
 - **Domicile** : `wama/common/reports.py` · **doc** : [docs/construction/ia/WAMA_QUALITE.md §Rapports d'évaluation GÉNÉRÉS](../construction/ia/WAMA_QUALITE.md)
 - **Module** : Les RAPPORTS publiés par WAMA — une déclaration, lue par tous ceux qui les montrent.
