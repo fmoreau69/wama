@@ -32543,3 +32543,54 @@ interface ne lit encore ces déclarations.
   navigateur ; `translator_01` range son fichier de travail deux fois ; `prompt_file` de l'imager
   (champ mort d'un ancien fichier de lot) : retrait à décider ; `anonymizer_01` : à régénérer par la
   session de l'anonymizer ; la table commune des entrées (`INPUT_MODEL_MATCHING §6.13`) : décision.
+
+## §PALIER — 2026-11-25, « MARQUES TEMPORELLES : la PISTE DÉRIVÉE (marche 1ter) — une source, la liste de ses gestes, rejouée par le lecteur commun » — commité `ad62748f7`, non poussé — 🔚 où se range la liste (table des entrées, `.wdat` de travail) ; marche 1quater ; pistes filles d'une dérivée
+
+**Décidé par Fabien le 2026-11-25** (`ROUTE §10.7.14`) : E5 — l'emploi d'un plan ne porte que sa
+COUPE, un traitement différent du même plan est une autre card ; la coupe d'un fichier par une card
+se range dans la table commune des ENTRÉES (`INPUT_MODEL_MATCHING §6.13`, chantier de la session
+« valeur d'un port », prévenue).
+
+**Livré** (`common/catalog/marks.py`). Un geste fait sur une piste est une DONNÉE (`gesture`, `was`
+— les bornes de sa cible —, `mark` — le rang où elle était —, ce que le geste demande, qui et
+quand). `read_derived` / `apply_edits` rejouent la liste sur les marques de la source, qui n'est
+jamais modifiée ; `extend_edits` est la porte d'entrée d'un geste (refusé s'il ne peut pas se
+faire) ; défaire = retirer de la liste ; `effective_line` rend ce qui reste après les masques,
+chaque segment à sa place ; `violations(…, edits=)` contrôle la contrainte sur la dérivée. Une
+marque dérivée dit d'où elle vient (`source`), les gestes qui l'ont changée (`touched`), si elle
+est masquée.
+
+**Ramené par la revérification, avant le commit** :
+- un geste désignait sa cible par un rang et des bornes EXACTES : au moindre remesurage, tous les
+  gestes étaient perdus. WAMA prend déjà cette décision ailleurs — les corrections humaines de
+  détections vivent à part et désignent leur cible par sa PLACE, « pour survivre à une détection
+  relancée » (`utils/detections.apply_corrections`, seuil `CORRECTION_MIN_IOU`). Même règle, même
+  seuil, lus là-bas ; la mesure de recouvrement à une dimension vit désormais dans la brique des
+  intervalles (`utils/intervals.overlap_ratio`), que les deux emploient ;
+- le rejeu rend un COMPTE RENDU structuré : geste sauté (cible disparue, geste non déclaré), ou
+  fait sur une marque dont les bornes ont bougé (`was`, `now`) — à montrer pour qu'on le revoie ;
+- une colonne de fichier nommée comme ce que le lecteur écrit (`source`, `masked`, `parent`…)
+  aurait été écrasée sans bruit : contrôlé à la déclaration (`RESERVED`), et lue `source_` dans
+  les pistes d'un fichier de données ;
+- deux sens du mot « dérivée » : réservé à source + gestes ; les tours de parole sont une piste
+  CALCULÉE (registre `tracks` : `rows = computed`) ;
+- un événement ne déclare ni scinder, ni fusionner, ni retailler.
+
+**Vérifié.** 1820 tests du périmètre élargi (marques, registres, docs dérivées, sûreté des manifestes, détections, confidentialité, surfaces, monde Data, cam_analyzer) : 1815 verts, 5 rouges dont
+AUCUN n'est d'ici, établis un par un — 3 du budget d'identifiants (+2 : la liste nominative filtrée sur mes fichiers ne
+montre que des noms antérieurs ; les deux neufs sont dans `common/utils/detection_attributes.py`, fichier non commité d'une autre session) ;
+`tests_detections.QualificationTest` (test neuf du même travail en cours, non commité) ; `tests_gap_fill.TheOldCopiesDelegateTest`
+(rouge dans le lancement groupé avec le cam_analyzer, VERT rejoué seul et vert dans le lancement précédent). 34 contre-épreuves rouges sur 34
+(dont une vue des corrections de détections : la délégation à `overlap_ratio` tient). `check_docs` : 0 référence cassée, 1 périmée qui n'est
+pas d'ici. **Non vérifié** : la suite large ; HEAD dans un worktree ; aucune interface ; aucun conteneur `.wdat` réel.
+
+**Restes, nommés** :
+- OÙ se range la liste des gestes : la table des entrées pour une coupe (à construire par l'autre
+  session), le `.wdat` de travail d'une card du monde Data — aucun des deux n'existe encore ;
+- les pistes FILLES d'une piste dérivée gardent les rangs de la source (`source` permet de les
+  suivre, rien ne le fait encore) ;
+- les gestes EN PLACE du Transcriber (`word_anchoring.split_turn`, `move_boundary`) restent leur
+  propre écriture, au mot près : les rapprocher du rejeu commun est l'affaire de la page d'édition
+  commune ;
+- aucune interface ; marche suivante 1quater (lecture bornée à une plage, outil de l'assistant) ;
+  🔴 relancer gunicorn + workers reste dû.
