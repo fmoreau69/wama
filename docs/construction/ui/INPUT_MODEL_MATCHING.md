@@ -908,6 +908,31 @@ writer, translator) — l'anonymizer seul en est exclu, son port étant porté p
   EMPREINTE de la valeur texte pour la péremption (celle des fichiers ne suffit pas) ; une MIGRATION
   des textes existants avec le même repli que l'avatar. Dossier, avis et décision : scratchpad de la
   session (`concile_entrees_*`).
+- **Cartographie complète, demandée par Fabien avant de trancher Q2 et Q3 (2026-11-26)** :
+  - *Q2, le texte saisi* — ⚠ la DÉCISION existe : recadrage universel du 2026-08-30
+    (`WAMA_APP_GENERATION_ROUTE.md:4230-4233`, point 3 : « le texte saisi DEVIENT un document
+    textuel brut quand il entre en file […] rôle à l'entrée, nature au stockage »). Elle n'est pas
+    RÉALISÉE (cas 6 de la matrice des voies d'import, mesuré le 2026-09-05,
+    `MEDIA_STORAGE_TIERING.md:529`) : le texte est une colonne `TextField` partout, le synthesizer
+    seul le matérialise (`.txt` dans `text_file` + `text_content`, `synthesizer/services.py:84-108`).
+    Intention gardée (⏳). Fabien (26/11) : on garde l'état présent, on alignera plus tard le
+    synthesizer ou l'inverse ; la forme de `work_text` (modalité « saisir » d'un port document
+    matérialisé, ou valeur texte) attend sa décision.
+  - *Q3, deux vocabulaires* — mesuré app par app (ports de la card contre ports d'entrée des
+    process) : une card à un port PAR NATURE parle comme ses process ; une card à UN fichier de
+    travail de plusieurs natures (`work_file`) voyait ses process le nommer hors vocabulaire
+    (`work_media`, et `work_video` / `work_document` / `work_archive`, un process qui reçoit le
+    fichier sous plusieurs natures en gardant un port par nature). Les MODÈLES déclarent `work_file`
+    (57 de l'anonymizer, 21 du Hub…) : un jeton par nature dans les modèles redécouperait les cards
+    sans rien gagner. ✅ **Aligné le 2026-11-26** (`33fc383a4`) : les trois jetons de nature du rôle
+    travail au vocabulaire, `work_media` → `work_file`, imager `reference_image` → `work_image`
+    (port et domaines). Le jeton porte le RÔLE (lu par les modèles, les onglets, le Studio, les
+    outils, la table) ; la NATURE voyage dans l'`accept` de l'onglet et le `data_type` du port ; la
+    COLONNE est l'affaire du lecteur des ports. Preuve : photo de tout ce que le commun calcule (22
+    apps, 29 domaines, lectures d'arrivée de l'assistant, budget des ports non lus) et décisions du
+    moteur sur les vraies cards (225), HEAD rejoué en mémoire contre l'arbre — 0 écart hors les ports
+    visés. Garde : `tests_catalogues.FunctionCatalogConformiteTest` (un port qui nomme un rôle est
+    un jeton ; écart listé : `work_text` du synthesizer).
 - **Plan, dans l'ordre** (⏳ confirmation) : 1. jeton `work_text` ; 2. section Entrée générée de la
   modale ⚙ et du volet (prompt, texte) ; 3. remplacement des fichiers dans cette section (rangée de
   port de la v4, lecteur commun, péremption) ; 4. description de l'anonymizer dans la v4 (transmise à
