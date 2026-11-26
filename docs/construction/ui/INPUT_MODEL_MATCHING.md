@@ -945,6 +945,16 @@ writer, translator) — l'anonymizer seul en est exclu, son port étant porté p
   modale ⚙ et du volet (prompt, texte) ; 3. remplacement des fichiers dans cette section (rangée de
   port de la v4, lecteur commun, péremption) ; 4. description de l'anonymizer dans la v4 (transmise à
   la session de l'anonymizer).
+- **Lecture du texte d'un dépôt (accord avec la session du créateur dérivé, 2026-11-26, `2fe4aa8a0`)** :
+  `media_paths.posted_text` rend le PREMIER texte posté parmi tous les ports texte (l.708-713), la
+  consigne et le contenu confondus — juste tant qu'il n'existe qu'un jeton texte (`prompt`, rôle
+  `port: 'prompt'`, seul de `kind: 'text'` au 26/11). Le livrable du jeton `work_text` (rôle
+  `port: 'travail'`) lui ajoute dans le même geste un filtre `role=` lu au champ `port` du
+  vocabulaire (`'prompt'` = consigne, `'travail'` = contenu ; sans `role`, la forme d'aujourd'hui),
+  et porte ses appelants : composer (description / paroles), synthesizer et avatarizer (le texte à
+  dire en `role='travail'`) ; imager et anonymizer gardent la consigne. Une vue ne nomme jamais
+  l'id d'un port (règle de `received_work`). `_deposit_on_card` poste chaque port texte sous son id
+  et ne dépend pas de `posted_text`.
 
 Gardes : `wama/common/tests/tests_port_fields.py` — tout port d'une card a le champ qui garde sa
 valeur (ports lus dans le corpus versionné des modèles ; écarts `GAPS` et jumelles en attente de
