@@ -310,8 +310,9 @@ document.addEventListener('DOMContentLoaded', function () {
         doit passer par le commun ») — le volet lu à plat vers la route que déclare l'entrée de file,
         la card redessinée par le serveur. Le blob `options_json` d'ici écartait toute valeur vide
         (une rotation « Aucune », un nombre vidé, un miroir décoché ne s'enregistraient jamais) ; le
-        serveur déclare ce qui est vide-et-valeur (`views.SETTINGS_EMPTY_IS_VALUE`) et écarte ce
-        qui sort de la nature du job (`param_schema.settings_outside_nature`).{% endcomment %}
+        serveur lit le vide par le TYPE du réglage (`param_schema.emptied_values`, 2026-11-25 — la
+        liste `views.SETTINGS_EMPTY_IS_VALUE` est retirée) et écarte ce qui sort de la nature du job
+        (`param_schema.settings_outside_nature`).{% endcomment %}
     });
 });
 </script>

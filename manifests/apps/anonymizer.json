@@ -1364,6 +1364,7 @@
             },
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "Lit par OCR les pages d'un PDF qui n'ont pas de texte (un scan) et le texte dessiné dans ses images, pour y trouver les données personnelles et les occulter à leur place. Coché d'office quand le document a des pages scannées — décochable ; à cocher pour lire le texte de ses images.",
@@ -1430,6 +1431,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "empty_label": "",
             "group": "mode",
             "help": "Classes : une liste d'objets à flouter. Description : ce qu'il faut flouter, décrit en texte.",
@@ -1489,6 +1491,7 @@
             "dom_id": {
               "panel": "user_setting_sam3_prompt"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "description",
             "help": "Les cibles proposées sont cochées d'office : décochez-en, ajoutez les vôtres, ou décrivez avec vos mots. Le système comprend la description, puis choisit le modèle qui cherche chaque chose.",
@@ -1556,6 +1559,7 @@
             "dom_id": {
               "panel": "user_setting_model_to_use"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "model",
             "help": "Automatique : choisi au lancement selon le curseur et les classes.",
@@ -1621,6 +1625,7 @@
             "dom_id": {
               "panel": "user_setting_precision_level"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "model",
             "help": "5 paliers effectifs (n/s/m/l/x) ; à partir de 50, segmentation fine.",
@@ -1678,6 +1683,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "empty_label": "",
             "group": "model",
             "help": "Une image analysée sur N d'une vidéo (1 : toutes). 0 : automatique — chaque modèle sa cadence (LocateAnything : une image par seconde ; YOLO, SAM3 : toutes). Les images sautées sont déduites des images analysées voisines.",
@@ -1735,6 +1741,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "empty_label": "",
             "group": "qualify",
             "help": "Dit la couleur majoritaire et la taille de chaque objet détecté : « Ce qu'on floute » peut alors laisser net une couleur, une taille. Aucun modèle n'est chargé ; changer ce qu'on floute ne refait que le floutage.",
@@ -1792,6 +1799,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "empty_label": "",
             "group": "qualify",
             "help": "Situe chaque objet au premier plan ou à l'arrière-plan de la scène, par un modèle de profondeur (une image par seconde sur une vidéo).",
@@ -1850,6 +1858,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "empty_label": "Rien n'est encore détecté sur ce média : la détection dira ce qu'on peut flouter.",
             "group": "mode",
             "help": "Ce que la détection a trouvé sur ce média. Décocher ce qu'on veut laisser net : seul le floutage est refait, sans redétecter.",
@@ -1912,6 +1921,7 @@
             "dom_id": {
               "panel": "user_setting_detection_threshold"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "mode",
             "help": "Confiance à partir de laquelle un objet détecté est flouté (toutes classes, sauf seuil propre ci-dessous). Le changer ne refait que le floutage.",
@@ -1967,6 +1977,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "empty_label": "",
             "group": "mode",
             "help": "Une plaque et un visage n'ont pas la même confiance : un seuil propre à une classe remplace le seuil commun pour elle.",
@@ -2025,6 +2036,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "empty_label": "La qualification dira les couleurs des objets.",
             "group": "mode",
             "help": "Décocher une couleur laisse net les objets de cette couleur.",
@@ -2083,6 +2095,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "empty_label": "La qualification dira la taille des objets.",
             "group": "mode",
             "help": "small : moins de 1 % de l'image ; large : au moins 10 %.",
@@ -2141,6 +2154,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "empty_label": "La qualification avec profondeur dira le plan des objets.",
             "group": "mode",
             "help": "foreground : plus proche que le milieu de la scène ; background : au-delà.",
@@ -2214,6 +2228,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "empty_label": "",
             "group": "comment",
             "help": "Flou, pixellisation ou masque plein (noir) : la zone, ses bords et son fondu restent les mêmes.",
@@ -2271,6 +2286,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "empty_label": "",
             "group": "comment",
             "help": "Anonymise toute l'image SAUF ce qui est sélectionné, qui reste net.",
@@ -2330,6 +2346,7 @@
             "dom_id": {
               "panel": "user_setting_blur_ratio"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "comment",
             "help": "Taille du noyau gaussien (impaire) ; en pixellisation, des blocs de sa moitié.",
@@ -2387,6 +2404,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "",
@@ -2446,6 +2464,7 @@
             "dom_id": {
               "panel": "user_setting_roi_enlargement"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "comment",
             "help": "Aire floutée autour de l'objet : moins de 1 la réduit, plus de 1 l'agrandit.",
@@ -2505,6 +2524,7 @@
             "dom_id": {
               "panel": "user_setting_progressive_blur"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "comment",
             "help": "",
@@ -2562,6 +2582,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "",
@@ -2619,6 +2640,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "Un trou de détection d'au plus ce nombre d'images est comblé, entre deux détections du même objet (même piste, ou même place).",
@@ -2679,6 +2701,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "Un objet reste flouté ce nombre d'images avant sa première détection et après sa dernière (il entre ou sort du champ), à sa vitesse. 0 : jamais.",
@@ -2736,6 +2759,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "Masque au contour de l'objet plutôt qu'au rectangle détecté.",
@@ -2793,6 +2817,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "empty_label": "",
             "group": "afficher",
             "help": "",
@@ -2848,6 +2873,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "empty_label": "",
             "group": "afficher",
             "help": "",
@@ -2903,6 +2929,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "empty_label": "",
             "group": "afficher",
             "help": "",
@@ -2958,6 +2985,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "empty_label": "",
             "group": "afficher",
             "help": "",
@@ -3015,6 +3043,7 @@
             "dom_id": {
               "panel": "output_format"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "sortie",
             "help": "« Original » : le format du fichier déposé.",
@@ -3161,6 +3190,7 @@
             "dom_id": {
               "panel": "output_quality"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "sortie",
             "help": "Appliquée à la conversion vers le format choisi.",

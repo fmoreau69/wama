@@ -402,18 +402,19 @@ class CurseurDeQualiteTest(TestCase):
             self.assertEqual(champ.get('default'), 50, app)
             condition = champ.get('show_if') or {}
             # Une app qui TIRE un modèle conditionne le curseur à « auto » — nu (imager,
-            # synthesizer…) ou les pseudo-modèles « auto-* » du composer (un « auto » par
-            # optgroup, 2026-07-02) : une valeur `equals`, ou une liste `in`. Une app SANS
-            # modèle (converter : le curseur décline en encodage, conditionné par la NATURE) n'a
-            # pas d'« auto » à surveiller — seule la condition doit viser un champ du schéma.
-            # Une condition COMPOSÉE (`any`/`all`, 2026-11-08 : le reader lit un texte OU une
-            # partition, chacun par son sélecteur) : chaque valeur comparée doit être un « auto ».
+            # synthesizer…) ou un « auto » par tâche (`auto:<tâche>`) : une valeur `equals`, ou une
+            # liste `in`. Une app SANS modèle (converter : le curseur décline en encodage,
+            # conditionné par la NATURE) n'a pas d'« auto » à surveiller — seule la condition doit
+            # viser un champ du schéma. Une condition COMPOSÉE (`any`/`all`, 2026-11-08 : le reader
+            # lit un texte OU une partition, chacun par son sélecteur) : chaque valeur comparée doit
+            # être un « auto ».
+            # Le tirage se lit à sa DÉCLARATION, `options_auto` sur le sélecteur (2026-11-25) : un
+            # choix dont la valeur commence par « auto » n'est pas un modèle — mesuré ce jour sur les
+            # 20 schémas à curseur, cette lecture ne trouvait QUE des choix sans modèle (`vocals`,
+            # `output_language`, `mode`, `language_mode`, `vad_mode`, `source_language`, le débit
+            # « Auto » du converter devenu `auto`), et tout sélecteur de modèle déclare `options_auto`.
             values = _compared_values(condition)
-            serves_auto = any(f.get('options_auto') for f in schema) or any(
-                str(v[0] if isinstance(v, (list, tuple)) else v).startswith('auto')
-                for f in schema for v in (f.get('choices') or [])) or any(
-                str(v[0] if isinstance(v, (list, tuple)) else v).startswith('auto')
-                for f in schema for _label, group in (f.get('option_groups') or []) for v in group)
+            serves_auto = any(f.get('options_auto') for f in schema)
             if serves_auto:
                 self.assertTrue(values and all(str(v).startswith('auto') for v in values),
                                 f"{app} : le curseur doit n'apparaître que sur « auto » ({condition})")

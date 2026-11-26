@@ -913,6 +913,7 @@
               "item": "settingsTtsModel",
               "panel": "tts_model"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "Clé catalogue du moteur TTS (AIModel.model_key)",
@@ -975,6 +976,7 @@
               "item": "settingsQualityIntent",
               "panel": "quality_intent"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources.",
@@ -1097,6 +1099,7 @@
               "item": "settingsLanguage",
               "panel": "language"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "Langue de synthèse",
@@ -1159,6 +1162,7 @@
               "item": "settingsVoicePreset",
               "panel": "voice_preset"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "Voix de référence (sa_…), voix clonée (ua_…) ou voix propre du moteur",
@@ -1217,6 +1221,7 @@
               "item": "settingsSpeed",
               "panel": "speed"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "Vitesse de parole (0.5 = lent, 2.0 = rapide)",
@@ -1275,6 +1280,7 @@
               "item": "settingsPitch",
               "panel": "pitch"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "Hauteur de la voix (0.5 = grave, 2.0 = aigu)",
@@ -1331,6 +1337,7 @@
               "item": "settingsSentencePause",
               "panel": "sentence_pause"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "Silence, en secondes, après un point, un point d'exclamation ou d'interrogation.",
@@ -1387,6 +1394,7 @@
               "item": "settingsClausePause",
               "panel": "clause_pause"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "Silence, en secondes, après une virgule, un point-virgule, deux-points, une parenthèse ou un tiret d'incise. À 0, la phrase est dite d'un seul souffle.",
@@ -1460,6 +1468,7 @@
               "item": "settingsTemperature",
               "panel": "temperature"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "Le hasard du modèle. À 0, même entrée, même résultat ; plus haut, le résultat varie d'un lancement à l'autre. Un modèle distant ne garantit pas toujours le même résultat, même à 0.",
@@ -1524,6 +1533,7 @@
               "item": "settingsSeed",
               "panel": "seed"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "Vide : un tirage neuf à chaque lancement. Une graine fixée, avec les mêmes réglages et le même modèle, redonne le même résultat sur cette machine.",
@@ -1588,6 +1598,7 @@
               "item": "settingsTopP",
               "panel": "top_p"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "Le modèle ne tire que parmi ses choix les plus probables, jusqu'à cette part du total : plus bas, un résultat plus sûr et moins varié ; 1, tous les choix.",
@@ -1677,6 +1688,7 @@
               "item": "settingsOutputFormat",
               "panel": "output_format"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": null,
             "help": "",
@@ -1744,6 +1756,7 @@
               "item": "settingsOutputQuality",
               "panel": "output_quality"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": null,
             "help": "Appliquée à la conversion vers le format choisi.",

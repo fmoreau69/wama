@@ -9,14 +9,20 @@ UNDER any explicitly-set base options (explicit values always win).
 import re
 
 # Preset → per-media defaults. Keys match the option keys read by the backends.
+# Chaque clé est un RÉGLAGE DU SCHÉMA (`params.py`) : ce que le curseur écrit se voit, se surcharge
+# dans l'« Avancé » (`params.SLIDER_WRITES`), et a sa colonne. Garde : chaque cran du curseur tombe
+# sur un réglage déclaré (`converter.tests`). Retirés le 2026-11-25 (REMOVAL_LEDGER R249) :
+# `optimize` (image, Qualité), qu'aucun moteur ne lisait — le moteur image optimise tout JPEG de
+# lui-même (`image_backend._build_save_kwargs`) —, et
+# `preset` (vidéo), devenu `encoder_preset` : sans colonne, il se perdait sur tout job de la file.
 _PRESETS = {
     'image': {
         'web':      {'quality': 80},
         'balanced': {'quality': 90},
-        'max':      {'quality': 98, 'optimize': True},
+        'max':      {'quality': 98},
     },
     'video': {
-        # video_quality = CRF (lower = better) ; preset = x264 speed/efficiency ;
+        # video_quality = CRF (lower = better) ; encoder_preset = x264 speed/efficiency ;
         # resolution_cap = côté court maximal, jamais agrandi (`video_backend._build_vf`).
         # « Rapide (web) » vraiment léger depuis le 2026-11-19 (décision de Fabien) : 720p en CRF 28.
         # Mesuré sur la vidéo des gestes nocturnes (1080p, 2 min, 32,1 Mo) : 6,7 Mo, contre 25,9 Mo
@@ -26,9 +32,9 @@ _PRESETS = {
         # Le mot est `output_formats.ORIGINAL`, qu'on ne peut importer ici (cette table est lue à
         # son chargement) : la garde de chaque cran du curseur (`converter.tests`) rougit s'ils
         # divergent — la valeur ne serait plus un choix du schéma.
-        'web':      {'video_quality': 28, 'preset': 'medium', 'resolution_cap': '720'},
-        'balanced': {'video_quality': 20, 'preset': 'slow', 'resolution_cap': 'original'},
-        'max':      {'video_quality': 16, 'preset': 'slow', 'resolution_cap': 'original'},
+        'web':      {'video_quality': 28, 'encoder_preset': 'medium', 'resolution_cap': '720'},
+        'balanced': {'video_quality': 20, 'encoder_preset': 'slow', 'resolution_cap': 'original'},
+        'max':      {'video_quality': 16, 'encoder_preset': 'slow', 'resolution_cap': 'original'},
     },
     'audio': {
         'web':      {'audio_bitrate': '160k'},
@@ -57,7 +63,7 @@ PRESET_LABELS = {
 # « valeur → réglages d'encodage par format ». Les trois presets sont des POSITIONS sur l'échelle
 # commune (`QUALITY_PRESETS` du sélecteur : Rapide 15 / Équilibré 50 / Qualité 85) ; entre deux
 # positions, les valeurs numériques s'INTERPOLENT (« chaque cran déplace réellement », Fabien
-# 02/09) ; une valeur non numérique (preset x264, `optimize`) prend celle de la position la plus
+# 02/09) ; une valeur non numérique (la vitesse x264) prend celle de la position la plus
 # proche. Aux positions exactes, on retrouve la table ci-dessus à l'unité.
 _CANON_TO_PRESET = {'fast': 'web', 'balanced': 'balanced', 'quality': 'max'}
 
@@ -85,7 +91,7 @@ def preset_for_intent(intent) -> str:
 
 def _blend(a, b, t: float):
     """Valeur entre `a` (t=0) et `b` (t=1) : nombres interpolés, `'160k'` par son nombre,
-    le reste (chaîne x264, booléen) = la position la plus proche."""
+    le reste (vitesse x264, booléen) = la position la plus proche."""
     if isinstance(a, bool) or isinstance(b, bool) or a is None or b is None:
         return a if t < 0.5 else b
     if isinstance(a, (int, float)) and isinstance(b, (int, float)):

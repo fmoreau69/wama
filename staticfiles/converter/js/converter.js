@@ -145,6 +145,13 @@
         window.CONVERTER_DEFAUTS = readMainPanelOptions();
     }
 
+    // Ce que le curseur POSE s'écrit après le rendu, à la réponse du serveur (`effect_source`,
+    // 2026-11-25) : les défauts des prochains dépôts — que la désélection d'une card restaure — le
+    // reprennent, sinon ils rendraient au volet la qualité d'avant le curseur.
+    panelHost()?.addEventListener('wama:intent-effect', function (e) {
+        if (e.detail && e.detail.atRender) window.CONVERTER_DEFAUTS = readMainPanelOptions();
+    });
+
     // ── Batch import (fichier d'URLs/chemins) — composant commun ────────────────
     if (typeof WamaBatchImport === 'function') {
         window._converterBatchImport = WamaBatchImport({

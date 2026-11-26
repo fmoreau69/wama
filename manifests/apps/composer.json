@@ -1281,6 +1281,7 @@
               "batch": "batchSettingsPrompt",
               "item": "settingsPrompt"
             },
+            "effect_source": null,
             "group": "",
             "help": "",
             "help_fallback": null,
@@ -1337,6 +1338,7 @@
               "item": "settingsModel",
               "panel": "modelSelect"
             },
+            "effect_source": null,
             "group": "",
             "help": "",
             "help_fallback": {
@@ -1416,6 +1418,7 @@
               "item": "settingsVocals",
               "panel": "vocalsSelect"
             },
+            "effect_source": null,
             "group": "",
             "help": "« Auto » : chanté si le prompt porte des paroles balisées ([Verse], [Chorus]…) sous la description, instrumental sinon. « Chanson » sans paroles : elles sont écrites pour vous, dans une langue que le modèle chante. Seuls certains modèles chantent ; en automatique, le tirage les retient.",
             "help_fallback": null,
@@ -1473,6 +1476,7 @@
             "dom_id": {
               "item": "settingsLyrics"
             },
+            "effect_source": null,
             "group": "",
             "help": "Paroles chantées, en sections balisées ([Verse], [Chorus]…). Laissées vides, elles se remplissent seules : écoutées dans le morceau repris (cover), écrites au lancement si vous demandez une chanson (étape « Paroles écrites »), ou écoutées dans le morceau produit (« Paroles chantées »). « Écrire les paroles » les écrit tout de suite, à la longueur du morceau, pour les relire avant de lancer. Des paroles écrites dans le prompt, sous la description, priment.",
             "help_fallback": null,
@@ -1542,6 +1546,7 @@
               "item": "settingsQualityIntent",
               "panel": "qualityIntent"
             },
+            "effect_source": null,
             "group": "",
             "help": "Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources.",
             "help_fallback": null,
@@ -1610,6 +1615,7 @@
               "item": "settingsDuration",
               "panel": "durationSlider"
             },
+            "effect_source": null,
             "group": "",
             "help": "",
             "help_fallback": null,
@@ -1682,6 +1688,7 @@
               "item": "settingsTemperature",
               "panel": "temperatureSlider"
             },
+            "effect_source": null,
             "group": "",
             "help": "Le hasard du modèle. À 0, même entrée, même résultat ; plus haut, le résultat varie d'un lancement à l'autre. Un modèle distant ne garantit pas toujours le même résultat, même à 0.",
             "help_fallback": null,
@@ -1745,6 +1752,7 @@
               "item": "settingsSeed",
               "panel": "seedInput"
             },
+            "effect_source": null,
             "group": "",
             "help": "Vide : un tirage neuf à chaque lancement. Une graine fixée, avec les mêmes réglages et le même modèle, redonne le même résultat sur cette machine.",
             "help_fallback": null,
@@ -1801,6 +1809,7 @@
               "item": "settingsExtractReducedScore",
               "panel": "extractReducedScore"
             },
+            "effect_source": null,
             "group": "",
             "help": "Écrit la mélodie de l'audio repris (cover) en partition, lisible et corrigeable dans la page « Éditer la partition ». Imposée par un modèle qui reprend le morceau par sa partition.",
             "help_fallback": null,
@@ -1856,6 +1865,7 @@
               "item": "settingsGenerateAudio",
               "panel": "generateAudio"
             },
+            "effect_source": null,
             "group": "",
             "help": "Rend l'audio depuis la consigne (et la partition, quand le modèle en suit une). Décochez pour n'obtenir que les partitions ou les paroles d'un morceau.",
             "help_fallback": null,
@@ -1911,6 +1921,7 @@
               "item": "settingsSeparateStems",
               "panel": "separateStems"
             },
+            "effect_source": null,
             "group": "",
             "help": "Sépare l'audio repris en pistes (voix, batterie, basse, guitare, piano, autres) : chaque piste devient une card du lot de celle-ci, avec ses propres réglages — par exemple pour écrire la partition d'un seul instrument, plus juste que celle du mélange. Les cards des pistes ne se lancent pas d'elles-mêmes.",
             "help_fallback": null,
@@ -1966,6 +1977,7 @@
               "item": "settingsSeparationModel",
               "panel": "separationModel"
             },
+            "effect_source": null,
             "group": "",
             "help": "",
             "help_fallback": {
@@ -2030,6 +2042,7 @@
               "item": "settingsSeparationStems",
               "panel": "separationStems"
             },
+            "effect_source": null,
             "group": "",
             "help": "Les instruments à extraire, séparés par des virgules (ex. « Voix, Batterie, Piano, Cordes ») — un nom par piste, une passe par piste. Vide : la liste que le modèle propose. Seuls les modèles qui séparent sur demande (SAM Audio) le lisent.",
             "help_fallback": null,
@@ -2085,6 +2098,7 @@
               "item": "settingsRemixStems",
               "panel": "remixStems"
             },
+            "effect_source": null,
             "group": "",
             "help": "Recompose le morceau à partir de ses pistes séparées, sans celles qu'on retire (par exemple sans la batterie, sans la voix). Le morceau d'origine sert de base : ce qu'on garde n'est pas abîmé par la séparation. Le résultat devient une card du lot.",
             "help_fallback": null,
@@ -2140,6 +2154,7 @@
               "item": "settingsRemixWithout",
               "panel": "remixWithout"
             },
+            "effect_source": null,
             "group": "",
             "help": "Les pistes à retirer, séparées par des virgules (ex. « Batterie, Voix ») — les noms des pistes séparées. Vide : le morceau d'origine, intact.",
             "help_fallback": null,
@@ -2189,6 +2204,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "group": "",
             "help": "Le niveau de chaque piste dans la refusion (1 = telle quelle, 0,5 = à moitié, 1,5 = plus fort) — réglé à l'oreille dans la page d'édition ; les pistes retirées sont dans « Pistes à retirer ».",
             "help_fallback": null,
@@ -2244,6 +2260,7 @@
               "item": "settingsExtractParts",
               "panel": "extractParts"
             },
+            "effect_source": null,
             "group": "",
             "help": "Écrit une partie par instrument entendu (voix, piano, basse, batterie…) dans l'audio repris (cover), à côté de la partition réduite que le rendu suit. Lisible et calée sur l'audio dans la page « Éditer la partition ». Une transcription automatique : à relire.",
             "help_fallback": null,
@@ -2299,6 +2316,7 @@
               "item": "settingsExtractRenderedParts",
               "panel": "extractRenderedParts"
             },
+            "effect_source": null,
             "group": "",
             "help": "Après le rendu, écrit la partition complète du morceau PRODUIT, pour la comparer à celle de l'entrée dans la page « Éditer la partition ». Une transcription automatique : à relire.",
             "help_fallback": null,
@@ -2354,6 +2372,7 @@
               "item": "settingsExtractRenderedScore",
               "panel": "extractRenderedScore"
             },
+            "effect_source": null,
             "group": "",
             "help": "Après le rendu, écrit la mélodie et les accords du morceau PRODUIT, pour les comparer à la partition de référence dans la page « Éditer la partition ».",
             "help_fallback": null,
@@ -2409,6 +2428,7 @@
               "item": "settingsPartsModel",
               "panel": "partsModel"
             },
+            "effect_source": null,
             "group": "",
             "help": "",
             "help_fallback": {
@@ -2469,6 +2489,7 @@
               "item": "settingsExtractInputLyrics",
               "panel": "extractInputLyrics"
             },
+            "effect_source": null,
             "group": "",
             "help": "Écoute les paroles du morceau repris (cover) : posées sous les notes de la partition de référence, et dans le champ « Paroles » s'il est vide.",
             "help_fallback": null,
@@ -2524,6 +2545,7 @@
               "item": "settingsExtractRenderedLyrics",
               "panel": "extractRenderedLyrics"
             },
+            "effect_source": null,
             "group": "",
             "help": "Après le rendu, écoute ce que le modèle a chanté : posé sous les notes de la partition jouée, pour comparer avec ce qui était demandé — et dans le champ « Paroles » s'il est resté vide.",
             "help_fallback": null,
@@ -2579,6 +2601,7 @@
               "item": "settingsLyricsModel",
               "panel": "lyricsModel"
             },
+            "effect_source": null,
             "group": "",
             "help": "",
             "help_fallback": {
@@ -2681,6 +2704,7 @@
               "item": "settingsOutputFormat",
               "panel": "output_format"
             },
+            "effect_source": null,
             "group": null,
             "help": "",
             "help_fallback": null,
@@ -2747,6 +2771,7 @@
               "item": "settingsOutputQuality",
               "panel": "output_quality"
             },
+            "effect_source": null,
             "group": null,
             "help": "Appliquée à la conversion vers le format choisi.",
             "help_fallback": null,

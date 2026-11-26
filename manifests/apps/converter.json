@@ -501,6 +501,29 @@
                   "imports": []
                 },
                 "db_default": {
+                  "expr": "'medium'",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "'medium'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "12",
+                  "imports": []
+                }
+              },
+              "name": "encoder_preset"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "db_default": {
                   "expr": "'original'",
                   "imports": []
                 },
@@ -1045,6 +1068,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "",
@@ -1100,6 +1124,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "empty_label": "",
             "group": "sortie",
             "help": "",
@@ -1196,9 +1221,10 @@
               "item": "settingsQualityIntent",
               "panel": "panelQualityIntent"
             },
+            "effect_source": "converter",
             "empty_label": "",
             "group": "sortie",
-            "help": "Guide les réglages d'encodage : à gauche léger et rapide (web), à droite la meilleure qualité. Les réglages fins restent modifiables.",
+            "help": "Guide les réglages d'encodage : à gauche léger et rapide (web), à droite la meilleure qualité. Les réglages qu'il pose se retouchent dans « Avancé ».",
             "help_fallback": null,
             "help_html": "",
             "help_source": null,
@@ -1258,6 +1284,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "empty_label": "",
             "group": "image",
             "help": "Qualité d'encodage de l'image (1–100) — posée par le curseur, retouchable ici.",
@@ -1316,6 +1343,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "empty_label": "",
             "group": "transform",
             "help": "Vide = suit la hauteur (proportions gardées) ; les deux vides = inchangé.",
@@ -1377,6 +1405,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "empty_label": "",
             "group": "transform",
             "help": "Vide = suit la largeur (proportions gardées) ; les deux vides = inchangé.",
@@ -1455,6 +1484,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "empty_label": "",
             "group": "transform",
             "help": "",
@@ -1516,6 +1546,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "empty_label": "",
             "group": "transform",
             "help": "",
@@ -1577,6 +1608,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "empty_label": "",
             "group": "transform",
             "help": "",
@@ -1624,7 +1656,7 @@
             "write_from": null
           },
           {
-            "advanced": false,
+            "advanced": true,
             "cap_from": null,
             "chip": false,
             "chip_label": "",
@@ -1638,6 +1670,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "empty_label": "",
             "group": "video",
             "help": "0 = sans perte, 23 = défaut, 51 = pire qualité.",
@@ -1682,7 +1715,103 @@
             "write_from": null
           },
           {
-            "advanced": false,
+            "advanced": true,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
+            "choices": [
+              [
+                "ultrafast",
+                "Ultra-rapide"
+              ],
+              [
+                "superfast",
+                "Super-rapide"
+              ],
+              [
+                "veryfast",
+                "Très rapide"
+              ],
+              [
+                "faster",
+                "Plus rapide"
+              ],
+              [
+                "fast",
+                "Rapide"
+              ],
+              [
+                "medium",
+                "Moyenne"
+              ],
+              [
+                "slow",
+                "Lente"
+              ],
+              [
+                "slower",
+                "Plus lente"
+              ],
+              [
+                "veryslow",
+                "Très lente"
+              ]
+            ],
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": "medium",
+            "default_from": null,
+            "display_format": "",
+            "dom_id": "",
+            "effect_source": null,
+            "empty_label": "",
+            "group": "video",
+            "help": "Plus lente : un fichier plus léger à qualité égale, mais un encodage plus long.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-gauge-simple-high",
+            "inline": false,
+            "keywords": null,
+            "label": "Vitesse d'encodage",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "encoder_preset",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_from": null,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "remember": null,
+            "section": "settings",
+            "show_if": {
+              "equals": "video",
+              "field": "media_type"
+            },
+            "stales": [
+              "convert"
+            ],
+            "step": null,
+            "stores_unchecked": false,
+            "type": "select",
+            "unit": "",
+            "write_from": null
+          },
+          {
+            "advanced": true,
             "cap_from": null,
             "chip": false,
             "chip_label": "",
@@ -1717,6 +1846,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "empty_label": "",
             "group": "video",
             "help": "Réduit la vidéo à cette définition (côté court), sans jamais l'agrandir.",
@@ -1775,6 +1905,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "empty_label": "",
             "group": "video",
             "help": "Vide = inchangé.",
@@ -1833,6 +1964,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "empty_label": "",
             "group": "video",
             "help": "Sortie GIF uniquement.",
@@ -1891,6 +2023,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "empty_label": "",
             "group": "video",
             "help": "Sortie GIF uniquement — hauteur calculée pour garder les proportions.",
@@ -1935,7 +2068,7 @@
             "write_from": null
           },
           {
-            "advanced": false,
+            "advanced": true,
             "cap_from": null,
             "chip": true,
             "chip_label": "",
@@ -1978,6 +2111,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "empty_label": "",
             "group": "audio",
             "help": "",
@@ -2053,6 +2187,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "empty_label": "",
             "group": "audio",
             "help": "",
@@ -2124,6 +2259,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "empty_label": "",
             "group": "audio",
             "help": "",
@@ -2182,6 +2318,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "empty_label": "",
             "group": "audio",
             "help": "",
@@ -2253,6 +2390,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "empty_label": "",
             "group": "posttraitement",
             "help": "Post-traitement IA via l'app enhancer — appliqué après la conversion (charge un modèle GPU).",
@@ -2311,6 +2449,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "empty_label": "",
             "group": "posttraitement",
             "help": "Post-traitement IA via l'app enhancer — appliqué après la conversion (charge un modèle GPU).",
@@ -2369,6 +2508,7 @@
             "default_from": null,
             "display_format": "",
             "dom_id": "",
+            "effect_source": null,
             "empty_label": "",
             "group": "posttraitement",
             "help": "Post-traitement IA via l'app enhancer — appliqué après la conversion (charge un modèle GPU).",
@@ -2572,6 +2712,7 @@
             "flip_h",
             "flip_v",
             "video_quality",
+            "encoder_preset",
             "resolution_cap",
             "fps",
             "gif_fps",
@@ -2620,6 +2761,7 @@
             "audio_enhance": "toggle — Post-traitement IA via l'app enhancer — appliqué après la conversion (charge un modèle GPU).",
             "channels": "select — Canaux (choix : original | 1 | 2) (défaut : 'original')",
             "denoise": "toggle — Post-traitement IA via l'app enhancer — appliqué après la conversion (charge un modèle GPU).",
+            "encoder_preset": "select — Plus lente : un fichier plus léger à qualité égale, mais un encodage plus long. (choix : ultrafast | superfast | veryfast | faster | fast | medium | slow | slower …) (défaut : 'medium')",
             "file_path": "str (requis) — plusieurs fichiers arrivés ensemble : une LISTE de chemins, un élément par fichier, rangés en un lot comme un dépôt de plusieurs fichiers sur la card",
             "flip_h": "toggle — Miroir horizontal",
             "flip_v": "toggle — Miroir vertical",
@@ -2630,7 +2772,7 @@
             "normalize": "toggle — Normaliser le volume",
             "output_format": "select — Format de sortie",
             "quality": "range — Qualité d'encodage de l'image (1–100) — posée par le curseur, retouchable ici. [1–100] (défaut : 85)",
-            "quality_intent": "intent — Guide les réglages d'encodage : à gauche léger et rapide (web), à droite la meilleure qualité. Les réglages fins restent modifiables. [0–100] (défaut : 50)",
+            "quality_intent": "intent — Guide les réglages d'encodage : à gauche léger et rapide (web), à droite la meilleure qualité. Les réglages qu'il pose se retouchent dans « Avancé ». [0–100] (défaut : 50)",
             "quality_preset": "str (défaut : 'balanced')",
             "resize_h": "number — Vide = suit la largeur (proportions gardées) ; les deux vides = inchangé. [0–None]",
             "resize_w": "number — Vide = suit la hauteur (proportions gardées) ; les deux vides = inchangé. [0–None]",

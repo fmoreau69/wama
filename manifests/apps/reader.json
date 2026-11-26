@@ -891,6 +891,7 @@
               "item": "rSettings_read_as_score",
               "panel": "readAsScoreToggle"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "Lit la page comme une PARTITION imprimée : elle est rendue gravée et éditable (page « Éditer la partition »), téléchargeable en ABC ou en MusicXML. Cochée d'office quand la page porte des portées — décochable.",
@@ -947,6 +948,7 @@
               "item": "rSettings_backend",
               "panel": "backendSelect"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "",
@@ -1014,6 +1016,7 @@
               "item": "rSettings_score_model",
               "panel": "scoreModelSelect"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "Clé de catalogue du modèle de lecture de partition, ou « auto ».",
@@ -1072,6 +1075,7 @@
             "dom_id": {
               "panel": "qualityIntent"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources.",
@@ -1169,6 +1173,7 @@
               "item": "rSettings_mode",
               "panel": "modeSelect"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "",
@@ -1234,6 +1239,7 @@
               "item": "rSettings_language",
               "panel": "languageInput"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "Optionnel (ex. fr, en). Auto-détection si vide.",
@@ -1295,6 +1301,7 @@
               "item": "rSettings_llm_model",
               "panel": "llmModelSelect"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "Clé de catalogue du modèle de langage, ou « auto ».",
@@ -1377,6 +1384,7 @@
               "item": "rSettings_llm_temperature",
               "panel": "llmTemperature"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "Le hasard du modèle. À 0, même entrée, même résultat ; plus haut, le résultat varie d'un lancement à l'autre. Un modèle distant ne garantit pas toujours le même résultat, même à 0.",
@@ -1446,6 +1454,7 @@
               "item": "rSettings_llm_seed",
               "panel": "llmSeed"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "Vide : un tirage neuf à chaque lancement. Une graine fixée, avec les mêmes réglages et le même modèle, redonne le même résultat sur cette machine.",
@@ -1515,6 +1524,7 @@
               "item": "rSettings_llm_top_p",
               "panel": "llmTopP"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "Le modèle ne tire que parmi ses choix les plus probables, jusqu'à cette part du total : plus bas, un résultat plus sûr et moins varié ; 1, tous les choix.",
@@ -1576,6 +1586,7 @@
               "item": "rSettings_format_markdown",
               "panel": "formatMarkdownToggle"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "Une étape : un modèle de langage restructure le texte lu (titres, listes, tableaux) sans rien en retrancher. Le format du fichier se choisit au téléchargement. Le texte natif d'un PDF reste tel quel.",
@@ -1634,6 +1645,7 @@
               "item": "rSettings_generate_analysis",
               "panel": "generateAnalysisToggle"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "Analyse LLM du texte lu (résumé, points clés)",

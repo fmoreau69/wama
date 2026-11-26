@@ -164,7 +164,7 @@ def _visitor_trial(request):
 # (`format_router`), dans la cascade `output_format_for` que lisent toutes les voies de création.
 
 
-def apply_birth_settings(job, media_type, options=None, inputs=None) -> list:
+def apply_birth_settings(job, media_type, options=None, inputs=None, *, nature_arrived=False) -> list:
     """MODÈLE ÉVÉNEMENTIEL (Fabien, 02/09, ROADMAP §23.2quater) : l'élément naît COMPLET —
     les défauts applicables du schéma sont ÉCRITS en base à la création, le POST de la
     zone de composition par-dessus (le geste de l'utilisateur prime). Les chips d'une card
@@ -180,15 +180,62 @@ def apply_birth_settings(job, media_type, options=None, inputs=None) -> list:
     (`poser_reglages` : types des colonnes). Posé sans sauver ; rend les champs touchés.
     Toutes les voies de création passent ici — le dépôt, le lot, la conversion rapide, l'outil
     de l'assistant et l'import du gestionnaire de fichiers ; une jumelle de bac à sable aussi
-    (l'app et le modèle sont ceux du job)."""
+    (l'app et le modèle sont ceux du job).
+
+    Le CURSEUR S'APPLIQUE à la naissance (2026-11-25, décision de Fabien ; `WAMA_LLM`, bloc
+    « fil web n° 46 », point 7) : sa position de naissance (postée, sinon retenue, sinon celle du
+    schéma) écrit ses réglages
+    d'encodage — la couche PRÉRÉGLAGE de la cascade (`values_for_intent`), sous ce que l'auteur
+    a posé ou retenu (le geste fin prime) — et pose ses traces, comme le geste de la ⚙. Il
+    n'était qu'une trace : la qualité restait celle du schéma (85), la vidéo au CRF d'ffmpeg.
+
+    `nature_arrived` : la nature arrive APRÈS la naissance, avec le fichier d'une URL
+    (`tasks._derive_media_type`) — seuls les réglages qui en DÉPENDENT naissent alors (ceux que
+    la naissance sans nature n'a pas écrits), et seulement là où la colonne est encore à son défaut
+    de modèle : un réglage posé entre-temps (l'outil, la ⚙) reste, on ne perd rien."""
     from wama.common.utils.user_settings import new_element_settings
     from wama.converter.params import PARAMS_JSON as _SCH
-    birth = new_element_settings(job.user, job._meta.app_label, _SCH, type(job), post=options,
-                                 inputs=inputs,
-                                 context={'media_type': media_type})
+    from .utils.quality_presets import values_for_intent
+
+    def _cascade(nature, preset=None):
+        return new_element_settings(job.user, job._meta.app_label, _SCH, type(job), post=options,
+                                    inputs=inputs, context={'media_type': nature}, preset=preset)
+
+    birth = _cascade(media_type)
+    intent = birth.get('quality_intent')
+    if nature_arrived and job.quality_intent is not None:
+        intent = job.quality_intent          # une position déjà posée sur l'élément est la sienne
+    spread = values_for_intent(media_type, intent) if media_type and intent is not None else {}
+    if spread:
+        birth = _cascade(media_type, preset=spread)
+    if nature_arrived:
+        without_nature = _cascade('')
+        birth = {k: v for k, v in birth.items() if k not in without_nature
+                 and getattr(job, k) == job._meta.get_field(k).get_default()}
     for name in ('media_type', 'output_format'):
         birth.pop(name, None)
-    return job.poser_reglages(birth)
+    touched = job.poser_reglages(birth)
+    if spread:
+        touched += [f for f in _apply_quality_gesture(job, {'quality_intent': intent})
+                    if f not in touched]
+    return touched
+
+
+def _remembered_drop(data, media_type) -> dict:
+    """Ce qu'un DÉPÔT laisse au volet (`save_panel_settings`) : ce qu'il poste, sauf ce que le
+    curseur a écrit — un réglage égal à l'étalement de la position postée n'est pas un geste
+    (2026-11-25). Il est reposté à son défaut, ce qui retire une valeur retenue avant : sinon une
+    naissance sans volet (outil, import) le reprendrait au-dessus du curseur à une autre position."""
+    from wama.converter.params import PARAMS
+    from .utils.quality_presets import values_for_intent
+    posted = {k: data.get(k) for k in data}
+    raw = posted.get('quality_intent')
+    spread = values_for_intent(media_type, raw) if media_type and raw not in (None, '') else {}
+    defaults = {p.name: p.default for p in PARAMS}
+    for name, value in spread.items():
+        if name in posted and str(posted[name]) == str(value):
+            posted[name] = '' if defaults.get(name) is None else defaults[name]
+    return posted
 
 
 @login_required
@@ -227,10 +274,10 @@ def upload(request):
     # Options : la LISTE et le TYPAGE viennent du schéma (`converter/params.py`), lus par la
     # cascade commune (`apply_birth_settings`) — `channels=1` (mono) n'est pas un booléen,
     # `flip_h` est un interrupteur, `resize_w` un nombre borné. Ce que le dépôt poste devient
-    # la mémoire du volet (le geste du transcriber).
+    # la mémoire du volet (le geste du transcriber) — sauf ce que le curseur y a écrit.
     from wama.common.utils.user_settings import save_panel_settings
     from wama.converter.params import PARAMS_JSON as _SCH
-    save_panel_settings(user, 'converter', _SCH, request.POST)
+    save_panel_settings(user, 'converter', _SCH, _remembered_drop(request.POST, media_type))
 
     job = ConversionJob.objects.create(
         user=user,
@@ -473,9 +520,10 @@ def api_presets(request):
     nature qui pilote son `show_if`, jamais un champ écrit à la main) ; `values`, leur valeur de
     NAISSANCE pour ce compte (la cascade de toute création, `new_element_settings`) ; `effect`,
     les réglages d'encodage qu'écrit la position `quality_intent` (sinon celle de naissance) —
-    l'interpolation ne vit que dans `values_for_intent`, jamais recopiée côté client ; et
-    `effect_labels`, le LIBELLÉ que le schéma déclare pour chacun (la modale en recopiait une
-    table ; un réglage que le schéma ne déclare pas garde son nom).
+    l'interpolation ne vit que dans `values_for_intent`, jamais recopiée côté client. C'est la
+    source `converter` du curseur (`Param.effect_source`, 2026-11-25) : la note sous le curseur, sur
+    toute surface, dit l'effet avec les libellés du SCHÉMA qu'elle a en main (`effect_labels`, servi
+    à la seule modale rapide, est retiré avec sa ligne d'effet à elle).
     """
     from .utils.quality_presets import _PRESETS, values_for_intent
     answer = {'presets': _PRESETS}
@@ -489,12 +537,10 @@ def api_presets(request):
                  if request.user.is_authenticated else {})
         position = (request.GET.get('quality_intent') or '').strip() or birth.get('quality_intent')
         effect = values_for_intent(media_type, position) if position not in (None, '') else {}
-        labels = {p.get('name'): p.get('label') for p in PARAMS_JSON if p.get('label')}
         answer.update(
             schema=[p for p in PARAMS_JSON if p.get('name') in ('media_type', 'quality_intent')],
             values={'media_type': media_type, 'quality_intent': birth.get('quality_intent')},
-            effect=effect,
-            effect_labels={name: labels[name] for name in effect if name in labels})
+            effect=effect)
     return JsonResponse(answer)
 
 

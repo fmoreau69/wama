@@ -87,8 +87,12 @@ PARAMS = [
                                  "panel": "panelQualityIntent"},
                          contexts=ITEM_BATCH,
                          show_if={"field": "media_type", "in": ["image", "video", "audio"]},
+                         # Ce que chaque position POSE, dit sous le curseur et écrit dans les champs
+                         # (`converter:api_presets`, `values_for_intent`) — 2026-11-25.
+                         effect_source="converter",
                          help="Guide les réglages d'encodage : à gauche léger et rapide (web), à "
-                              "droite la meilleure qualité. Les réglages fins restent modifiables.")),
+                              "droite la meilleure qualité. Les réglages qu'il pose se retouchent "
+                              "dans « Avancé ».")),
 
     # ── Image ───────────────────────────────────────────────────────────────
     # Réglages de la NATURE en modale de LOT aussi (ITEM_BATCH, 02/09, demande Fabien) : le
@@ -137,6 +141,15 @@ PARAMS = [
     Param(name="video_quality", group="video", type="number", label="Qualité vidéo (CRF)", icon="fa-film",
           min=0, max=51, show_if=VID, contexts=ITEM_BATCH,
           help="0 = sans perte, 23 = défaut, 51 = pire qualité."),
+    # La VITESSE d'encodage x264 (2026-11-25) : le curseur l'écrivait sans qu'elle soit déclarée —
+    # ni vue, ni retouchable, ni enregistrée sur un job de la file.
+    Param(name="encoder_preset", group="video", type="select", label="Vitesse d'encodage",
+          icon="fa-gauge-simple-high", show_if=VID, contexts=ITEM_BATCH, default="medium",
+          choices=[("ultrafast", "Ultra-rapide"), ("superfast", "Super-rapide"),
+                   ("veryfast", "Très rapide"), ("faster", "Plus rapide"), ("fast", "Rapide"),
+                   ("medium", "Moyenne"), ("slow", "Lente"), ("slower", "Plus lente"),
+                   ("veryslow", "Très lente")],
+          help="Plus lente : un fichier plus léger à qualité égale, mais un encodage plus long."),
     # Le PLAFOND de définition (2026-11-19, décision de Fabien : le cran « Rapide » en 720p) :
     # le CÔTÉ COURT ramené à cette valeur, JAMAIS agrandi — une vidéo plus petite reste telle
     # quelle, une vidéo verticale garde son sens (`video_backend._build_vf`). Posé par le curseur,
@@ -224,6 +237,19 @@ def _cross_app_params():
     return out
 
 PARAMS += _cross_app_params()
+
+
+# ── Ce que le CURSEUR écrit, rangé dans l'« Avancé » (2026-11-25, décision de Fabien) ──────────
+# Le curseur est le geste courant ; chaque réglage qu'il pose (`quality_presets._PRESETS`) se
+# CONSULTE et se SURCHARGE dans l'accordéon « Avancé » de son étape (`ROADMAP §31.7`). La liste est
+# LUE dans la table du curseur, jamais recopiée : un réglage qu'il écrira demain y entre seul.
+from .utils.quality_presets import _PRESETS as _SLIDER_TABLE  # noqa: E402
+
+SLIDER_WRITES = frozenset(name for by_position in _SLIDER_TABLE.values()
+                          for values in by_position.values() for name in values)
+for _p in PARAMS:
+    if _p.name in SLIDER_WRITES:
+        _p.advanced = True
 
 
 # ── Ce que chaque réglage PÉRIME (pipeline, 2026-10-13 — `function_specs.PIPELINE`) ──────────

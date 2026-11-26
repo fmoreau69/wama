@@ -115,6 +115,9 @@ class ConversionJob(ProcessingTimeMixin, ScopedVisibility):
     flip_h         = models.BooleanField(default=False)
     flip_v         = models.BooleanField(default=False)
     video_quality  = models.IntegerField(null=True, blank=True)   # CRF 0-51
+    # Vitesse d'encodage x264 (`-preset`, 2026-11-25) : le curseur l'écrivait (`slow` / `medium`)
+    # sans qu'elle ait de colonne — perdue pour tout job de la file, le moteur prenait `medium`.
+    encoder_preset = models.CharField(max_length=12, blank=True, default='medium', db_default='medium')
     # Plafond de définition, côté court (original = inchangée ; 1080/720/540/480) — 2026-11-19.
     resolution_cap = models.CharField(max_length=8, blank=True, default=ORIGINAL, db_default=ORIGINAL)
     fps            = models.IntegerField(null=True, blank=True)
@@ -138,7 +141,7 @@ class ConversionJob(ProcessingTimeMixin, ScopedVisibility):
 
     #: Noms des colonnes de réglage, par destination — l'ordre suit `params.py`.
     CHAMPS_OPTIONS = ('quality', 'resize_w', 'resize_h', 'rotation', 'flip_h', 'flip_v',
-                      'video_quality', 'resolution_cap', 'fps', 'gif_fps', 'gif_width', 'audio_bitrate',
+                      'video_quality', 'encoder_preset', 'resolution_cap', 'fps', 'gif_fps', 'gif_width', 'audio_bitrate',
                       'sample_rate', 'channels', 'normalize')
     CHAMPS_CROSS_APP = ('upscale', 'denoise', 'audio_enhance')
 

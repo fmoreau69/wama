@@ -1337,6 +1337,7 @@
               "item": "settingsAudioEngine",
               "panel": "audioEngine"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "",
@@ -1407,6 +1408,7 @@
               "item": "settingsAudioQualityIntent",
               "panel": "audioQualityIntent"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources.",
@@ -1484,6 +1486,7 @@
               "item": "settingsAudioMode",
               "panel": "audioMode"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "",
@@ -1548,6 +1551,7 @@
               "item": "settingsAudioStrength",
               "panel": "audioDenoisingStrength"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "",
@@ -1625,6 +1629,7 @@
               "item": "settingsAudioQuality",
               "panel": "audioQuality"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "",
@@ -1718,6 +1723,7 @@
               "item": "settingsAudioOutputFormat",
               "panel": "audioOutputFormat"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": null,
             "help": "",
@@ -1786,6 +1792,7 @@
               "item": "settingsAudioOutputQuality",
               "panel": "audioOutputQuality"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": null,
             "help": "Appliquée à la conversion vers le format choisi.",
@@ -1854,6 +1861,7 @@
               "item": "settingsAiModel",
               "panel": "defaultAiModel"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "",
@@ -1962,6 +1970,7 @@
               "item": "settingsUpscaleFactor",
               "panel": "mediaUpscaleFactor"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "",
@@ -2022,6 +2031,7 @@
               "item": "settingsQualityIntent",
               "panel": "mediaQualityIntent"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources.",
@@ -2082,6 +2092,7 @@
               "item": "settingsDenoise",
               "panel": "defaultDenoise"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "Appliqué avant l’agrandissement",
@@ -2139,6 +2150,7 @@
               "item": "settingsBlendFactor",
               "panel": "defaultBlendFactor"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "",
@@ -2196,6 +2208,7 @@
               "item": "settingsOutputKeepSize",
               "panel": "outputKeepSize"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": null,
             "help": "Améliore la qualité sans agrandir : la sortie est ramenée aux dimensions du fichier d'entrée.",
@@ -2253,6 +2266,7 @@
               "item": "settingsOutputFormat",
               "panel": "output_format"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": null,
             "help": "Doit correspondre au type du média (image ou vidéo).",
@@ -2397,6 +2411,7 @@
               "item": "settingsOutputQuality",
               "panel": "output_quality"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": null,
             "help": "Appliquée quand la sortie est réencodée : format choisi, ou résolution d'origine gardée.",

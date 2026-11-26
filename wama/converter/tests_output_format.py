@@ -118,7 +118,9 @@ class EveryRouteReadsTheRuleTest(TestCase):
         job = ConversionJob.objects.create(user=self.user, input_filename='', media_type='',
                                            output_format='', status='PENDING')
         touched = _derive_media_type(job, '/tmp/x.mp4', 'x.mp4')
-        self.assertEqual({'media_type', 'output_format'}, set(touched))
+        # Avec la nature naissent aussi les réglages qui en dépendent (2026-11-25, le curseur
+        # compris — `tests.TheSliderAppliesAtBirthTest`) : le format en est un parmi d'autres.
+        self.assertLessEqual({'media_type', 'output_format'}, set(touched))
         self.assertEqual(('video', default_output_format('video')),
                          (job.media_type, job.output_format))
 

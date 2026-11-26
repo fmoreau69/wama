@@ -3117,11 +3117,35 @@ Fabien. Mesuré d'abord :
    curseur est une trace sans effet sur l'encodage (`apply_birth_settings`, garde
    `test_l_element_nait_COMPLET…` : qualité 85 du schéma) ; l'y appliquer change l'encodage de tous
    les dépôts (mesuré : image 85 → 90, vidéo CRF d'ffmpeg → 20 `slow`, audio Auto → 224k).
-   ✅ **Décidé par Fabien le 2026-11-25, ⏳ à faire** : le curseur S'APPLIQUE à la naissance, et
-   l'utilisateur est TOUJOURS informé des réglages posés automatiquement, pour lancer en
-   connaissance de cause ; un réglage qui ne lui convient pas se SURCHARGE par son geste, dans
+   ✅ **Décidé par Fabien le 2026-11-25, ✅ fait le même jour** : le curseur S'APPLIQUE à la
+   naissance, et l'utilisateur est TOUJOURS informé des réglages posés automatiquement, pour lancer
+   en connaissance de cause ; un réglage qui ne lui convient pas se SURCHARGE par son geste, dans
    l'accordéon avancé (`ROADMAP §31.7`, premier point) — « un comportement universel et uniforme,
-   et l'utilisateur sait toujours ce qu'il est en train de faire ». ✅ Le même jour, les débits
+   et l'utilisateur sait toujours ce qu'il est en train de faire ». Fait ainsi :
+   - **la naissance** (`converter.views.apply_birth_settings`, toutes les voies : dépôt, lot, outil,
+     import, conversion rapide, jumelle) : la position de naissance — postée, sinon retenue, sinon
+     celle du schéma — s'étale en réglages d'encodage dans la couche PRÉRÉGLAGE de la cascade
+     commune (`new_element_settings(preset=…)`), sous ce que l'auteur a posé ; ses traces
+     (`quality_intent`, `quality_preset`) comme le geste de la ⚙. Une ligne d'URL dont la nature
+     n'arrive qu'avec le fichier les reçoit à l'arrivée (`tasks._derive_media_type`,
+     `nature_arrived` : seuls les réglages qui dépendent de la nature). Ce que le curseur a écrit
+     n'est pas retenu au volet comme un geste (`_remembered_drop`) ;
+   - **l'information** : `Param.effect_source` déclare qu'un curseur ÉCRIT des réglages, et où lire
+     ce qu'une position pose (`converter:api_presets`, `values_for_intent` — l'interpolation ne vit
+     qu'au serveur). `WamaParams` le DIT sous le curseur, sur toute surface (⚙ d'une card et d'un
+     lot, volet, conversion rapide du gestionnaire de fichiers, qui perd sa ligne d'effet à elle),
+     chaque réglage par le libellé du schéma, un réglage retouché dit « retouché » ; un geste du
+     curseur l'ÉCRIT dans les champs, et le volet de création l'écrit dès son rendu — ce qu'il
+     montre est ce qu'il poste ;
+   - **la surcharge** : chaque réglage qu'écrit le curseur est rangé dans l'« Avancé » de son étape,
+     par une règle lue dans sa table (`params.SLIDER_WRITES`), jamais par une liste.
+   Trouvé en le câblant (`REMOVAL_LEDGER R249`) : la vitesse x264 (`preset`) et `optimize` étaient
+   écrits sans être déclarés — `preset`, sans colonne, se perdait sur tout job de la file. La vitesse
+   est devenue le réglage `encoder_preset` (colonne, `converter/0017`) ; `optimize`, que rien ne
+   lisait, est retiré. Mesuré : aucune préférence d'encodage retenue en base, 24 jobs (5 en attente,
+   qui gardent leurs colonnes). Gardes : `converter.tests.TheSliderAppliesAtBirthTest`,
+   `…test_every_notch_of_the_slider_lands_on_a_choice_of_the_schema` (chaque clé écrite : déclarée,
+   avancée, avec sa colonne), `tests_cap_from_js.TheSliderSaysWhatItSetsTest`. ✅ Le même jour, les débits
    160k et 224k entrent aux choix du schéma, et toute valeur interpolée prend le choix le plus
    proche (`quality_presets._on_schema_choices`, garde
    `converter.tests…test_every_notch_of_the_slider_lands_on_a_choice_of_the_schema`).

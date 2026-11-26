@@ -852,6 +852,7 @@
             "dom_id": {
               "item": "settingsTextContent"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "La relance régénère la voix depuis ce texte.",
@@ -910,6 +911,7 @@
               "item": "settingsTtsModel",
               "panel": "tts_model"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "",
@@ -972,6 +974,7 @@
               "item": "settingsQualityIntent",
               "panel": "quality_intent"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources.",
@@ -1094,6 +1097,7 @@
               "item": "settingsLanguage",
               "panel": "language"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "",
@@ -1156,6 +1160,7 @@
               "item": "settingsVoicePreset",
               "panel": "voice_preset"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "",
@@ -1229,6 +1234,7 @@
               "item": "settingsTtsTemperature",
               "panel": "tts_temperature"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "Le hasard du modèle. À 0, même entrée, même résultat ; plus haut, le résultat varie d'un lancement à l'autre. Un modèle distant ne garantit pas toujours le même résultat, même à 0.",
@@ -1293,6 +1299,7 @@
               "item": "settingsTtsSeed",
               "panel": "tts_seed"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "Vide : un tirage neuf à chaque lancement. Une graine fixée, avec les mêmes réglages et le même modèle, redonne le même résultat sur cette machine.",
@@ -1357,6 +1364,7 @@
               "item": "settingsTtsTopP",
               "panel": "tts_top_p"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "Le modèle ne tire que parmi ses choix les plus probables, jusqu'à cette part du total : plus bas, un résultat plus sûr et moins varié ; 1, tous les choix.",
@@ -1415,6 +1423,7 @@
               "item": "settingsAnimationModel",
               "panel": "animation_model"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "",
@@ -1476,6 +1485,7 @@
               "item": "settingsUseEnhancer",
               "panel": "use_enhancer"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "Restauration faciale haute qualité — légèrement plus lent. Photo animée seulement : sans effet sur un avatar 3D.",
@@ -1533,6 +1543,7 @@
               "item": "settingsBboxShift",
               "panel": "bbox_shift"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": "",
             "help": "Décalage vertical de la zone bouche (px). 0 = auto. Photo animée seulement : sans effet sur un avatar 3D.",
@@ -1620,6 +1631,7 @@
               "item": "settingsOutputFormat",
               "panel": "output_format"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": null,
             "help": "",
@@ -1691,6 +1703,7 @@
               "item": "settingsOutputQuality",
               "panel": "output_quality"
             },
+            "effect_source": null,
             "empty_label": "",
             "group": null,
             "help": "Appliquée à la conversion vers le format choisi.",

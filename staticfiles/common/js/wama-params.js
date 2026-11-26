@@ -1228,6 +1228,7 @@
     _bindWriteFrom(container);
     _bindKeywords(container);
     _bindDefaultFrom(container, schema, ctx);
+    _bindIntentEffects(container, schema, ctx);
     _bindOptionSources(container, schema, ctx, null, values);
     _avertirSourcesNonResolues(container, params, ctx);
   }
@@ -1984,6 +1985,105 @@
     });
   }
 
+  // ── Ce que le CURSEUR pose (`Param.effect_source`, 2026-11-25, décision de Fabien) ───────────
+  // « L'utilisateur est toujours informé des réglages posés automatiquement » : sous un curseur qui
+  // ÉCRIT des réglages de l'élément (le converter : qualité JPEG, CRF, vitesse x264, débit…), la note
+  // dit ce que sa position pose ; un GESTE du curseur l'écrit dans les champs, qui se retouchent dans
+  // l'« Avancé ». Sur la surface de CRÉATION (`panel`, rendu), l'effet est écrit dès le rendu : ce que
+  // le volet montre est ce qu'il postera, et la naissance applique la même déclinaison
+  // (`apply_birth_settings`). La déclinaison ne vit qu'au serveur — la source rend `{effect}` pour une
+  // position et les porteurs de l'élément (`hidden` : sa nature) ; rien n'est recopié ici. Les
+  // `change` qu'elle émet ne sont pas des gestes (`isGesture`) : aucun enregistrement au geste.
+  var EFFECT_SOURCES = global.WAMA_EFFECT_SOURCES || {
+    converter: '/converter/api/presets/',
+  };
+
+  function _effectField(container, name) {
+    return container.querySelector('[name="' + name + '"]:not(.wama-intent-slider),' +
+                                   '[data-param="' + name + '"]:not(.wama-intent-slider)');
+  }
+
+  /** La note de l'effet — pure (garde V8) : chaque réglage par son LIBELLÉ et sa valeur dite (le
+   *  libellé du choix pour un select). `current` : `{nom: valeur}` des champs présents — « à
+   *  retoucher » n'est dit que s'il y en a, et un champ qui diffère de ce que pose la position est
+   *  dit « retouché » (la note ne contredit jamais le formulaire). */
+  function effectText(effect, schema, current) {
+    var byName = {};
+    (schema || []).forEach(function (p) { if (p && p.name) byName[p.name] = p; });
+    var said = function (p, v) {
+      var choice = (p.choices || []).filter(function (c) { return String(c[0]) === String(v); })[0];
+      return choice ? choice[1] : String(v);
+    };
+    current = current || {};
+    // Dans l'ordre du SCHÉMA (celui du formulaire), pas celui des clés de la réponse.
+    var names = Object.keys(effect || {});
+    var rank = function (n) { var i = (schema || []).findIndex(function (p) { return p && p.name === n; });
+                              return i < 0 ? names.length + (schema || []).length : i; };
+    names.sort(function (a, b) { return rank(a) - rank(b); });
+    var parts = names.map(function (name) {
+      var p = byName[name] || {};
+      var part = (p.label || name) + ' : ' + said(p, effect[name]);
+      if ((name in current) && String(current[name]) !== String(effect[name])) {
+        part += ' (retouché : ' + said(p, current[name]) + ')';
+      }
+      return part;
+    });
+    if (!parts.length) return '';
+    return 'Ce réglage pose ' + parts.join(' · ') +
+      (Object.keys(current).length ? ' — à retoucher dans « Avancé ».' : '.');
+  }
+
+  function _writeEffect(container, effect) {
+    Object.keys(effect || {}).forEach(function (name) {
+      var el = _effectField(container, name);
+      if (!el) return;
+      // Le geste du curseur décide aussi d'un réglage TENU (un lot sans valeur commune).
+      if (el.dataset && el.dataset.unset) releaseField(el);
+      if (el.type === 'checkbox') el.checked = !!effect[name];
+      else el.value = String(effect[name]);
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  }
+
+  function _bindIntentEffects(container, schema, ctx) {
+    (schema || []).forEach(function (p) {
+      if (p.type !== 'intent' || !p.effect_source) return;
+      if (p.contexts && p.contexts.indexOf(ctx) === -1) return;
+      var url = EFFECT_SOURCES[p.effect_source];
+      var slider = container.querySelector('#' + CSS.escape(perCtx(p.dom_id, ctx) || ('wp-' + ctx + '-' + p.name)));
+      if (!url || !slider || !global.fetch) return;
+      var carriers = (schema || []).filter(function (q) { return q.type === 'hidden' && q.name; });
+      function tell(write, atRender) {
+        var asked = String(slider.value);
+        var query = carriers.map(function (q) {
+          return encodeURIComponent(q.name) + '=' + encodeURIComponent(_siblingValue(container, q.name));
+        }).concat([encodeURIComponent(p.name) + '=' + encodeURIComponent(asked)]);
+        return global.fetch(url + (url.indexOf('?') >= 0 ? '&' : '?') + query.join('&'),
+                            { credentials: 'same-origin' })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .catch(function () { return null; })
+          .then(function (data) {
+            // Une position plus récente a été demandée entre-temps : c'est elle qui parlera.
+            if (!data || String(slider.value) !== asked || !slider.isConnected) return;
+            var effect = data.effect || {};
+            if (write) _writeEffect(container, effect);
+            var current = {};
+            Object.keys(effect).forEach(function (n) {
+              var el = _effectField(container, n);
+              if (el) current[n] = el.type === 'checkbox' ? el.checked : el.value;
+            });
+            _inputNote(slider, effectText(effect, schema, current));
+            slider.dispatchEvent(new CustomEvent('wama:intent-effect', {
+              bubbles: true, detail: { effect: effect, written: !!write, atRender: !!atRender } }));
+          });
+      }
+      slider._wpTellEffect = tell;
+      slider.addEventListener('change', function (e) { tell(isGesture(e), false); });
+      tell(ctx === 'panel', true);
+    });
+  }
+
   /** Libellé d'une CAPACITÉ (borne de modèle) : le format déclaré du réglage, sinon le nombre
    *  arrondi suivi de l'unité (l'affichage d'avant). */
   function _capLabel(cap, p, unit) {
@@ -2633,6 +2733,10 @@
       if (field && name) name.textContent = _mediaShown(field.value) || 'Choisir dans la médiathèque…';
     });
     _syncIntentSliders(container);   // curseur d'intention : hidden → position + tricolore
+    // Ce que pose le curseur, REDIT sur les valeurs posées (une card inspectée) — sans rien écrire.
+    container.querySelectorAll('.wama-intent-slider').forEach(function (s) {
+      if (s._wpTellEffect) s._wpTellEffect(false, false);
+    });
     _syncTemperature(container);     // température : champ caché → case, position, libellé
     _bindConditional(container);
     // Bornes par capacité du modèle (`cap_from`) : rejouées sur les valeurs qu'on vient de poser.
@@ -2960,6 +3064,8 @@
                         processSections: processSections, conditionMet: conditionMet, conditionFields: conditionFields,
                         bindBatchOwn: bindBatchOwn, releaseBatchOwn: releaseBatchOwn,
                         batchAlignment: batchAlignment, ownLineText: ownLineText,
+                        // Ce que pose un curseur (`effect_source`, 2026-11-25) : la note, pure.
+                        effectText: effectText,
                         settingNeeds: settingNeeds,
                         scopedSchema: scopedSchema,
                         scopedConfig: scopedConfig,

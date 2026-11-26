@@ -2508,7 +2508,10 @@ MECHANISMS = (
               "par la ⚙ d'une card et d'un lot, le volet, la naissance) —, « non fourni » ailleurs ; "
               "un choix qui ne change rien a sa VRAIE valeur, `none` / `original` / `auto` "
               "(`neutral_choices`, `is_neutral`, `without_neutral` pour un moteur à options). Plus "
-              "aucune liste par app (`empty_is_value`, R248)",
+              "aucune liste par app (`empty_is_value`, R248). Un curseur qui ÉCRIT des réglages "
+              "(`effect_source`, même jour — le converter) DIT ce que sa position pose, l'écrit "
+              "dans les champs que l'« Avancé » surcharge, et la naissance applique la même "
+              "déclinaison (`WamaParams.effectText`, registre `EFFECT_SOURCES`)",
               'wama/common/utils/param_schema.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/static/common/js/wama-params.js',
                        'wama/common/templates/common/_settings_modal_footer.html')),

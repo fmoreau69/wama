@@ -282,6 +282,14 @@ class Param:
                                                 # `show_*` de l'anonymizer). `None` = non déclaré : la garde
                                                 # `tests_process_watched` le refuse, sauf interrupteur d'un
                                                 # process (`toggle`) ou réglage de sortie (`output_spec`).
+    effect_source: Optional[str] = None         # Curseur (`intent`) qui ÉCRIT des réglages de l'élément
+                                                # (2026-11-25, décision de Fabien : « l'utilisateur est
+                                                # toujours informé des réglages posés automatiquement ») :
+                                                # la clé de la source qui dit ce qu'une position pose
+                                                # (`WamaParams`, registre `EFFECT_SOURCES`, comme
+                                                # `options_source`). Le curseur le DIT sous lui et
+                                                # l'ÉCRIT dans les champs, que l'« Avancé » surcharge ;
+                                                # la naissance applique la même déclinaison côté serveur.
 
     def to_dict(self) -> dict:
         return asdict(self)

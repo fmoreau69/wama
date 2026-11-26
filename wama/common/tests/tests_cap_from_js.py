@@ -2144,3 +2144,43 @@ class GearValuesReadsTheCardsGearTest(SimpleTestCase):
 
     def test_a_process_gear_alone_gives_nothing_rather_than_its_scope(self):
         self.assertEqual({}, self._read('[processGear]'))
+
+
+@skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')
+class TheSliderSaysWhatItSetsTest(SimpleTestCase):
+    """2026-11-25, Fabien : « l'utilisateur est toujours informé des réglages posés
+    automatiquement ». Under a slider that WRITES settings (`Param.effect_source`), the note says
+    each one by the schema's label and choice label ; a field that differs is said « retouché » —
+    the note never contradicts the form. The server side : `converter.tests.TheSliderAppliesAtBirthTest`."""
+
+    SCHEMA = [
+        {'name': 'quality', 'label': "Qualité d'encodage", 'type': 'range'},
+        {'name': 'encoder_preset', 'label': "Vitesse d'encodage", 'type': 'select',
+         'choices': [['medium', 'Moyenne'], ['slow', 'Lente']]},
+    ]
+
+    def setUp(self):
+        from py_mini_racer import MiniRacer
+        self.v8 = MiniRacer()
+        self.v8.eval(FAKE_DOM)
+        self.v8.eval(FAKE_BINDING)
+        self.v8.eval((JS / 'wama-params.js').read_text(encoding='utf-8'))
+
+    def _text(self, effect, current=None):
+        return self.v8.eval(f"window.WamaParams.effectText({json.dumps(effect)}, "
+                            f"{json.dumps(self.SCHEMA)}, {json.dumps(current)})")
+
+    def test_each_setting_is_said_by_its_label_and_its_choice(self):
+        self.assertEqual("Ce réglage pose Qualité d'encodage : 90 · Vitesse d'encodage : Lente "
+                         "— à retoucher dans « Avancé ».",
+                         self._text({'quality': 90, 'encoder_preset': 'slow'},
+                                    {'quality': '90', 'encoder_preset': 'slow'}))
+
+    def test_a_field_set_by_hand_is_said_retouched(self):
+        self.assertIn("Vitesse d'encodage : Lente (retouché : Moyenne)",
+                      self._text({'encoder_preset': 'slow'}, {'encoder_preset': 'medium'}))
+
+    def test_without_its_fields_on_the_surface_nothing_is_offered_to_retouch(self):
+        # La modale rapide du gestionnaire : le curseur seul, pas l'« Avancé ».
+        self.assertEqual("Ce réglage pose Qualité d'encodage : 98.", self._text({'quality': 98}, {}))
+        self.assertEqual('', self._text({}, {}), 'a nature without a quality knob says nothing')

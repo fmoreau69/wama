@@ -350,42 +350,24 @@
 
         // QUALITÉ : le CURSEUR commun du converter (2026-11-19), RENDU par `WamaParams` depuis le
         // schéma que sert converter:api_presets, à sa position de NAISSANCE pour ce compte — comme
-        // dans la ⚙ et le volet. Sous lui, l'EFFET réel de la position (question Fabien 02/09 :
-        // « faut-il afficher les paramètres correspondants ? »), calculé par le serveur
-        // (`values_for_intent`) : rien n'est recopié ici. La modale avait son menu de trois presets,
-        // leurs libellés et la lecture de leur table. Elle reste rapide : l'app est le lieu du
-        // réglage fin.
-        const effectEl = document.getElementById('converterQuickPresetEffect');
+        // dans la ⚙ et le volet. Ce que la position POSE (question Fabien 02/09 : « faut-il afficher
+        // les paramètres correspondants ? »), c'est le curseur commun qui le dit sous lui
+        // (`Param.effect_source`, 2026-11-25 — la même note que la ⚙ et le volet) : la modale avait
+        // sa propre ligne d'effet, ses libellés et sa lecture de l'effet. Elle reste rapide : l'app
+        // est le lieu du réglage fin.
         const presetsUrl = config.converterPresetsUrl || '/converter/api/presets/';
-        // Les libellés sont ceux du SCHÉMA, servis avec l'effet (`effect_labels`) : la modale en
-        // recopiait une table ; un réglage que le schéma ne déclare pas garde son nom.
-        function showEffect(effect, labels) {
-            if (!effectEl) return;
-            const parts = Object.entries(effect || {}).map(([k, v]) => ((labels || {})[k] || k) + ' ' + v);
-            effectEl.textContent = parts.length
-                ? '→ ' + parts.join(' · ')
-                : (mediaType === 'document' ? '→ sans effet pour un document' : '');
-        }
-        function qualityFor(position) {
-            const query = '?media_type=' + encodeURIComponent(mediaType || '')
-                + (position != null && position !== '' ? '&quality_intent=' + encodeURIComponent(position) : '');
-            return fetch(presetsUrl + query, { credentials: 'same-origin' })
-                .then(r => r.ok ? r.json() : null).catch(() => null);
-        }
         function chosenQuality() {
             return (qualityHost && window.WamaParams) ? (WamaParams.read(qualityHost) || {}).quality_intent : '';
         }
-        if (qualityHost) { qualityHost.innerHTML = ''; qualityHost.onchange = null; }
-        showEffect({});
+        if (qualityHost) qualityHost.innerHTML = '';
         if (qualityHost && mediaType && window.WamaApp && WamaApp.loadScript) {
-            Promise.all([WamaApp.loadScript(config.paramsScript, () => !!window.WamaParams), qualityFor(null)])
+            const query = '?media_type=' + encodeURIComponent(mediaType || '');
+            Promise.all([WamaApp.loadScript(config.paramsScript, () => !!window.WamaParams),
+                         fetch(presetsUrl + query, { credentials: 'same-origin' })
+                             .then(r => r.ok ? r.json() : null).catch(() => null)])
                 .then(([, data]) => {
                     if (!data || !data.schema || !window.WamaParams) return;
                     WamaParams.render(qualityHost, data.schema, { context: 'item', values: data.values || {} });
-                    showEffect(data.effect, data.effect_labels);
-                    // `onchange` REMPLACE l'écouteur à chaque ouverture (la modale est réutilisée).
-                    qualityHost.onchange = () => qualityFor(chosenQuality())
-                        .then(d => { if (d) showEffect(d.effect, d.effect_labels); });
                 })
                 .catch(() => {});
         }

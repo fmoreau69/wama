@@ -122,7 +122,84 @@ class PreregagesQualiteTest(TestCase):
         self.assertEqual(r.status_code, 200, r.content)
         from wama.converter.models import ConversionJob
         j = ConversionJob.objects.get(pk=r.json()['id'])
-        self.assertEqual(j.quality, 85, "le défaut du schéma doit être ÉCRIT à la création")
+        # Le curseur S'APPLIQUE à la naissance (2026-11-25, décision de Fabien) : sa position de
+        # naissance (50, « Équilibré ») écrit la qualité — elle restait le défaut du schéma, 85.
+        self.assertEqual((j.quality, j.quality_intent, j.quality_preset), (90, 50, 'balanced'))
+
+
+class TheSliderAppliesAtBirthTest(TestCase):
+    """2026-11-25 (décision de Fabien) : la position du curseur à la naissance — postée, sinon
+    retenue, sinon celle du schéma — écrit ses réglages d'encodage, sous le geste fin de l'auteur."""
+
+    MP4 = b'\x00\x00\x00\x18ftypmp42'          # l'extension décide de la nature, pas le contenu
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+        from django.test import Client
+        self.user, _ = User.objects.get_or_create(username='t_slider_birth')
+        self.client = Client()
+        self.client.force_login(self.user)
+
+    def _drop(self, **posted):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from wama.converter.models import ConversionJob
+        r = self.client.post('/converter/upload/', {
+            'file': SimpleUploadedFile('clip.mp4', self.MP4, 'video/mp4'), **posted})
+        self.assertEqual(r.status_code, 200, r.content)
+        return ConversionJob.objects.get(pk=r.json()['id'])
+
+    def test_a_video_is_born_with_what_the_slider_position_writes(self):
+        from wama.converter.utils.quality_presets import values_for_intent
+        job = self._drop()
+        expected = values_for_intent('video', 50)
+        self.assertEqual({k: getattr(job, k) for k in expected}, expected)
+        self.assertEqual(job.encoder_preset, 'slow', 'the x264 speed reaches its column')
+
+    def test_a_posted_position_and_a_posted_fine_setting_both_win(self):
+        job = self._drop(quality_intent='15', video_quality='31')
+        self.assertEqual((job.quality_intent, job.quality_preset, job.resolution_cap,
+                          job.video_quality), (15, 'web', '720', 31))
+
+    def test_what_the_slider_wrote_is_not_remembered_as_a_gesture(self):
+        # Le volet poste ce qu'il montre : l'étalement de sa position, et une retouche à la main.
+        from wama.common.utils.user_settings import read_panel_settings
+        from wama.converter.params import PARAMS_JSON
+        self._drop(quality_intent='50', video_quality='20', encoder_preset='slow',
+                   resolution_cap='original', audio_bitrate='192k')
+        kept = read_panel_settings(self.user, 'converter', PARAMS_JSON)   # défauts du schéma sinon
+        self.assertEqual((kept['quality_intent'], kept['video_quality'], kept['encoder_preset']),
+                         (50, None, 'medium'))
+        self.assertEqual(kept['audio_bitrate'], '192k', 'a value the slider did not write stays')
+        # Une naissance SANS volet (outil, import) reprend donc le curseur, pas une valeur figée.
+        from wama.converter.models import ConversionJob
+        from wama.converter.views import apply_birth_settings
+        job = ConversionJob.objects.create(user=self.user, input_filename='b.mp4', media_type='video',
+                                           output_format='mp4', status='PENDING')
+        apply_birth_settings(job, 'video', {'quality_intent': '85'})
+        self.assertEqual((job.video_quality, job.encoder_preset), (16, 'slow'))
+
+    def test_a_url_line_without_nature_gets_its_slider_settings_when_the_file_arrives(self):
+        from wama.converter.models import ConversionJob
+        from wama.converter.tasks import _derive_media_type
+        job = ConversionJob.objects.create(user=self.user, input_filename='', media_type='',
+                                           source_url='https://example.org/page', status='PENDING',
+                                           rotation='90')
+        touched = _derive_media_type(job, '/tmp/page.mp4', 'page.mp4')
+        self.assertEqual((job.media_type, job.video_quality, job.encoder_preset), ('video', 20, 'slow'))
+        self.assertIn('video_quality', touched)
+        # Contre-épreuve : un réglage POSÉ avant l'arrivée (la rotation, qui dépend de la nature)
+        # reste — seule une colonne encore à son défaut naît.
+        self.assertEqual(job.rotation, '90')
+        self.assertNotIn('rotation', touched)
+
+    def test_a_position_posed_before_the_file_arrives_is_the_one_that_spreads(self):
+        from wama.converter.models import ConversionJob
+        from wama.converter.tasks import _derive_media_type
+        job = ConversionJob.objects.create(user=self.user, input_filename='', media_type='',
+                                           source_url='https://example.org/page', status='PENDING',
+                                           quality_intent=15)
+        _derive_media_type(job, '/tmp/page.mp4', 'page.mp4')
+        self.assertEqual((job.quality_intent, job.video_quality, job.resolution_cap), (15, 28, '720'))
 
 
 class QualityIntentWritesTheColumnsTest(TestCase):
@@ -163,19 +240,28 @@ class QualityIntentWritesTheColumnsTest(TestCase):
         self.assertEqual(values_for_intent('audio', 67)['audio_bitrate'][-1], 'k')
         self.assertLess(values_for_intent('image', 0)['quality'], 81)          # sous la 1re position
         self.assertEqual(values_for_intent('image', 100)['quality'], 98)      # au-delà de la dernière
-        self.assertEqual(values_for_intent('video', 85)['preset'], 'slow')    # non numérique : la plus proche
+        self.assertEqual(values_for_intent('video', 85)['encoder_preset'], 'slow')   # non numérique : la plus proche
 
     def test_every_notch_of_the_slider_lands_on_a_choice_of_the_schema(self):
         # Un réglage À CHOIX reçoit une valeur de sa liste, à chaque cran (2026-11-25) : le débit
         # audio des positions « Rapide » (160k) et « Équilibré » (224k), puis les débits
         # interpolés entre deux positions, tombaient hors de la liste — la ⚙ affichait « Auto ».
+        # Et chaque réglage écrit est un réglage DÉCLARÉ, rangé dans l'« Avancé », qui a sa COLONNE
+        # (2026-11-25) : la vitesse x264 (`preset`) et `optimize` étaient écrits sans être déclarés —
+        # ni vus, ni retouchables, et perdus pour tout job de la file.
+        from wama.converter.models import ConversionJob
         from wama.converter.params import PARAMS
         from wama.converter.utils.quality_presets import values_for_intent
         choices = {p.name: {value for value, _label in p.choices}
                    for p in PARAMS if p.type == 'select' and p.choices}
+        declared = {p.name: p for p in PARAMS}
+        columns = set(ConversionJob.CHAMPS_OPTIONS)
         for media in ('image', 'video', 'audio'):
             for notch in range(0, 101):
                 for name, value in values_for_intent(media, notch).items():
+                    self.assertIn(name, declared, (media, notch, name))
+                    self.assertTrue(declared[name].advanced, (media, name))
+                    self.assertIn(name, columns, (media, name))
                     # Jamais vide ni « non réglé » (2026-11-25) : « Inchangée » est un choix, `original`.
                     if name in choices:
                         self.assertIn(value, choices[name], (media, notch, name))
@@ -354,9 +440,10 @@ class QuickConvertTakesTheCommonSliderTest(TestCase):
         self.assertEqual((job.quality, job.quality_intent, job.quality_preset), (80, 15, 'web'))
 
     def test_without_a_gesture_the_element_is_born_like_by_any_other_way(self):
-        """Counter-proof : no « Équilibré » forced any more — the common birth, nothing more."""
+        """Counter-proof : no « Équilibré » forced by the view — the common birth, whose slider
+        position (this account's, else the schema's) applies since 2026-11-25."""
         job = self._convert()
-        self.assertEqual((job.quality, job.quality_preset), (85, ''))
+        self.assertEqual((job.quality, job.quality_intent, job.quality_preset), (90, 50, 'balanced'))
 
     def test_the_window_reads_its_slider_and_the_real_effect_from_the_server(self):
         url = reverse('converter:api_presets')
@@ -364,11 +451,11 @@ class QuickConvertTakesTheCommonSliderTest(TestCase):
         self.assertEqual({'media_type', 'quality_intent'}, {p['name'] for p in data['schema']})
         self.assertEqual('intent', next(p for p in data['schema'] if p['name'] == 'quality_intent')['type'])
         self.assertEqual(50, data['values']['quality_intent'], 'the birth position of this account')
-        self.assertEqual({'optimize': True, 'quality': 98}, data['effect'], 'the « max » position')
-        from wama.converter.params import PARAMS_JSON
-        declared = {p['name']: p['label'] for p in PARAMS_JSON if p.get('label')}
-        self.assertEqual({'quality': declared['quality']}, data['effect_labels'],
-                         'the labels the schema declares — `optimize` is not declared, it keeps its name')
+        self.assertEqual({'quality': 98}, data['effect'], 'the « max » position')
+        # The slider it serves says its effect itself (`effect_source`), with the schema's labels.
+        slider = next(p for p in data['schema'] if p['name'] == 'quality_intent')
+        self.assertEqual('converter', slider['effect_source'])
+        self.assertNotIn('effect_labels', data)
         self.assertEqual({'quality': 90}, self.client.get(url, {'media_type': 'image'}).json()['effect'])
         self.assertEqual({'presets'}, set(self.client.get(url).json()), 'the table alone, as the tool reads it')
 
@@ -384,6 +471,8 @@ class QuickConvertTakesTheCommonSliderTest(TestCase):
         self.assertIn("fd.append('quality_intent'", script)
         self.assertNotIn('data.job_id', script, 'the quick view answers the common `id`')
         self.assertNotIn("video_quality: 'CRF'", script, 'the effect labels come from the schema')
+        self.assertNotIn('converterQuickPresetEffect', sidebar + script,
+                         'the effect is the common slider note, not a line of its own')
         self.assertNotIn("'heic','heif'", script, 'the accepted extensions are served, not copied')
         self.assertEqual(script, (root / 'staticfiles/filemanager/js/filemanager.js').read_text(encoding='utf-8'))
 

@@ -2703,6 +2703,10 @@ légitime déclarée (correspondance mode→domaine imager, musique/ambiance com
   exacte aux positions), `quality_intent` remplace le select de lot (traces `quality_intent` +
   `quality_preset`, clés `web/balanced/max` conservées comme données pour filemanager/tool_api),
   `quality` JPEG passe `advanced`. Critère de grille `quality_intent` : converter VRAI.
+  ✅ **2026-11-25 (décision de Fabien)** : le curseur S'APPLIQUE aussi à la NAISSANCE, l'utilisateur
+  est informé de ce qu'il pose (`Param.effect_source`, la note de `WamaParams`), et chaque réglage
+  qu'il écrit se surcharge dans l'« Avancé » (`params.SLIDER_WRITES`) — détail et gardes :
+  `WAMA_LLM.md`, bloc « 2026-11-16 — fil web n° 46 », point 7.
 - **✅ Imager, composer (`29e9fec4`) et enhancer (`bb301886` + `f2c32146`) RALLIÉS le
   2026-09-21** — les deux premiers : colonne + `intent_param` sur « auto » + `item=` au tirage.
   L'enhancer = son PORTAGE (la décision « l'utilisateur désigne son moteur » est LEVÉE) :

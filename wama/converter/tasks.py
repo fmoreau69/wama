@@ -49,6 +49,12 @@ def _derive_media_type(inst, path, fname):
     if inst.media_type and not inst.output_format:
         inst.output_format = output_format_for(inst.user, inst.media_type)
         touched.append('output_format')
+    if 'media_type' in touched and inst.media_type:
+        # La nature connue, les réglages qui en dépendent NAISSENT — le curseur compris (2026-11-25) :
+        # une ligne d'URL sans extension naissait sans eux, et la tâche reprenait les défauts du schéma.
+        from .views import apply_birth_settings
+        touched += [f for f in apply_birth_settings(inst, inst.media_type, nature_arrived=True)
+                    if f not in touched]
     return touched
 
 

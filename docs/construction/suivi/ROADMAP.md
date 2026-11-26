@@ -8775,6 +8775,12 @@ Les questions posées, telles quelles :
   (`param_schema.effective_settings` : défauts du schéma ← préréglage ← réglages posés) ; il est peu
   employé — dans le converter, seule la qualité d'IMAGE est `advanced`, les réglages vidéo que le
   curseur écrit (CRF, définition maximale) sont en clair.
+  ✅ *2026-11-25, converter* : tout réglage qu'écrit le curseur est `advanced` (règle lue dans sa
+  table, `params.SLIDER_WRITES`), le curseur DIT ce qu'il pose (`Param.effect_source`) et s'applique
+  à la naissance (`WAMA_LLM`, bloc « 2026-11-16 — fil web n° 46 », point 7). *Mesuré le même jour, à reprendre ici :* sans étapes déclarées
+  (`WAMA_APP_PROCESSES` vide), le rendu par GROUPES de `WamaParams.render` range un réglage
+  `advanced` qui a un `group` dans son groupe, à plat — seul l'avancé SANS groupe forme l'accordéon
+  (branche `groups` du rendu) ; avec des étapes, il va dans l'« Avancé » de son étape.
 - **Les profils de réglages de l'utilisateur, et leur ÉDITION** : l'alignement n'est peut-être pas
   terminé. *Mesuré :* la table commune `common.UserAppSetting` (avec `ElementPreference`) cohabite
   avec TROIS modèles propres à une app — `converter.ConversionProfile`, `cam_analyzer.AnalysisProfile`,

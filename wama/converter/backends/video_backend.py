@@ -116,6 +116,7 @@ def convert_video(input_path: str, output_path: str, output_format: str,
             - fps: target frame rate (float or int)
             - resize_w / resize_h (or width / height): target resolution (0 = keep aspect)
             - video_quality: CRF value for libx264/vp9 (0–51, lower = better; default 23)
+            - encoder_preset: x264 speed/efficiency preset (default 'medium')
             - audio_bitrate: e.g. '192k'
             - gif_fps: FPS for GIF output (default 12)
             - gif_width: width for GIF output (default 480)
@@ -142,8 +143,10 @@ def convert_video(input_path: str, output_path: str, output_format: str,
         cmd += ['-c:v', preset['vcodec']]
         crf = options.get('video_quality', 23)
         cmd += ['-crf', str(crf)]
-        # x264/x265 speed/efficiency preset (quality preset maps here)
-        enc_preset = options.get('preset', 'medium')
+        # Vitesse d'encodage x264/x265 — un réglage du schéma (`encoder_preset`), écrit par le
+        # curseur de qualité (`quality_presets`) ; il se lisait `preset`, clé qu'aucune colonne ne
+        # portait (2026-11-25).
+        enc_preset = options.get('encoder_preset', 'medium')
         cmd += ['-preset', str(enc_preset)]
     else:
         cmd += ['-vn']  # audio-only
