@@ -4605,15 +4605,18 @@ def get_file_marks(user, file_path: str, track: str = '', start: float = None,
                    end: float = None, within_track: str = '', within_mark: int = None,
                    limit: int = MARKS_LIMIT, offset: int = 0) -> dict:
     """
-    Read the marks WAMA detects by itself in one of the user's media files — today the shots of
-    a video (where it cuts), as segments on the file's timeline. Without `track` it lists the
-    file's automatic tracks and where each analysis stands; with `track` it returns that track's
-    marks, optionally restricted to a time range, as `get_item_marks` does for an item.
+    Read the marks WAMA detects by itself in one of the user's media files, as segments on the
+    file's timeline: the shots of a video (where it cuts), the structure of a piece of music
+    (its parts, measures, key and chords). Without `track` it lists the file's automatic tracks
+    and where each analysis stands; with `track` it returns that track's marks, optionally
+    restricted to a time range, as `get_item_marks` does for an item.
 
     The analysis runs once per file, in the background: the first call queues it and answers
-    `status` "pending" — call again a little later ("failed" is retried by the next call). The
-    file is never modified. A shot is a segment (`start`, `end` in seconds); `score` is the
-    strength of the cut that opens it (none for the first shot).
+    `status` "pending" — call again a little later ("failed" is retried by the next call). A
+    track listed with `on_demand` true is made by an AI model and is only analysed when asked
+    by name (`track`): do so for music, not for speech. The file is never modified. A shot is a
+    segment (`start`, `end` in seconds); `score` is the strength of the cut that opens it (none
+    for the first shot).
 
     Args:
         file_path:    the file's `path` (from find_user_files or list_user_files), or the path of
@@ -4648,8 +4651,9 @@ def get_file_marks(user, file_path: str, track: str = '', start: float = None,
         return {'error': f"Aucune piste automatique pour '{src.name}'. Natures analysées : "
                          f"{', '.join(served) or 'aucune'}."}
     # Une demande de l'assistant est une page qui S'OUVRE : l'analyse se met en file, un échec
-    # se retente.
-    states = media_marks.marks_state(rel, retry_failed=True)
+    # se retente. Une piste À MODÈLE (`on_demand`) ne part que si elle est NOMMÉE : lister les
+    # pistes d'un fichier n'occupe pas la carte graphique.
+    states = media_marks.marks_state(rel, retry_failed=True, asked=(track,) if track else ())
     result = {'file': rel}
     if track and track in states:
         result['status'] = states[track]['status']
@@ -4660,7 +4664,8 @@ def get_file_marks(user, file_path: str, track: str = '', start: float = None,
                             "L'analyse de ce fichier n'a pas abouti."}
     return _marks_answer(result, rel, f"'{src.name}'", track, start, end, within_track,
                          within_mark, limit, offset, tracks=tracks,
-                         facts={key: {'status': state['status']} for key, state in states.items()})
+                         facts={key: {name: state[name] for name in ('status', 'on_demand')
+                                      if name in state} for key, state in states.items()})
 
 
 # ---------------------------------------------------------------------------

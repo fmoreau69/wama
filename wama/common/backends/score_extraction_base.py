@@ -19,16 +19,34 @@ from typing import Callable, Optional
 
 from .base import BaseModelBackend
 
+#: Les PISTES d'un morceau qu'un moteur peut décoder en même temps que sa partition (2026-11-25,
+#: `ROUTE §10.7.14 ㉑` — elles étaient jetées) : les clés sous lesquelles il les rend (`marks`),
+#: et celles des pistes automatiques d'un audio que l'app du métier déclare (`media_marks`).
+#: Toutes des segments sur le temps de l'audio (`start`, `end` en secondes) :
+#:   `structure` — les parties (`label` : intro, verse, chorus, bridge…, tel que le moteur les nomme) ;
+#:   `measures`  — les mesures, d'un temps fort au suivant (`number` : leur numéro dans la
+#:                 partition de la même passe, depuis 1, une levée comprise ; `meter` « 4/4 » ;
+#:                 `tempo` en temps par minute, mesuré sur la mesure, None si elle est incomplète) ;
+#:   `tonality`  — les plages de tonalité (`key`) ;
+#:   `chords`    — les accords (`chord`).
+STRUCTURE, MEASURES, TONALITY, CHORDS = 'structure', 'measures', 'tonality', 'chords'
+MUSIC_TRACKS = (STRUCTURE, MEASURES, TONALITY, CHORDS)
+
 
 class ScoreExtractionBackend(BaseModelBackend):
     """Extrait la partition ABC d'un audio — un modèle `audio-to-score` du catalogue.
 
     L'état de chargement vient d'ici, comme pour les contrats de parole et d'image : un backend
-    pose `self._loaded` dans `load()`/`unload()` et n'a rien d'autre à écrire."""
+    pose `self._loaded` dans `load()`/`unload()` et n'a rien d'autre à écrire.
+
+    `marks` : ce que le DERNIER `extract_score` a décodé en plus de la partition, `{clé de
+    MUSIC_TRACKS: lignes}` — posé AVANT qu'une partition impossible ne lève (la structure d'un
+    morceau se lit même quand sa notation échoue) ; None pour un moteur qui n'en rend pas."""
 
     def __init__(self):
         self._loaded = False
         self._current_model = None
+        self.marks: Optional[dict] = None
 
     @property
     def is_loaded(self) -> bool:

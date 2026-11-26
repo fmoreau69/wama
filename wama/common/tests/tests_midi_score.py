@@ -478,3 +478,70 @@ class ScoreMarksTest(SimpleTestCase):
         more = ''.join(f'{1.0 + 0.5 * i}\t{1 + i % 4}\t4\t4\n' for i in range(12))
         self.assertEqual(abc, with_beat_sync(abc, {'labs': {'beat': more}, 'abc_measures': 1}),
                          'beats that do not give the written bars : the score is left as it is')
+
+    #: What SheetSage2 writes beside its score (shapes measured on three real songs, 2026-11-25) :
+    #: a pickup of two beats, two 4/4 bars, one 3/4 bar, two last beats ; « N » is no chord.
+    SONG_LABS = {
+        'structure': '0.0\t5.0\tintro\n5.0\t6.5\tverse\n6.5\t7.2\tverse\nbroken line\n',
+        'beat': ('0.0\t3\t4\t4\n0.5\t4\t4\t4\n'
+                 + ''.join(f'{1.0 + 0.5 * i}\t{1 + i % 4}\t4\t4\n' for i in range(8))
+                 + ''.join(f'{5.0 + 0.5 * i}\t{1 + i}\t3\t4\n' for i in range(3))
+                 + '6.5\t1\t4\t4\n7.0\t2\t4\t4\n'),
+        'key': '0.0\t7.2\tC:major\n',
+        'chord': '0.0\t1.0\tN\n1.0\t3.0\tC:maj\n3.0\t5.0\tC:maj\n5.0\t6.5\tG:7\n',
+    }
+
+    def test_sheetsage_keeps_the_tracks_of_the_song_it_decoded(self):
+        """`ROUTE §10.7.14 ㉑` : the parts, the bars, the key and the chords the pass decodes were
+        thrown away. They are read under the common names of marks — a bar from a downbeat to the
+        next, numbered as the score of the same pass numbers it (`bar_lines_from_beats`)."""
+        from wama.common.backends.score_extraction_base import MUSIC_TRACKS
+        from wama.common.backends.sheetsage2_backend import music_marks
+        found = music_marks({'labs': self.SONG_LABS, 'duration_seconds': 7.2})
+        self.assertEqual(set(MUSIC_TRACKS), set(found))
+        self.assertEqual([('intro', 0.0, 5.0), ('verse', 5.0, 6.5), ('verse', 6.5, 7.2)],
+                         [(p['label'], p['start'], p['end']) for p in found['structure']],
+                         'two verses in a row stay two verses')
+        self.assertEqual(
+            [(1, 0.0, 1.0, '4/4', None), (2, 1.0, 3.0, '4/4', 120.0), (3, 3.0, 5.0, '4/4', 120.0),
+             (4, 5.0, 6.5, '3/4', 120.0), (5, 6.5, 7.2, '4/4', None)],
+            [(m['number'], m['start'], m['end'], m['meter'], m['tempo']) for m in found['measures']],
+            'the pickup is bar 1, as the score of the same pass writes it (measured : numbered 0, '
+            'every part started one bar before its section of the score) ; a tempo is measured '
+            'between two downbeats, on a whole bar')
+        no_pickup = music_marks({'labs': {'beat': self.SONG_LABS['beat'].split('\n', 2)[2]}})
+        self.assertEqual([1, 2, 3, 4], [m['number'] for m in no_pickup['measures']])
+        self.assertEqual([{'start': 0.0, 'end': 7.2, 'key': 'C:major'}], found['tonality'])
+        self.assertEqual([('C:maj', 1.0, 5.0), ('G:7', 5.0, 6.5)],
+                         [(c['chord'], c['start'], c['end']) for c in found['chords']],
+                         'a chord repeated bar after bar is one span ; « N » is no mark')
+        self.assertIsNone(music_marks({'labs': {'melody_full': '1\t2\t60'}}))
+        self.assertIsNone(music_marks(None))
+        only_beats = music_marks({'labs': {'beat': '0.0\t2\t4\t4\n0.5\t3\t4\t4\n'}})
+        self.assertIsNone(only_beats, 'no downbeat : no bar, nothing guessed')
+
+    def test_what_the_pass_decoded_is_kept_even_when_no_score_can_be_written(self):
+        import contextlib
+        import sys
+        import types
+        from unittest import mock
+        from wama.common.backends.sheetsage2_backend import SheetSage2Backend
+        torch = types.SimpleNamespace(inference_mode=contextlib.nullcontext)
+
+        class _Model:
+            result = {'abc': None, 'abc_error': 'no notation', 'labs': self.SONG_LABS}
+
+            def transcribe(self, *_args, **_kwargs):
+                return self.result
+
+        backend = SheetSage2Backend()
+        self.assertIsNone(backend.marks)
+        backend._model = _Model()
+        with mock.patch.dict(sys.modules, {'torch': torch}):
+            with self.assertRaisesRegex(RuntimeError, 'no notation'):
+                backend.extract_score(model_id='SheetSage2', audio_path='song.wav')
+            self.assertEqual(3, len(backend.marks['structure']))
+            _Model.result = {'abc': None, 'labs': {}}
+            with self.assertRaises(RuntimeError):
+                backend.extract_score(model_id='SheetSage2', audio_path='song.wav')
+        self.assertIsNone(backend.marks, 'the marks are those of the LAST pass')

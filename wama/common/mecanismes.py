@@ -3751,8 +3751,15 @@ MECHANISMS = (
               "par le lecteur commun (`marks.read_tracks`, `outline`, `read_span`). D'autres "
               "réglages que ceux qui ont produit la piste la REMPLACENT (une piste, un jeu de "
               "réglages, gardé avec elle). La piste appartient au FICHIER : la coupe qu'une card "
-              "en fait est une piste dérivée portée par son entrée. Outil de l'assistant : "
-              "`get_file_marks`",
+              "en fait est une piste dérivée portée par son entrée. Un producteur À MODÈLE "
+              "(2026-11-25, `§10.7.14 ㉑` — la structure d'un morceau, `composer.music_marks` : "
+              "parties, mesures, tonalité, accords d'un audio) déclare en plus `analysis` (UNE "
+              "passe remplit plusieurs pistes : un fichier par piste, une seule mise en file, une "
+              "piste laissée vide prête et vide), `task` (la tâche de son app, sur sa file, qui "
+              "amène le modèle par la route) et `on_demand` (l'analyse ne part que si sa piste est "
+              "demandée par son nom, jamais en listant les pistes d'un fichier) ; et ce qu'un "
+              "process de card a déjà calculé sur ce fichier s'y DÉPOSE (`deposit`) au lieu "
+              "d'être jeté. Outil de l'assistant : `get_file_marks`",
               'wama/common/utils/media_marks.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/utils/derived_json.py',),

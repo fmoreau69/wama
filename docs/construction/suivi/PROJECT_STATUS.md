@@ -33135,3 +33135,71 @@ l'employeur public.
 
 **Reste** : rien du périmètre de la session. Les deux rouges nommés au bloc précédent
 appartiennent au chantier des comptes pré-inscrits (mécanismes non commités). Rien n'est poussé.
+
+---
+
+## §PALIER — 2026-11-25 (nuit, suite), AUTO-SEGMENTATION : la STRUCTURE d'un morceau gardée au FICHIER audio (deuxième marche de l'ordre validé)
+
+> Décision de Fabien : *« Ok pour ranger au fichier audio, tu peux poursuivre. »* Détail :
+> `WAMA_APP_GENERATION_ROUTE.md §10.7.14 ㉑`, « Deuxième marche ».
+
+**Livré.**
+- **Quatre pistes automatiques d'un audio**, déclarées par le Composer (`composer/functions.py`,
+  fonction `composer.music_marks`) : parties (`structure`), mesures (`measures` : numéro,
+  chiffrage, tempo), tonalité (`tonality`), accords (`chords`). Le modèle de la tâche
+  `audio-to-score` (SheetSage2) les décodait à chaque partition réduite ; elles étaient jetées.
+- **Le contrat du moteur** les nomme (`score_extraction_base.MUSIC_TRACKS`,
+  `ScoreExtractionBackend.marks`) ; SheetSage2 les rend sous les noms communs des marques
+  (`sheetsage2_backend.music_marks`), posées avant qu'une partition impossible ne lève.
+- **Deux portes** (`composer/utils/music_marks.py`) : le process `extract_score` /
+  `rendered_score` DÉPOSE ce qu'il a décodé aux pistes de l'audio qu'il lit (`keep`) ; un fichier
+  s'analyse aussi pour lui-même (`composer.tasks.music_marks_task`, file GPU, modèle par la route,
+  déchargé aussitôt) — nœud du Studio et `get_file_marks`.
+- **Le commun** (`common/utils/media_marks.py`) sait désormais un producteur à MODÈLE : `analysis`
+  (une passe, plusieurs pistes, une mise en file ; une piste vide est prête et vide), `task` (la
+  tâche de l'app), `on_demand` (lancée seulement si la piste est demandée par son nom — lister
+  les pistes d'un fichier n'occupe pas la carte graphique), `deposit`, `mark_failed`. Le registre
+  `tracks` dit `analysis` et `on_demand`.
+
+**Mesuré** (trois morceaux, sorties brutes gardées au scratchpad, rien écrit dans `media/`) : 10 à
+12 parties, 139 à 159 mesures, une tonalité, 107 à 163 accords ; 31 à 39 s, 3,4 Go ; pistes
+identiques en partition complète et en mélodie seule ; les 33 bornes de parties sur une barre de
+mesure ; la partition de la même passe nomme déjà ses parties (`% intro`, `% verse`…) et ses 30
+sections commencent à la mesure où la partie commence dans l'audio. Chiffrage constant sur les
+trois ; un changement de tempo (93 → 106) au milieu d'une partie, un ralenti en coda — tous deux
+vers 285 s, le moteur travaillant par fenêtres de 300 s : artefact de raccord non écarté.
+
+**Réponses à Fabien consignées dans la route** : pas de nature `audio_structure` (une nature dit ce
+qu'est un fichier ; la structure est une piste, la même pour l'audio, la partition — qui la porte
+déjà — et les paroles, chacune sur son axe) ; tempo et chiffrage viennent de la même passe,
+mesure par mesure.
+
+**Revérification (`/reverif`, demandée par Fabien) — trois écarts trouvés, ramenés :**
+- la levée était numérotée 0 : toutes les parties du morceau à levée tombaient une mesure avant
+  leur section de la partition (vu en confrontant la piste aux lignes `% <partie>` de l'ABC ;
+  les tests, eux, étaient verts) — `number` suit désormais la partition, levée = mesure 1 ;
+- dans un processus qui n'avait encore rien chargé, l'échec d'une installation n'était pas dit à
+  la piste (`mark_failed` lisait le registre sans le charger) : vu par le test joué SEUL ;
+- le chemin reçu par la tâche, par le dépôt et par `converter.shots_job` (livré le matin) était
+  rendu relatif à la main, sans garde : UNE porte, `media_marks.media_rel`, sur la garde commune
+  de confinement (`media_paths.resolve_under_media_root`).
+Et deux alignements : la lecture des annotations du moteur écrite une fois (`_lab_rows`, que lit
+aussi `with_beat_sync`) ; « deux bornes sont la même » à la tolérance des marques.
+⏳ Consigné, non ramené : la suite « charger le modèle d'une tâche pour une passe, le décharger »
+est écrite une fois de plus dans le Composer (ses glus de partition, de pistes, de paroles la
+portent chacune) — une brique du squelette la porterait.
+
+**Vérifié.** 610 tests du périmètre, 1 rouge qui n'est pas d'ici (`wama-params.js`, `data-key`) ;
+19 contre-épreuves rouges sur 19. Suite élargie (1 228 tests) avant les corrections : 5 rouges,
+aucun dans ces fichiers (Converter et card d'entrée du Studio en cours ailleurs, `data-key`, un
+fichier de l'annuaire déclaré par deux mécanismes). Budget de langue des identifiants à +2 entre
+deux lancements : aucune ligne relevée dans ces fichiers.
+
+**Non vérifié.** Aucun passage réel par un worker (relance due : gunicorn, workers, passerelle,
+serveur MCP — une tâche et une fonction neuves) ; rien jugé à l'oreille ; aucune pièce classique
+sur le disque ; la jumelle `composer_01` n'est pas régénérée (elle ne dépose pas) ; HEAD dans un
+worktree.
+
+**🔚 Suite.** L'emploi par une card (les pistes des fichiers de ses ports, le port nommant l'axe —
+avec la coupe portée par l'entrée, ②fonc) ; la piste sur la partition (axe des mesures) et sur les
+paroles (une clé par nature) ; puis (3) la confirmation des plans par les formes.

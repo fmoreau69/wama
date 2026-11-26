@@ -9455,7 +9455,7 @@ sous une card mère, l'ordre de la file faisant le montage (la loi d'agencement 
 place dérivée de l'ordre). Les deux ensemble donnent l'édition simple : la ligne de temps découpe,
 la file réordonne.
 
-**㉑ Ce qui se découpe déjà tout seul dans WAMA — cartographie du 2026-11-25 (🔄 forme décidée, première marche commencée).**
+**㉑ Ce qui se découpe déjà tout seul dans WAMA — cartographie du 2026-11-25 (🔄 forme décidée, première marche commencée, deuxième livrée).**
 📜 Fabien : *« intégrer ça dans toute application qui traite des médias temporels […] pour le
 Translator, le découpage des phrases et des paragraphes […] cartographier tout ce qui existe
 actuellement pour envisager l'universalité et l'uniformité de tous ces mécanismes
@@ -9528,10 +9528,82 @@ déclarées, aucun stockage changé) :**
   d'environ 0,1 s à 0,2 s. Les deux pistes se lisent par `get_item_marks`.
 - **⏳ Pas déclarés, et pourquoi** : les mots chantés datés et les mesures du Composer portent sur
   DEUX audios de la même card (la source et le rendu) — une piste ne dit pas encore sur quel média
-  elle court (c'est « quelle entrée pose l'axe », ⑲, avec la table des entrées) ; les tables
+  elle court (c'est « quelle entrée pose l'axe », ⑲, avec la table des entrées — *levé pour les
+  mesures le soir même : elles se rangent au FICHIER audio, deuxième marche ci-dessous*) ; les tables
   d'insertion et de dépassement du cam_analyzer ont trois instants par ligne, pas deux bornes ;
   les pages, lignes et paragraphes d'un document et les sections du Writer ne sont pas rangés en
   lignes (recalculés, ou écrits dans le rendu) — ils relèvent de la famille B.
+
+**Deuxième marche — garder ce qui est jeté : la STRUCTURE d'un morceau, 🔄 livrée le 2026-11-25
+(nuit), au FICHIER audio** (📜 Fabien : *« Ok pour ranger au fichier audio […] ça me semble le plus
+logique »*).
+- **Ce qui était jeté** : à chaque partition réduite (`extract_score`, `rendered_score`), le modèle
+  de la tâche `audio-to-score` (SheetSage2) décode aussi les parties du morceau, sa grille de temps,
+  sa tonalité et ses accords ; seule la partition était gardée.
+- **Quatre pistes de l'audio**, déclarées par le Composer (`composer/functions.py`, fonction
+  `composer.music_marks`), leurs clés et ce que portent leurs marques étant le CONTRAT du moteur
+  (`common/backends/score_extraction_base.MUSIC_TRACKS`, `ScoreExtractionBackend.marks`) :
+  `structure` « Parties » (`label` : intro, verse, chorus, bridge, interlude, outro — tels que le
+  moteur les nomme ; corrigeables dans une piste dérivée), `measures` « Mesures » (`number`, `meter`,
+  `tempo`), `tonality` « Tonalité » (`key`), `chords` « Accords » (`chord`).
+- **Deux portes, un rangement** (`composer/utils/music_marks.py`) : un process de card qui fait
+  déjà passer le modèle DÉPOSE ce qu'il a décodé aux pistes de l'audio qu'il lit (`keep` →
+  `media_marks.deposit`, rien n'est recalculé — l'entrée du cover ou sa refusion, le rendu) ; un
+  fichier jamais passé par là s'analyse pour lui-même (`tasks.music_marks_task`, file GPU de
+  l'app, modèle amené par la route, déchargé aussitôt ; nœud du Studio, `get_file_marks`).
+- **Ce que le commun a gagné** (`common/utils/media_marks.py`), pour tout producteur à MODÈLE :
+  `analysis` — une passe remplit PLUSIEURS pistes (un fichier par piste, une seule mise en file ;
+  une piste laissée vide est prête et vide) ; `task` — la tâche de l'app quand l'analyse ne tourne
+  pas sur la file commune ; `on_demand` — l'analyse ne part que si SA piste est demandée par son
+  nom, jamais parce qu'on liste les pistes d'un fichier (toute parole enregistrée est un « audio » :
+  la lister n'occupe pas la carte graphique) ; `deposit` et `mark_failed` ; et UNE porte pour tout
+  chemin reçu (`media_rel`, sur la garde commune de confinement
+  `media_paths.resolve_under_media_root` — la fonction des plans, livrée le matin, rendait son
+  chemin relatif à la main, sans garde : ramenée ici à la revérification). C'est la forme décidée
+  plus haut : la règle tourne dès qu'on regarde le fichier, le modèle à la demande.
+- **Mesuré sur trois morceaux** (un enregistrement public de 5 min 50, deux morceaux générés de
+  5 et 6 min ; sorties brutes gardées hors de `media/`, non jugées à l'oreille) : 10 à 12 parties,
+  139 à 159 mesures, une tonalité, 107 à 163 accords (141 à 239 lignes brutes : le moteur répète
+  un accord à chaque mesure, la piste garde ses changements) ; 31 à 39 s et 3,4 Go de carte
+  graphique par morceau ; les quatre pistes sont IDENTIQUES en partition complète et en mélodie
+  seule (l'analyse demandée passe donc en mélodie seule, la notation la plus sûre — sur l'un des
+  trois, la complète n'a rendu aucune partition). **Les 33 bornes de parties tombent
+  toutes sur une barre de mesure** (écart 0,000 s) — une partie se dit donc aussi « mesures 24 à
+  31 ». **La partition de la même passe nomme déjà ses parties** (une ligne `% intro`, `% verse`…
+  avant la mesure où chacune commence) : ses 30 sections commencent toutes à la mesure où la
+  partie commence dans l'audio, `number` étant le numéro de mesure de CETTE partition — une levée
+  y est la mesure 1 (⚠ trouvé à la revérification : numérotée 0, elle décalait d'une mesure toutes
+  les parties du morceau à levée). Deux parties voisines de même nom (deux couplets) n'y font
+  qu'une section ; la piste de l'audio garde les deux.
+- **La partition et les paroles** (📜 remarque de Fabien : *« la partition et les paroles aussi sont
+  concernées par la structure »*, faut-il *« une nature audio_structure »* ?) : pas de nature
+  nouvelle. Une nature dit ce qu'EST un fichier (audio, partition) ; la structure n'est pas un
+  fichier, c'est une piste — et la même pour les trois : sur le temps pour l'audio (livré), en
+  numéros de mesure pour la partition (elle la porte DÉJÀ, écrite par la même passe en lignes
+  `% <partie>`, aux mêmes mesures : mesuré ci-dessus — il reste à la LIRE comme une piste), par
+  ligne pour les paroles (un morceau généré se demande par sections, `[verse]`, `[chorus]` : une vérité
+  à confronter à ce que le moteur détecte — pas fait, les consignes des deux morceaux mesurés
+  n'ont pas été retrouvées en base). ⏳ Pour que la partition
+  et les paroles portent la piste : l'axe d'une partition (`AXES` ne nomme pas la mesure) et une
+  inscription par (clé, nature) — aujourd'hui une clé de producteur est unique.
+- **Tempo et chiffrage** (📜 *« la structure pourra aider à la détection des changements de tempo et
+  signature »*) : ils viennent de la même passe, mesure par mesure, sans la structure (`meter` dit
+  par le moteur, `tempo` mesuré d'un temps fort au suivant ; None pour une mesure incomplète — un
+  temps isolé en bout d'audio donnait 400 et 1 500 à la minute). Sur les trois morceaux : aucun
+  changement de chiffrage ; un changement de tempo net sur l'enregistrement public (93 → 106 à la
+  mesure 112, 287,8 s), AU MILIEU d'une partie, et un ralenti dans la coda d'un morceau généré
+  (190 → 150), moins de 4 s après le début de sa dernière partie. Non jugé à l'oreille ; ⚠ les deux tombent vers 285 s
+  et le moteur travaille par fenêtres de 300 s — un artefact de raccord n'est pas écarté. La
+  piste « changements de tempo » (une règle sur `measures`) n'est pas construite.
+- **⏳ Restes** : l'EMPLOI par une card — ses pistes comprennent celles des fichiers de ses ports
+  (le lecteur des entrées rend déjà le fichier d'un port, colonne ou table commune :
+  `port_fields.port_files`), le port NOMMANT l'axe, ce qui répond à « quelle entrée pose l'axe »
+  sans colonne de plus ; les temps (`beat.lab`) ne sont pas gardés en piste (les mesures le
+  sont) ; les noms de parties sont ceux du moteur, en anglais ; aucune pièce classique sur le
+  disque pour dire ce que vaut ce découpage hors de la chanson ; relance des services et passage
+  réel par un worker ; la suite « charger le modèle d'une tâche pour une passe, le décharger » est
+  écrite une fois de plus dans le Composer (ses glus de partition, de pistes et de paroles la
+  portent chacune) — une brique du squelette la porterait.
 
 **L'ordre, revu à la demande de Fabien — le fonctionnel d'abord.** Les questions restées ouvertes
 après 10.7.13 étaient des questions de MODÈLE (ce qu'est une ligne, dérivée ou niveau en dessous,
@@ -9545,7 +9617,7 @@ dessinées sur des marques réelles que le fonctionnel saura alors rendre.
 | ①ter ✅ (2026-11-25) | la PISTE DÉRIVÉE : une source + une liste de gestes, rejouée par le lecteur commun ; la « ligne effective ». Livré (`common/catalog/marks.py`) : un geste est une DONNÉE (`gesture`, `was` — les bornes de sa cible au moment du geste, l'« avant » de la trace —, `mark` — le rang où elle était —, ce que le geste demande, et qui / quand) ; il désigne sa cible par sa PLACE, pas par un rang ni des bornes exactes — la règle que WAMA applique déjà aux corrections humaines de détections (`utils/detections.apply_corrections` : « vivre à part pour survivre à une détection relancée »), au même seuil de recouvrement (`CORRECTION_MIN_IOU`, mesure `utils/intervals.overlap_ratio`) : un geste survit donc à une piste remesurée ; `read_derived` / `apply_edits` rejouent la liste sans toucher à la source et rendent un COMPTE RENDU par geste qui ne s'est pas fait tel quel — SAUTÉ (sa marque n'est plus là, la piste ne le déclare pas), jamais fait à côté, ou fait sur une marque dont les bornes ont bougé (`was`, `now` : à montrer pour qu'on le revoie) ; `extend_edits` est la porte d'entrée d'un geste dans une liste (refusé s'il ne peut pas se faire) ; défaire = retirer de la liste ; une marque dérivée dit d'où elle vient (`source_ranks`, les rangs des marques de la source — pas `source`, que le monde Data emploie déjà sur un segment pour son origine d'avant une marge, `segmentation.margins`), les gestes qui l'ont changée (`touched`), si elle est masquée ; une marque ajoutée a pour origine le nom de son geste (`add`), comme une production du Segmenter celui de son mode ; `effective_line` rend ce qui reste après les masques, chaque segment à sa place ; `violations(…, edits=)` contrôle la contrainte sur la dérivée. Avec : aucun attribut ne se lit sous un nom que le lecteur écrit (`RESERVED`, contrôlé à la déclaration ; une colonne `masked` ou `parent` d'un fichier de données se lit `masked_`, `parent_`) ; un événement ne déclare ni scinder, ni fusionner, ni retailler ; « dérivée » réservé à source + gestes, les tours de parole sont une piste CALCULÉE (registre : `rows = computed`). ⏳ restes : OÙ se range la liste (la table des entrées pour une coupe ; le `.wdat` de travail d'une card du monde Data) ; les pistes FILLES d'une piste dérivée gardent les rangs de la source (`source_ranks` permet de les suivre, rien ne le fait encore) ; aucune interface | ①bis |
 | ①quater ✅ (2026-11-25) | la lecture d'une piste bornée à une plage (la PLAGE ACTIVE côté serveur, ⑧) ; l'outil de l'assistant qui rend les marques d'une card. Livré (`common/catalog/marks.py`) : `read_span` pose la plage par ses bornes ou par UNE marque (piste et rang — le segment cliqué) et rend, pour chaque piste de la card, les marques qui y sont ou la traversent (`bounded` : leur RANG dans la piste entière, la marque TELLE QUELLE, et `inside` — elle y tient, ou elle déborde l'une de ses bornes) ; c'est une sélection, rien n'est rogné ni calculé (calculer sur la plage reste le geste explicite de ⑨, au Segmenter). BORNES : une marque qui ne fait que toucher la plage n'y est pas — la convention de la contenance (`_holder`) et de la partition, celle de la plage native visée en base (`numrange`, `&&`) ; `overlapping` du Segmenter, lui, compte les bornes (preuve croisée : `wama_data/core/tests_segmentation`) ; en deçà de la tolérance deux bornes sont la même ; un segment ouvert court toujours ; une plage réduite à un instant (celle d'un événement) rend ce qui le contient. PARENTÉ avant le temps : posée par une marque, la plage rend dans les pistes qui DESCENDENT de la sienne les marques dont elle est la parente ou l'aïeule, et sa marque parente à chaque étage au-dessus — décidé sur mesure (462 transcriptions réelles, 158 183 phrases : par le temps seul, 5 % des phrases ne retrouvaient pas exactement leurs mots — 10 098 mots sans durée posés sur la borne de fin de leur phrase, 7 007 rendus à la phrase voisine ; par la parenté, sur un échantillon de 6 800 phrases de ces transcriptions et 56 fenêtres de 5 sessions du cam_analyzer, chaque plage rend exactement ses marques filles, et dit débordantes celles qui sortent de ses bornes — 78 conflits, 2 mots). Une piste lue dérivée (`edits`) se borne telle qu'on la montre. `outline` rend l'INDEX des pistes d'une card (10.7.11 : ce que chacune dit d'elle-même — `describe`, que lit aussi le registre `tracks` —, le nombre de ses marques, leur étendue ; une fin ouverte reste inconnue). Les pistes d'un fichier de données se bornent par le même lecteur (`wama_data/tests_frames`). OUTIL : `get_item_marks` (`tool_api`, lecture, garde d'ownership des lectures d'un élément — `_foreign_item`, écrite une fois pour `get_item_detail`, `get_item_result` et lui) : sans piste, l'index des pistes (et, avec une plage, le nombre de marques de chacune dans la plage) ; avec une piste, ses marques, entières ou bornées par `start`/`end` ou par une marque d'une autre piste, par pages (100 au plus : mesuré, 200 phrases dépassaient le budget d'un résultat d'outil). Il ne nomme aucune app : le modèle d'un élément est celui du journal (les trois mondes), les pistes celles que l'app déclare. ⏳ restes : sous une piste DÉRIVÉE la parenté n'est pas suivie (ses rangs sont ceux de la source — le reste de ①ter) ; une card du monde Data n'a pas encore de modèle, ses pistes ne se lisent que du fichier ; les cards DÉRIVÉES dont le pointage recouvre la plage (⑧) attendent le lien de composition (T7) ; aucune interface | ①bis |
 | ②fonc | la COUPE portée par une entrée, sa matérialisation commune avant traitement, l'export du Converter (⑱) | ①ter ✅ ; la table des entrées (décidée le 2026-11-25, à construire par la session « valeur d'un port ») |
-| ③fonc ✅ (2026-11-25) | le producteur automatique de plans (⑲). Livré : les pistes automatiques d'un média au commun (`common/utils/media_marks.py` : producteurs inscrits par leur app, piste rangée une fois par fichier par le cycle des pics fins — `derived_json` —, lue par le lecteur commun), le producteur `converter.shots` (ffmpeg), l'outil `get_file_marks`. ⏳ restes : la piste montrée sur une card (avec ②fonc), la justesse sur un film monté, la confirmation des candidates par les formes (mesurée, ⑲), les parties d'un morceau (le modèle est déjà au catalogue et sa structure jetée, ⑲), la cartographie de ce qui se découpe déjà (㉑) | ①bis |
+| ③fonc ✅ (2026-11-25) | le producteur automatique de plans (⑲). Livré : les pistes automatiques d'un média au commun (`common/utils/media_marks.py` : producteurs inscrits par leur app, piste rangée une fois par fichier par le cycle des pics fins — `derived_json` —, lue par le lecteur commun), le producteur `converter.shots` (ffmpeg), l'outil `get_file_marks`. ⏳ restes : la piste montrée sur une card (avec ②fonc), la justesse sur un film monté, la confirmation des candidates par les formes (mesurée, ⑲) ; ✅ les parties d'un morceau, ses mesures, sa tonalité et ses accords gardés au fichier audio le 2026-11-25 (㉑, deuxième marche : premier producteur à MODÈLE — une passe pour plusieurs pistes, sur demande, ou déposée par le process qui l'a déjà calculée) | ①bis |
 | ④fonc | le résumé d'un lot sur ses cards filtrées, les facettes déclarées (T3, T4) | — |
 | ⑤fonc | les préalables du monde Data (T5 : participant, assemblage d'un lot) | décisions du monde Data |
 | puis | les maquettes ; la zone temporelle ; la barre de lot ; le Data Analyzer ; la page d'édition commune ; le film | le fonctionnel ci-dessus |

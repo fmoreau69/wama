@@ -385,6 +385,12 @@ def _reduced_score(gen, ctx, audio_abs: str, *, field: str, nature: str, label: 
                 ctx.console(f"[Composer] Accords impossibles ({error}) — partition réduite à la "
                             "mélodie seule")
                 text = extract(True)
+        # Ce que la passe a décodé en plus de la partition (parties, mesures, tonalité, accords)
+        # reste aux pistes de CET audio — `ROUTE §10.7.14 ㉑`, « garder ce qui est jeté ».
+        from .utils.music_marks import keep
+        if keep(backend, audio_abs):
+            ctx.console("[Composer] Structure du morceau gardée (parties, mesures, tonalité, "
+                        "accords)")
     except Exception:
         ctx.reset_progress()
         raise
@@ -1089,3 +1095,49 @@ def _score_to_follow(gen, catalog_key) -> str:
     if gen.reference_score:
         return gen.reference_score.name
     return PIPELINE.upstream_output(gen, 'render', 'score', catalog_key)
+
+
+# ── Hors de toute card : la structure d'un morceau, rangée à son fichier ─────────────────────────
+
+@shared_task(bind=True)
+def music_marks_task(self, audio, key='', user_id=None):
+    """La STRUCTURE d'un morceau (ses parties, ses mesures, sa tonalité, ses accords) rangée aux
+    pistes automatiques de son audio — `ROUTE §10.7.14 ㉑`, l'`impl` de la fonction
+    `composer.music_marks` (un nœud du Studio) et la tâche de ses producteurs (`media_marks` la
+    met en file quand une de ses pistes est demandée : `(chemin du média, clé de la piste)`).
+
+    `audio` : chemin relatif à MEDIA_ROOT. File GPU de l'app ; le modèle (tâche `audio-to-score`)
+    absent, la ROUTE l'installe et la tâche revient d'elle-même. Idempotente : une structure à
+    jour n'est pas refaite. Rend une phrase sur ce qui est rangé."""
+    from django.contrib.auth import get_user_model
+
+    from wama.common.backends.score_extraction_base import STRUCTURE
+    from wama.common.utils import media_marks
+    from wama.common.utils.model_readiness import ensure_installed
+    from wama.common.utils.task_skeleton import ServiceNotReady, redeliver_later
+    from .utils.model_choice import score_extractor
+
+    rel = media_marks.media_rel(audio)          # la garde de confinement des médias
+    if not rel:
+        raise ValueError("l'audio à analyser n'est pas dans les médias de WAMA")
+    key = key or STRUCTURE
+    extractor_key = score_extractor()
+    if extractor_key:
+        try:
+            ensure_installed(
+                extractor_key, redelivered=bool(self.request.retries),
+                user=get_user_model().objects.filter(pk=user_id).first() if user_id else None)
+        except ServiceNotReady as wait:
+            logger.info('[composer] structure de %s : %s', rel, wait)
+            try:
+                redeliver_later(self, wait)
+            except RuntimeError:            # l'attente épuisée : l'échec se dit aussi à la piste
+                media_marks.mark_failed(rel, key)
+                raise
+        except Exception:                   # la route refuse, l'installation a échoué
+            media_marks.mark_failed(rel, key)
+            raise
+    if not media_marks.make_media_marks(rel, key):
+        raise ValueError("la structure du morceau n'a pas pu être lue (audio absent, illisible, "
+                         "ou aucun modèle d'extraction de partition installé)")
+    return media_marks.summary(rel, key)

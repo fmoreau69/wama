@@ -102,9 +102,13 @@ class SheetSage2Backend(ScoreExtractionBackend):
         if progress_callback:
             progress_callback(0)
         import torch
+        self.marks = None
         with torch.inference_mode():
             result = self._model.transcribe(audio_path, output_dir=output_dir,
                                             melody_only=melody_only)
+        # Ce que la passe a décodé EN PLUS de la partition (parties, mesures, tonalité, accords) :
+        # gardé avant tout refus — la structure se lit même quand la notation échoue.
+        self.marks = music_marks(result)
         abc = (result or {}).get("abc")
         if not abc:
             raise RuntimeError("SheetSage2 n'a produit aucune partition : "
@@ -112,6 +116,93 @@ class SheetSage2Backend(ScoreExtractionBackend):
         if progress_callback:
             progress_callback(100)
         return with_beat_sync(abc, result)
+
+
+#: Ce que SheetSage2 écrit pour « aucun accord » (`chord.lab`) : une absence, pas une marque.
+NO_CHORD = 'N'
+
+
+def _lab_rows(result: dict, name: str) -> list:
+    """Les lignes d'une annotation du moteur (`labs[name]`, colonnes séparées par une tabulation)."""
+    text = ((result or {}).get('labs') or {}).get(name) or ''
+    return [line.split('\t') for line in text.splitlines() if line.strip()]
+
+
+def _spans(rows, name: str, skip=(), joined: bool = False) -> list:
+    """Des lignes `début, fin, valeur` → des segments `{start, end, <name>}`, dans l'ordre du
+    temps. `joined` : deux segments voisins de même valeur n'en font qu'un (le moteur répète un
+    accord à chaque mesure : ce qui se lit sur le temps, c'est quand il CHANGE) — jamais pour les
+    parties, où deux couplets qui se suivent sont deux couplets. Voisins : leurs bornes sont la
+    même, à la tolérance des marques (`catalog.marks.TOLERANCE`)."""
+    from wama.common.catalog.marks import TOLERANCE
+    out = []
+    for row in rows:
+        try:
+            start, end, value = round(float(row[0]), 3), round(float(row[1]), 3), row[2].strip()
+        except (IndexError, ValueError):
+            continue
+        if not value or value in skip or end <= start:
+            continue
+        if (joined and out and out[-1][name] == value
+                and abs(out[-1]['end'] - start) <= TOLERANCE):
+            out[-1]['end'] = end
+        else:
+            out.append({'start': start, 'end': end, name: value})
+    return out
+
+
+def _measures(beats, duration: float) -> list:
+    """Les MESURES d'un morceau depuis sa grille de temps datés (`beat.lab` : instant, position
+    dans la mesure depuis 1, temps par mesure, valeur du temps) : d'un temps fort au suivant,
+    numérotées depuis 1 dans l'ordre — une LEVÉE avant le premier temps fort est la mesure 1,
+    comme la partition de la même passe l'écrit (complétée de silence). `number` est donc le
+    numéro de mesure de cette partition : mesuré sur trois morceaux dont un à levée, les 30
+    sections que la partition nomme (`% verse`…) commencent à la mesure où la partie commence
+    dans l'audio — numérotée 0, la levée décalait tout d'une mesure. `meter` est le chiffrage que
+    le moteur dit pour la mesure, `tempo` ses temps par minute, mesurés d'un temps fort au suivant
+    — None pour une mesure INCOMPLÈTE (levée, grille irrégulière) et pour la dernière : un temps
+    isolé en bout d'audio donnait 400 et 1 500 à la minute."""
+    grid = []
+    for row in beats:
+        try:
+            grid.append((float(row[0]), int(row[1]), int(row[2]), int(row[3])))
+        except (IndexError, ValueError):
+            continue
+    if len(grid) < 2:
+        return []
+    gaps = sorted(b[0] - a[0] for a, b in zip(grid, grid[1:]))
+    close = min(grid[-1][0] + gaps[(len(gaps) - 1) // 2], float(duration or 0) or float('inf'))
+    starts = [i for i, beat in enumerate(grid) if beat[1] == 1]
+    if not starts:
+        return []
+    bounds = ([0] if starts[0] else []) + starts
+    out = []
+    for number, (at, upto) in enumerate(zip(bounds, bounds[1:] + [len(grid)]), start=1):
+        start = grid[at][0]
+        end = grid[upto][0] if upto < len(grid) else close
+        if end > start:
+            _, _, per_measure, value = grid[at]
+            # Mesurée d'un temps fort au suivant : la dernière, fermée faute de mieux, n'en dit rien.
+            whole = upto < len(grid) and upto - at == per_measure
+            out.append({'start': round(start, 3), 'end': round(end, 3), 'number': number,
+                        'meter': f'{per_measure}/{value}',
+                        'tempo': round(per_measure * 60.0 / (end - start), 1) if whole else None})
+    return out
+
+
+def music_marks(result: dict) -> Optional[dict]:
+    """Les PISTES du morceau que la passe a décodées (`score_extraction_base.MUSIC_TRACKS`), ou
+    None quand le moteur n'en a annoté aucune. Rien n'est recalculé : c'est ce que le moteur écrit
+    à côté de sa partition (`structure.lab`, `beat.lab`, `key.lab`, `chord.lab`), sous les noms
+    communs des marques."""
+    from .score_extraction_base import CHORDS, MEASURES, STRUCTURE, TONALITY
+    found = {
+        STRUCTURE: _spans(_lab_rows(result, 'structure'), 'label'),
+        MEASURES: _measures(_lab_rows(result, 'beat'), (result or {}).get('duration_seconds') or 0),
+        TONALITY: _spans(_lab_rows(result, 'key'), 'key', joined=True),
+        CHORDS: _spans(_lab_rows(result, 'chord'), 'chord', skip=(NO_CHORD,), joined=True),
+    }
+    return found if any(found.values()) else None
 
 
 def with_beat_sync(abc: str, result: dict) -> str:
@@ -123,8 +214,7 @@ def with_beat_sync(abc: str, result: dict) -> str:
     avoir écrites (`abc_measures`), et la partition à tempo constant ; sinon aucun repère, la page
     cale sur les attaques."""
     from wama.common.utils.score_timing import sync_from_beats, with_sync, written_measures
-    text = ((result or {}).get('labs') or {}).get('beat') or ''
-    rows = [line.split('\t') for line in text.splitlines() if line.strip()]
+    rows = _lab_rows(result, 'beat')
     measures = len(written_measures(abc) or ())
     try:
         pairs = (sync_from_beats(abc, rows)

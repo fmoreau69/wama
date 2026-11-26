@@ -1,0 +1,65 @@
+{
+  "body": {
+    "app": "composer",
+    "binding": "app",
+    "category": "detector",
+    "cost": {},
+    "impl": "composer.tasks:music_marks_task",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "audio",
+        "description": "L'audio du morceau à analyser.",
+        "group": "travail",
+        "key": "audio",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "composer.music_marks",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "segments",
+        "description": "Les parties du morceau ; les mesures (`number`, `meter`, `tempo`), la tonalité (`key`) et les accords (`chord`) sont rangés avec elles, chacun dans sa piste.",
+        "key": "structure",
+        "optional": false,
+        "produced_fields": [
+          "start",
+          "end",
+          "label",
+          "number",
+          "meter",
+          "tempo",
+          "key",
+          "chord"
+        ],
+        "required_fields": []
+      }
+    ],
+    "params": [],
+    "projects": [],
+    "tags": [
+      "audio",
+      "music",
+      "gpu",
+      "segments"
+    ]
+  },
+  "description": "Repère la structure d'un morceau dans son audio et la range comme des pistes de segments sur l'axe du fichier : ses parties (intro, couplet, refrain, pont…), ses mesures (chiffrage et tempo de chacune), sa tonalité et ses accords. Par le modèle qui en extrait la partition réduite ; l'audio n'est pas modifié.",
+  "key": "composer.music_marks",
+  "manifest_kind": "function",
+  "name": "Composer — structure d'un morceau",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:composer.music_marks",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

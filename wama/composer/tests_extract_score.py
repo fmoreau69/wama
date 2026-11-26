@@ -46,10 +46,24 @@ PLANNED_ABC = ('X:1\nM:4/4\nV: Vocal clef=treble name="Vocal Melody" snm="Vocal"
                'V: Vocal\n"F"f4c4B2AB2A3|"C"e4c4B2AB2A3|\n')
 
 
+#: What SheetSage2 decodes beside the score, under the common names (`MUSIC_TRACKS`) : two parts,
+#: two bars, one key — and no chord.
+SONG_MARKS = {
+    'structure': [{'start': 0.0, 'end': 4.0, 'label': 'intro'},
+                  {'start': 4.0, 'end': 8.0, 'label': 'verse'}],
+    'measures': [{'start': 0.0, 'end': 4.0, 'number': 1, 'meter': '4/4', 'tempo': 60.0},
+                 {'start': 4.0, 'end': 8.0, 'number': 2, 'meter': '4/4', 'tempo': 60.0}],
+    'tonality': [{'start': 0.0, 'end': 8.0, 'key': 'C:major'}],
+    'chords': [],
+}
+
+
 class _Extractor:
     """Stand-in of a score-extraction backend (`ScoreExtractionBackend`)."""
     built, unloaded, calls = 0, 0, []
     error = full_error = None
+    #: What the pass decodes beside the score (`ScoreExtractionBackend.marks`) — None : nothing.
+    marks = None
 
     def __init__(self):
         type(self).built += 1
@@ -91,8 +105,12 @@ class ExtractThenRenderTest(TestCase):
         _ScoreEngine.unloaded, _ScoreEngine.error = 0, None
         _PlainEngine.renders = []
         _Extractor.built, _Extractor.unloaded, _Extractor.calls, _Extractor.error = 0, 0, [], None
-        _Extractor.full_error = None
+        _Extractor.full_error = _Extractor.marks = None
         self.extractor = EXTRACTOR
+        # « En file » et « échec » d'une piste se lisent d'une marque de cache par version du
+        # fichier (chemin, taille, date) : aucune ne passe d'un test à l'autre.
+        from django.core.cache import cache
+        cache.clear()
 
     def _cover(self, model=SCORE_MODEL, **fields):
         gen = ComposerGeneration.objects.create(user=self.user, prompt='jazz trio\n[verse]\nla',
@@ -161,6 +179,83 @@ class ExtractThenRenderTest(TestCase):
     def test_the_extraction_model_is_released_before_the_render(self):
         self._run(self._cover())
         self.assertEqual((1, 1), (_Extractor.built, _Extractor.unloaded))
+
+    # ── the structure of the song, kept at its FILE (`ROUTE §10.7.14 ㉑`) ─────────────────────
+    def test_what_the_pass_decoded_beside_the_score_stays_with_the_audio_of_the_cover(self):
+        from wama.common.utils import media_marks
+        _Extractor.marks = SONG_MARKS
+        gen = self._run(self._cover())
+        self.assertEqual('SUCCESS', gen.status, gen.error_message)
+        read = media_marks.read_media_tracks(gen.melody_reference.name)
+        self.assertEqual((['intro', 'verse'], [1, 2], ['C:major'], []),
+                         ([m['label'] for m in read['structure']],
+                          [m['number'] for m in read['measures']],
+                          [m['key'] for m in read['tonality']], read['chords']))
+        states = media_marks.marks_state(gen.melody_reference.name, schedule=False)
+        self.assertEqual({'ready'}, {state['status'] for state in states.values()},
+                         'a track the pass left empty is ready and empty')
+
+    def test_an_engine_that_decodes_nothing_more_leaves_the_tracks_of_the_audio_alone(self):
+        from wama.common.utils import media_marks
+        gen = self._run(self._cover())
+        self.assertEqual('SUCCESS', gen.status, gen.error_message)
+        states = media_marks.marks_state(gen.melody_reference.name, schedule=False)
+        self.assertEqual({'none'}, {state['status'] for state in states.values()})
+
+    def _structure(self, rel, key='', install_error=None):
+        with mock.patch('wama.common.backends.manager.backend_for_key',
+                        side_effect=lambda key: {EXTRACTOR: _Extractor}.get(key)), \
+                mock.patch('wama.composer.utils.model_choice.score_extractor',
+                           side_effect=lambda: self.extractor), \
+                mock.patch('wama.common.utils.model_readiness.ensure_installed',
+                           side_effect=install_error) as ensured:
+            said = tasks.music_marks_task.run.__func__(_celery_task(), rel, key)
+        return said, ensured
+
+    def test_a_model_the_route_will_not_install_fails_the_tracks_instead_of_leaving_them_queued(self):
+        from wama.common.utils import media_marks
+        from wama.common.utils.model_readiness import ModelInstallRefused
+        _Extractor.marks = SONG_MARKS
+        rel = self._cover().melody_reference.name
+        with self.assertRaises(ModelInstallRefused):
+            self._structure(rel, install_error=ModelInstallRefused('not allowed'))
+        self.assertEqual(0, _Extractor.built, 'no model, no pass')
+        states = media_marks.marks_state(rel, schedule=False)
+        self.assertEqual({'failed'}, {state['status'] for state in states.values()})
+
+    def test_the_structure_of_a_song_is_analysed_for_itself_once_per_file(self):
+        from wama.common.utils import media_marks
+        _Extractor.marks = SONG_MARKS
+        rel = self._cover().melody_reference.name
+        said, ensured = self._structure(rel)
+        self.assertEqual('Parties — 2 sur 0:08', said)
+        ensured.assert_called_once()
+        self.assertEqual(EXTRACTOR, ensured.call_args.args[0], 'the model comes by the route')
+        self.assertTrue(_Extractor.calls[0]['melody_only'])
+        self.assertEqual((1, 1), (_Extractor.built, _Extractor.unloaded), 'released at once')
+        self.assertEqual(2, len(media_marks.read_media_tracks(rel)['measures']))
+        said, _ensured = self._structure(rel, 'measures')
+        self.assertEqual(('Mesures — 2 sur 0:08', 1), (said, _Extractor.built), 'kept, not redone')
+
+    def test_a_song_whose_score_cannot_be_written_still_gives_its_structure(self):
+        from wama.common.utils import media_marks
+        _Extractor.marks, _Extractor.error = SONG_MARKS, RuntimeError('no notation')
+        rel = self._cover().melody_reference.name
+        self._structure(rel)
+        self.assertEqual(2, len(media_marks.read_media_tracks(rel)['structure']))
+
+    def test_a_structure_that_cannot_be_read_fails_and_says_it_to_its_tracks(self):
+        from wama.common.utils import media_marks
+        rel = self._cover().melody_reference.name
+        _Extractor.error = RuntimeError('no beat decoded')
+        with self.assertRaises(ValueError):
+            self._structure(rel)
+        self.assertEqual(1, _Extractor.unloaded)
+        self.extractor = ''
+        with self.assertRaises(ValueError):
+            self._structure(rel, 'chords')
+        states = media_marks.marks_state(rel, schedule=False)
+        self.assertEqual({'failed'}, {state['status'] for state in states.values()})
 
     def test_a_model_that_takes_the_audio_itself_keeps_its_direct_path(self):
         gen = self._run(self._cover(model=MELODY_MODEL))

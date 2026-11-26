@@ -841,9 +841,12 @@ def _entries_tracks() -> dict:
     for key, producer in sorted(producers().items()):
         spec = fc.get(producer.function) if producer.function else None
         app = fc.spec_app(spec) if spec is not None else ''
+        # `analysis` : la passe que plusieurs pistes partagent (un modèle) ; `on_demand` : elle ne
+        # part que si sa piste est demandée — une règle, elle, tourne dès qu'on regarde le fichier.
         out[f'{app or "media"}.media.{key}'] = {
             'app': app, 'model': 'media', **describe(producer.track),
-            'natures': list(producer.natures), 'function': producer.function}
+            'natures': list(producer.natures), 'function': producer.function,
+            'analysis': producer.analysis, 'on_demand': producer.on_demand}
     return out
 
 
@@ -862,7 +865,9 @@ register(Registry(
                 "et, pour l'écran, si elle est la piste principale de la card, ce qui colore ses "
                 "marques et les gestes qu'elle permet. "
                 "Les pistes d'un fichier de données sont dites par le fichier, pas ici. "
-                "Une piste AUTOMATIQUE (les plans d'une vidéo) est remplie par un producteur et "
-                "portée par un fichier média, quelle que soit la card qui l'emploie : elle dit "
-                "les natures qu'elle analyse et sa fonction du catalogue.",
+                "Une piste AUTOMATIQUE (les plans d'une vidéo, les parties d'un morceau) est "
+                "remplie par un producteur et portée par un fichier média, quelle que soit la "
+                "card qui l'emploie : elle dit les natures qu'elle analyse, sa fonction du "
+                "catalogue, la passe qu'elle partage avec d'autres pistes et si elle n'est "
+                "analysée que sur demande (un modèle).",
 ))

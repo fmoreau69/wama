@@ -87,14 +87,8 @@ def shots_job(video: str, threshold: Optional[float] = None, min_duration: Optio
     """La fonction `converter.shots` LANCÉE (un nœud du Studio) : analyse la vidéo reçue (chemin
     relatif à MEDIA_ROOT), range ses plans par la porte commune et rend une phrase. Des réglages
     donnés REMPLACENT la piste rangée ; sans réglage, une piste à jour est gardée."""
-    import os
-
-    from django.conf import settings
-
     from wama.common.utils import media_marks
-    rel = str(video or '').replace('\\', '/')
-    if os.path.isabs(rel):
-        rel = os.path.relpath(rel, str(settings.MEDIA_ROOT)).replace('\\', '/')
+    rel = media_marks.media_rel(video)          # la garde de confinement des médias
     asked = {name: value for name, value in (('threshold', threshold),
                                              ('min_duration', min_duration)) if value is not None}
     if not media_marks.make_media_marks(rel, 'shots', asked or None):
