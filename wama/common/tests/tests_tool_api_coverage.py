@@ -797,9 +797,11 @@ class EveryCreatorTakesAnAddressTest(TestCase):
                                 "address enters the library by its providers' download",
     }
 
-    def test_no_creator_designates_beside_the_common_reception(self):
-        """By AST : `designate` is called in `_receive` alone. A creator calling it directly
-        would refuse an address again."""
+    def test_no_creator_designates_beside_the_deposit_of_its_card(self):
+        """By AST : `designate` is called NOWHERE in `tool_api` (2026-11-26). The creator derived from
+        the card (`_card_creator`) downloads an address (`_local_input`), checks the designation, and
+        posts it to the card's deposit view, which receives it (`media_paths.received_work`) — a
+        creator designating by itself would be a second reception beside the card's."""
         tree = ast.parse((Path(settings.BASE_DIR) / 'wama' / 'tool_api.py').read_text(encoding='utf-8'))
         callers = set()
         for function in ast.walk(tree):
@@ -808,7 +810,7 @@ class EveryCreatorTakesAnAddressTest(TestCase):
             for node in ast.walk(function):
                 if isinstance(node, ast.Call) and getattr(node.func, 'id', None) == 'designate':
                     callers.add(function.name)
-        self.assertEqual({'_receive'}, callers)
+        self.assertEqual(set(), callers)
 
     def test_a_path_is_left_alone_and_an_address_follows_the_mode_of_its_app(self):
         from wama.common.utils import source_ingest
@@ -846,27 +848,26 @@ class EveryCreatorTakesAnAddressTest(TestCase):
         self.assertEqual(self.URL, download.call_args.args[1])
         self.assertIn('stopped here', out.get('error', ''), out)
 
-    def test_every_creator_with_a_file_argument_downloads_an_address(self):
-        """Derived from the registry : every `add_to_<app>` whose signature takes `file_path`."""
+    def test_every_file_port_of_every_creator_downloads_an_address(self):
+        """Derived from the registry : EVERY file port of every `add_to_<app>` (its signature, one
+        argument per port of the card — `_card_creator`), the secondary ones too (the melody of the
+        composer, the audio of the avatarizer, the result of the transcriber)."""
         import inspect
+
+        from wama.common.utils.app_modes import INPUT_TYPES
         user = _account('address_user', 'admin')
         seen = []
         for name, tool in sorted(T.TOOL_REGISTRY.items()):
-            if not name.startswith('add_to_') or 'file_path' not in inspect.signature(tool).parameters:
+            if not name.startswith('add_to_') or name in self.DECLARED_GAPS:
                 continue
-            if name in self.DECLARED_GAPS:
-                continue
-            seen.append(name)
-            with self.subTest(tool=name):
-                self._stopped_at_the_address(lambda: tool(user, file_path=self.URL))
-        self.assertGreaterEqual(len(seen), 7, seen)
-
-    def test_the_ports_of_the_composer_and_the_avatarizer_download_an_address_too(self):
-        user = _account('address_ports', 'admin')
-        self._stopped_at_the_address(
-            lambda: T.compose_music(user, 'a calm song', work_audio=self.URL))
-        self._stopped_at_the_address(
-            lambda: T.add_to_avatarizer(user, audio_path=self.URL, avatar_gallery_name='x'))
+            ports = [p for p, spec in inspect.signature(tool).parameters.items()
+                     if p not in ('user', 'domain') and spec.kind is spec.KEYWORD_ONLY
+                     and (INPUT_TYPES.get(p) or {}).get('kind') != 'text']
+            for port in ports:
+                seen.append((name, port))
+                with self.subTest(tool=name, port=port):
+                    self._stopped_at_the_address(lambda: tool(user, **{port: self.URL}))
+        self.assertGreaterEqual(len({name for name, _ in seen}), 10, seen)
 
 
 class TheCoverageIsShownTest(TestCase):

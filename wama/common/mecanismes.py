@@ -2166,6 +2166,28 @@ MECHANISMS = (
               'wama/common/utils/item_views.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §11',
               depends_on=('progress_views',)),
+    Mechanism('card_creator', "L'outil d'ajout de toute app, dérivé du dépôt de sa card",
+              "`add_to_<app>` de l'assistant, de l'API REST, du MCP et du nœud du Studio — DÉRIVÉ "
+              "pour toute app qui déclare sa triade, réelle, jumelle ou née d'un manifeste "
+              "(`tool_api._card_creator`, 2026-11-26, décision de Fabien : « s'appliquer "
+              "automatiquement à toute nouvelle application ») : un argument par port de la card "
+              "(`studio_node_ports`), `domain` quand l'app en a plusieurs, les réglages du schéma. "
+              "Le corps (`_deposit_on_card`) choisit le domaine (nommé, sinon la nature du fichier), "
+              "télécharge une adresse dans le mode du port (`source_ingest.port_mode`), résout le NOM "
+              "d'un asset de la médiathèque sur un port fichier, juge les réglages au schéma du "
+              "domaine (`_domain_settings`) et POSTE la vue de dépôt du domaine "
+              "(`served_route(app, 'upload', prefix=…)`) ; les ports du résultat se posent ensuite "
+              "par le geste de la card (`_RESULT_GESTURES`). La vue lit chaque port sous son id "
+              "(`media_paths.received_work` / `received_port` / `posted_text`, avec repli sur ses "
+              "noms historiques) ; un geste rejoué ne réécrit pas le volet de l'auteur "
+              "(`user_settings.replayed_gesture`) et ne lance rien. Remplace dix créateurs écrits à "
+              "la main, leurs quatre alias et les outils de jumelle re-ciblés (`REMOVAL_LEDGER R250`)",
+              'wama/tool_api.py',
+              'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §11',
+              annexes=('wama/common/utils/media_paths.py', 'wama/common/utils/user_settings.py',
+                       'wama/common/tests/tests_tool_item_contract.py',
+                       'wama/common/tests/tests_birth_settings.py'),
+              depends_on=('item_views',)),
     Mechanism('license_audit', 'Audit des licences',
               "Vue dérivée : licences+auteurs des 4 registres, traversée par app. "
               "Un modèle SERVI relève des conditions d'usage de son service, une ligne par "
@@ -2212,7 +2234,9 @@ MECHANISMS = (
               "studio) et sa fiche de catalogue, RELUES à chaque `substitute` réussi ; sa triade et "
               "son nœud du Studio viennent de SA déclaration (`inject_sandbox_registry(born=…)`, "
               "chemins écrits pour la clé et re-ciblés), son outil de création de la vue de dépôt "
-              "de sa card (`tool_api._born_creator`) — 2026-11-01, ROUTE §11 #43",
+              "de sa card (`tool_api._card_creator`, ex-`_born_creator`, 2026-11-01, ROUTE §11 "
+              "#43) — l'outil de création de TOUTE app depuis le 2026-11-26, jumelles comprises "
+              "(plus aucun outil de source re-ciblé)",
               'wama/common/sandbox.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/management/commands/app_sandbox.py',
                        'wama/common/tests/tests_sandbox_coherence.py',

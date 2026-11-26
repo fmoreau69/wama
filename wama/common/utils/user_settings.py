@@ -22,6 +22,7 @@ avec un avertissement au journal : l'appelant n'échoue jamais pour un réglage 
 ⚠ Un utilisateur sans identifiant (anonyme non enregistré) garde le comportement historique :
 cache seul.
 """
+import contextvars
 import json
 import logging
 
@@ -157,16 +158,39 @@ def read_panel_settings(user, app, params, *, key=None, extra=None, clean=None,
     return values
 
 
+#: Un geste de card REJOUÉ par un outil (assistant, Studio, API — `tool_api._card_creator`) : la vue
+#: de dépôt crée l'élément comme pour la card, mais ce que l'appel a posé n'est pas ce que
+#: l'utilisateur a réglé à l'écran — le volet n'en garde rien (`save_panel_settings`). Un nœud du
+#: Studio qui crée cent éléments ne réécrit pas cent fois le volet de son auteur.
+_REPLAYED_GESTURE = contextvars.ContextVar('wama_replayed_gesture', default=False)
+
+
+class replayed_gesture:
+    """`with replayed_gesture(): …` — la vue appelée rejoue un geste pour un outil : le volet de
+    l'auteur ne retient rien de ce qu'elle reçoit."""
+
+    def __enter__(self):
+        self._token = _REPLAYED_GESTURE.set(True)
+        return self
+
+    def __exit__(self, *exc):
+        _REPLAYED_GESTURE.reset(self._token)
+        return False
+
+
 def save_panel_settings(user, app, params, data, *, key=None, extra=None, clean=None,
                         domain=None) -> dict:
     """Garde comme préférences les réglages du volet présents dans `data` (par NOM), coercés par
     le schéma. Une clé absente n'écrase rien ; un nombre ou un interrupteur vide non plus.
+    Rien n'est gardé pendant un geste REJOUÉ par un outil (`replayed_gesture`).
 
     Une valeur ÉGALE au défaut déclaré n'est pas gardée : sa préférence est RETIRÉE. Le volet
     poste toutes ses valeurs à chaque geste ; garder les défauts les figerait, et un défaut
     changé plus tard dans le schéma n'atteindrait plus personne (la base ne porte que ce que
     l'utilisateur a POSÉ — même règle que `param_schema.effective_settings`).
     Rend ce qui a été gardé, par clé de stockage."""
+    if _REPLAYED_GESTURE.get():
+        return {}
     from wama.common.utils.param_schema import (_pget, coerce_schema_values, emptied_values,
                                                 panel_prefs_from_post)
     key, stored_as = _storage(app, params, key, extra, domain)

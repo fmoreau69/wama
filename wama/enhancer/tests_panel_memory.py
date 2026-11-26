@@ -33,8 +33,11 @@ def _call_tool(test, tool, user, kind, **kwargs):
     rel = f'users/{user.pk}/temp/sent{ext}'
     (Path(root) / rel).parent.mkdir(parents=True)
     (Path(root) / rel).write_bytes(content())
+    # The tool is DERIVED from the card (2026-11-26) : the file on one of its ports — the creator
+    # puts it on the port of the domain that takes its nature.
+    port = tool_api.primary_arg_name(tool)
     with test.settings(MEDIA_ROOT=root):
-        return getattr(tool_api, tool)(user, rel, **kwargs)
+        return tool_api.TOOL_REGISTRY[tool](user, **{port: rel}, **kwargs)
 
 
 class PanelMemoryTest(TestCase):

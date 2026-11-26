@@ -1081,3 +1081,27 @@ class ProvenanceIsReadAsItsCatalogueKeyTest(TestCase):
                          resolve_catalog_key('huggingface:Org/Unknown', 'imager'),
                          'an unknown key is left as it is')
         self.assertEqual('auto', resolve_catalog_key('auto', 'imager'))
+
+
+class TheModeIsDerivedFromWhatIsGivenTest(TestCase):
+    """The `generation_mode` of a generation is DERIVED from what is given (the card's rule,
+    `input_card.js`, held in the view since 2026-11-26 : `_derived_mode`) — every gesture, the
+    tool derived from the card included, which posts only its domain's mode (`txt2vid`). A mode
+    already refined (img2img, describe2img, file2img…) stays the posted one."""
+
+    def _mode(self, posted, data, files=False):
+        from django.test import RequestFactory
+        from wama.imager.views import _derived_mode
+        if files:
+            data = {**data, 'work_image__designated': 'users/1/temp/a.png'}
+        return _derived_mode(RequestFactory().post('/imager/create/', data), None, posted)
+
+    def test_each_way_in(self):
+        self.assertEqual('txt2img', self._mode('txt2img', {'prompt': 'a cat'}))
+        self.assertEqual('img2img', self._mode('txt2img', {'prompt': 'a cat'}, files=True))
+        self.assertEqual('describe2img', self._mode('txt2img', {}, files=True))
+        self.assertEqual('img2img', self._mode('txt2img', {'source_url': 'https://x.org/a.png'}))
+        self.assertEqual('txt2vid', self._mode('txt2vid', {'prompt': 'a cat'}))
+        self.assertEqual('img2vid', self._mode('txt2vid', {'prompt': 'a cat'}, files=True))
+        # Counter-check : a refined mode is the one posted.
+        self.assertEqual('style2img', self._mode('style2img', {'prompt': 'a cat'}, files=True))

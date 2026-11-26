@@ -170,12 +170,12 @@ class NoDoorWritesItsExtensionListTest(SimpleTestCase):
         return [enhancer_views.upload, enhancer_views.batch_preview, enhancer_views.batch_create,
                 enhancer_views.audio_upload, enhancer_tasks._derive_media_type,
                 filemanager_views.import_to_enhancer, filemanager_views.import_to_imager,
-                tool_api.add_to_enhancer, tool_api._domain_settings,
+                tool_api._deposit_on_card, tool_api._domain_settings,   # every app's creator
                 describer_views.upload, describer_views._describer_nature,
                 describer_views._source_nature, describer_workers._derive_detected_type,
                 describer_workers._settle_nature, content_analyzer,
                 filemanager_views.import_to_describer, filemanager_views.import_to_reader,
-                filemanager_views.import_to_synthesizer, tool_api.add_to_describer]
+                filemanager_views.import_to_synthesizer, tool_api._port_file]
 
     def test_no_arrival_door_lists_media_extensions(self):
         found = []

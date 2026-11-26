@@ -19,27 +19,38 @@ from wama.studio.services import generic_runner
 
 class NodePortsReachTheAppTest(TestCase):
 
+    #: A budget line, for the guards below : the real budget is EMPTY since 2026-11-26 (every tool is
+    #: derived from its card, one argument per port), the rule it holds is still measured.
+    LINE = {'imager': ['work_image']}
+
+    def test_the_real_budget_is_empty(self):
+        """Measured on the REAL catalogue by the nightly gesture `studio.node_ports_wired` : the
+        test base has no models, its node ports are not the tool's (drawn from the catalogue)."""
+        self.assertEqual({}, generic_runner.UNWIRED_PORTS_BUDGET)
+
     def test_the_budget_report_catches_growth_and_forgotten_lines(self):
-        budget = generic_runner.UNWIRED_PORTS_BUDGET
-        exact = lambda app: list(budget.get(app, []))
-        self.assertTrue(generic_runner.unwired_ports_report(exact)[0])
-        grown = lambda app: exact(app) + (['new_port'] if app == 'synthesizer' else [])
-        ok, detail = generic_runner.unwired_ports_report(grown)
-        self.assertFalse(ok)
-        self.assertIn('new_port', detail)
-        solved = lambda app: [] if app == 'imager' else exact(app)
-        ok, detail = generic_runner.unwired_ports_report(solved)
+        with patch.dict(generic_runner.UNWIRED_PORTS_BUDGET, self.LINE):
+            budget = generic_runner.UNWIRED_PORTS_BUDGET
+            exact = lambda app: list(budget.get(app, []))
+            self.assertTrue(generic_runner.unwired_ports_report(exact)[0])
+            grown = lambda app: exact(app) + (['new_port'] if app == 'synthesizer' else [])
+            ok, detail = generic_runner.unwired_ports_report(grown)
+            self.assertFalse(ok)
+            self.assertIn('new_port', detail)
+            solved = lambda app: [] if app == 'imager' else exact(app)
+            ok, detail = generic_runner.unwired_ports_report(solved)
         self.assertFalse(ok)
         self.assertIn('retirer du budget', detail)
 
     def test_a_twin_is_judged_on_its_source_line(self):
-        """A twin's tool IS its source's, retargeted: it inherits the source's unread ports and
-        settles with it — never a budget line of its own (red every night from 2026-10-30)."""
-        budget = generic_runner.UNWIRED_PORTS_BUDGET
+        """A twin settles with its source's line — never a budget line of its own (red every night
+        from 2026-10-30)."""
         registry = [{'label': 'imager_01', 'generated_from': 'imager'}]
         apps = {**generic_runner.GENERIC_APPS, 'imager_01': generic_runner.GENERIC_APPS['imager']}
+        budget = self.LINE
         inherited = lambda app: list(budget.get('imager' if app == 'imager_01' else app, []))
         with patch.dict(generic_runner.GENERIC_APPS, apps), \
+                patch.dict(generic_runner.UNWIRED_PORTS_BUDGET, self.LINE), \
                 patch('wama.common.sandbox.load_registry', return_value=registry):
             self.assertTrue(generic_runner.unwired_ports_report(inherited)[0])
             beyond = lambda app: inherited(app) + (['new_port'] if app == 'imager_01' else [])
@@ -67,13 +78,14 @@ class NodePortsReachTheAppTest(TestCase):
         args = call.call_args[0][1]
         self.assertEqual('users/1/doc.pdf', args['work_file'])
         self.assertEqual('users/1/voice.wav', args['reference_voice'])
-        self.assertNotIn('text', args, 'aucun prompt fourni : le fichier de travail suffit')
+        self.assertNotIn('prompt', args, 'aucun prompt fourni : le fichier de travail suffit')
 
     def test_a_prompt_still_goes_to_the_text_argument(self):
+        """The tool is derived from the card (2026-11-26) : the text arrives in the text port."""
         runner = generic_runner.build_generic_runner('synthesizer')
         with patch('wama.tool_api.execute_tool', return_value={'item_id': 7}) as call:
             runner['create'](None, {'prompt': 'Bonjour'}, {})
-        self.assertEqual('Bonjour', call.call_args[0][1]['text'])
+        self.assertEqual('Bonjour', call.call_args[0][1]['prompt'])
 
     @staticmethod
     def _model(key, task, optional):
@@ -85,11 +97,12 @@ class NodePortsReachTheAppTest(TestCase):
                                              'inputs_optional': list(optional)})
 
     def test_a_link_on_an_unwired_port_is_an_error_not_a_silence(self):
-        # L'imager garde un port non lu (`work_image`, au budget) ; le composer, qui servait
-        # d'exemple, lit son `work_audio` depuis le 2026-10-03.
+        # Every tool reads every port since 2026-11-26 (derived from its card) : a tool that would
+        # NOT read one (written by hand again) is simulated by its signature.
         self._model('imager:sdxl', 'image-to-image', ['work_image'])
         runner = generic_runner.build_generic_runner('imager')
-        with patch('wama.tool_api.execute_tool', return_value={'item_id': 7}):
+        with patch('wama.tool_api.execute_tool', return_value={'item_id': 7}), \
+                patch('wama.tool_api.tool_arg_names', return_value={'prompt'}):
             with self.assertRaisesMessage(ValueError, 'ne le lit pas encore'):
                 runner['create'](None, {'prompt': 'a cat', 'work_image': 'users/1/c.png'}, {})
 

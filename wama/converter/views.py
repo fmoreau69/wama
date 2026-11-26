@@ -250,10 +250,11 @@ def upload(request):
     # → batch_create, qui télécharge via upload_media_from_url et consolide). Voir
     # WamaBatchImport.ingestText (JS) câblé dans converter/index.html.
 
-    # Un fichier TÉLÉVERSÉ, ou DÉSIGNÉ (médiathèque, arbre) — brique `received_inputs` : une
-    # désignation se POINTE au lieu d'être recopiée, avec le même état du volet.
-    from wama.common.utils.media_paths import received_inputs
-    received = received_inputs(request, user, 'converter')
+    # Un fichier TÉLÉVERSÉ, ou DÉSIGNÉ (médiathèque, arbre) — sous l'id de son port de travail (le
+    # contrat du créateur dérivé de la card, 2026-11-26), ou sous `file`, le nom que la page poste
+    # (`media_paths.received_work`) : une désignation se POINTE au lieu d'être recopiée.
+    from wama.common.utils.media_paths import received_work
+    received = received_work(request, user, 'converter', 'file')
     if not received:
         return JsonResponse({'error': received.refusal or 'Aucun fichier fourni'}, status=400)
     file_obj = received[0]

@@ -2517,28 +2517,44 @@ via des fonctions Python dans `wama/tool_api.py`, exposées en HTTP via `wama/ur
 
 | Fonction | Signature | Description |
 |----------|-----------|-------------|
-| `add_to_<app>` | `(user, file_path, **params) → dict` | Copie un fichier dans la file et crée l'entrée DB |
+| `add_to_<app>` | `(user, <un argument par port>, [domain], **params) → dict` | Ajoute un élément comme un dépôt sur la card (DÉRIVÉ, voir ci-dessous) |
 | `start_<app>` | `(user, item_id=None) → dict` | Lance la tâche Celery (1 item ou tous les PENDING) |
 | `get_<app>_status` | `(user) → dict` | Retourne l'état des 10 derniers jobs |
 
 > **Corrigé le 2026-10-31, mesuré** : `start_<app>` et `get_<app>_status` ne s'écrivent PLUS —
 > ils sont construits pour chaque entrée DÉCLARÉE de `TRIAD_SPECS` (`wama/tool_api.py:4294`, 10
 > apps + `audio_enhancer` ; enregistrés par `_register_triads`, l.4696-4704) ; le lancer est
-> celui de la fabrique de l'app (`make_item_views`, §3.2). Seul `add_to_<app>` reste une glu
-> d'app (contrat de retour `item_id`). Critères `triad_specs` et `tool_api_item_id`.
+> celui de la fabrique de l'app (`make_item_views`, §3.2). ~~Seul `add_to_<app>` reste une glu
+> d'app (contrat de retour `item_id`).~~ Critères `triad_specs` et `tool_api_item_id`.
+>
+> ✅ **Plus aucune glu depuis le 2026-11-26 (décision de Fabien : « parfaitement aligné et
+> schéma-driven, et s'appliquer automatiquement à toute nouvelle application, y compris
+> l'assistant, le Studio »)** : `add_to_<app>` est DÉRIVÉ du dépôt de la card de l'app, pour toute
+> app qui déclare sa triade — réelle, jumelle, née d'un manifeste (`tool_api._card_creator`,
+> mécanisme `card_creator`). Un argument par PORT de la card (`studio_node_ports`, le contrat du
+> Studio : « un port arrive dans l'argument du même nom »), `domain` quand l'app en déclare
+> plusieurs, puis les réglages du schéma. L'outil POSTE la vue de dépôt du domaine
+> (`served_route(app, 'upload', prefix=…)`) : ce que la card fait à la naissance (lot d'un élément,
+> mesures, extraction de l'audio d'une vidéo, provenance), l'outil le fait, et rien d'autre — il ne
+> lance rien (`start_<surface>`, le ▶). Ce que l'app doit tenir pour l'avoir :
+> - sa vue de dépôt (`upload`, ou ses graphies admises `create` / `generate`, `urls_gen.ROUTE_ALIASES`)
+>   lit chaque port sous son id — `media_paths.received_work` (le fichier de travail),
+>   `received_port` (un port nommé), `posted_text` (un port texte), chacun avec repli sur les noms que
+>   sa page poste encore (`file`, `voice_reference`…) ;
+> - elle rend `id` à la racine de sa réponse ;
+> - ce que la page décidait côté navigateur se décide dans la vue (le `generation_mode` de l'imager,
+>   `_derived_mode`).
+> Mesuré à parité avant/après sur les dix apps (`PROJECT_STATUS §PALIER 2026-11-26`).
 
-**Exceptions acceptées :**
-- Apps de **génération de contenu** (Imager, Composer, Synthesizer) : remplacent `add_to_<app>` par
-  une fonction qui crée ET enregistre le contenu à générer (prompt/texte). Le nom peut différer
-  (ex: `create_image`, `compose_music`, `synthesize_text`).
-- ~~Composer : `compose_music` crée + démarre en une seule fois — acceptable pour la génération rapide,
-  mais idéalement à séparer en `add_to_composer` + `start_composer` (marqué ⚠️).~~ Séparé :
-  `add_to_composer` est au registre (`tool_api.py:4150`), `start_composer` vient de `TRIAD_SPECS`
-  (relevé le 2026-10-31).
+~~**Exceptions acceptées :**~~ **RETIRÉES le 2026-11-26** (`REMOVAL_LEDGER R250`) : `create_image`,
+`compose_music`, `synthesize_text`, `convert_file` et leurs façades `add_to_<app>` n'existent plus ;
+le composer et le converter ne lancent plus rien à l'ajout (aucune card ne lance au dépôt).
 
 ### 17.3 Contrat des retours
 
-**`add_to_<app>`** → `{"<app>_id": int, "filename": str, ..., "status": "pending"}` ou `{"error": str}`
+**`add_to_<app>`** → `{"item_id": int, "<id_kwarg de la surface>": int, "surface": str, "domain": str,
+"status": str, …ce que la vue de dépôt rend}` ou `{"error": str}` (2026-11-26 : le créateur dérivé
+de la card — `surface` est la famille que suivent `start_<surface>` / `get_<surface>_status`)
 
 **`start_<app>`** → `{"task_id": str, "status": "started", "<app>_id": int}` (1 item)
                   ou `{"status": "started", "count": int, "ids": [int, ...]}` (tous)

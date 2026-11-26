@@ -294,10 +294,11 @@ def upload(request):
     # Check for URL upload first
     media_url = request.POST.get('media_url', '').strip()
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    # Un fichier TÉLÉVERSÉ, ou DÉSIGNÉ (médiathèque, arbre) — brique `received_inputs` : une
-    # désignation se POINTE au lieu d'être recopiée, avec le même état du volet.
-    from wama.common.utils.media_paths import received_inputs
-    received = received_inputs(request, user, 'enhancer')
+    # Un fichier TÉLÉVERSÉ, ou DÉSIGNÉ (médiathèque, arbre) — sous l'id d'un port de travail du
+    # domaine image / vidéo (le contrat du créateur dérivé de la card, 2026-11-26), ou sous `file`,
+    # le nom que la page poste (`media_paths.received_work`) : une désignation se POINTE.
+    from wama.common.utils.media_paths import received_work
+    received = received_work(request, user, 'enhancer', 'file', domain='image_video')
     file = received[0] if received else None
 
     if not file and not media_url:
@@ -733,8 +734,10 @@ def audio_upload(request):
     # `request.FILES['file']` : la désignation (28/09 — la tuile Médiathèque et le glisser depuis
     # l'arbre POINTENT au lieu de recopier) tombait en « Bad Request » sur la card AUDIO, en v3
     # comme en v4. Trouvé par le geste `enhancer.tree_drop`, le premier à mesurer cette card.
-    from wama.common.utils.media_paths import received_inputs
-    received = received_inputs(request, user, 'enhancer')
+    # Sous l'id d'un port de travail du domaine audio (le contrat du créateur dérivé de la card,
+    # 2026-11-26), ou sous `file`, le nom que la page poste (`media_paths.received_work`).
+    from wama.common.utils.media_paths import received_work
+    received = received_work(request, user, 'enhancer', 'file', domain='audio')
     if not received:
         return JsonResponse({'error': received.refusal or 'Aucun fichier fourni'}, status=400)
     file = received[0]

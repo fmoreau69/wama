@@ -192,10 +192,11 @@ def upload(request):
 
     # Check for URL upload first
     media_url = request.POST.get('media_url', '').strip()
-    # Un fichier TÉLÉVERSÉ, ou DÉSIGNÉ (médiathèque, arbre) — brique `received_inputs` : une
-    # désignation se POINTE au lieu d'être recopiée, avec le même état du volet.
-    from wama.common.utils.media_paths import received_inputs
-    received = received_inputs(request, user, 'describer')
+    # Un fichier TÉLÉVERSÉ, ou DÉSIGNÉ (médiathèque, arbre) — sous l'id de son port de travail (le
+    # contrat du créateur dérivé de la card, 2026-11-26), ou sous `file`, le nom que la page poste
+    # (`media_paths.received_work`) : une désignation se POINTE au lieu d'être recopiée.
+    from wama.common.utils.media_paths import received_work
+    received = received_work(request, user, 'describer', 'file')
     uploaded_file = received[0] if received else None
 
     if not uploaded_file and not media_url:

@@ -111,7 +111,7 @@ class Command(BaseCommand):
             out['studio_node'] = None if conf is None else {
                 'input_kinds': conf.get('input_kinds'), 'primary_input': conf.get('primary_input'),
                 'output_type': conf.get('output_type'), 'io_derived': conf.get('_io_derived'),
-                'auto_start': bool(conf.get('auto_start')),
+                'param_ports': conf.get('param_ports') or {},
                 'params_module': conf.get('params_module'),
             }
         except Exception as e:

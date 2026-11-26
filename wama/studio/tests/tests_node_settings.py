@@ -205,19 +205,19 @@ class EveryShownSettingReachesTheElementTest(TestCase):
         path.write_bytes(content())
         return {kind: rel}
 
-    # Aucune tâche réelle : le converter LANCE la sienne à la création (`auto_start`).
+    # Aucune tâche réelle (un outil d'ajout ne lance plus rien depuis le 2026-11-26 ; garde de prudence).
     @mock.patch('celery.app.task.Task.apply_async', return_value=mock.Mock(id='no-task'))
     def test_every_shown_setting_reaches_the_element(self, _no_task):
         from django.db import transaction
         from wama.common.app_registry import APP_CATALOG
         from wama.common.utils.detail_registry import DetailRegistry
-        from wama.common.utils.media_paths import designate
         from wama.common.utils.param_schema import coerce_schema_values, schema_for_app
         from wama.studio.services.generic_runner import GENERIC_APPS, build_generic_runner
         measured, lost = [], {}
-        # L'avatar NOMMÉ se résout dans la médiathèque de l'utilisateur ; ici, un témoin désigné.
-        named_avatar = lambda name, user: designate(self._input('anonymizer')['image'], user, 'avatarizer')
-        with mock.patch('wama.avatarizer.system_assets.designate_named_avatar', named_avatar):
+        # L'avatar NOMMÉ se résout dans la médiathèque de l'utilisateur (l'outil dérivé de la card,
+        # sur son port image) ; ici, un témoin.
+        named_avatar = lambda user, nature, name: self._input('anonymizer')['image']
+        with mock.patch('wama.media_library.services.resolve_visible_asset', named_avatar):
             for app in sorted(GENERIC_APPS):
                 if (APP_CATALOG.get(app) or {}).get('generated_from'):
                     continue      # jumelle : comparée à sa source, jamais mesurée seule
@@ -250,15 +250,18 @@ class EveryShownSettingReachesTheElementTest(TestCase):
     @mock.patch('celery.app.task.Task.apply_async', return_value=mock.Mock(id='no-task'))
     def test_a_long_duration_is_capped_by_the_model_never_by_the_tool(self, _no_task):
         """Le créateur du composer réduisait toute durée à 30 s (`min(30.0, …)`) quand le schéma
-        offre 10 min et que seul le MODÈLE plafonne (`clamp_duration`, capacité déclarée)."""
+        offre 10 min et que seul le MODÈLE plafonne (`clamp_duration`, capacité déclarée). Depuis
+        le 2026-11-26 l'outil EST le dépôt de la card : la durée naît bornée par le schéma, et le
+        plafond du modèle se pose au lancement (`composer_rules`, la règle de la card)."""
         from wama.composer.models import ComposerGeneration
-        from wama.tool_api import compose_music
-        long = compose_music(self.user, 'wama', model='auto:text-to-music', duration=120)
+        from wama.composer.utils.model_config import clamp_duration
+        from wama.tool_api import TOOL_REGISTRY
+        long = TOOL_REGISTRY['add_to_composer'](self.user, prompt='wama',
+                                                model='auto:text-to-music', duration=120)
         self.assertFalse(long.get('error'), long)
         self.assertEqual(120, ComposerGeneration.objects.get(pk=long['item_id']).duration)
-        short = compose_music(self.user, 'wama', model='musicgen-small', duration=120)
-        self.assertEqual(30, ComposerGeneration.objects.get(pk=short['item_id']).duration,
-                         'contre-épreuve : MusicGen déclare 30 s, il reste plafonné')
+        self.assertEqual(30, clamp_duration(120, 'composer:musicgen-small'),
+                         'contre-épreuve : MusicGen déclare 30 s, il reste plafonné au lancement')
 
 
 class AProcessNodeIsTheStepOfItsCardTest(TestCase):
@@ -296,14 +299,12 @@ class AProcessNodeIsTheStepOfItsCardTest(TestCase):
         self.assertGreater(measured, 15, 'non-vacuité : les étapes des pipelines d’app')
 
     def _composer_card(self, owner):
-        """Une card du composer déjà produite (son créateur la lance aussitôt : elle est posée
-        terminée, comme une card dont on relance une étape)."""
+        """Une card du composer déjà produite (posée terminée, comme une card dont on relance une
+        étape). Posée en base : ce qui est mesuré ici est le ▶ de l'étape, pas l'ajout (que l'outil
+        dérivé de la card refuserait à un compte sans le rôle de l'app)."""
         from wama.composer.models import ComposerGeneration
-        from wama.tool_api import compose_music
-        with mock.patch('celery.app.task.Task.apply_async', return_value=mock.Mock(id='no-task')):
-            item_id = compose_music(owner, 'wama', model='auto:text-to-music', duration=60)['item_id']
-        ComposerGeneration.objects.filter(pk=item_id).update(status='SUCCESS')
-        return item_id
+        return ComposerGeneration.objects.create(user=owner, prompt='wama', model='auto:text-to-music',
+                                                 duration=60, status='SUCCESS').pk
 
     def _render_step(self):
         from wama.common.catalog import function_catalog as fc

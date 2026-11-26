@@ -25,11 +25,18 @@ from wama.common.utils.detail_registry import DetailRegistry
 
 
 def _creators():
-    """Every tool that CREATES a queue element : the `add_to_*` of a family, and what they wrap."""
+    """Every tool that CREATES a queue element : the `add_to_*` of a family, and what they wrap —
+    the creator DERIVED from the card (`tool_api._card_creator`, every app since 2026-11-26) is read
+    through its body, `_deposit_on_card`."""
     found = {}
     for name, fn in tool_api.TOOL_REGISTRY.items():
         if tool_api.tool_role(name) == 'add' and tool_api.tool_family(name):
-            found[name] = inspect.unwrap(fn)
+            fn = inspect.unwrap(fn)
+            # The code OF the creator `_card_creator` builds — exactly : `_register_card_creators`
+            # holds the same words, a function written there passed for derived (counter-proof).
+            derived = (getattr(getattr(fn, '__code__', None), 'co_qualname', '')
+                       == '_card_creator.<locals>.creator')
+            found[name] = tool_api._deposit_on_card if derived else fn
     return found
 
 
@@ -102,8 +109,16 @@ class EveryFamilyHasItsDetailAndItsStatusTest(SimpleTestCase):
                    and surface_app(name[len('add_to_'):]) != name[len('add_to_'):]]
         self.assertEqual([], doubles)
 
-    def test_a_historical_creator_has_the_family_of_its_app(self):
-        self.assertEqual('imager', tool_api.tool_family('create_image'))
+    def test_every_app_creator_is_derived_from_its_card(self):
+        """2026-11-26 (Fabien : « parfaitement aligné et schéma-driven, et s'appliquer
+        automatiquement à toute nouvelle application ») : the `add_to_<app>` of EVERY app — real,
+        twin, born from a manifest — is the creator derived from its card (`_card_creator`), one
+        argument per input port. No creator is written by hand, no historical name remains."""
+        written = sorted(name for name, fn in _creators().items()
+                         if fn is not tool_api._deposit_on_card)
+        self.assertEqual([], written)
+        for historical in ('create_image', 'synthesize_text', 'compose_music', 'convert_file'):
+            self.assertNotIn(historical, tool_api.TOOL_REGISTRY)
         self.assertIsNone(tool_api.tool_family('add_to_media_library'), 'transverse')
         self.assertIsNone(tool_api.tool_family('list_user_files'))
 
@@ -112,11 +127,7 @@ class ItemsOfStepTest(SimpleTestCase):
 
     def test_a_creation_designates_its_item(self):
         self.assertEqual([('anonymizer', 36)], tool_api.items_of_step(
-            'add_to_anonymizer', {'file_path': 'x.jpg'}, {'item_id': 36, 'status': 'queued'}))
-
-    def test_a_historical_creator_designates_its_item_too(self):
-        self.assertEqual([('imager', 9)], tool_api.items_of_step(
-            'create_image', {'prompt': 'p'}, {'generation_id': 9, 'item_id': 9}))
+            'add_to_anonymizer', {'work_file': 'x.jpg'}, {'item_id': 36, 'status': 'pending'}))
 
     def test_a_start_designates_the_element_named_by_its_main_argument(self):
         argument = tool_api.primary_arg_name('start_anonymizer')
@@ -185,13 +196,16 @@ class OneCreatorForEveryDomainTest(TestCase):
         self.user = get_user_model().objects.create_superuser('one_creator', password='x')
         self.temp = Path(root) / 'users' / str(self.user.pk) / 'temp'
         self.temp.mkdir(parents=True)
+        # A file port of the tool, read at its signature (the ports come from the catalogue) : the
+        # creator puts the file on the port of the DOMAIN that takes its nature.
+        self.port = tool_api.primary_arg_name('add_to_enhancer')
 
     def _file(self, name, content=b'RIFF\x24\x00\x00\x00WAVEfmt ' + b'\0' * 32):
         (self.temp / name).write_bytes(content)
         return f'users/{self.user.pk}/temp/{name}'
 
     def test_an_audio_file_is_born_in_the_audio_domain_with_its_item_id(self):
-        result = tool_api.execute_tool('add_to_enhancer', {'file_path': self._file('voix.wav')},
+        result = tool_api.execute_tool('add_to_enhancer', {self.port: self._file('voix.wav')},
                                        self.user, model_call=True)
         self.assertNotIn('error', result)
         self.assertEqual(('audio_enhancer', 'audio'), (result['surface'], result['domain']))
@@ -200,7 +214,7 @@ class OneCreatorForEveryDomainTest(TestCase):
         self.assertTrue(model.objects.filter(pk=result['item_id'], user=self.user).exists())
 
     def test_an_image_file_is_born_in_the_image_domain(self):
-        result = tool_api.execute_tool('add_to_enhancer', {'file_path': self._file('photo.png', b'x')},
+        result = tool_api.execute_tool('add_to_enhancer', {self.port: self._file('photo.png', b'x')},
                                        self.user, model_call=True)
         self.assertNotIn('error', result)
         self.assertEqual(('enhancer', 'image', result['item_id']),
@@ -209,7 +223,7 @@ class OneCreatorForEveryDomainTest(TestCase):
     def test_a_setting_of_the_other_domain_is_turned_down_and_nothing_is_created(self):
         model = DetailRegistry.get('audio_enhancer')['model']
         before = model.objects.count()
-        result = tool_api.execute_tool('add_to_enhancer', {'file_path': self._file('voix.wav'),
+        result = tool_api.execute_tool('add_to_enhancer', {self.port: self._file('voix.wav'),
                                                            'upscale_factor': 4},
                                        self.user, model_call=True)
         self.assertIn('upscale_factor', result.get('error', ''))
@@ -218,11 +232,11 @@ class OneCreatorForEveryDomainTest(TestCase):
     def test_a_value_of_the_receiving_domain_is_judged_on_its_own_schema(self):
         """`output_format` exists in both domains : `png` is offered to an image, never to an
         audio — the announcement is the union, the gate is the receiving domain's."""
-        result = tool_api.execute_tool('add_to_enhancer', {'file_path': self._file('voix.wav'),
+        result = tool_api.execute_tool('add_to_enhancer', {self.port: self._file('voix.wav'),
                                                            'output_format': 'png'},
                                        self.user, model_call=True)
         self.assertIn('output_format', result.get('error', ''))
-        result = tool_api.execute_tool('add_to_enhancer', {'file_path': self._file('voix2.wav'),
+        result = tool_api.execute_tool('add_to_enhancer', {self.port: self._file('voix2.wav'),
                                                            'output_format': 'flac'},
                                        self.user, model_call=True)
         self.assertNotIn('error', result)
@@ -230,7 +244,7 @@ class OneCreatorForEveryDomainTest(TestCase):
         self.assertEqual('flac', model.objects.get(pk=result['item_id']).output_format)
 
     def test_a_named_domain_that_does_not_take_the_file_turns_it_down(self):
-        result = tool_api.execute_tool('add_to_enhancer', {'file_path': self._file('photo.png', b'x'),
+        result = tool_api.execute_tool('add_to_enhancer', {self.port: self._file('photo.png', b'x'),
                                                            'domain': 'audio'},
                                        self.user, model_call=True)
         self.assertIn('error', result)
@@ -241,7 +255,7 @@ class OneCreatorForEveryDomainTest(TestCase):
         followed by the twin's triad. Twins are not versioned : skipped on a fresh clone."""
         if 'add_to_enhancer_01' not in tool_api.TOOL_REGISTRY:
             self.skipTest('no enhancer_01 twin installed')
-        result = tool_api.execute_tool('add_to_enhancer_01', {'file_path': self._file('voix.wav')},
+        result = tool_api.execute_tool('add_to_enhancer_01', {self.port: self._file('voix.wav')},
                                        self.user, model_call=True)
         self.assertNotIn('error', result)
         self.assertEqual('audio_enhancer_01', result['surface'])
@@ -253,5 +267,42 @@ class OneCreatorForEveryDomainTest(TestCase):
 
     def test_the_next_step_is_the_start_of_the_surface_created(self):
         result = tool_api.relay_next_step('add_to_enhancer', tool_api.execute_tool(
-            'add_to_enhancer', {'file_path': self._file('voix.wav')}, self.user, model_call=True))
+            'add_to_enhancer', {self.port: self._file('voix.wav')}, self.user, model_call=True))
         self.assertEqual('start_audio_enhancer', result['next_step'])
+
+
+class ResultPortsAreLaidByTheCardGestureTest(TestCase):
+    """The ports of the RESULT (`app_result_ports` : a reference, a result made elsewhere) do not go
+    through the deposit : the card lays them on the CREATED element by their common gesture (its
+    « … » menu, `tool_api._RESULT_GESTURES`). The creator derived from the card does the same — the
+    deposit view would have ignored them in silence."""
+
+    PORTS = {'inputs': [
+        {'id': 'work_audio', 'group': 'travail', 'types': ['audio', 'video'], 'multi': True},
+        {'id': 'work_result', 'group': 'travail', 'types': ['document'], 'multi': False}]}
+
+    def test_a_result_port_is_laid_on_the_created_element_by_the_card_gesture(self):
+        from unittest import mock
+        from django.contrib.auth import get_user_model
+        user = get_user_model().objects.create_user('result_ports', password='x')
+        with mock.patch('wama.common.app_registry.studio_node_ports', return_value=self.PORTS):
+            creator = tool_api._card_creator('transcriber')
+        disk = {'users/1/a.wav': '/m/users/1/a.wav', 'users/1/r.txt': '/m/users/1/r.txt'}
+        with mock.patch.object(tool_api, '_refus_app', return_value=None), \
+                mock.patch('wama.common.app_registry.app_result_ports',
+                           return_value=[{'id': 'work_result'}]), \
+                mock.patch('wama.common.utils.media_paths.check_designation',
+                           side_effect=lambda p, u: p), \
+                mock.patch('wama.common.utils.media_paths.designated_file',
+                           side_effect=lambda p, u: disk[p]), \
+                mock.patch.object(tool_api, '_poster_vue',
+                                  return_value=(200, {'id': 5, 'status': 'DRAFT'})) as post, \
+                mock.patch.object(tool_api, '_result_gesture', return_value=None) as gesture:
+            out = creator(user, work_audio='users/1/a.wav', work_result='users/1/r.txt')
+        self.assertNotIn('error', out, out)
+        posted = post.call_args.args[4]
+        self.assertIn('work_audio__designated', posted)
+        self.assertNotIn('work_result__designated', posted, 'a result port never goes to the deposit')
+        self.assertTrue(gesture.called, 'the result port is laid by the card gesture')
+        self.assertEqual((user, 'transcriber', 5, 'work_result', 'users/1/r.txt'),
+                         gesture.call_args.args)

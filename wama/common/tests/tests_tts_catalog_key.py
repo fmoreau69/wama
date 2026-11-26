@@ -46,12 +46,20 @@ class TtsCatalogKeyTest(SimpleTestCase):
 class AssistantToolStoresTheCatalogKeyTest(TestCase):
     """La voie de l'ASSISTANT : un modèle cité par son nom court est stocké en clé de catalogue."""
 
-    def test_synthesize_text_normalises_a_short_name(self):
+    def test_the_tool_normalises_a_short_name(self):
+        """The tool is the creator DERIVED from the card (2026-11-26) : the short name becomes the
+        catalogue key, then the model is judged on the catalogue — one line of it here."""
+        from wama.model_manager.models import AIModel
         from wama.synthesizer.models import VoiceSynthesis
-        from wama.tool_api import synthesize_text
-        user = User.objects.create_user('tts_key_user', password='x')
-        result = synthesize_text(user, 'Bonjour à tous.', tts_model='coqui-xtts')
-        synthesis = VoiceSynthesis.objects.get(pk=result['synthesis_id'])
+        from wama.tool_api import TOOL_REGISTRY
+        AIModel.objects.update_or_create(model_key='synthesizer:coqui-xtts', defaults=dict(
+            name='XTTS v2', model_type='speech', source='synthesizer', is_available=True,
+            is_downloaded=True, capabilities={'task': 'text-to-speech'}))
+        user = User.objects.create_superuser('tts_key_user', password='x')
+        result = TOOL_REGISTRY['add_to_synthesizer'](user, prompt='Bonjour à tous.',
+                                                     tts_model='coqui-xtts')
+        self.assertNotIn('error', result, result)
+        synthesis = VoiceSynthesis.objects.get(pk=result['item_id'])
         try:
             self.assertEqual(synthesis.tts_model, 'synthesizer:coqui-xtts')
         finally:

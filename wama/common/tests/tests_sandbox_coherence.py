@@ -952,13 +952,13 @@ class TwinGridReadsWhatIsInjectedTest(SimpleTestCase):
             self.assertIs(checker._access_policy(checker._AppFiles('writer_98'))[0], False)
 
     def test_the_creator_of_an_app_born_from_a_manifest_is_read_where_it_is_served(self):
-        """`add_to_<app>` d'une app née d'un manifeste est DÉRIVÉ de la vue de dépôt de sa card
-        (`tool_api._born_creator`) : ni `def` de niveau module, ni `__wrapped__`. Le critère lit
-        la source de ce qui est servi ; contre-épreuve : un outil quelconque qui ne rend pas
-        `item_id` reste rouge."""
+        """`add_to_<app>` d'une app née d'un manifeste — de TOUTE app depuis le 2026-11-26 — est
+        DÉRIVÉ de la vue de dépôt de sa card (`tool_api._card_creator`) : ni `def` de niveau module,
+        ni `__wrapped__`. Le critère lit ce qui est servi ; contre-épreuve : un outil quelconque qui
+        ne rend pas `item_id` reste rouge."""
         from wama import tool_api
         from wama.common.services import conformity_checker as checker
-        born = tool_api._born_creator('writer_99')
+        born = tool_api._card_creator('writer_99')
 
         def other(user, **kwargs):
             return {'id': 1}

@@ -63,31 +63,43 @@ class NamedAvatarTest(TestCase):
 
     # ── les trois voies ──
 
+    def _grant_the_app(self):
+        from django.contrib.auth.models import Group
+        from wama.accounts.permissions import DEFAULT_APP_ACCESS, GROUP_PREFIX
+        for role in (DEFAULT_APP_ACCESS.get('avatarizer') or {}).get('roles', []):
+            self.me.groups.add(Group.objects.get_or_create(name=f'{GROUP_PREFIX}{role}')[0])
+
+    def _tool(self):
+        """L'outil d'ajout, DÉRIVÉ de la card (2026-11-26) : le texte à dire sur son port texte,
+        l'avatar NOMMÉ sur son port image — un nom d'asset de la médiathèque, comme un chemin."""
+        from wama import tool_api
+        from wama.common.utils.app_modes import INPUT_TYPES
+        args = tool_api.tool_arg_names('add_to_avatarizer')
+        if 'work_image' not in args:
+            self.skipTest("l'avatar vient des modèles du catalogue (MuseTalk) : aucun ici")
+        text = next(a for a in args if (INPUT_TYPES.get(a) or {}).get('kind') == 'text')
+        self._grant_the_app()
+        return lambda name: tool_api.TOOL_REGISTRY['add_to_avatarizer'](
+            self.me, **{text: 'Bonjour.', 'work_image': name})
+
     def test_the_assistant_tool_points_the_named_avatar(self):
-        from wama.tool_api import add_to_avatarizer
         from wama.avatarizer.models import AvatarJob
-        result = add_to_avatarizer(self.me, text_content='Bonjour.', avatar_source='gallery',
-                                   avatar_gallery_name='colleague')
+        result = self._tool()('colleague')
         self.assertNotIn('error', result, result)
-        job = AvatarJob.objects.get(pk=result['job_id'])
+        job = AvatarJob.objects.get(pk=result['item_id'])
         # L'avatar se lit au lecteur commun des entrées (table, 2026-11-25), plus à sa colonne.
         self.assertEqual(('upload', self.shared, ''),
                          (job.avatar_source, job.avatar_file.name, job.avatar_gallery_name))
 
     def test_the_assistant_tool_rejects_an_unknown_name_before_creating(self):
-        from wama.tool_api import add_to_avatarizer
         from wama.avatarizer.models import AvatarJob
-        result = add_to_avatarizer(self.me, text_content='Bonjour.', avatar_source='gallery',
-                                   avatar_gallery_name='secret')
+        result = self._tool()('secret')
         self.assertIn('introuvable', result.get('error', ''))
         self.assertFalse(AvatarJob.objects.filter(user=self.me).exists())
 
     def test_the_create_view_points_a_posted_name(self):
-        from django.contrib.auth.models import Group
-        from wama.accounts.permissions import DEFAULT_APP_ACCESS, GROUP_PREFIX
         from wama.avatarizer.models import AvatarJob
-        for role in (DEFAULT_APP_ACCESS.get('avatarizer') or {}).get('roles', []):
-            self.me.groups.add(Group.objects.get_or_create(name=f'{GROUP_PREFIX}{role}')[0])
+        self._grant_the_app()
         self.client.force_login(self.me)
         response = self.client.post('/avatarizer/create/', {'text_content': 'Bonjour.',
                                                             'avatar_gallery_name': 'face.png'})

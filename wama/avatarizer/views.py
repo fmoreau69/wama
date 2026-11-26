@@ -181,11 +181,14 @@ def create(request):
     # MODES_QUEUE_UX §2bis). Règle UNIQUE, partagée avec la ligne de batch et tool_api :
     # une entrée AUDIO (fichier/URL — matériau explicite) prime, sinon le texte déclenche
     # le pipeline TTS→animation. Un `mode` encore posté n'est plus l'autorité.
-    text_content = request.POST.get('text_content', '').strip()
-    # Les deux PORTS (audio, image d'avatar) reçoivent un fichier téléversé ou DÉSIGNÉ
-    # (médiathèque, arbre) — brique `received_inputs` (2026-09-28) : une désignation se POINTE.
-    from wama.common.utils.media_paths import received_inputs
-    audio_received = received_inputs(request, user, 'avatarizer', field='audio_input')
+    # Chaque PORT reçoit sous son id (le contrat du créateur dérivé de la card, 2026-11-26) — le
+    # texte à dire sous le port texte que la card déclare, l'audio sous `work_audio`, l'avatar sous
+    # `work_image` / `work_object3d` (`register_port_fields(…, table=…)`) — ou sous le nom que la
+    # page poste (`text_content`, `audio_input`, `avatar_upload`). Un fichier téléversé ou DÉSIGNÉ
+    # (médiathèque, arbre) : une désignation se POINTE.
+    from wama.common.utils.media_paths import posted_text, received_port
+    text_content = posted_text(request, 'avatarizer', 'text_content')
+    audio_received = received_port(request, user, 'avatarizer', 'work_audio', 'audio_input')
     audio_file = audio_received[0] if audio_received else None
     if audio_received.refusal and not audio_file:
         return JsonResponse({'error': audio_received.refusal}, status=400)
@@ -239,7 +242,10 @@ def create(request):
         except InputRefused as e:
             return JsonResponse({'error': str(e)}, status=400)
     else:
-        avatar_received = received_inputs(request, user, 'avatarizer', field='avatar_upload')
+        # L'avatar est UNE entrée disputée par deux ports (photo OU objet 3D) : le premier posté
+        # l'emporte, et `set_avatar` le range sur le port de sa NATURE (`store_by_nature`).
+        avatar_received = received_port(request, user, 'avatarizer', 'work_image', 'work_object3d',
+                                        'avatar_upload')
         avatar_file = avatar_received[0] if avatar_received else None
         if not avatar_file:
             return JsonResponse({'error': avatar_received.refusal

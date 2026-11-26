@@ -1012,10 +1012,11 @@ def _access(app_id):
 
 
 def _studio(app_id):
-    """Facette studio = le DÉCLARATIF de l'entrée GENERIC_APPS : pointeur params
-    (params_module/params_attr), auto_start, signatures historiques (input_kwarg,
-    fixed_kwargs, extra_params_spec) et RÉTRÉCISSEMENT d'E/S (io_scope + les champs E/S
-    déclarés). Les E/S DÉRIVÉES des ports (§10.1, tracées `_io_derived`) sont EXCLUES :
+    """Facette studio = le DÉCLARATIF de l'entrée GENERIC_APPS (`STUDIO_FIELDS`) : pointeur params
+    (params_module/params_attr), réglages propres au nœud (extra_params_spec) et les ports qu'ils
+    remplissent (param_ports), RÉTRÉCISSEMENT d'E/S (io_scope + les champs E/S déclarés).
+    `auto_start`, `input_kwarg`, `fixed_kwargs` sont retirés le 2026-11-26 (`REMOVAL_LEDGER R250` :
+    l'outil d'ajout est dérivé de la card). Les E/S DÉRIVÉES des ports (§10.1, tracées `_io_derived`) sont EXCLUES :
     elles se reconstruisent à l'import — même règle que la couleur d'APP_CATALOG, le
     manifeste ne porte que ce qui se déclare. (Jusqu'au 2026-08-11 la facette recopiait
     les E/S effectives sans distinguer dérivé/déclaré, et perdait le pointeur params et
@@ -1027,11 +1028,10 @@ def _studio(app_id):
             return None
         derived = set(g.get('_io_derived') or ())
         out = {'runnable': True}
-        for c in ('params_module', 'params_attr', 'auto_start', 'input_kwarg',
-                  'fixed_kwargs', 'io_scope', 'extra_params_spec'):
+        for c in (f for f in STUDIO_FIELDS if f not in _STUDIO_IO_FIELDS):
             if g.get(c) is not None:
                 out[c] = g.get(c)
-        for c in ('input_kinds', 'primary_input', 'output_type'):
+        for c in _STUDIO_IO_FIELDS:
             if c in g and c not in derived and g.get(c) is not None:
                 v = g.get(c)
                 out[c] = list(v) if isinstance(v, (list, tuple)) else v
@@ -1239,8 +1239,10 @@ def _capabilities_target(manifest: dict) -> dict:
 
 # Champs DÉCLARATIFS d'une entrée GENERIC_APPS (facette studio) — les E/S dérivées des ports
 # (§10.1) n'y figurent JAMAIS : elles se reconstruisent à l'import (`_fill_io_from_ports`).
-STUDIO_FIELDS = ('params_module', 'params_attr', 'auto_start', 'input_kwarg', 'fixed_kwargs',
-                 'input_kinds', 'primary_input', 'output_type', 'io_scope', 'extra_params_spec')
+STUDIO_FIELDS = ('params_module', 'params_attr', 'input_kinds', 'primary_input', 'output_type',
+                 'io_scope', 'extra_params_spec', 'param_ports')
+#: Les champs d'E/S parmi eux — gardés à la facette seulement quand ils sont DÉCLARÉS (`_studio`).
+_STUDIO_IO_FIELDS = ('input_kinds', 'primary_input', 'output_type')
 
 
 def _studio_target(manifest: dict) -> dict:

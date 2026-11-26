@@ -904,11 +904,13 @@ index = IndexView.as_view()   # la même vue sous forme de FONCTION (route `view
     # les sources (`enhancer.upload`, 2026-09-30) et la forme attache ci-dessous. Lire
     # `request.FILES` seul répondait « Aucun fichier fourni » au glisser depuis l'arbre
     # (`<jumelle>.tree_drop`, 2026-11-18).
+    # Sous l'id du port de travail que la card déclare (`received_work` : le contrat du créateur
+    # dérivé de la card, 2026-11-26), ou sous `file`, le nom d'une dépose (`WamaImport`).
     vues['upload'] = f'''@require_POST
 def upload(request):
-    from wama.common.utils.media_paths import received_inputs
+    from wama.common.utils.media_paths import received_work
     user = _user(request)
-    received = received_inputs(request, user, '{app}')
+    received = received_work(request, user, '{app}', 'file')
     if not received:
         return JsonResponse({{'error': received.refusal or 'Aucun fichier fourni'}}, status=400)
     f = received[0]
@@ -981,13 +983,13 @@ def upload(request):
 def upload(request):
     """Ajout à la file depuis la card d'entrée : consigne + fichier facultatif (téléversé ou
     désigné). Forme d'entrée déduite de l'obligation des ports du manifeste (`card_entry`)."""
-    from wama.common.utils.media_paths import received_inputs
+    from wama.common.utils.media_paths import received_inputs, received_port
     user = _user(request)
-    # Chaque port est posté sous SON nom (`addToQueue(ports: 'card')`) ; `file` reste le nom
-    # d'une dépose (`WamaImport`), accepté en repli pour le port principal.
-    received = received_inputs(request, user, '{app}', field='{work_post}')
-    if not received and not received.refusal:
-        received = received_inputs(request, user, '{app}', field='file')
+    # Chaque port est posté sous SON nom (`addToQueue(ports: 'card')`, le créateur dérivé de la
+    # card) ; `file` reste le nom d'une dépose (`WamaImport`), accepté en repli pour le port
+    # principal. Le port principal sous son id EXACT (`received_port`) : une card à plusieurs ports
+    # de travail (l'audio et l'avatar) ne prend jamais l'un pour l'autre.
+    received = received_port(request, user, '{app}', '{work_post}', 'file')
     kwargs = {{'user': user}}
     f = received[0] if received else None
     if f is not None:

@@ -639,6 +639,91 @@ def received_inputs(request, user, app_name: str, field: str = 'file',
     return received
 
 
+def received_port(request, user, app_name: str, port: str, *legacy: str,
+                  subfolder: str = 'input') -> ReceivedInputs:
+    """Ce qu'une vue de dépôt reçoit sur le PORT `port` : posté sous l'id du port (le contrat de
+    tout geste qui crée un élément — `WamaApp.addToQueue(ports: 'card')`, les vues générées, le
+    créateur de l'assistant et du Studio, `tool_api._card_creator`), sinon sous l'un des noms
+    HISTORIQUES que la vue lisait avant (`legacy`, dans l'ordre : `file`, `voice_reference`…). Les
+    noms historiques sont une liste qui ne doit que baisser : chacun tombe quand le JS de la page
+    poste l'id du port. Le premier nom qui reçoit quelque chose — ou qui refuse une désignation —
+    l'emporte (un refus se dit, il ne se masque pas sous le nom suivant)."""
+    received = received_inputs(request, user, app_name, field=port, subfolder=subfolder)
+    for name in legacy:
+        if received or received.refusal:
+            break
+        received = received_inputs(request, user, app_name, field=name, subfolder=subfolder)
+    return received
+
+
+def received_work(request, user, app_name: str, *legacy: str, domain: str = None,
+                  subfolder: str = 'input') -> ReceivedInputs:
+    """Le fichier de TRAVAIL d'un dépôt : reçu sous l'id de l'un des ports de travail que la card
+    DÉCLARE pour ce domaine (`app_registry.studio_node_ports` → `ports_for_domain` — ils viennent
+    des MODÈLES de l'app : `work_file`, `work_audio`…, `work` sans catalogue), sinon sous un nom
+    historique (`legacy`, `file`). Une vue ne nomme donc jamais l'id d'un port qui dépend du
+    catalogue : un modèle qui apporte un port de travail de plus y entre sans une ligne."""
+    received = ReceivedInputs()
+    for name in (*_work_ports(app_name, domain), *legacy):
+        if received or received.refusal:
+            break
+        received = received_inputs(request, user, app_name, field=name, subfolder=subfolder)
+    return received
+
+
+def _work_ports(app_name: str, domain: str = None) -> list:
+    """Les ids sous lesquels un dépôt reçoit son fichier de TRAVAIL : les ports de travail que la
+    card de `app_name` déclare pour ce domaine (ils viennent des modèles du catalogue), puis les
+    jetons de travail du VOCABULAIRE (`app_modes.INPUT_TYPES`, port `travail`, plusieurs fichiers
+    — un résultat existant n'en est pas). Le vocabulaire couvre l'écart entre deux lectures du
+    catalogue : celle qui a dérivé l'outil d'ajout (à l'import) et celle de la requête."""
+    from wama.common.app_registry import ports_for_domain, studio_node_ports
+    from wama.common.utils.app_modes import INPUT_TYPES
+    ports = ports_for_domain(app_name, domain, (studio_node_ports(app_name) or {}).get('inputs') or [])
+    # Les ports de travail qui prennent PLUSIEURS fichiers : un résultat existant (`work_result`, un
+    # seul fichier) porte sur l'élément créé, il n'est pas son fichier de travail.
+    declared = [p['id'] for p in ports if p.get('group') == 'travail' and p.get('id')
+                and p.get('multi', True)]
+    vocabulary = [t for t, d in INPUT_TYPES.items()
+                  if d.get('port') == 'travail' and d.get('kind') == 'file' and d.get('multi')]
+    return list(dict.fromkeys(declared + vocabulary))
+
+
+def work_posted(request, app_name: str, *legacy: str, domain: str = None) -> bool:
+    """Un fichier de travail est-il POSTÉ (téléversé ou désigné) sur l'un des ports de travail de la
+    card, ou sous un nom historique — sans rien recevoir (ni pointer ni copier) : pour la vue qui
+    décide de la suite d'après ce qu'on lui donne (l'imager : image → image, image → vidéo)."""
+    return any(request.FILES.getlist(name) or request.POST.getlist(designation_field(name))
+               for name in (*_work_ports(app_name, domain), *legacy))
+
+
+def posted_text(request, app_name: str, *legacy: str, domain: str = None) -> str:
+    """Le TEXTE d'un dépôt (consigne, contenu à dire…) : posté sous l'id de l'un des ports texte que
+    la card DÉCLARE pour ce domaine (groupe `prompt`, ou jeton de nature `text` d'`INPUT_TYPES`),
+    sinon sous un nom historique (`legacy`, `text_content`). La règle de `received_work` pour un
+    port texte : une vue ne nomme jamais l'id d'un port, un jeton texte neuf y entre sans retouche."""
+    from wama.common.app_registry import ports_for_domain, studio_node_ports
+    from wama.common.utils.app_modes import INPUT_TYPES
+    ports = ports_for_domain(app_name, domain, (studio_node_ports(app_name) or {}).get('inputs') or [])
+    texts = [p['id'] for p in ports if p.get('id') and (
+        p.get('group') == 'prompt' or (INPUT_TYPES.get(p['id']) or {}).get('kind') == 'text')]
+    # Puis les jetons texte du VOCABULAIRE (la règle de `_work_ports`).
+    texts += [t for t, d in INPUT_TYPES.items() if d.get('kind') == 'text']
+    texts = list(dict.fromkeys(texts))
+    return posted_port(request, *texts, *legacy) if (texts or legacy) else ''
+
+
+def posted_port(request, port: str, *legacy: str) -> str:
+    """Le TEXTE posté sur un port de consigne ou de contenu : sous l'id du port, sinon sous l'un de
+    ses noms historiques (`text_content`…) — la règle de `received_port`, pour un port texte.
+    Rendu sans les blancs de bord ; '' quand rien n'est posté."""
+    for name in (port, *legacy):
+        value = request.POST.get(name)
+        if value is not None and str(value).strip():
+            return str(value).strip()
+    return ''
+
+
 class UploadToUserPath:
     """
     Callable class for Django FileField upload_to that generates user-specific paths.

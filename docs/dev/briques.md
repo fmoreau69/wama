@@ -1880,12 +1880,13 @@ Télécharge une source distante vers le FileField, déclaré par WAMA_INGEST. �
 
 - **Domicile** : `wama/common/utils/source_ingest.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : source_ingest — Ingest média DÉCLARATIF et COMMUN (hors common/manifests/**).
-- **API publique** (11) :
+- **API publique** (12) :
   - `is_remote(ref) -> bool` — Cette entrée est-elle une URL à télécharger (http, https) plutôt qu'un chemin ?
   - `declared_mode(model) -> str` — Le mode (`audio` | `smart` | `media`) qu'un modèle d'élément DÉCLARE pour son entrée
   - `app_mode(app_id) -> str` — Le mode d'une URL destinée à l'app `app_id` : celui que son modèle d'élément déclare
   - `domain_ingest(app_id, domain_id=None) -> dict | None` — La déclaration `WAMA_INGEST` du modèle d'élément d'une CARD — celui de la surface de son
   - `port_url_source(app_id, domain_id, types) -> str` — Le champ qui GARDE l'URL du port de travail d'une card ('' : ce port n'offre pas l'import par
+  - `port_mode(app_id, domain_id, types) -> str` — Le mode de téléchargement d'une URL donnée à un PORT (`types` : ses natures) — le mode qui ne
   - `download_to_user(user, url, mode='media') -> str` — Télécharge `url` dans l'espace temporaire de `user` et rend son chemin (relatif à
   - `ensure_local_input(instance, *, console=None, derive=None)` — Si `instance` déclare `WAMA_INGEST` et a une URL dans son champ source mais
   - `ingest_state(instance)` — Ce que l'Entrée d'une card peut dire de sa SOURCE distante tant que le fichier manque :
@@ -2106,11 +2107,11 @@ Vue dérivée : licences+auteurs des 4 registres, traversée par app. Un modèle
 
 ### Bac à sable d'apps (jumelles exécutables)
 
-Jumelle <app>_NN coexistante pour comparaison Playwright + diff par témoins (route §10.3 marches S/S2) — registre sandbox_apps.json injecté au boot (INSTALLED_APPS/urls/gating/catalogue) ; create/drop symétriques + `substitute <label> <cible>` : remplace UN fichier copié par sa version GÉNÉRÉE (cibles = gabarits `codegen`), témoin `.temoin` préservé, re-mesure, auto-revert sur échec — verdicts journalisés au registre ; `revert <label> <cible>` ramène une cible au témoin à la demande. TROIS JUGES depuis le 03/09, chacun né d'un défaut qui RENDAIT (page 200) sans FONCTIONNER : ① cohérence de paquet par AST (tout `from .x import Y` intra-paquet, imports PARESSEUX compris, doit résoudre) ; ② couple views↔templates (substituer les templates seuls = boutons morts) ; ③ smoke « file HABITÉE » (témoin créé→page rendue→supprimé : une file vide ne rend AUCUNE card, donc ne teste rien du rendu de card). Le gate d'acceptation d'une jumelle reste sa BATTERIE UI auto-dérivée (11 scénarios `<label>.*` du registre nocturne) : describer_01 = 11/11. Depuis le 2026-10-20 : la chaîne en UNE commande (`substitute <label> a,b+c,…`, seconde passe des groupes revenus, puis leur union — `models` compris quand le modèle copié tient le nœud), et UN sous-processus de juge par substitution (`check`, page, file habitée) — un démarrage de Django coûte ≈ 60 s sous WSL. Une app NÉE D'UN MANIFESTE (`create --from-manifest`, sans source) : le registre retient ses facettes (`born_registry_facts` — modes, prompts, tool_api, studio) et sa fiche de catalogue, RELUES à chaque `substitute` réussi ; sa triade et son nœud du Studio viennent de SA déclaration (`inject_sandbox_registry(born=…)`, chemins écrits pour la clé et re-ciblés), son outil de création de la vue de dépôt de sa card (`tool_api._born_creator`) — 2026-11-01, ROUTE §11 #43
+Jumelle <app>_NN coexistante pour comparaison Playwright + diff par témoins (route §10.3 marches S/S2) — registre sandbox_apps.json injecté au boot (INSTALLED_APPS/urls/gating/catalogue) ; create/drop symétriques + `substitute <label> <cible>` : remplace UN fichier copié par sa version GÉNÉRÉE (cibles = gabarits `codegen`), témoin `.temoin` préservé, re-mesure, auto-revert sur échec — verdicts journalisés au registre ; `revert <label> <cible>` ramène une cible au témoin à la demande. TROIS JUGES depuis le 03/09, chacun né d'un défaut qui RENDAIT (page 200) sans FONCTIONNER : ① cohérence de paquet par AST (tout `from .x import Y` intra-paquet, imports PARESSEUX compris, doit résoudre) ; ② couple views↔templates (substituer les templates seuls = boutons morts) ; ③ smoke « file HABITÉE » (témoin créé→page rendue→supprimé : une file vide ne rend AUCUNE card, donc ne teste rien du rendu de card). Le gate d'acceptation d'une jumelle reste sa BATTERIE UI auto-dérivée (11 scénarios `<label>.*` du registre nocturne) : describer_01 = 11/11. Depuis le 2026-10-20 : la chaîne en UNE commande (`substitute <label> a,b+c,…`, seconde passe des groupes revenus, puis leur union — `models` compris quand le modèle copié tient le nœud), et UN sous-processus de juge par substitution (`check`, page, file habitée) — un démarrage de Django coûte ≈ 60 s sous WSL. Une app NÉE D'UN MANIFESTE (`create --from-manifest`, sans source) : le registre retient ses facettes (`born_registry_facts` — modes, prompts, tool_api, studio) et sa fiche de catalogue, RELUES à chaque `substitute` réussi ; sa triade et son nœud du Studio viennent de SA déclaration (`inject_sandbox_registry(born=…)`, chemins écrits pour la clé et re-ciblés), son outil de création de la vue de dépôt de sa card (`tool_api._card_creator`, ex-`_born_creator`, 2026-11-01, ROUTE §11 #43) — l'outil de création de TOUTE app depuis le 2026-11-26, jumelles comprises (plus aucun outil de source re-ciblé)
 
 - **Domicile** : `wama/common/sandbox.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Bac à sable d'apps — jumelles EXÉCUTABLES (route §10.3, marche S, actée Fabien 2026-08-18).
-- **API publique** (25) :
+- **API publique** (26) :
   - `load_registry() -> list` — Liste des jumelles [{label, generated_from, created, created_by?}] — [] si registre
   - `twin_source(label: str) -> str` — App SOURCE d'une jumelle ('' si ce label n'en est pas une).
   - `declaring_app(app: str) -> str` — L'app dont la DÉCLARATION fait foi pour `app` : elle-même, ou sa SOURCE si c'est une
@@ -2120,6 +2121,7 @@ Jumelle <app>_NN coexistante pour comparaison Playwright + diff par témoins (ro
   - `resolves(dotted: str, root: Path=None) -> bool` — Le chemin pointé `wama.<…>` désigne-t-il un module, ou un nom DÉFINI au niveau d'un module,
   - `manifest_key(label: str) -> str` — La clé du manifeste d'où est NÉE une app de zéro : la base de son label —
   - `inject_sandbox_registry(registry: dict, *, runnable=None, born=None) -> None` — Entrées d'un registre INDEXÉ PAR APP pour les jumelles : la déclaration de la source,
+  - `surface_pairs(src: str, dst: str) -> list` — `[(surface de la source, surface de la jumelle)]` — une par préfixe de routes que des
   - `born_declaration(label: str, facet: str)` — Facette DÉCLARÉE d'une app créée DE ZÉRO (`app_sandbox create --from-manifest`), telle que
   - `save_registry(entries: list) -> None` — Réécrit le registre. ⚠ Jamais le VRAI pendant `manage.py test` (2026-11-02, vécu) : un test qui
   - `entry_contributors(entry: dict) -> list` — Les développeurs d'une entrée du registre, sans doublon, le créateur d'abord.
@@ -2276,6 +2278,164 @@ Mesure les 8 facettes F1–F8 des apps par analyse du code réel
 - **API publique** (2) :
   - `class Criterion`
   - `run_checks(app_ids: list[str]) -> dict` — Exécute tous les critères sur chaque app. Retourne le rapport sérialisable.
+
+### L'outil d'ajout de toute app, dérivé du dépôt de sa card
+
+`add_to_<app>` de l'assistant, de l'API REST, du MCP et du nœud du Studio — DÉRIVÉ pour toute app qui déclare sa triade, réelle, jumelle ou née d'un manifeste (`tool_api._card_creator`, 2026-11-26, décision de Fabien : « s'appliquer automatiquement à toute nouvelle application ») : un argument par port de la card (`studio_node_ports`), `domain` quand l'app en a plusieurs, les réglages du schéma. Le corps (`_deposit_on_card`) choisit le domaine (nommé, sinon la nature du fichier), télécharge une adresse dans le mode du port (`source_ingest.port_mode`), résout le NOM d'un asset de la médiathèque sur un port fichier, juge les réglages au schéma du domaine (`_domain_settings`) et POSTE la vue de dépôt du domaine (`served_route(app, 'upload', prefix=…)`) ; les ports du résultat se posent ensuite par le geste de la card (`_RESULT_GESTURES`). La vue lit chaque port sous son id (`media_paths.received_work` / `received_port` / `posted_text`, avec repli sur ses noms historiques) ; un geste rejoué ne réécrit pas le volet de l'auteur (`user_settings.replayed_gesture`) et ne lance rien. Remplace dix créateurs écrits à la main, leurs quatre alias et les outils de jumelle re-ciblés (`REMOVAL_LEDGER R250`)
+
+- **Domicile** : `wama/tool_api.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §11](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
+- **Module** : WAMA Tool API
+- **API publique** (150) :
+  - `tool_effect(effect: str, *, sub_agent: bool=True, reason: str='')` — Marque l'EFFET d'un outil sur sa fonction. `sub_agent=False` retire une LECTURE de ce qu'un
+  - `effect_of(tool_name: str) -> dict | None` — L'effet déclaré d'un outil du registre, None s'il n'en déclare pas (ou n'existe pas).
+  - `tool_schema(provider)` — Déclare le schéma des arguments d'un outil : `provider()` rend une liste de `Param` (ou de
+  - `tool_param_schema(tool_name: str) -> list` — Le schéma (liste de dicts) des arguments que lit l'outil : celui qu'il déclare
+  - `sub_agent_tools() -> frozenset` — Les outils qu'un sous-agent peut appeler — DÉRIVÉS des marques, jamais recopiés : les
+  - `tool_annotations(tool_name: str) -> dict` — Les annotations MCP d'un outil, tirées de sa marque — UNE déclaration, deux lecteurs : notre
+  - `list_user_files(user, folder: str='temp') -> dict` — List the files of ONE folder of the user's file tree (any extension, sub-folders included),
+  - `find_user_files(user, query: str, limit: int=20) -> dict` — Find the user's files BY NAME everywhere the File Manager shows them: the temporary folder,
+  - `sam3_examples() -> dict` — Return recommended SAM3 text prompt examples.
+  - `list_media_assets(user, asset_type: str='', q: str='', origin: str='', page: int=1) -> dict` — List the media-library assets the user can USE: their own, those shared with them (lab,
+  - `fold_side_panels(user, folded: bool=True) -> dict` — Fold or unfold the two side panels of the page (file explorer on the left, panel on the
+  - `use_hand_mode(user, on: bool=True) -> dict` — Turn the HAND mode on or off — driving a 3D scene with the hands, through the webcam ("active
+  - `open_page(user, page: str, domain: str='') -> dict` — Take the user to a WAMA page — an application ("emmène-moi sur l'Anonymizer", "ouvre la
+  - `get_page_interface(user, page: str) -> dict` — Describe the INTERFACE of a WAMA page: the bricks it shows (what each does, and its keyboard
+  - `set_brick_keys(user, brick: str, action: str='', keys: list=None) -> dict` — Give keyboard keys to an action of a UI brick, for this user only — what a click on a key
+  - `reset_page_layout(user, page: str) -> dict` — Put the layout of a page back to its default, for this user — what "Par défaut" does in the
+  - `get_media_asset_url(user, asset_id: int) -> dict` — Get the file URL of a specific media library asset.
+  - `inspect_user_file(user, file_path: str) -> dict` — Ask WAMA what it can do with one of the user's files: which app PORT can take it
+  - `look_at_image(user, file_path: str, question: str='') -> dict` — Look at ONE of the user's images with a vision model and return what it shows.
+  - `add_to_media_library(user, file_path: str, asset_type: str, name: str='', description: str='') -> dict` — Register one of the user's files as a media-library asset with an EXPLICIT role.
+  - `search_web(user, query: str, max_results: int=5) -> dict` — Search the public web (no API key) and return result links with snippets.
+  - `read_web_page(user, url: str, max_chars: int=8000) -> dict` — Fetch ONE public web page and return its readable text (SSRF-guarded, size-capped).
+  - `translate_text(user, text, source_lang='fr', target_lang='en', glossary=None)` — Traduit un texte via translategemma (TranslatorService). Passthrough si source==target.
+  - `list_studio_pipelines(user) -> dict` — List the user's saved studio pipelines (méta-app graphs), most recent first.
+  - `run_studio_pipeline(user, pipeline_id: int=None, pipeline_name: str=None) -> dict` — Run a SAVED studio pipeline, by id or exact name. Validates the graph
+  - `get_studio_run_status(user, run_id: int=None) -> dict` — Return the status of a studio run (or the last 5 runs if run_id is omitted).
+  - `list_ai_models(user, app: str=None, task: str=None, modality: str=None, downloaded_only: bool=False, include_proposed: bool=False, limit: int=50, query: str=No…` — List the AI model CATALOGUE (read-only — trou #18 ROUTE §11, lecture utile à l'assistant).
+  - `get_ai_model(user, model_key: str) -> dict` — Full catalogue record of ONE model (read-only). `model_key` = '<app>:<id>'
+  - `list_installations(user, kind: str='model', limit: int=20, install_id: int=None) -> dict` — The DATED history of model (or library) installations and uninstallations, most recent first:
+  - `search_models(user, query: str, limit: int=20, max_results: int=5) -> dict` — SEARCH HuggingFace for models matching `query` and record them as prospection
+  - `prospect_models(user) -> dict` — PROSPECT for new models and record them as PROPOSALS — same verb as the page's
+  - `get_install_options(user, model_key: str) -> dict` — INSTALL CHOICES of a proposal — same verb as the options the page shows before « Installer »
+  - `install_model(user, model_key: str, force: bool=False, variant_ref: str='', variant_file: str='') -> dict` — INSTALL a model that is already PROPOSED (prospection candidate) or already in the
+  - `plan_library_integration(user, dist: str) -> dict` — PLAN for integrating a Python library (pip distribution) — read-only, executes nothing.
+  - `install_library(user, key: str, simulate: bool=False) -> dict` — INSTALL a Python library of the WAMA library registry into the reference environment — the
+  - `uninstall_library(user, key: str) -> dict` — UNINSTALL a library of the WAMA registry from the reference environment — the "Désinstaller"
+  - `get_library_action(user, key: str) -> dict` — Where the last install / simulation / uninstall of the library `key` stands: `state`
+  - `get_model_formats(user, model_key: str='') -> dict` — The WEIGHT FORMATS of the installed models — the model manager's format routes. Without
+  - `convert_model_format(user, model_key: str, target_format: str='safetensors', backup: bool=True, delete_source: bool=False) -> dict` — CONVERT the weights of an installed model to another format — the « Convertir » button of the
+  - `get_memory_state(user, view: str='summary', idle_threshold_s: int=300, min_size_mb: float=10, label: str='') -> dict` — Read the memory of the machine and of the graphics card, as the model manager page shows it:
+  - `get_disk_space(user, required_gb: float=0) -> dict` — Free space on the disk that holds the AI models — and, with `required_gb`, whether a download
+  - `get_model_catalog_state(user, view: str='stats', limit: int=20) -> dict` — Read the state of the model catalogue: 'stats' (counts), 'sync_logs' (last synchronisations
+  - `get_backup_state(user, view: str='status', format_type: str='', model_type: str='') -> dict` — Read the remote backup space: 'status' (reachable, path, count), 'list' (backed-up models —
+  - `get_model_evaluation_progress(user, kind: str='assess') -> dict` — Progress of a model evaluation started by assess_proposed_models ('assess') or
+  - `list_model_proposals(user, kind: str='') -> dict` — The PROPOSALS waiting for an administrator's decision (model manager, « Propositions »):
+  - `list_model_choices(user, task: str='', model_type: str='', modality: str='', source: str='', app: str='', domain: str='', mode: str='', cloud: bool=False) -> d…` — The models an app's model selector offers, read from the catalogue — the same list as the
+  - `get_converter_presets(user) -> dict` — The converter's quality presets ('web', 'balanced', 'max') and what each one sets for an
+  - `get_image_resolutions(user, model: str='') -> dict` — The image sizes the imager offers: with `model`, the resolutions recommended for that model
+  - `free_memory(user, action: str, model_key: str='', confirm: bool=False) -> dict` — Free memory as the model manager's buttons do: 'unload' one resident model (`model_key`),
+  - `free_gpu_for_item(user, app: str, item_id: int, confirm: bool=False) -> dict` — Agree that the WHOLE graphics card be freed so one of the user's items waiting for resources
+  - `control_memory_cleaner(user, action: str, check_interval_s: int=0, idle_threshold_s: int=0, ram_warning_percent: float=0, ram_critical_percent: float=0) -> dict` — Start, stop or configure the automatic memory cleaner of the model manager page, which unloads
+  - `control_service(user, service: str, action: str, confirm: bool=False) -> dict` — Start, stop or restart one of WAMA's background services (voice, vectors, privacy, TensorFlow),
+  - `control_model_watcher(user, action: str) -> dict` — Start or stop the watcher of the models folder, which updates the catalogue when weights
+  - `start_backup(user, target: str, model_key: str='', overwrite: bool=False, confirm: bool=False) -> dict` — Back up to the remote backup space, as the model manager's buttons do: 'database' (a dump of
+  - `sync_model_catalog(user, clean: bool=False, delete_missing: bool=True) -> dict` — Synchronise the model catalogue with the disk and the apps' declarations — the page's
+  - `assess_proposed_models(user, confirm: bool=False) -> dict` — Evaluate the CONFIDENCE of the proposed models with a local LLM jury — the page's « Évaluer la
+  - `sync_model_benchmarks(user) -> dict` — Measure the PERFORMANCE of the catalogue's models from third-party benchmarks (Artificial
+  - `reject_proposed_model(user, model_key: str, confirm: bool=False) -> dict` — Reject a proposed model (prospection candidate): its catalogue row is deleted, nothing was
+  - `uninstall_model(user, model_key: str, withdraw: bool=True, include_shared: bool=False, confirm: bool=False) -> dict` — UNINSTALL an installed model — the model manager's « Désinstaller »: its weights are removed
+  - `set_model_task_limit(user, model_key: str, minutes: int) -> dict` — Set how long ONE task may run with this model before it is stopped cleanly and marked failed
+  - `decide_model_proposal(user, decision: str, proposal_id: int=0, file: str='', confirm: bool=False) -> dict` — VALIDATE ('apply') or REJECT ('reject') a proposal of the model manager — an ADMINISTRATOR's
+  - `plan_model_integration(user, model: str) -> dict` — PLAN for integrating an AI model — read-only, executes nothing.
+  - `plan_app_integration(user, target: str) -> dict` — PLAN for integrating a GitHub project as a WAMA app (UI + models + libraries).
+  - `memory_recall(user, query: str, k: int=5, include_rag: bool=True, include_memory: bool=True, niveaux: list=None) -> dict` — Cherche dans la mémoire et les documents de l'utilisateur (`WAMA_MEMORY.md`).
+  - `search_docs(user, query: str, k: int=5) -> dict` — Search WAMA's OWN documentation — how an app is used, what a setting means, and (for
+  - `read_doc(user, doc: str, section: str='') -> dict` — Read one of WAMA's documents: its outline, or one section with its sub-sections.
+  - `charger_competence(user, domaine: str, question: str='') -> dict` — Load a specialised competence (role skill) and the matching laboratory context.
+  - `ask_claude_code(user, task: str, write: bool=False, timeout: int=300, model: str='') -> dict` — Delegate a DEVELOPMENT task to Claude Code, running on the owner's subscription.
+  - `list_my_items(user, app: str='', limite: int=25, statut: str='all', q: str='') -> dict` — List what the user has produced across ALL apps — one vocabulary instead of ten.
+  - `get_item_detail(user, app: str, pk: int) -> dict` — Everything known about ONE item, in the canonical schema — exactly what the user sees in
+  - `get_item_preview(user, app: str, pk: int, side: str='input', variant: str='', look: bool=False, question: str='') -> dict` — Look at what an item actually holds — the SAME faces the user sees on the card, in the
+  - `get_item_result(user, app: str, pk: int, output_format: str='') -> dict` — Read the RESULT of a finished item — the extracted text of an OCR, a transcript, a
+  - `get_item_marks(user, app: str, pk: int, track: str='', start: float=None, end: float=None, within_track: str='', within_mark: int=None, limit: int=MARKS_LIMIT,…` — Read the time marks an item carries on its timeline — the speaker turns, sentences and words
+  - `get_file_marks(user, file_path: str, track: str='', start: float=None, end: float=None, within_track: str='', within_mark: int=None, limit: int=MARKS_LIMIT, of…` — Read the marks WAMA detects by itself in one of the user's media files, as segments on the
+  - `delete_item(user, app: str, pk: int) -> dict` — Delete ONE of the user's items from an app queue.
+  - `duplicate_item(user, app: str, pk: int) -> dict` — Duplicate ONE of the user's items, so it can be re-run with different settings.
+  - `stop_item(user, app: str, pk: int) -> dict` — Stop ONE of the user's items that is waiting or running — the stop button of its card.
+  - `update_item_settings(user, app: str, pk: int, settings: dict=None) -> dict` — Change the settings of ONE of the user's items — the settings button of its card.
+  - `start_process_on_items(user, app: str, process: str, item_ids=None) -> dict` — Run a step of the ORIGIN card from a SELECTION of the cards derived from it — the right-click
+  - `launch_batch(user, app: str, batch_id: int) -> dict` — Start (or restart) every item of one of the user's batches — the ▶ button of the batch card.
+  - `start_process_on_batch(user, app: str, batch_id: int, process: str) -> dict` — Run ONE step on every item of one of the user's batches — the ▶ of a step in the band of the
+  - `update_batch_settings(user, app: str, batch_id: int, settings: dict=None, promote_from: int=None, realign: bool=False, scope: str='', replace_own: list=None) -…` — Set the settings of a whole batch — ONE of three gestures:
+  - `duplicate_batch(user, app: str, batch_id: int) -> dict` — Duplicate one of the user's batches with all its items, to run it again with other
+  - `delete_batch(user, app: str, batch_id: int, confirm: bool=False) -> dict` — Delete one of the user's batches AND all its items. Destructive and not undoable: say how
+  - `batch_progress(user, family: str, batch_id) -> dict | None` — Où en est UN LOT de `user` lancé depuis l'assistant — le bloc de lot de l'échange
+  - `get_batch_state(user, app: str, batch_id: int) -> dict` — State of a batch: its overall status, the counts (success, running, pending, failure) and
+  - `get_batch_result(user, app: str, batch_id: int) -> dict` — The results of a whole batch: its state and the address of the ZIP of its outputs — the
+  - `list_app_access(user) -> dict` — Sandbox apps and who may use them: the ones you open to developers (creator or
+  - `request_app_access(user, app: str, reason: str='') -> dict` — Ask to use and test a sandbox app you did not create (developers only). Its creator and the
+  - `grant_app_access(user, app: str, username: str) -> dict` — Open a sandbox app to a developer so they can use and test it — for its creator or an
+  - `answer_app_access(user, request_id: int, accept: bool) -> dict` — Accept or refuse a developer's request to use a sandbox app — for its creator or an
+  - `revoke_app_access(user, grant_id: int) -> dict` — Withdraw a developer's access to a sandbox app — for its creator or an administrator.
+  - `list_directory_accounts(user, unit: str) -> dict` — List the people of a unit of the institution's directory (a laboratory, a department, a team
+  - `preregister_accounts(user, unit: str='', usernames: list=None, confirm: bool=False) -> dict` — Prepare the WAMA accounts of people who have none, from the institution's directory: every
+  - `activate_accounts(user, usernames: list, confirm: bool=False) -> dict` — Activate inactive WAMA accounts (preregistered, pending or disabled) so that their holders can
+  - `get_account_details(user, username: str) -> dict` — Read the record of one WAMA account, as the right panel of the accounts page shows it: its
+  - `get_my_directory_data(user) -> dict` — Tell which data of the institution's directory WAMA keeps on your own profile (main unit,
+  - `set_my_directory_data(user, add: list=None, remove: list=None) -> dict` — Add to your own profile, or remove from it, data of the institution's directory. A removed
+  - `request_role(user, role: str, reason: str='') -> dict` — Ask for a business role, which opens the applications of that trade. The administrators are
+  - `list_role_requests(user) -> dict` — List the requests for a business role: your own with their state, and for an administrator
+  - `answer_role_request(user, request_id: int, accept: bool) -> dict` — Accept or refuse a person's request for a business role — for an administrator
+  - `clear_my_queue(user, app: str, confirm: bool=False) -> dict` — Empty the user's WHOLE queue for one app — every item, at once.
+  - `add_item_to_media_library(user, app: str, pk: int, asset_type: str='', name: str='', output_format: str='') -> dict` — Keep the RESULT of one of the user's items in their media library, so it can be reused as
+  - `add_file_to_rag(user, path: str, level: str='', org_unit: str='') -> dict` — Add one of the user's FILES to their RAG, so `memory_recall` (and the lab context of every
+  - `add_item_to_rag(user, app: str, pk: int, level: str='', org_unit: str='') -> dict` — Add the TEXT of one of the user's items (a transcription, an OCR, a description…) to their
+  - `list_registries(user) -> dict` — List what WAMA knows how to NAME: its registries (apps, models, backends, functions,
+  - `get_my_access(user) -> dict` — What the current user is allowed to do: account tier, business roles, and which apps they
+  - `list_my_memories(user, kind: str='', limite: int=25) -> dict` — List what WAMA remembers for this user — facts, events and procedures it has kept.
+  - `get_my_calendar(user, start: str='', end: str='', with_instance: bool=False, limit: int=100) -> dict` — Read the user's calendar ("Mon calendrier"): what they ran, what is planned or scheduled,
+  - `schedule_items(user, tool: str, item_ids=None, when: str='', at: str='') -> dict` — Schedule the launch of one or more of the user's cards, as the card menu's "Schedule…" does:
+  - `reschedule_action(user, schedule_id: int, when: str='', at: str='') -> dict` — Move one of the user's scheduled launches to another placement or date, as the card's
+  - `cancel_scheduled_action(user, schedule_id: int) -> dict` — Cancel one of the user's scheduled launches; the card stays in its queue, waiting.
+  - `list_my_notifications(user, unread_only: bool=False, limit: int=20) -> dict` — List the user's notifications in WAMA (the bell): finished or failed tasks, access
+  - `list_my_shares(user) -> dict` — What the user shared and what was shared with them ("Mes partages"): for each entry its
+  - `list_my_rag(user, level: str='', query: str='', limit: int=50) -> dict` — List the documents the user has entrusted to the RAG ("Mon RAG"): each source, at which
+  - `get_my_profile(user) -> dict` — Read the user's profile ("Profil"): identity, preferences (language, interface mode,
+  - `remember_fact(user, content: str, kind: str='semantic', subject: str='') -> dict` — Save something the user wants WAMA to remember — a fact, a correction, a preference, the
+  - `job_progress(user, family: str, pk) -> dict | None` — Où en est UN élément de `user` lancé depuis l'assistant — la barre de progression de
+  - `creator_derivable(label: str) -> bool` — `label` (app du bac à sable installée) a-t-il un outil de création dérivé ? — la règle de
+  - `tool_role(tool_name)` — Rôle d'un outil dans la triade : 'add' | 'start' | 'status', sinon None.
+  - `app_id_for_tool(tool_name)` — app_id gardé correspondant à un outil, ou None si l'outil est transverse.
+  - `tool_family(tool_name)` — La FAMILLE d'un outil : la clé d'adapter de détail (`DetailRegistry`) des éléments qu'il
+  - `items_of_step(tool_name, args, result) -> list` — Les éléments qu'un appel d'outil a CRÉÉS ou LANCÉS, en `(famille, id)` — lus au CONTRAT
+  - `created_surface(tool_name, result) -> str | None` — La SURFACE de l'élément qu'un outil d'ajout a créé — celle que la création rend (`surface`,
+  - `batch_of_step(tool_name, result)` — Le LOT qu'un appel d'outil a lancé, en `(surface, id du lot)`, sinon None — le ▶ d'une card
+  - `tool_descriptions()` — Descriptions de TOUS les outils du registre, dérivées à la volée.
+  - `tool_input_schema(tool_name: str) -> dict` — Schéma JSON (`type: object`) des arguments d'un outil du registre — DÉRIVÉ, jamais écrit.
+  - `input_schema_for(fn, index=None) -> dict` — Schéma JSON des arguments d'une FONCTION d'outil : signature, complétée par le schéma
+  - `decode_structured_args(fn, args: dict) -> dict` — Les arguments d'un outil dont la signature annonce un OBJET ou une LISTE (`dict`/`list`, le
+  - `primary_arg_name(tool_name: str)` — Nom du 1er paramètre « utile » d'un outil (celui qui suit `user`), ou None.
+  - `arrival_arguments(tool_name: str) -> frozenset` — Les arguments d'un outil d'AJOUT (`add_to_<app>`) qui prennent PLUSIEURS fichiers arrivés
+  - `tool_arg_names(tool_name: str) -> set` — Les arguments NOMMÉS d'un outil (hors `user`, `*args`, `**params`) — dérivés de la signature.
+  - `sanitize_tool_args(tool_name: str, args: dict)` — Prépare les arguments d'un appel d'outil : coercition par le SCHÉMA de l'app puis
+  - `relay_quality_intent(user, tool_name: str, result: dict) -> dict` — Relaie le curseur Rapide ↔ Qualité de l'ASSISTANT vers l'élément qu'un outil `add_to_<app>`
+  - `relay_next_step(tool_name: str, result: dict) -> dict` — Dit au modèle, DANS LE RÉSULTAT, qu'un ajout n'a lancé AUCUN traitement.
+  - `execute_tool(tool_name: str, args: dict, user, *, model_call: bool=False) -> dict` — Dispatch a tool call from the agentic loop.
+  - `action_routes() -> dict` — `{route key: view}` of every action route — a path with an `api/` segment — outside the API's
+  - `triad_coverage() -> dict` — `{app: [the tools of its triad that are missing]}` for every app of the catalogue — the
+  - `route_coverage() -> dict` — What the assistant's API covers of WAMA's action routes, PAGE by page (a page = the
+  - `list_user_files_view(request)`
+  - `add_to_anonymizer_view(request)`
+  - `start_anonymizer_view(request)`
+  - `get_anonymizer_status_view(request)`
+  - `sam3_examples_view(request)`
+  - `add_to_reader_view(request)`
+  - `start_reader_view(request)`
+  - `get_reader_status_view(request)`
+  - `add_to_converter_view(request)`
+  - `get_converter_status_view(request)`
+  - `build_tools_list(names=None) -> str` — Génère la liste des outils (nom + args + description) pour le prompt de l'assistant.
 
 ### Les pages d'un PDF en images
 
@@ -2904,11 +3064,11 @@ data-* du ⚙ DÉRIVÉS du schéma (contrat cardSettings de l'inspecteur, qui li
 
 ### Domaines → modes
 
-Schéma déclaratif des onglets-domaine et modes par app — scope la file ; un domaine NOMME son schéma de réglages (`params_schema`), sa surface est la clé de son modèle d'élément et le domaine d'un élément se dérive (`element_domain`), et se cherche en base par la même déclaration (`domain_filter`, 2026-11-01) ; un mode est un RÉGLAGE (`mode_param`) qui borne le menu de modèles (`options_mode`) ; une page à plusieurs domaines montre les volets de UN domaine (`_domain_tabs.html`, `WamaModes.domainTabs` : volets de file, réglages du volet, 2026-11-01) — celui que le SOCLE choisit depuis le 2026-11-12 : l'adresse (`?domain=`), sinon le compte (`navigation.page_domain`), le titre de la page en sélecteur (`_page_domain.html`), plus d'onglets ; chaque domaine déclare ce qu'il fait (`description`) et l'À propos, la Console et le compte de la file sont ceux du domaine de la page ; un fichier arrivé hors de sa card rejoint le domaine de sa NATURE (`arrival_domain`, `file_nature`, `surface_file_nature` — la lecture propre d'un domaine déclarée par `extension_natures`), et « Envoyer vers » retient ce domaine pour la page de l'app (2026-11-01) ; un fichier déjà reçu (URL, ligne de lot) se lit sans la porte (`domain_nature`), et une SOURCE pas encore arrivée dit sa nature par son adresse (`surface_source_nature`, 2026-11-10) ; les lots d'une page se rangent par domaine par `batch_common.batches_by_domain` (2026-11-15 : le premier élément du lot dit son domaine, la règle de la card — anonymizer, imager)
+Schéma déclaratif des onglets-domaine et modes par app — scope la file ; un domaine NOMME son schéma de réglages (`params_schema`), sa surface est la clé de son modèle d'élément et le domaine d'un élément se dérive (`element_domain`), et se cherche en base par la même déclaration (`domain_filter`, 2026-11-01) ; un mode est un RÉGLAGE (`mode_param`) qui borne le menu de modèles (`options_mode`) ; une page à plusieurs domaines montre les volets de UN domaine (`_domain_tabs.html`, `WamaModes.domainTabs` : volets de file, réglages du volet, 2026-11-01) — celui que le SOCLE choisit depuis le 2026-11-12 : l'adresse (`?domain=`), sinon le compte (`navigation.page_domain`), le titre de la page en sélecteur (`_page_domain.html`), plus d'onglets ; chaque domaine déclare ce qu'il fait (`description`) et l'À propos, la Console et le compte de la file sont ceux du domaine de la page ; un fichier arrivé hors de sa card rejoint le domaine de sa NATURE (`arrival_domain`, `file_nature`, `surface_file_nature` — la lecture propre d'un domaine déclarée par `extension_natures`), et « Envoyer vers » retient ce domaine pour la page de l'app (2026-11-01) ; un fichier déjà reçu (URL, ligne de lot) se lit sans la porte (`domain_nature`), et une SOURCE pas encore arrivée dit sa nature par son adresse (`surface_source_nature`, 2026-11-10) ; les lots d'une page se rangent par domaine par `batch_common.batches_by_domain` (2026-11-15 : le premier élément du lot dit son domaine, la règle de la card — anonymizer, imager) ; l'outil d'ajout de l'assistant est UN par app et sert tous les domaines où arrive un fichier (`arrival_domains`, 2026-11-25 : l'enhancer avait un second créateur pour l'audio), la réunion de leurs schémas annoncée (`param_schema.schema_union`), celui du domaine qui reçoit appliqué ; une jumelle reçoit les surfaces de domaine de sa source (`sandbox.surface_pairs`)
 
 - **Domicile** : `wama/common/utils/app_modes.py` · **doc** : [docs/construction/ui/MODES_QUEUE_UX.md](../construction/ui/MODES_QUEUE_UX.md)
 - **Module** : Schéma déclaratif DOMAINES → MODES des apps — clé de voûte UX (voir MODES_QUEUE_UX.md).
-- **API publique** (34) :
+- **API publique** (35) :
   - `get_app_modes(app: str) -> dict` — Schéma {domains:[…]} d'une app, ou {} si non déclaré.
   - `get_domains(app: str) -> list`
   - `has_domain_tabs(app: str) -> bool` — True si l'app a PLUSIEURS domaines : sa page se choisit par domaine — le titre du socle en
@@ -2937,6 +3097,7 @@ Schéma déclaratif des onglets-domaine et modes par app — scope la file ; un 
   - `file_nature(app: str, domain_id: str, path) -> str | None` — La nature d'un fichier DANS ce domaine — la clé que ses routes de backend lisent
   - `domain_nature(app: str, domain_id: str, path) -> str | None` — La nature d'un fichier DÉJÀ REÇU, lue par ce domaine — `file_nature` sans la porte : un
   - `arrival_domain(app: str, path) -> str | None` — Le domaine qui REÇOIT un fichier arrivé hors de sa card — « Envoyer vers », importeurs du
+  - `arrival_domains(app: str) -> list` — Les domaines qui REÇOIVENT un fichier arrivé hors de leur card (`arrival_domain`), dans
   - `surface_file_nature(app: str, surface: str, path) -> str | None` — La nature d'un fichier qui entre par une SURFACE (la vue d'upload d'une famille de routes,
   - `surface_source_nature(app: str, surface: str, source) -> str | None` — La nature d'une SOURCE (une URL, la ligne d'un lot) qui entre par une surface, AVANT que son
   - `mode_param(app: str, domain_id: str) -> str` — Le param du schéma qui porte le mode de ce domaine ('' si le domaine n'en déclare pas).
@@ -3517,7 +3678,7 @@ Emplacements canoniques des entrées/sorties par app et par utilisateur (`app_me
 
 - **Domicile** : `wama/common/utils/media_paths.py` · **doc** : [docs/construction/exploitation/MEDIA_STORAGE_TIERING.md](../construction/exploitation/MEDIA_STORAGE_TIERING.md)
 - **Module** : WAMA Common - Media Path Utilities
-- **API publique** (28) :
+- **API publique** (33) :
   - `get_app_media_path(app_name: str, user_id: Union[int, str], subfolder: str='input') -> Path` — Get the absolute path for an app's user-specific media folder.
   - `class OutsideMediaRoot(ValueError)` — Le chemin demandé sort de MEDIA_ROOT (traversée `..`, dossier frère, absolu étranger).
   - `resolve_under_media_root(candidate, *, must_exist: bool=True)` — Résout un chemin — absolu, ou RELATIF à MEDIA_ROOT — et GARANTIT qu'il y reste.
@@ -3540,6 +3701,11 @@ Emplacements canoniques des entrées/sorties par app et par utilisateur (`app_me
   - `check_designation(path, user) -> str` — Le chemin désigné, s'il passe les gardes de `designate` — sans rien pointer ni copier.
   - `designated_file(path, user) -> str` — Le fichier DISQUE d'une désignation qui passe les gardes de `designate` — sans rien pointer
   - `received_inputs(request, user, app_name: str, field: str='file', subfolder: str='input') -> ReceivedInputs` — Ce qu'une vue d'upload reçoit : les fichiers TÉLÉVERSÉS sous `field`, puis les fichiers
+  - `received_port(request, user, app_name: str, port: str, *legacy: str, subfolder: str='input') -> ReceivedInputs` — Ce qu'une vue de dépôt reçoit sur le PORT `port` : posté sous l'id du port (le contrat de
+  - `received_work(request, user, app_name: str, *legacy: str, domain: str=None, subfolder: str='input') -> ReceivedInputs` — Le fichier de TRAVAIL d'un dépôt : reçu sous l'id de l'un des ports de travail que la card
+  - `work_posted(request, app_name: str, *legacy: str, domain: str=None) -> bool` — Un fichier de travail est-il POSTÉ (téléversé ou désigné) sur l'un des ports de travail de la
+  - `posted_text(request, app_name: str, *legacy: str, domain: str=None) -> str` — Le TEXTE d'un dépôt (consigne, contenu à dire…) : posté sous l'id de l'un des ports texte que
+  - `posted_port(request, port: str, *legacy: str) -> str` — Le TEXTE posté sur un port de consigne ou de contenu : sous l'id du port, sinon sous l'un de
   - `class UploadToUserPath` — Callable class for Django FileField upload_to that generates user-specific paths.
   - `system_asset_relpath(asset_type: str, filename: str) -> str` — Chemin relatif (sous `MEDIA_ROOT`) d'un asset système : un sous-dossier par NATURE.
   - `class UploadToSystemAssetPath` — `upload_to` de `SystemAsset.file` — `media_library/system/<asset_type>/<fichier>`.
@@ -4045,12 +4211,13 @@ Réglages durables en base (UserAppSetting, cache devant) ; réglages du VOLET d
 
 - **Domicile** : `wama/common/utils/user_settings.py`
 - **Module** : WAMA Common — Réglages UTILISATEUR par app, DURABLES en base (cache en lecture devant).
-- **API publique** (13) :
+- **API publique** (14) :
   - `get_user_app_settings(user, app, defaults)` — Retourne le dict complet des réglages de ``user`` pour ``app``.
   - `get_user_app_setting(user, app, name, default=None)` — Lecture d'UN réglage.
   - `remembered_setting(user, app, name, default=None, domain=None)` — UN réglage retenu du volet, lu par son NOM — pour qui n'a pas le schéma en main (le curseur
   - `clear_user_app_settings(user, app, names)` — Retire les réglages `names` de ``user`` pour ``app`` : ils reprennent le défaut que
   - `read_panel_settings(user, app, params, *, key=None, extra=None, clean=None, domain=None) -> dict` — Les réglages du volet de ``user``, par NOM de param (ce que `WamaParams.render` attend),
+  - `class replayed_gesture` — `with replayed_gesture(): …` — la vue appelée rejoue un geste pour un outil : le volet de
   - `save_panel_settings(user, app, params, data, *, key=None, extra=None, clean=None, domain=None) -> dict` — Garde comme préférences les réglages du volet présents dans `data` (par NOM), coercés par
   - `reset_panel_settings(user, app, params, *, key=None, extra=None, clean=None, domain=None) -> dict` — Remet le volet de ``user`` sur les défauts : ses préférences sont RETIRÉES (jamais
   - `input_proposals(params, inputs) -> dict` — `{réglage: {'value', 'note'}}` que les ENTRÉES proposent (`Param.default_from`, 2026-10-29) :
@@ -4444,7 +4611,7 @@ Exécute une app par son CONTRAT (triade tool_api normalisée) — zéro logique
   - `port_argument_name(app_id, port_id, accepted=None)` — L'argument de l'outil où ARRIVE le port `port_id` : celui du MÊME NOM ; à défaut, le CHAMP
   - `work_arguments(app_id) -> set` — Les arguments de `add_to_<app>` où arrivent PLUSIEURS fichiers ensemble
   - `single_file_arguments(app_id) -> set` — Les arguments de `add_to_<app>` d'un port FICHIER qui en prend UN (référence, résultat
-  - `primary_argument(app_id)` — L'argument de `add_to_<app>` où arrive l'ENTRÉE PRINCIPALE du nœud : celui que l'app déclare
+  - `primary_argument(app_id)` — L'argument de `add_to_<app>` où arrive l'ENTRÉE PRINCIPALE du nœud : le premier de ses ports
   - `unwired_ports(app_id) -> list` — Les ports du nœud que l'outil de l'app ne LIT pas encore — le portage qui reste.
   - `unwired_ports_report(measure=None)` — (ok, détail) — la liste MESURÉE des ports non lus confrontée au budget, dans les deux
   - `port_arguments(app_id, inputs) -> dict` — Les liens reçus sur les ports NON principaux, en arguments nommés de l'outil.
@@ -4456,7 +4623,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
 
 - **Domicile** : `wama/tool_api.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Tool API
-- **API publique** (155) :
+- **API publique** (150) :
   - `tool_effect(effect: str, *, sub_agent: bool=True, reason: str='')` — Marque l'EFFET d'un outil sur sa fonction. `sub_agent=False` retire une LECTURE de ce qu'un
   - `effect_of(tool_name: str) -> dict | None` — L'effet déclaré d'un outil du registre, None s'il n'en déclare pas (ou n'existe pas).
   - `tool_schema(provider)` — Déclare le schéma des arguments d'un outil : `provider()` rend une liste de `Param` (ou de
@@ -4465,17 +4632,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `tool_annotations(tool_name: str) -> dict` — Les annotations MCP d'un outil, tirées de sa marque — UNE déclaration, deux lecteurs : notre
   - `list_user_files(user, folder: str='temp') -> dict` — List the files of ONE folder of the user's file tree (any extension, sub-folders included),
   - `find_user_files(user, query: str, limit: int=20) -> dict` — Find the user's files BY NAME everywhere the File Manager shows them: the temporary folder,
-  - `add_to_anonymizer(user, file_path: str, sam3_prompt: str='', classes: list=None, precision_level: int=None, app_label: str='anonymizer', **params) -> dict` — Copy a file into the anonymizer input queue and create a Media DB entry. An image or a video
   - `sam3_examples() -> dict` — Return recommended SAM3 text prompt examples.
-  - `create_image(user, prompt: str, model: str=None, width: int=None, height: int=None, steps: int=None, guidance_scale: float=None, negative_prompt: str=None, see…` — Create a txt2img generation job (status: PENDING).
-  - `add_to_enhancer(user, file_path: str, ai_model: str='', denoise: bool=None, blend_factor: float=None, app_label: str='enhancer', **params) -> dict` — Register a file for enhancement and create the Enhancement DB entry.
-  - `add_to_audio_enhancer(user, file_path: str, engine: str='', mode: str='', denoising_strength: float=None, quality: int=None, **params) -> dict` — Register an audio file for speech enhancement.
-  - `synthesize_text(user, text: str='', work_file: str='', reference_voice: str='', language: str=None, tts_model: str=None, voice_preset: str=None, speed: float=N…` — Create a VoiceSynthesis job — from raw text OR from a work file, with an optional
-  - `compose_music(user, prompt: str='', model: str=None, duration: float=None, work_score: str=None, work_audio: str=None, app_label: str='composer', **params) ->…` — Create a Composer generation job (music or SFX) and start it immediately.
-  - `add_to_describer(user, file_path: str, output_style: str=None, output_language: str=None, max_length: int=None, app_label: str='describer', **params) -> dict` — Copy a file into the describer queue and create a Description DB entry.
-  - `add_to_transcriber(user, file_path: str, backend: str=None, preprocess_audio: bool=None, hotwords: str=None, enable_diarization: bool=None, app_label: str='tra…` — Copy a file into the transcriber queue and create a Transcript DB entry.
-  - `add_to_reader(user, file_path: str, backend: str=None, mode: str=None, language: str=None, app_label: str='reader', **params) -> dict` — Copy a file into the reader queue and create a ReadingItem DB entry.
-  - `convert_file(user, file_path: str, output_format: str='', quality_preset: str='balanced', app_label: str='converter', **params) -> dict` — Queue a file conversion and start it immediately.
   - `list_media_assets(user, asset_type: str='', q: str='', origin: str='', page: int=1) -> dict` — List the media-library assets the user can USE: their own, those shared with them (lab,
   - `fold_side_panels(user, folded: bool=True) -> dict` — Fold or unfold the two side panels of the page (file explorer on the left, panel on the
   - `use_hand_mode(user, on: bool=True) -> dict` — Turn the HAND mode on or off — driving a 3D scene with the hands, through the webcam ("active
@@ -4489,12 +4646,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `add_to_media_library(user, file_path: str, asset_type: str, name: str='', description: str='') -> dict` — Register one of the user's files as a media-library asset with an EXPLICIT role.
   - `search_web(user, query: str, max_results: int=5) -> dict` — Search the public web (no API key) and return result links with snippets.
   - `read_web_page(user, url: str, max_chars: int=8000) -> dict` — Fetch ONE public web page and return its readable text (SSRF-guarded, size-capped).
-  - `add_to_avatarizer(user, mode: str='pipeline', text_content: str='', tts_model: str=None, language: str=None, voice_preset: str=None, audio_path: str='', avatar…` — Crée un job de génération d'avatar parlant (vidéo) en attente.
   - `translate_text(user, text, source_lang='fr', target_lang='en', glossary=None)` — Traduit un texte via translategemma (TranslatorService). Passthrough si source==target.
-  - `add_to_synthesizer(user, *args, **kwargs)`
-  - `add_to_composer(user, *args, **kwargs)`
-  - `add_to_converter(user, *args, **kwargs)`
-  - `add_to_imager(user, *args, **kwargs)`
   - `list_studio_pipelines(user) -> dict` — List the user's saved studio pipelines (méta-app graphs), most recent first.
   - `run_studio_pipeline(user, pipeline_id: int=None, pipeline_name: str=None) -> dict` — Run a SAVED studio pipeline, by id or exact name. Validates the graph
   - `get_studio_run_status(user, run_id: int=None) -> dict` — Return the status of a studio run (or the last 5 runs if run_id is omitted).
@@ -4595,6 +4747,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `app_id_for_tool(tool_name)` — app_id gardé correspondant à un outil, ou None si l'outil est transverse.
   - `tool_family(tool_name)` — La FAMILLE d'un outil : la clé d'adapter de détail (`DetailRegistry`) des éléments qu'il
   - `items_of_step(tool_name, args, result) -> list` — Les éléments qu'un appel d'outil a CRÉÉS ou LANCÉS, en `(famille, id)` — lus au CONTRAT
+  - `created_surface(tool_name, result) -> str | None` — La SURFACE de l'élément qu'un outil d'ajout a créé — celle que la création rend (`surface`,
   - `batch_of_step(tool_name, result)` — Le LOT qu'un appel d'outil a lancé, en `(surface, id du lot)`, sinon None — le ▶ d'une card
   - `tool_descriptions()` — Descriptions de TOUS les outils du registre, dérivées à la volée.
   - `tool_input_schema(tool_name: str) -> dict` — Schéma JSON (`type: object`) des arguments d'un outil du registre — DÉRIVÉ, jamais écrit.
@@ -4618,6 +4771,6 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `add_to_reader_view(request)`
   - `start_reader_view(request)`
   - `get_reader_status_view(request)`
-  - `convert_file_view(request)`
+  - `add_to_converter_view(request)`
   - `get_converter_status_view(request)`
   - `build_tools_list(names=None) -> str` — Génère la liste des outils (nom + args + description) pour le prompt de l'assistant.

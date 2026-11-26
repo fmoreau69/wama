@@ -343,10 +343,11 @@ def _joined_pages(post, files):
 def upload(request):
     """Upload one or more files to the reading queue."""
     user = _get_user(request)
-    # Fichiers TÉLÉVERSÉS et/ou DÉSIGNÉS (médiathèque, arbre) — brique `received_inputs` : une
-    # désignation se POINTE au lieu d'être recopiée, avec le même état du volet.
-    from wama.common.utils.media_paths import received_inputs
-    files = received_inputs(request, user, 'reader', field='files')
+    # Fichiers TÉLÉVERSÉS et/ou DÉSIGNÉS (médiathèque, arbre) — sous l'id du port de travail (le
+    # contrat du créateur dérivé de la card, 2026-11-26), ou sous `files`, le nom que la page poste
+    # (`media_paths.received_work`) : une désignation se POINTE au lieu d'être recopiée.
+    from wama.common.utils.media_paths import received_work
+    files = received_work(request, user, 'reader', 'files')
     if not files:
         return JsonResponse({'error': files.refusal or 'Aucun fichier reçu'}, status=400)
 
@@ -399,7 +400,10 @@ def upload(request):
     lots = consolidate_arrival(ReadingItem, [item.pk for item in items_created], user)
     if len(items_created) > 1:
         return JsonResponse({'created': created, 'batch_id': lots[0].id, 'multi': True})
-    return JsonResponse({'created': created})
+    # Un élément : son `id` à la racine, le contrat commun des vues de dépôt (lu par le créateur
+    # dérivé de la card, 2026-11-26), à côté de la liste que la page lit.
+    return JsonResponse({'id': items_created[0].pk, 'status': items_created[0].status,
+                         'created': created})
 
 
 def _reset_for_relaunch(item):

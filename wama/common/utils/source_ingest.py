@@ -145,6 +145,23 @@ def port_url_source(app_id, domain_id, types) -> str:
     return spec.get('source', 'source_url')
 
 
+def port_mode(app_id, domain_id, types) -> str:
+    """Le mode de téléchargement d'une URL donnée à un PORT (`types` : ses natures) — le mode qui ne
+    rapporte QUE les natures du port quand il y en a un (`MODE_NATURES` : `audio` pour un port audio
+    — l'audio d'une vidéo YouTube posée sur la mélodie du composer) ; sinon celui que le modèle
+    d'élément du domaine DÉCLARE (`domain_ingest`), quand la nature qu'il apporte est celle du port
+    (le transcriber prend l'audio d'une plateforme, le describer garde une page) ; `media` à défaut.
+    La règle que suivaient à la main les créateurs de l'assistant (`'audio'` pour la mélodie et
+    l'audio de l'avatarizer, `'media'` pour une partition ou une image), lue ici pour tout port."""
+    types = set(types or ())
+    narrow = next((mode for mode, kept in MODE_NATURES.items() if types and types <= set(kept)), None)
+    if narrow:
+        return narrow
+    declared = (domain_ingest(app_id, domain_id) or {}).get('mode', 'media')
+    natures = MODE_NATURES.get(declared)
+    return declared if natures is None or set(natures) & types else 'media'
+
+
 def download_to_user(user, url, mode='media') -> str:
     """Télécharge `url` dans l'espace temporaire de `user` et rend son chemin (relatif à
     `MEDIA_ROOT`) — le chemin qu'une désignation reçoit ensuite. `mode` : celui que l'app

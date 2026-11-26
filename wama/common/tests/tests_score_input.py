@@ -106,19 +106,26 @@ class ScoreReachesTheModelTest(TestCase):
         _model('composer:musicgen-small', task='text-to-music', required=['prompt'])
         _model('huggingface:m-a-p/YuE2-3B', task='text-to-music', required=['prompt'],
                optional=['work_score'])
-        self.user = get_user_model().objects.create_user('score_owner', password='x')
+        # An account that may use the composer : the tool passes the app's gate (`_refus_app`).
+        self.user = get_user_model().objects.create_superuser('score_owner', password='x')
         self.rel = f'users/{self.user.id}/temp/tune.abc'
         path = os.path.join(settings.MEDIA_ROOT, self.rel)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, 'w', encoding='utf-8') as fh:
             fh.write('X:1\nK:C\nCDEF|\n')
 
-    def _compose(self, model):
+    def _compose(self, model=None, **kwargs):
+        """The composer's tool — DERIVED from its card (2026-11-26) : one argument per port."""
         from unittest import mock
-        from wama.tool_api import compose_music
+        from wama.tool_api import TOOL_REGISTRY, tool_arg_names
+        if 'work_score' not in tool_arg_names('add_to_composer'):
+            self.skipTest('the score port comes from the catalogue models (YuE2) : none here')
         with mock.patch('wama.composer.tasks.compose_task.apply_async') as dispatch:
             dispatch.return_value.id = 'no-task'
-            return compose_music(self.user, 'a calm song', model=model, work_score=self.rel)
+            args = {'prompt': 'a calm song', 'work_score': self.rel, **kwargs}
+            return TOOL_REGISTRY['add_to_composer'](
+                self.user, **({'model': model} if model else {}),
+                **{k: v for k, v in args.items() if v is not None})
 
     def test_the_tool_rejects_a_score_for_a_model_without_it(self):
         from wama.composer.models import ComposerGeneration
@@ -129,26 +136,22 @@ class ScoreReachesTheModelTest(TestCase):
 
     def test_the_tool_asks_for_scores_alone_without_a_prompt(self):
         """2026-11-07 (« rendu facultatif ») : the scores of a song are asked WITHOUT a prompt and
-        without rendering — `generate_audio=False`, as on the card. A request that gives nothing
-        at all is still refused. The SIGNATURE says so too (2026-11-17, `tool_usage` : the stems of
-        a song asked without a prompt ended in a `TypeError` on 14/11) — no prompt is passed here."""
-        from unittest import mock
+        without rendering — `generate_audio=False`, as on the card. The SIGNATURE says so too
+        (2026-11-17, `tool_usage` : the stems of a song asked without a prompt ended in a
+        `TypeError` on 14/11) — no prompt is passed here. Since 2026-11-26 the tool is the card's
+        deposit : an empty prompt is the card's RANDOM generation (its placeholder says so), not a
+        refusal the tool alone made."""
         from wama.composer.models import ComposerGeneration
-        from wama.tool_api import compose_music, tool_input_schema
-        self.assertNotIn('prompt', tool_input_schema('compose_music').get('required', []))
-        with mock.patch('wama.composer.tasks.compose_task.apply_async') as dispatch:
-            dispatch.return_value.id = 'no-task'
-            result = compose_music(self.user, model='huggingface:m-a-p/YuE2-3B',
-                                   work_score=self.rel, generate_audio=False)
-            nothing = compose_music(self.user, '  ', model='huggingface:m-a-p/YuE2-3B')
-        gen = ComposerGeneration.objects.get(pk=result['generation_id'])
+        from wama.tool_api import tool_input_schema
+        self.assertNotIn('prompt', tool_input_schema('add_to_composer').get('required', []))
+        result = self._compose('huggingface:m-a-p/YuE2-3B', prompt=None, generate_audio=False)
+        gen = ComposerGeneration.objects.get(pk=result['item_id'])
         self.assertEqual(('', False), (gen.prompt, gen.generate_audio))
-        self.assertIn('error', nothing)
 
     def test_the_tool_points_the_score_for_a_model_that_follows_it(self):
         from wama.composer.models import ComposerGeneration
         result = self._compose('huggingface:m-a-p/YuE2-3B')
-        gen = ComposerGeneration.objects.get(pk=result['generation_id'])
+        gen = ComposerGeneration.objects.get(pk=result['item_id'])
         self.assertEqual(self.rel, gen.reference_score.name, 'a designated file is POINTED, not copied')
 
     def test_auto_draws_among_the_models_that_follow_the_score(self):

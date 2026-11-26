@@ -3100,7 +3100,10 @@ Fabien. Mesuré d'abord :
    ferait toutes~~ — **sans objet, mesuré le 2026-11-17** : `list_media_assets` rend les voix et
    les avatars du système depuis le 16/11 (la vue de la médiathèque, `tool_api.py:1285`),
    `synthesize_text` dit la forme d'une voix (`'sa_<id>'`, `'ua_<id>'`, `tool_api.py:680`),
-   `add_to_avatarizer` prend `avatar_gallery_name`, `list_model_choices` le catalogue. ~~Reste un
+   `add_to_avatarizer` prend `avatar_gallery_name`, `list_model_choices` le catalogue *(2026-11-26 :
+   les outils d'ajout sont DÉRIVÉS de la card, `REMOVAL_LEDGER R250` — la forme d'une voix est dite
+   par l'aide du réglage `voice_preset` du schéma, l'avatar se NOMME sur le port `work_image`, comme
+   tout asset de la médiathèque sur un port fichier)*. ~~Reste un
    portage, pas une décision : la conversion rapide du gestionnaire lit encore la table des
    préréglages~~ — **soldé le 2026-11-19** (Fabien : « l'aligner sur le fonctionnement commun ») :
    la modale rend le curseur du schéma par `WamaParams` (servi par `converter:api_presets` avec sa

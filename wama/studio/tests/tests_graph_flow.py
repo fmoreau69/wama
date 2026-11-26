@@ -151,14 +151,17 @@ class AStepNodeIsCarriedByItsElementTest(TestCase):
 
 class TheAvatarSpeaksFromTheStudioTest(TestCase):
 
-    def test_the_text_port_arrives_in_the_declared_source_text(self):
+    def test_the_text_port_arrives_in_the_argument_of_its_name(self):
+        """The tool is DERIVED from the card (2026-11-26) : one argument per port, of the same name
+        — the text to say arrives in the text port, the deposit view reads it there."""
         from wama.studio.services.generic_runner import port_argument_name, unwired_ports
-        self.assertEqual('text_content', port_argument_name('avatarizer', 'prompt'))
+        self.assertEqual('prompt', port_argument_name('avatarizer', 'prompt'))
         self.assertNotIn('prompt', unwired_ports('avatarizer'))
 
     def test_a_text_alone_runs_the_avatar_without_audio(self):
         """L'app accepte l'audio OU le texte (son mode se dérive des entrées) ; le nœud exigeait
-        l'audio et refusait tout lien texte (« débranchez-le »)."""
+        l'audio et refusait tout lien texte (« débranchez-le »). L'avatar NOMMÉ par le réglage du
+        nœud remplit le port image (`param_ports`) : les pipelines enregistrés le portent ainsi."""
         from wama.studio.services.generic_runner import build_generic_runner
         create = build_generic_runner('avatarizer')['create']
         with mock.patch('wama.tool_api.execute_tool', return_value={'item_id': 7}) as tool:
@@ -166,8 +169,18 @@ class TheAvatarSpeaksFromTheStudioTest(TestCase):
                                        {'avatar_gallery_name': 'x'}))
         name, args, _user = tool.call_args[0]
         self.assertEqual('add_to_avatarizer', name)
-        self.assertEqual('Bonjour', args['text_content'])
-        self.assertNotIn('audio_path', args)
+        self.assertEqual('Bonjour', args['prompt'])
+        self.assertEqual('x', args['work_image'])
+        self.assertNotIn('avatar_gallery_name', args)
+        self.assertNotIn('work_audio', args)
+        # Contre-épreuve : un lien sur le port image prime sur le réglage du nœud — le port vient
+        # des modèles du catalogue (MuseTalk le déclare).
+        from wama.avatarizer.tests_animation_model import _register_models
+        _register_models()
+        with mock.patch('wama.tool_api.execute_tool', return_value={'item_id': 8}) as tool:
+            create(User(id=1), {'prompt': 'Bonjour', 'work_image': 'users/1/a.png'},
+                   {'avatar_gallery_name': 'x'})
+        self.assertEqual('users/1/a.png', tool.call_args[0][1]['work_image'])
 
 
 class TheOutputNodeFilesByWhatItReceivesTest(TestCase):

@@ -103,8 +103,8 @@ def composer_rules(values) -> dict:
     """Les règles PROPRES au composer sur des réglages naissants (`new_generation_settings`) : la
     consigne n'en est pas un réglage, le modèle normalisé, la durée bornée par le schéma (le plafond
     du modèle se pose au lancement, `clamp_duration`), la voix normalisée. La validité du modèle
-    reste à l'appelant. Lues par la card (`generate`) et par l'outil de l'assistant
-    (`tool_api.compose_music`) — elles y étaient écrites deux fois (2026-10-29)."""
+    reste à l'appelant. Lues par la card (`generate`) — et donc par l'outil de l'assistant, qui
+    rejoue ce dépôt depuis le 2026-11-26 (`tool_api._card_creator`)."""
     values.pop('prompt', None)
     values['model'] = normalize(values.get('model'))
     values['duration'] = clamp_duration(values.get('duration'))
@@ -113,9 +113,8 @@ def composer_rules(values) -> dict:
 
 
 #: Les ports du MORCEAU À REPRENDRE (cover) — ports de TRAVAIL depuis le 2026-10-03 — et ce que
-#: chacun porte, dit dans un refus. Lus par la card (`generate`), l'outil de l'assistant
-#: (`tool_api.compose_music`) et le lot (`import_batch`) : la liste était écrite deux fois
-#: (2026-11-06). Le CHAMP de chaque port se lit au lecteur commun (`port_fields.port_field`,
+#: chacun porte, dit dans un refus. Lus par la card (`generate`, que l'outil de l'assistant rejoue
+#: depuis le 2026-11-26) et le lot (`import_batch`) : la liste était écrite deux fois (2026-11-06). Le CHAMP de chaque port se lit au lecteur commun (`port_fields.port_field`,
 #: `register_port_fields` de apps.py, 2026-11-24), plus ici.
 COVER_PORTS = (('work_score', 'de partition'),
                ('work_audio', "d'audio à reprendre"))
@@ -359,8 +358,10 @@ def generate(request):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
     # Prompt VIDE autorisé = génération ALÉATOIRE (inconditionnelle — le modèle improvise).
-    # L'UI l'annonce dans le placeholder de la card d'entrée (INPUT_MODEL_MATCHING.md).
-    prompt = request.POST.get('prompt', '').strip()
+    # L'UI l'annonce dans le placeholder de la card d'entrée (INPUT_MODEL_MATCHING.md). Lu sous
+    # l'id du port texte que la card déclare (`media_paths.posted_text`, 2026-11-26).
+    from wama.common.utils.media_paths import posted_text
+    prompt = posted_text(request, 'composer', 'prompt')
 
     # Réglages : la cascade COMMUNE (défauts du schéma ← réglages de l'auteur ← le POST), puis les
     # règles du composer (`composer_rules`) ; le modèle est validé.
@@ -382,11 +383,14 @@ def generate(request):
     # « Le modèle le déclare » s'entend AU SEIN DU PIPELINE : l'audio d'un cover est aussi joint
     # pour un modèle qui en suivra la partition extraite (`accepts_input`, 2026-10-03).
     from wama.common.utils.port_fields import port_field
+    # Un morceau posté sur un port que le modèle ne prend pas est REFUSÉ avec son motif
+    # (`cover_refusal`, « jamais ignoré en silence ») : la card l'écartait sans un mot jusqu'au
+    # 2026-11-26, l'outil de l'assistant le refusait — une règle, celle de la card.
     joined = []
     for port, _what in COVER_PORTS:
-        if not accepts_input(model_id, port):
-            continue
         received = received_inputs(request, user, 'composer', field=port)
+        if received and (refusal := cover_refusal(model_id, port)):
+            return JsonResponse({'error': refusal}, status=400)
         if received:
             joined.append((received[0], port_field(ComposerGeneration, port)))
         elif received.refusal:

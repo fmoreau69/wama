@@ -2407,42 +2407,25 @@ def _prompt_skill(f: _AppFiles):
 def _tool_api_item_id(f: _AppFiles):
     """Contrat exigé par build_generic_runner : add_to_<app> doit retourner `item_id`.
 
-    Une JUMELLE n'a pas d'outil écrit : `add_to_<jumelle>` est DÉRIVÉ de celui de sa source au
-    chargement (`tool_api._register_twin_creators`, `sandbox.retarget_callable`, 2026-10-29).
-    Le critère lit alors ce qui est SERVI — l'outil au registre et la fonction qu'il enveloppe
-    (`__wrapped__`) —, jamais la déclaration de la source par repli (garde `SANS_REPLI` de
-    `tests_sandbox_coherence`) : la grille cherchait `add_to_<jumelle>` dans le texte et tenait
-    les dix jumelles pour sans outil."""
+    Le critère lit ce qui est SERVI — l'outil au registre —, jamais la déclaration de la source par
+    repli (garde `SANS_REPLI` de `tests_sandbox_coherence`). Depuis le 2026-11-26, l'outil de TOUTE
+    app — réelle, jumelle, née d'un manifeste — est DÉRIVÉ de sa card (`tool_api._card_creator`) :
+    une fonction construite au chargement, sans `def` de niveau module, dont le corps commun
+    (`_deposit_on_card`) rend la clé. Un outil écrit à la main se lit encore à son `def`."""
     text = _wama_text('tool_api.py')
+    try:
+        from wama.tool_api import TOOL_REGISTRY
+        fn = TOOL_REGISTRY.get(f'add_to_{f.app}')
+    except Exception:
+        fn = None
+    if getattr(getattr(fn, '__code__', None), 'co_qualname', '') == '_card_creator.<locals>.creator':
+        body = re.search(r"^def _deposit_on_card\b.*?(?=^def |\Z)", text, re.S | re.M)
+        if body and re.search(r"""['"]item_id['"]""", body.group(0)):
+            line = text.count('\n', 0, body.start()) + 1
+            return True, (f"add_to_{f.app} SERVI, dérivé de la card (`_card_creator`, corps "
+                          f"`_deposit_on_card` tool_api.py:{line}, retourne 'item_id')")
+        return False, "le corps du créateur dérivé (`_deposit_on_card`) ne retourne pas 'item_id'"
     m = re.search(rf"^def add_to_{f.app}\b.*?(?=^def |\Z)", text, re.S | re.M)
-    if not m:
-        try:
-            from wama.tool_api import TOOL_REGISTRY
-            served = getattr(TOOL_REGISTRY.get(f'add_to_{f.app}'), '__wrapped__', None)
-        except Exception:
-            served = None
-        if served is not None:
-            body = re.search(rf"^def {served.__name__}\b.*?(?=^def |\Z)", text, re.S | re.M)
-            if body and re.search(r"""['"]item_id['"]""", body.group(0)):
-                line = text.count('\n', 0, body.start()) + 1
-                return True, (f"add_to_{f.app} SERVI, dérivé de {served.__name__} "
-                              f"(tool_api.py:{line}, retourne 'item_id')")
-        # Une app NÉE D'UN MANIFESTE : son créateur est DÉRIVÉ de la vue de dépôt de sa card
-        # (`tool_api._born_creator`, 2026-11-01) — une fonction construite au chargement, sans
-        # `def` de niveau module ni `__wrapped__`. On lit la source de CE qui est servi (2026-11-06 :
-        # le Writer et le Translator étaient rouges sur un contrat tenu).
-        try:
-            from wama.tool_api import TOOL_REGISTRY, _born_creator
-            fn = TOOL_REGISTRY.get(f'add_to_{f.app}')
-        except Exception:
-            fn = _born_creator = None
-        if fn is not None and _born_creator is not None and \
-                fn.__code__ is _born_creator(f.app).__code__:
-            import inspect
-            if re.search(r"""['"]item_id['"]""", inspect.getsource(fn)):
-                return True, (f"add_to_{f.app} SERVI, dérivé de la vue de dépôt de sa card "
-                              f"(tool_api.py:{fn.__code__.co_firstlineno}, `_born_creator`, "
-                              "retourne 'item_id')")
     if not m:
         alias = re.search(rf"^add_to_{f.app}\s*=\s*(\w+)", text, re.M)
         if not alias:

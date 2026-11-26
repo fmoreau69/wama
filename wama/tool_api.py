@@ -6,7 +6,8 @@ for manual testing (curl / browser).
 
 Tools available:
   - list_user_files(user, folder)          → list files in user's media folders
-  - add_to_anonymizer(user, file_path, ...) → queue a file in the anonymizer
+  - add_to_<app>(user, <port>=…, **settings) → add an element like a deposit on the app's card
+                                               (derived for every app: `_card_creator`)
   - start_anonymizer(user, media_id)        → trigger Celery processing
   - get_anonymizer_status(user)             → current jobs progress
   - sam3_examples()                         → SAM3 text prompt suggestions
@@ -70,14 +71,6 @@ def _local_input(path, user, app_label: str, mode: str = None):
     except Exception as exc:
         raise InputRefused(f"Téléchargement impossible ({str(path).strip()}) : {exc}") from exc
 
-
-def _receive(path, user, app_label: str, subfolder: str = 'input', mode: str = None):
-    """Le fichier d'un outil, REÇU pour `app_label` : une adresse est d'abord téléchargée
-    (`_local_input`), puis le chemin passe LA désignation commune (`media_paths.designate`). Seul
-    appelant de `designate` dans ce module (`tests_tool_api_coverage`) : un créateur qui
-    désignerait à côté refuserait de nouveau une adresse."""
-    from wama.common.utils.media_paths import designate
-    return designate(_local_input(path, user, app_label, mode), user, app_label, subfolder)
 
 
 def _signed_in_refusal(user, action: str = 'Lecture') -> dict | None:
@@ -299,106 +292,6 @@ def find_user_files(user, query: str, limit: int = 20) -> dict:
         return {'error': f'Recherche impossible : {e}'}
 
 
-@tool_effect(WRITE)
-def add_to_anonymizer(
-    user,
-    file_path: str,
-    sam3_prompt: str = '',
-    classes: list = None,
-    precision_level: int = None,
-    app_label: str = 'anonymizer',
-    **params,
-) -> dict:
-    """
-    Copy a file into the anonymizer input queue and create a Media DB entry. An image or a video
-    is blurred; a DOCUMENT (PDF, DOCX — domain `document`, 2026-11-02) has its personal data
-    detected in its text and blacked out in the file itself, its form kept (its OCR proposes
-    itself for a scan; the settings below do not apply to it).
-
-    Args:
-        user:            Django User instance
-        file_path:       Path from find_user_files (relative to MEDIA_ROOT, or mounts/… for a connected folder), or an http(s) URL (downloaded first)  (e.g. "users/1/temp/biovam.mp4", "users/1/temp/lettre.pdf")
-        sam3_prompt:     describe what to blur in text (e.g. "all human faces") — given alone,
-                         it selects the DESCRIPTION mode (`target_mode`, a schema setting that
-                         can also be passed explicitly: 'classes' | 'description')
-        classes:         classes to blur in the CLASSES mode  (default: the model's, ['face'])
-        precision_level: 0–100 (0=Quick, 50=Balanced, 100=Precise)
-        A setting left out takes the author's retained panel setting, else the schema default —
-        the element is born like a card deposit (`process_media` → `new_media_settings`,
-        2026-10-29).
-        app_label:       INTERNE (jamais annoncé) — la jumelle visée par `add_to_<jumelle>`
-
-    Returns:
-        {"media_id": int, "name": str, "status": "queued"} or {"error": str}
-    """
-    # Le MODE de l'élément (2026-09-27, ex-`use_sam3`) : déclaré, sinon déduit — une description
-    # donnée seule désigne le mode Description.
-    by_description = (params.get('target_mode') == 'description'
-                      or (bool(sam3_prompt) and not params.get('target_mode')))
-
-    # Une description DONNÉE est un réglage de la card, gardée quel que soit le mode (comme au
-    # volet, où le mode Classes la masque sans l'effacer) : elle se valide donc dès qu'elle est
-    # donnée (2026-11-25 — jetée en mode Classes, celle d'un nœud du Studio n'atteignait pas la card).
-    if sam3_prompt:
-        from wama.anonymizer.utils.sam3_manager import validate_sam3_prompt
-        valid, err = validate_sam3_prompt(sam3_prompt)
-        if not valid:
-            return {'error': f'SAM3 prompt invalide : {err}'}
-
-    # Le fichier est DÉSIGNÉ (2026-09-28) : même brique que la vue d'upload — pointé s'il est
-    # dans l'espace de l'utilisateur (le sas où l'assistant dépose), jamais recopié à la main ;
-    # même filtre de types que le dépôt de l'app (`_check_media_type`), pas une liste de plus.
-    from wama.anonymizer.views import _check_media_type, process_media
-    from wama.common.utils.media_paths import InputRefused
-    try:
-        received = _receive(file_path, user, app_label)
-        _check_media_type(received.name)
-    except (InputRefused, ValueError) as e:
-        return {'error': str(e)}
-
-    # Le média naît par la vue de l'app (`process_media`), donc par sa naissance COMMUNE
-    # (`new_media_settings`, 2026-10-29) : défauts du schéma ← réglages retenus ← ce que l'outil a
-    # reçu, comme un dépôt de la card. Le mode est celui déduit ci-dessus.
-    posted = _given({**params, 'precision_level': precision_level,
-                     'target_mode': 'description' if by_description else 'classes',
-                     'sam3_prompt': sam3_prompt or None})
-    try:
-        result = process_media(received.local_path, user, post=posted, app=app_label)
-    except Exception as e:
-        return {'error': f'Erreur création Media : {e}'}
-
-    if isinstance(result, str):
-        return {'error': result}
-    if not result.get('is_valid'):
-        return {'error': result.get('error', 'Erreur inconnue')}
-
-    media_id = result['id']
-
-    # Le fichier reçu (provenance) et les classes, qui ne sont pas un réglage du schéma.
-    from django.apps import apps as django_apps
-    Media = django_apps.get_model(app_label, 'Media')
-    try:
-        media = Media.objects.get(pk=media_id)
-        received.record(media, 'file')
-        if classes:
-            media.classes2blur = classes
-            media.save(update_fields=['classes2blur'])
-    except Exception as e:
-        logger.warning(f'[tool_api] Could not update Media #{media_id} settings: {e}')
-
-    return {
-        'media_id': media_id,
-        'item_id': media_id,   # clé UNIFORME du contrat méta-app
-        'name': result['name'],
-        'duration': result.get('duration', ''),
-        'status': 'queued',
-        'target_mode': 'description' if by_description else 'classes',
-        'sam3_prompt': sam3_prompt if by_description else None,
-    }
-
-
-# `start_anonymizer` / `get_anonymizer_status` : construits depuis TRIAD_SPECS['anonymizer'] (marche A4).
-
 
 @tool_effect(READ)
 def sam3_examples() -> dict:
@@ -420,214 +313,10 @@ def sam3_examples() -> dict:
         ]}
 
 
-# ===========================================================================
-# Imager tools
-# ===========================================================================
-
-@tool_effect(WRITE)
-def create_image(
-    user,
-    prompt: str,
-    model: str = None,
-    width: int = None,
-    height: int = None,
-    steps: int = None,
-    guidance_scale: float = None,
-    negative_prompt: str = None,
-    seed: int = None,
-    num_images: int = None,
-    app_label: str = 'imager',
-    **params,
-) -> dict:
-    """
-    Create a txt2img generation job (status: PENDING).
-
-    Args:
-        user:            Django User instance
-        prompt:          Text prompt for generation (required)
-        model:           'auto' or a model name (e.g. 'hunyuan-image-2.1', 'stable-diffusion-xl')
-        width:           Output width in pixels (256–2048; default: the model's)
-        height:          Output height in pixels (256–2048; default: the model's)
-        steps:           Diffusion steps (1–100)
-        guidance_scale:  Guidance scale (1.0–20.0)
-        negative_prompt: What to avoid in the image
-        seed:            Random seed for reproducibility (None = random)
-        num_images:      Number of images to generate (1–4)
-        A setting left out takes the author's retained panel setting, then the chosen model's
-        declared defaults, else the schema default — the generation is born like a card deposit
-        (`new_generation_settings`, 2026-10-29).
-        app_label:       INTERNE (jamais annoncé) — la jumelle visée par `add_to_<jumelle>`
-
-    Returns:
-        {"generation_id": int, "status": "pending", "model": str, "prompt": str}
-    """
-    if not prompt.strip():
-        return {'error': 'Le prompt est requis.'}
-
-    # Bornes des valeurs DONNÉES ; ce qui n'est pas donné vient de la naissance de l'app.
-    if num_images is not None:
-        num_images = max(1, min(4, int(num_images)))
-    if steps is not None:
-        steps = max(1, min(100, int(steps)))
-    if guidance_scale is not None:
-        guidance_scale = max(1.0, min(20.0, float(guidance_scale)))
-
-    try:
-        from django.apps import apps as django_apps
-        from wama.imager.views import _dimensions, new_generation_settings
-        ImageGeneration = django_apps.get_model(app_label, 'ImageGeneration')
-        # Naissance COMMUNE (2026-10-29) : celle de la card txt2img — défauts du schéma ← défauts
-        # déclarés du modèle choisi ← réglages retenus ← ce que l'outil a reçu.
-        posted = _given({'model': model, 'steps': steps, 'guidance_scale': guidance_scale,
-                         'negative_prompt': negative_prompt, 'seed': seed,
-                         'num_images': num_images, **params})
-        values = new_generation_settings(user, 'txt2img', post=posted, model=ImageGeneration,
-                                         app=app_label)
-        size = _dimensions(_given({'width': width, 'height': height}), values.get('model'))
-        size = {k: max(256, min(2048, int(v))) for k, v in size.items()}
-        generation = ImageGeneration.objects.create(
-            **values,
-            **size,
-            user=user,
-            generation_mode='txt2img',
-            prompt=prompt.strip(),
-            status='PENDING',
-        )
-    except Exception as e:
-        return {'error': f'Erreur création ImageGeneration : {e}'}
-
-    return {
-        'generation_id': generation.id,
-        'item_id': generation.id,   # clé UNIFORME du contrat méta-app, À LA SOURCE (2026-10-06)
-        'status': 'pending',
-        'model': generation.model,
-        'prompt': prompt,
-        'width': generation.width,
-        'height': generation.height,
-        'steps': generation.steps,
-        'num_images': generation.num_images,
-    }
-
-
-# `start_imager` / `get_imager_status` : construits depuis TRIAD_SPECS['imager'] (marche A4).
-
 
 # ===========================================================================
 # Enhancer tools
 # ===========================================================================
-
-@tool_effect(WRITE)
-def add_to_enhancer(
-    user,
-    file_path: str,
-    domain: str = '',
-    app_label: str = 'enhancer',
-    **params,
-) -> dict:
-    """
-    Register a file for enhancement: an image or a video is upscaled and restored, an audio
-    recording is denoised and restored — the app's two domains, one gesture, as on its card and
-    in « Envoyer vers ».
-
-    Args:
-        user:      Django User instance
-        file_path: Path from find_user_files (relative to MEDIA_ROOT, or mounts/… for a connected folder), or an http(s) URL (downloaded first) (from list_user_files)
-        domain:    the domain that receives the file; left empty, the one its nature designates.
-                   Name it for an address whose nature only the download tells (the audio of a
-                   video platform).
-        **params:  Any setting DECLARED by the schema of the receiving domain (`enhancer/params.py`);
-                   a setting of the other domain is refused, not ignored.
-        A setting left out takes the author's retained panel setting, else the schema default —
-        the element is born like a card deposit.
-        app_label: INTERNE (jamais annoncé) — la jumelle visée par `add_to_<jumelle>`
-
-    Returns:
-        {"item_id": int, "surface": str, "domain": str, "name": str, "media_type": str,
-         "status": "pending", …the receiving domain's choices}
-    """
-    # UN créateur pour les deux domaines (2026-11-25, `ROUTE §11 #42` ⑥) : `add_to_audio_enhancer`
-    # écrivait l'app en dur (la jumelle n'avait aucun créateur audio) et doublait la règle de
-    # l'import. Le domaine qui reçoit se LIT comme à l'import (`import_to_enhancer`) : celui que
-    # l'appel nomme, sinon celui de la nature du fichier (`app_modes.arrival_domain`).
-    from wama.common.utils import app_modes
-    from wama.common.utils.detail_registry import DetailRegistry
-    from wama.common.utils.media_paths import InputRefused
-    from wama.common.utils.source_ingest import app_mode
-
-    served = app_modes.arrival_domains(app_label)
-    if domain and domain not in served:
-        return {'error': f"Domaine inconnu : '{domain}'. Domaines : {', '.join(served)}"}
-    try:
-        # Une adresse se télécharge dans le mode que DÉCLARE la surface du domaine nommé.
-        local = _local_input(file_path, user, app_label,
-                             app_mode(app_modes.domain_surface(app_label, domain)) if domain else None)
-    except InputRefused as e:
-        return {'error': str(e)}
-    domain = domain or app_modes.arrival_domain(app_label, local)
-    nature = app_modes.file_nature(app_label, domain, local) if domain else None
-    if not nature:
-        return {'error': f"Format non supporté par l'enhancer : "
-                         f"{Path(str(local)).suffix or 'sans extension'}"}
-    posted, refused = _domain_settings(app_label, domain, params)
-    if refused:
-        return {'error': refused}
-
-    surface = app_modes.domain_surface(app_label, domain)
-    Model = DetailRegistry.get(surface)['model']
-    upload_to = Model._meta.get_field('input_file').upload_to
-    try:
-        received = _receive(local, user, app_label, getattr(upload_to, 'subfolder', 'input'))
-    except InputRefused as e:
-        return {'error': str(e)}
-
-    try:
-        from wama.enhancer.views import new_audio_settings, new_enhancement_settings
-        from wama.common.utils.user_settings import inputs_by_port
-
-        # Naissance COMMUNE : défauts du schéma du domaine ← réglages retenus de l'auteur ← ce que
-        # l'outil a reçu, par la fonction de naissance de la card de ce domaine.
-        born = new_enhancement_settings if surface == app_label else new_audio_settings
-        values = born(user, model=Model, app=app_label, post=posted,
-                      inputs=inputs_by_port(app_label, received))
-        extra = {'media_type': nature} if surface == app_label else {}
-        element = Model.objects.create(user=user, input_file=received.value, file_size=received.size,
-                                       status='PENDING', **extra, **values)
-        received.record(element, 'input_file')
-        if surface == app_label:
-            _measure_media(element)
-    except Exception as e:
-        return {'error': f"Erreur création ({Model.__name__}) : {e}"}
-
-    from wama.common.utils.param_schema import _pget
-    chosen = {_pget(p, 'name'): getattr(element, _pget(p, 'name'))
-              for p in app_modes.domain_schema(app_label, domain)
-              if _pget(p, 'type') == 'select' and hasattr(element, _pget(p, 'name'))}
-    id_kwarg = (TRIAD_SPECS.get(surface) or {}).get('id_kwarg')
-    return {
-        **({id_kwarg: element.id} if id_kwarg else {}),
-        'item_id': element.id,   # clé UNIFORME du contrat méta-app (STUDIO_VISION 2026-07-12)
-        'surface': surface,      # la famille de l'élément : celle que suivent start / status
-        'domain': domain,
-        'name': received.name,
-        'media_type': nature,
-        'status': 'pending',
-        **chosen,
-    }
-
-
-def _measure_media(element) -> None:
-    """Dimensions, durée et taille d'une image ou d'une vidéo reçue — lues au fichier, comme au
-    dépôt de la card ; un échec n'empêche pas l'élément d'exister."""
-    try:
-        from wama.common.utils.video_utils import get_media_info
-        info = get_media_info(element.input_file.path)
-        element.width = info.get('width', 0)
-        element.height = info.get('height', 0)
-        element.duration = info.get('duration', 0)
-        element.file_size = info.get('file_size', 0)
-        element.save(update_fields=['width', 'height', 'duration', 'file_size'])
-    except Exception as e:
-        logger.warning(f'[tool_api] add_to_enhancer analyze failed: {e}')
 
 
 def _domain_settings(app_label: str, domain: str, given: dict):
@@ -654,9 +343,14 @@ def _domain_settings(app_label: str, domain: str, given: dict):
     refusals = schema_refusals(schema, posted)
     if refusals:
         return None, f"Valeur hors schéma du domaine « {domain} » : {describe_refusals(refusals)}"
+    from wama.common.utils.auto_model import is_auto
     for p in schema:
         name = _pget(p, 'name')
         if _pget(p, 'options_source') != 'catalog' or not posted.get(name):
+            continue
+        # Un « automatique » — de groupe compris (`auto:text-to-music`) — se tire au LANCEMENT : il
+        # n'est jamais une ligne du catalogue, la card l'accepte (2026-11-26).
+        if is_auto(posted[name]):
             continue
         posted[name] = catalog_key(posted[name], declaring_app(app_label))
         valid = {value for value, _ in catalog_options(p)}
@@ -671,632 +365,10 @@ def _domain_settings(app_label: str, domain: str, given: dict):
 # la surface que la création rend.
 
 
-# ===========================================================================
-# Synthesizer tools
-# ===========================================================================
 
-@tool_effect(WRITE)
-def synthesize_text(
-    user,
-    text: str = '',
-    work_file: str = '',
-    reference_voice: str = '',
-    language: str = None,
-    tts_model: str = None,
-    voice_preset: str = None,
-    speed: float = None,
-    pitch: float = None,
-    emotion_intensity: float = None,
-    app_label: str = 'synthesizer',
-    **params,
-) -> dict:
-    """
-    Create a VoiceSynthesis job — from raw text OR from a work file, with an optional
-    reference voice. Same creation path as the app's card (`synthesizer.services.create_synthesis`).
 
-    Args:
-        user:              Django User instance
-        text:              Text to synthesize (port `prompt`) — or give `work_file`
-        work_file:         Path (from find_user_files) of a TXT/MD/PDF/DOCX/CSV file to read aloud
-                           (port `work_file`)
-        reference_voice:   Path (from find_user_files) of a voice sample to clone
-                           (port `reference_voice`)
-        language:          Language code (e.g. 'fr', 'en', 'es')
-        tts_model:         TTS model catalog key ('synthesizer:coqui-xtts', 'auto'…)
-        voice_preset:      Voice ('default', 'sa_<id>' reference voice, 'ua_<id>' library voice…)
-        speed:             Speech speed 0.5–2.0
-        pitch:             Voice pitch 0.5–2.0
-        emotion_intensity: Emotional intensity 0.0–2.0
-        A setting left out takes the author's retained panel setting, else the schema default —
-        the synthesis is born like a card deposit (`new_synthesis_settings`, 2026-10-29).
-        app_label:         INTERNE (jamais annoncé) — la jumelle visée par `add_to_<jumelle>`
 
-    Returns:
-        {"synthesis_id": int, "word_count": int, "duration_display": str, "status": "pending"}
-    """
-    # ⚠ Jusqu'au 2026-09-30 cet outil ne connaissait que le TEXTE : un document ou une voix de
-    # référence branchés sur le nœud du Studio étaient ignorés en silence. Il reçoit désormais
-    # les PORTS de l'app, désignés par leur chemin (`designate` : confinement, existence, droit de
-    # lecture), et crée par le MÊME chemin que la card.
-    from wama.common.utils.media_paths import InputRefused
-    from wama.synthesizer.services import SynthesisRefused, create_synthesis
-    try:
-        received = {port: _receive(path, user, app_label)
-                    for port, path in (('work_file', work_file), ('reference_voice', reference_voice))
-                    if path}
-    except InputRefused as e:
-        return {'error': str(e)}
-    # Naissance COMMUNE (2026-10-29), les `params` d'un dépôt de la card (`synthesis_params`) :
-    # la cascade de l'app, plus ce que l'appel porte hors schéma (réglages Higgs, titre).
-    from django.apps import apps as django_apps
-    from wama.synthesizer.views import synthesis_params
-    posted = _given({**params, 'language': language, 'tts_model': tts_model,
-                     'voice_preset': voice_preset, 'speed': speed, 'pitch': pitch,
-                     'emotion_intensity': emotion_intensity})
-    settings = synthesis_params(user, posted, model=django_apps.get_model(app_label, 'VoiceSynthesis'),
-                                app=app_label,
-                                inputs=inputs_by_port(app_label, received.get('work_file')))
-    try:
-        synthesis = create_synthesis(user, prompt=text or '', params=settings,
-                                     work_file=received.get('work_file'),
-                                     reference_voice=received.get('reference_voice'),
-                                     app=app_label)
-    except (SynthesisRefused, ValueError) as e:
-        return {'error': str(e)}
-    except Exception as e:
-        return {'error': f'Erreur création VoiceSynthesis : {e}'}
 
-    return {
-        'synthesis_id': synthesis.id,
-        'item_id': synthesis.id,    # clé UNIFORME du contrat méta-app, À LA SOURCE (2026-10-06)
-        'word_count': synthesis.word_count,
-        'duration_display': synthesis.duration_display or '—',
-        'status': 'pending',
-        'model': synthesis.tts_model,
-        'language': synthesis.language,
-        'voice_preset': synthesis.voice_preset,
-    }
-
-
-# `start_synthesizer` / `get_synthesizer_status` : construits depuis TRIAD_SPECS['synthesizer'] (marche A4).
-
-
-# ===========================================================================
-# Composer tools
-# ===========================================================================
-
-@tool_effect(WRITE)
-def compose_music(
-    user,
-    prompt: str = '',
-    model: str = None,
-    duration: float = None,
-    work_score: str = None,
-    work_audio: str = None,
-    app_label: str = 'composer',
-    **params,
-) -> dict:
-    """
-    Create a Composer generation job (music or SFX) and start it immediately.
-
-    Args:
-        user:     Django User instance
-        prompt:   Text description of the sound/music to generate (English preferred)
-        model:    A catalogue key of the text-to-music / text-to-audio tasks
-                  ('composer:musicgen-small', 'huggingface:m-a-p/YuE2-3B'…), a bare
-                  composer id ('musicgen-small'), or a group auto
-                  ('auto:text-to-music', 'auto:text-to-audio')
-        duration: Duration in seconds — bounded by the app schema and capped by what the
-                  chosen model declares it can produce (MusicGen: 30 s)
-        A setting left out takes the author's retained panel setting, else the schema default —
-        the generation is born like a card deposit (`new_generation_settings`, 2026-10-29).
-        work_score: Path (from find_user_files) of the SCORE of a song to cover — ABC, MIDI
-                  or MusicXML (port `work_score`); only for a model that declares it (YuE2)
-        work_audio: Path (from find_user_files) or http(s) URL (YouTube, direct link) of the
-                  AUDIO of a song to cover — its melody is replayed in the prompt's style (port
-                  `work_audio`, MusicGen Melody)
-        Steps are switches of the schema, passed as settings : `extract_reduced_score=True`
-        (the melody score of the song), `extract_parts=True` (one part per instrument),
-        `separate_stems=True` (split the work audio into stems — vocals, drums, bass… — each
-        becoming a card of this card's lot, to transcribe one instrument alone),
-        `generate_audio=False` (render NOTHING : only the scores — the prompt may then be empty).
-        app_label: INTERNE (jamais annoncé) — la jumelle visée par `add_to_<jumelle>`
-
-    Returns:
-        {"generation_id": int, "model": str, "generation_type": str,
-         "duration": float, "status": "pending"}
-    """
-    # Route F4b (2026-10-01) : le domaine du composer est celui du CATALOGUE (ses deux tâches),
-    # plus la liste de l'app — un modèle installé ailleurs (YuE2) est accepté ici aussi.
-    from django.apps import apps as django_apps
-    from wama.composer.utils.model_choice import (TASKS, generation_type as _type_of,
-                                                   is_valid, normalize)
-    from wama.composer.views import composer_rules, new_generation_settings
-
-    prompt = (prompt or '').strip()
-    # Une consigne VIDE est permise quand un morceau est donné (2026-11-07, « rendu facultatif ») :
-    # les partitions d'un audio se demandent sans rien rendre (`generate_audio=False`), comme sur
-    # la card. Seule une demande qui ne donne RIEN est refusée. La SIGNATURE le dit aussi depuis
-    # le 2026-11-17 : `prompt` y restait obligatoire, et séparer les pistes d'un morceau sans
-    # consigne finissait en `TypeError` avant d'arriver ici (relevé de `tool_usage`, 14/11).
-    if not prompt and not (work_score or work_audio):
-        return {'error': 'Prompt requis (ou un morceau à reprendre : work_audio / work_score)'}
-
-    def _refused(chosen):
-        return {'error': f"Modèle invalide '{chosen}' : il faut un modèle des tâches "
-                         f"{' / '.join(TASKS)} (voir le catalogue), ou un « auto » de groupe."}
-
-    # Un modèle DONNÉ se juge tel quel : refusé, jamais remplacé en silence par le défaut.
-    if model and not is_valid(model):
-        return _refused(model)
-    # Naissance COMMUNE (2026-10-29), celle de la card (`generate`) : défauts du schéma ← réglages
-    # retenus ← ce que l'outil a reçu ; puis les règles du composer — modèle normalisé et validé,
-    # durée bornée, voix normalisée.
-    # Les fichiers du morceau à reprendre PROPOSENT leurs réglages (`default_from` : la durée de
-    # l'audio) — lus sans être reçus (`designated_file` : mêmes gardes, rien de pointé ni copié).
-    from wama.common.utils.media_paths import InputRefused, designated_file
-    try:
-        # Une ADRESSE (YouTube, lien direct) est d'abord téléchargée — la règle de tout créateur.
-        work_score = _local_input(work_score, user, app_label, 'media')
-        work_audio = _local_input(work_audio, user, app_label, 'audio')
-        held = [designated_file(path, user) for path in (work_score, work_audio) if path]
-    except InputRefused as e:
-        return {'error': str(e)}
-    ComposerGeneration = django_apps.get_model(app_label, 'ComposerGeneration')
-    values = composer_rules(new_generation_settings(
-        user, model=ComposerGeneration, app=app_label,
-        post=_given({'model': model, 'duration': duration, **params}),
-        inputs=inputs_by_port(app_label, *held)))
-    model = model or values['model']
-    if not is_valid(model):
-        return _refused(model)
-
-    # Ports du MORCEAU À REPRENDRE (cover) — `work_score` (partition) et `work_audio` (audio),
-    # ports de TRAVAIL depuis le 2026-10-03 : désignés par leur chemin, comme les ports du
-    # synthesizer, et refusés AVANT de créer quoi que ce soit si le modèle ne les prend pas
-    # (jamais ignorés en silence) — la règle de la card et du lot (`designated_cover`).
-    from wama.composer.views import designated_cover
-    try:
-        received = designated_cover(user, model, {'work_score': work_score, 'work_audio': work_audio},
-                                    app_label)
-    except InputRefused as e:
-        return {'error': str(e)}
-
-    model = normalize(model)
-    # Bornée par le SCHÉMA et plafonnée par la capacité DÉCLARÉE du modèle (`clamp_duration`, la
-    # règle du curseur et de la tâche). Un `min(30.0, …)` écrit ici réduisait à 30 s toute durée
-    # demandée par l'assistant ou un nœud du Studio, quel que soit le modèle (mesuré le 2026-10-18).
-    from wama.composer.utils.model_config import clamp_duration
-    values['model'] = model
-    values['duration'] = float(clamp_duration(values.get('duration'), model))
-    generation_type = _type_of(model)
-
-    gen = ComposerGeneration.objects.create(
-        user=user,
-        generation_type=generation_type,
-        prompt=prompt,
-        **values,
-    )
-    for item, field in received:
-        item.assign(gen, field)
-
-    # Wrap in batch-of-1
-    from wama.composer.views import _wrap_generation_in_batch
-    _wrap_generation_in_batch(gen)
-
-    # Lancée par LE ▶ de la card (`item_views.start_one_item`, 2026-10-29) : la tâche et la remise
-    # à zéro que l'app de la génération DÉCLARE à sa fabrique — une jumelle lance la sienne. Depuis
-    # le squelette commun (2026-10-02), « en cours » est posé par le LANCEUR, plus par la tâche.
-    from wama.common.utils.item_views import declaration_for, start_one_item
-    started, _task, refused = start_one_item(declaration_for(ComposerGeneration), gen.pk, user=user)
-    if refused:
-        return {'error': f'Composition #{gen.pk} créée, mais non lancée : {refused[1]}',
-                'generation_id': gen.pk, 'item_id': gen.pk}
-    gen = started
-
-    return {
-        'generation_id': gen.id,
-        'item_id': gen.id,          # clé UNIFORME du contrat méta-app, À LA SOURCE (2026-10-06)
-        'model': gen.model,
-        'generation_type': gen.generation_type,
-        'duration': gen.duration,
-        'status': 'pending',
-    }
-
-
-# `start_composer` / `get_composer_status` : construits depuis TRIAD_SPECS['composer'] (marche A4).
-
-
-# ===========================================================================
-# Describer tools
-# ===========================================================================
-
-@tool_effect(WRITE)
-def add_to_describer(
-    user,
-    file_path: str,
-    output_style: str = None,
-    output_language: str = None,
-    max_length: int = None,
-    app_label: str = 'describer',
-    **params,
-) -> dict:
-    """
-    Copy a file into the describer queue and create a Description DB entry.
-
-    Args:
-        user:            Django User instance
-        file_path:       Path from find_user_files (relative to MEDIA_ROOT, or mounts/… for a connected folder), or an http(s) URL (downloaded first) (from list_user_files)
-        output_style:    STYLE de description (résumé court, détaillée, scientifique, points
-                         clés), PAS un format de fichier — le format d'export est choisi par
-                         l'utilisateur APRÈS le traitement. Valeurs : celles déclarées au schéma
-                         `describer/params.py`. Un compte-rendu de réunion n'est pas un style
-                         (depuis le 2026-10-13) : `generate_summary=True, summary_type='meeting'`.
-        output_language: 'fr' | 'en' | 'auto'
-        max_length:      Maximum length of result in words
-        A setting left out takes the author's retained panel setting, else the schema default —
-        the element is born like a card deposit (`new_description_settings`, 2026-10-29).
-        app_label:       INTERNE (jamais annoncé) — la jumelle visée par `add_to_<jumelle>`
-
-    Returns:
-        {"description_id": int, "filename": str, "detected_type": str, "status": "pending"}
-    """
-    # Valeurs valides DÉRIVÉES du schéma. La liste en dur qui était ici en oubliait une :
-    # 'meeting' (compte-rendu de réunion) était proposé par l'UI et refusé par l'outil.
-    from wama.common.utils.param_schema import schema_choice_values
-    valid_styles = schema_choice_values('describer', 'output_style')
-    if output_style and valid_styles and output_style not in valid_styles:
-        return {'error': f"Style invalide : '{output_style}'. "
-                         f"Disponibles : {', '.join(sorted(valid_styles))}"}
-
-    # Désigné, pointé, format lu au catalogue (2026-09-28) — cf. `add_to_enhancer`.
-    from wama.common.app_registry import accepts_file
-    from wama.common.utils.media_paths import InputRefused
-    try:
-        received = _receive(file_path, user, app_label)
-    except InputRefused as e:
-        return {'error': str(e)}
-    ext = Path(received.name).suffix.lower()
-    if not accepts_file('describer', received.name):
-        return {'error': f'Format non supporté par le Describer : {ext}'}
-
-    from wama.describer.utils.content_analyzer import file_nature
-    detected_type = file_nature(received.name, app=app_label)
-
-    try:
-        from django.apps import apps as django_apps
-        from wama.common.utils.user_settings import element_columns
-        from wama.describer.views import new_description_settings
-        Description = django_apps.get_model(app_label, 'Description')
-
-        # Naissance COMMUNE (2026-10-29) : celle du dépôt de la card et de l'import du
-        # gestionnaire de fichiers — défauts du schéma ← réglages retenus ← ce que l'outil a reçu.
-        posted = _given({'output_style': output_style, 'output_language': output_language,
-                         'max_length': max_length, **params})
-        description = Description.objects.create(
-            user=user,
-            input_file=received.value,
-            filename=received.name,
-            file_size=received.size,
-            detected_type=detected_type,
-            **element_columns(new_description_settings(user, model=Description, app=app_label,
-                                                       inputs=inputs_by_port(app_label, received),
-                                                       post=posted), Description),
-        )
-        received.record(description, 'input_file')
-    except Exception as e:
-        return {'error': f'Erreur création Description : {e}'}
-
-    return {
-        'description_id': description.id,
-        'item_id': description.id,   # clé UNIFORME du contrat méta-app (STUDIO_VISION)
-        'filename': received.name,
-        'detected_type': detected_type,
-        'output_style': description.output_style,
-        'output_language': description.output_language,
-        'status': 'pending',
-    }
-
-
-# `start_describer` / `get_describer_status` : construits depuis TRIAD_SPECS['describer']
-# (migrés le 2026-09-03 — les deux richesses de la triade main, purge cache/partiel au
-# démarrage et repli d'aperçu sur le texte PARTIEL, sont montées dans la BRIQUE _triad_fns).
-
-
-# ===========================================================================
-# Transcriber tools
-# ===========================================================================
-
-@tool_effect(WRITE)
-def add_to_transcriber(
-    user,
-    file_path: str,
-    backend: str = None,
-    preprocess_audio: bool = None,
-    hotwords: str = None,
-    enable_diarization: bool = None,
-    app_label: str = 'transcriber',
-    **params,
-) -> dict:
-    """
-    Copy a file into the transcriber queue and create a Transcript DB entry.
-
-    Args:
-        user:               Django User instance
-        file_path:          Path from find_user_files (relative to MEDIA_ROOT, or mounts/… for a connected folder), or an http(s) URL (downloaded first) (audio or video file)
-        backend:            the transcription MODEL — 'auto' (drawn at launch) or a catalogue key
-                            ('transcriber:qwen3-asr-1.7b', 'transcriber:canary-1b-v2', or a remote
-                            one such as 'albert:whisper-large-v3', called with the user's key);
-                            old engine names ('whisper', 'qwen_asr'…) are still read as their
-                            default model. A model nothing can run is refused, never replaced
-        preprocess_audio:   Apply audio preprocessing before transcription
-        hotwords:           Domain-specific terms to improve recognition
-        enable_diarization: Enable speaker diarization (VibeVoice only)
-        **params:           Tout autre réglage DÉCLARÉ au schéma (`transcriber/params.py`) et
-                            porté par le modèle — `generate_summary`, `summary_type`,
-                            `verify_coherence`… Appliqués par la naissance de l'app : la
-                            signature n'a pas à recopier la liste, qui dériverait.
-        A setting left out takes the author's retained panel setting, else the schema default —
-        the element is born like a card deposit (`new_transcript_settings`, 2026-10-29).
-        app_label:          INTERNE (jamais annoncé) — la jumelle visée par `add_to_<jumelle>`
-
-    Returns:
-        {"transcript_id": int, "filename": str, "duration_display": str, "status": "pending"}
-    """
-    # Désigné, pointé, format lu au catalogue (2026-09-28) — cf. `add_to_enhancer`.
-    from wama.common.app_registry import accepts_file
-    from wama.common.utils.media_paths import InputRefused
-    try:
-        received = _receive(file_path, user, app_label)
-    except InputRefused as e:
-        return {'error': str(e)}
-    if not accepts_file('transcriber', received.name):
-        return {'error': f'Format non supporté par le Transcriber : {Path(received.name).suffix}'}
-
-    try:
-        from django.apps import apps as django_apps
-        from wama.transcriber.views import new_transcript_settings
-        Transcript = django_apps.get_model(app_label, 'Transcript')
-
-        # Naissance COMMUNE (2026-10-29) : celle du dépôt de la card et de l'import du
-        # gestionnaire de fichiers — défauts du schéma ← réglages retenus ← ce que l'outil a reçu.
-        posted = _given({'backend': backend, 'preprocess_audio': preprocess_audio,
-                         'hotwords': hotwords, 'enable_diarization': enable_diarization, **params})
-        transcript = Transcript.objects.create(
-            user=user,
-            audio=received.value,
-            **new_transcript_settings(user, model=Transcript, app=app_label, post=posted,
-                                      inputs=inputs_by_port(app_label, received)),
-        )
-        received.record(transcript, 'audio')
-
-        # Populate duration / properties via ffprobe
-        try:
-            from wama.transcriber.views import _describe_audio
-            _describe_audio(transcript)
-        except Exception:
-            pass
-
-    except Exception as e:
-        return {'error': f'Erreur création Transcript : {e}'}
-
-    return {
-        'transcript_id': transcript.id,
-        'item_id': transcript.id,   # clé UNIFORME du contrat méta-app (STUDIO_VISION)
-        'filename': transcript.filename,
-        'duration_display': transcript.duration_display or '—',
-        'properties': transcript.properties or '—',
-        'backend': transcript.backend,
-        'preprocess_audio': transcript.preprocess_audio,
-        'status': 'pending',
-    }
-
-
-# `start_transcriber` / `get_transcriber_status` : construits depuis TRIAD_SPECS['transcriber'] (marche A4).
-
-
-# ===========================================================================
-# Reader tools
-# ===========================================================================
-
-@tool_effect(WRITE)
-def add_to_reader(
-    user,
-    file_path: str,
-    backend: str = None,
-    mode: str = None,
-    language: str = None,
-    app_label: str = 'reader',
-    **params,
-) -> dict:
-    """
-    Copy a file into the reader queue and create a ReadingItem DB entry.
-
-    Args:
-        user:          Django User instance
-        file_path:     Path from find_user_files (relative to MEDIA_ROOT, or mounts/… for a connected folder), or an http(s) URL (downloaded first) (PDF or image file)
-        backend:       'auto' ou la clé de catalogue d'un modèle d'OCR (`list_ai_models`) ;
-                       un identifiant d'avant (`olmocr`) est normalisé par `ReadingItem.save`
-        mode:          'auto' | 'printed' | 'handwritten'
-        language:      Language code (fr, en…) or empty for auto-detection
-                       (Le format du texte se choisit à la lecture du résultat : `get_item_result`,
-                       `output_format` — plus à la création, 2026-10-28.)
-        **params:      Tout autre réglage DÉCLARÉ au schéma (`reader/params.py`) et porté par le
-                       modèle — `llm_model`, `format_markdown`, `generate_analysis`… Appliqués via
-                       la naissance de l'app, comme les autres créateurs.
-        A setting left out takes the author's retained panel setting, else the schema default —
-        the element is born like a card deposit (`new_reading_settings`, 2026-10-29).
-        app_label:     INTERNE (jamais annoncé) — la jumelle visée par `add_to_<jumelle>`
-
-    Returns:
-        {"item_id": int, "filename": str, "page_count": int, "status": "PENDING"}
-    """
-    from pathlib import Path
-    # Désigné, pointé, format lu au catalogue (2026-09-28) — cf. `add_to_enhancer`.
-    from wama.common.app_registry import accepts_file
-    from wama.common.utils.media_paths import InputRefused
-    try:
-        received = _receive(file_path, user, app_label)
-    except InputRefused as e:
-        return {'error': str(e)}
-    ext = Path(received.name).suffix.lower()
-    if not accepts_file('reader', received.name):
-        return {'error': f'Format non supporté par le Reader : {ext}'}
-
-    try:
-        from django.apps import apps as django_apps
-        from wama.common.utils.user_settings import element_columns
-        from wama.reader.tasks import _count_pdf_pages
-        from wama.reader.views import new_reading_settings
-        ReadingItem = django_apps.get_model(app_label, 'ReadingItem')
-
-        # Naissance COMMUNE (2026-10-29) : celle du dépôt de la card et de l'import du
-        # gestionnaire de fichiers — défauts du schéma ← réglages retenus ← ce que l'outil a reçu.
-        posted = _given({'backend': backend, 'mode': mode, 'language': language, **params})
-        item = ReadingItem.objects.create(
-            user=user,
-            input_file=received.value,
-            original_filename=received.name,
-            status='PENDING',
-            **element_columns(new_reading_settings(user, model=ReadingItem, app=app_label,
-                                                   inputs=inputs_by_port(app_label, received),
-                                                   post=posted), ReadingItem),
-        )
-        received.record(item, 'input_file')
-
-        # Count PDF pages immediately (quick, synchronous)
-        if ext == '.pdf':
-            try:
-                n = _count_pdf_pages(item.input_file.path)
-                if n:
-                    item.page_count = n
-                    item.save(update_fields=['page_count'])
-            except Exception:
-                pass
-
-    except Exception as e:
-        return {'error': f'Erreur création ReadingItem : {e}'}
-
-    return {
-        'item_id': item.id,
-        'filename': received.name,      # le nom REÇU — la propriété `filename` est de la glu
-        'page_count': item.page_count,
-        'backend': item.backend,
-        'mode': item.mode,
-        'status': 'PENDING',
-    }
-
-
-# `start_reader` / `get_reader_status` : construits depuis TRIAD_SPECS['reader'] (marche A4).
-
-
-# ===========================================================================
-# Converter tools
-# ===========================================================================
-
-@tool_effect(WRITE)
-def convert_file(
-    user,
-    file_path: str,
-    output_format: str = '',
-    quality_preset: str = 'balanced',
-    app_label: str = 'converter',
-    **params,
-) -> dict:
-    """
-    Queue a file conversion and start it immediately.
-
-    Args:
-        user:           Django User instance
-        file_path:      Path from find_user_files (relative to MEDIA_ROOT, or mounts/… for a connected folder), or an http(s) URL (downloaded first) (image/video/audio/document/archive)
-        output_format:  Target format key (e.g. 'mp4', 'webp', 'pdf', 'mp3', 'zip'). Empty =
-                        automatic: the user's last format for this nature, else its default
-        quality_preset: 'web' | 'balanced' | 'max'  (default 'balanced')
-        app_label:      INTERNE (jamais annoncé) — la jumelle visée par `add_to_<jumelle>`
-
-    Returns:
-        {"job_id": int, "filename": str, "media_type": str,
-         "output_format": str, "status": "RUNNING"}
-    """
-    from pathlib import Path
-    from django.apps import apps as django_apps
-    from wama.converter.utils.format_router import (detect_media_type, output_format_for,
-                                                    remember_output_format, requested_format)
-    from wama.converter.utils.quality_presets import PRESET_CHOICES, DEFAULT_PRESET
-
-    # Désigné, pointé, provenance posée (2026-09-28) — cf. `add_to_enhancer`. Le chemin était
-    # recomposé à la main (`str(rel_path)`) : sous Windows il s'écrivait avec des `\`, que la
-    # brique des références (`file_references.direct_references`) ne reconnaît pas, et aucune
-    # provenance n'était posée. Mesuré par `tests_tool_api_designation` (venv_win).
-    from wama.common.utils.media_paths import InputRefused
-    try:
-        received = _receive(file_path, user, app_label)
-    except InputRefused as e:
-        return {'error': str(e)}
-    ConversionJob = django_apps.get_model(app_label, 'ConversionJob')
-
-    media_type = detect_media_type(received.name)
-    if media_type is None:
-        return {'error': f'Type de fichier non supporté par le Converter : {Path(received.name).suffix}'}
-
-    # La règle de toutes les voies (2026-10-18) : le format demandé, refusé s'il n'est pas offert
-    # pour cette nature ; absent, le format AUTOMATIQUE (dernier employé, sinon défaut de la
-    # nature). Un nœud Converter du Studio passe ici : le format n'est plus obligatoire, et un
-    # format CHOISI sur le nœud devient le dernier employé, comme au dépôt d'une card.
-    chosen = requested_format(output_format)
-    try:
-        out_fmt = output_format_for(user, media_type, chosen)
-    except ValueError as refusal:
-        return {'error': str(refusal)}
-    if chosen:
-        remember_output_format(user, media_type, out_fmt)
-
-    preset = (quality_preset or '').strip().lower()
-    if preset not in PRESET_CHOICES:
-        preset = DEFAULT_PRESET
-
-    try:
-        job = ConversionJob.objects.create(
-            user=user,
-            input_file=received.value,
-            input_filename=received.name,
-            media_type=media_type,
-            output_format=out_fmt,
-            quality_preset=preset,
-        )
-        received.record(job, 'input_file')
-        # Réglages (resize/rotation/fps/bitrate…) : la naissance de TOUTES les voies du converter
-        # (`apply_birth_settings` : la cascade commune — défauts du schéma pour la nature ←
-        # réglages retenus de l'auteur ← les paramètres de l'appel ; 2026-10-18). `media_type` est
-        # DÉTECTÉ depuis le fichier : la cascade ne l'écrase jamais, ni le format choisi ci-dessus.
-        from wama.converter.views import apply_birth_settings
-        _champs = apply_birth_settings(job, media_type, params,
-                                       inputs=inputs_by_port(app_label, received))
-        if _champs:
-            job.save(update_fields=_champs)
-    except Exception as e:
-        return {'error': f'Erreur création ConversionJob : {e}'}
-    # Lancée par LE ▶ de la card (`item_views.start_one_item`, 2026-10-29) : verrou, « en cours »
-    # posé par le lanceur, la tâche que l'app du job DÉCLARE — une jumelle lance la sienne. Le
-    # créateur posait « en cours » lui-même, sans verrou.
-    from wama.common.utils.item_views import declaration_for, start_one_item
-    _started, _task, refused = start_one_item(declaration_for(ConversionJob), job.pk, user=user)
-    if refused:
-        return {'error': f'Conversion #{job.pk} créée, mais non lancée : {refused[1]}',
-                'job_id': job.pk, 'item_id': job.pk}
-
-    return {
-        'job_id':        job.id,
-        'item_id':       job.id,    # clé UNIFORME du contrat méta-app, À LA SOURCE (2026-10-06)
-        'filename':      received.name,
-        'media_type':    media_type,
-        'output_format': out_fmt,
-        'quality_preset': preset,
-        'status':        'RUNNING',
-    }
-
-
-# `get_converter_status` : construit depuis TRIAD_SPECS['converter'] (marche A4).
 
 
 # ===========================================================================
@@ -1811,154 +883,6 @@ def read_web_page(user, url: str, max_chars: int = 8000) -> dict:
         return {'error': f'Lecture impossible : {e}'}
 
 
-# ===========================================================================
-# Avatarizer tools
-# ===========================================================================
-
-#: Ce que `add_to_avatarizer` DÉRIVE des entrées : un réglage du schéma du même nom ne l'écrase pas.
-_AVATAR_DERIVED = ('mode', 'avatar_source')
-
-
-@tool_effect(WRITE)
-def add_to_avatarizer(
-    user,
-    mode: str = 'pipeline',
-    text_content: str = '',
-    tts_model: str = None,
-    language: str = None,
-    voice_preset: str = None,
-    audio_path: str = '',
-    avatar_source: str = 'gallery',
-    avatar_gallery_name: str = '',
-    avatar_image_path: str = '',
-    quality_mode: str = None,
-    use_enhancer: bool = None,
-    bbox_shift: int = None,
-    app_label: str = 'avatarizer',
-    **params,
-) -> dict:
-    """
-    Crée un job de génération d'avatar parlant (vidéo) en attente.
-
-    Args:
-        mode:                DÉPRÉCIÉ (accepté, ignoré) — le mode se dérive des entrées :
-                             audio_path → standalone (l'audio prime), sinon text_content →
-                             pipeline (TTS→avatar)
-        text_content:        Texte à synthétiser (déclenche le pipeline TTS→avatar)
-        tts_model:           Modèle TTS (ex: 'coqui-xtts') — mode pipeline
-        language:            Langue TTS (ex: 'fr') — mode pipeline
-        voice_preset:        Voix TTS (ex: 'default') — mode pipeline
-        audio_path:          Chemin (relatif à MEDIA_ROOT) ou adresse http(s) d'un audio — requis si mode='standalone'
-        avatar_source:       'gallery' (avatar NOMMÉ) | 'upload' (image fournie par son chemin)
-        avatar_gallery_name: Nom d'un avatar de la médiathèque que l'utilisateur voit (les siens,
-                             les partagés, le système) — requis si avatar_source='gallery'
-        avatar_image_path:   Chemin (relatif à MEDIA_ROOT) ou adresse http(s) d'une image avatar — requis si 'upload'
-        quality_mode:        'fast' (MuseTalk seul) | 'quality' (MuseTalk + CodeFormer) — se lit
-                             comme `use_enhancer` quand celui-ci n'est pas donné, puis se DÉRIVE
-                             de lui, comme à la card
-        use_enhancer:        Appliquer l'enhancer facial
-        bbox_shift:          Décalage de la bbox -10..10
-        **params:            Tout autre réglage DÉCLARÉ au schéma (`avatarizer/params.py`) et porté
-                             par le modèle — `quality_intent`, `animation_model`…
-                             `mode` et la source de l'avatar restent DÉRIVÉS des entrées.
-        A setting left out takes the author's retained panel setting, else the schema default —
-        the job is born like a card deposit (`new_avatar_settings`, 2026-10-29).
-        app_label:           INTERNE (jamais annoncé) — la jumelle visée par `add_to_<jumelle>`
-
-    Returns:
-        {"job_id": int, "mode": str, "status": "pending"}
-    """
-    from django.apps import apps as django_apps
-    from wama.common.app_registry import category_of_path
-    AvatarJob = django_apps.get_model(app_label, 'AvatarJob')
-    from wama.common.utils.media_paths import InputRefused
-
-    # Les deux ports (audio, image d'avatar) sont DÉSIGNÉS (2026-09-28) : pointés s'ils sont
-    # dans l'espace de l'utilisateur, jamais recopiés ; nature lue par `category_of_path`. La
-    # provenance s'écrit après la sauvegarde du job (elle exige un élément qui existe).
-    designated = []
-
-    # Le mode se DÉRIVE des entrées (2026-08-28) — règle UNIQUE partagée avec la vue
-    # `create` et la ligne de batch : l'AUDIO (matériau explicite) prime, sinon le texte
-    # déclenche le pipeline TTS. `mode` reste accepté pour compatibilité, sans autorité.
-    mode = 'standalone' if audio_path else 'pipeline'
-    if mode == 'pipeline' and not (text_content or '').strip():
-        return {'error': "Fournissez un texte (text_content) ou un audio (audio_path)."}
-
-    # Naissance COMMUNE (2026-10-29), celle de la vue `create` de la card : défauts du schéma ←
-    # réglages retenus ← ce que l'outil a reçu. Le texte n'est posé qu'en pipeline : c'est lui qui
-    # rend la voix applicable. `quality_mode` n'est qu'une autre façon de dire `use_enhancer`.
-    from wama.avatarizer.views import (_animation_model_or_auto, _derive_quality_mode,
-                                       new_avatar_settings)
-    if use_enhancer is None and quality_mode in ('fast', 'quality'):
-        use_enhancer = quality_mode == 'quality'
-    posted = _given({**{k: v for k, v in params.items() if k not in _AVATAR_DERIVED},
-                     'tts_model': tts_model, 'language': language, 'voice_preset': voice_preset,
-                     'use_enhancer': use_enhancer, 'bbox_shift': bbox_shift,
-                     'text_content': text_content.strip() if mode == 'pipeline' else None})
-    # Les fichiers donnés par leur chemin PROPOSENT leurs réglages (`default_from`) — lus sans être
-    # reçus (`designated_file` : mêmes gardes, rien de pointé ni copié).
-    from wama.common.utils.media_paths import designated_file
-    try:
-        audio_path = _local_input(audio_path, user, app_label, 'audio')
-        avatar_image_path = _local_input(avatar_image_path, user, app_label, 'media')
-        held = [designated_file(path, user) for path in
-                (audio_path, avatar_image_path if avatar_source == 'upload' else '') if path]
-    except InputRefused as e:
-        return {'error': str(e)}
-    job = AvatarJob(user=user, mode=mode,
-                    **new_avatar_settings(user, model=AvatarJob, app=app_label, post=posted,
-                                          inputs=inputs_by_port(app_label, *held)))
-
-    if mode == 'standalone':  # audio_path fourni — c'est lui qui a dérivé le mode
-        try:
-            received = _receive(audio_path, user, app_label, mode='audio')
-        except InputRefused as e:
-            return {'error': str(e)}
-        if category_of_path(received.name) != 'audio':
-            return {'error': f'Format audio non supporté : {Path(received.name).suffix}.'}
-        job.audio_input = received.value
-        designated.append((received, 'audio_input'))
-
-    # L'avatar est TOUJOURS désigné comme depuis la card (2026-09-29) : un NOM se résout parmi les
-    # avatars que l'utilisateur voit (les siens, les partagés, le système) ; un chemin se désigne.
-    avatar_source = avatar_source if avatar_source in ('gallery', 'upload') else 'gallery'
-    try:
-        if avatar_source == 'gallery':
-            if not avatar_gallery_name:
-                return {'error': "Choisissez un avatar de la médiathèque (avatar_gallery_name)."}
-            from wama.avatarizer.system_assets import designate_named_avatar
-            image = designate_named_avatar(avatar_gallery_name, user)
-        else:
-            if not avatar_image_path:
-                return {'error': "Fournissez une image avatar (avatar_image_path)."}
-            image = _receive(avatar_image_path, user, app_label, mode='media')
-    except InputRefused as e:
-        return {'error': str(e)}
-    if category_of_path(image.name) != 'image':
-        return {'error': f'Format image non supporté : {Path(image.name).suffix}.'}
-    # L'avatar se POSE une fois le job créé (`AvatarJob.set_avatar` : table commune des entrées,
-    # provenance comprise), comme depuis la card.
-    job.avatar_source = 'upload'
-
-    # Les règles PROPRES de la card : modèle d'animation validé au catalogue, qualité dérivée.
-    job.animation_model = _animation_model_or_auto(job.animation_model)
-    _derive_quality_mode(job)
-
-    try:
-        job.save()
-    except Exception as e:
-        return {'error': f'Erreur création AvatarJob : {e}'}
-    from wama.avatarizer.models import set_avatar
-    set_avatar(job, image)        # une fonction : le modèle d'une jumelle est une copie figée
-    for received, field in designated:
-        received.record(job, field)
-
-    return {'job_id': job.id, 'item_id': job.id, 'mode': job.mode, 'status': 'pending'}
-
-
-# `start_avatarizer` / `get_avatarizer_status` : construits depuis TRIAD_SPECS['avatarizer'] (marche A4).
-
 
 # ===========================================================================
 # Tool dispatcher (used by the agentic loop in views.py)
@@ -1975,43 +899,9 @@ def translate_text(user, text, source_lang='fr', target_lang='en', glossary=None
             'target_lang': target_lang, 'cached': res.get('cached', False)}
 
 
-# ── Aliases NORMALISÉS du contrat méta-app (STUDIO_VISION 2026-07-12) ─────────────
-# La triade canonique est add_to_<app>/start_<app>/detail. Les créateurs historiques à
-# entrée PROMPT (synthesize_text, compose_music, create_image) restent la façade de
-# l'assistant ; ces wrappers @wraps exposent le nom normalisé (introspection de signature
-# préservée pour le filtrage de params du runner générique).
-# ⚠ Ils RECOPIAIENT la clé UNIFORME `item_id` sur le résultat ; depuis le 2026-10-06 les
-# créateurs la rendent EUX-MÊMES — un appel à `create_image` était sinon une création sans
-# clé uniforme, que la passerelle ne pouvait rattacher à aucun fil. Les alias délèguent.
-import functools
-
-
-@tool_effect(WRITE)
-@functools.wraps(synthesize_text)
-def add_to_synthesizer(user, *args, **kwargs):
-    return synthesize_text(user, *args, **kwargs)
-
-
-@tool_effect(WRITE)
-@functools.wraps(compose_music)
-def add_to_composer(user, *args, **kwargs):
-    return compose_music(user, *args, **kwargs)
-
-
-@tool_effect(WRITE)
-@functools.wraps(convert_file)
-def add_to_converter(user, *args, **kwargs):
-    # NB : convert_file DISPATCHE immédiatement (auto_start déclaré au manifeste studio).
-    return convert_file(user, *args, **kwargs)
-
-
-# `start_converter` : construit depuis TRIAD_SPECS['converter'] (marche A4).
-
-
-@tool_effect(WRITE)
-@functools.wraps(create_image)
-def add_to_imager(user, *args, **kwargs):
-    return create_image(user, *args, **kwargs)
+# Les alias historiques (`create_image`, `synthesize_text`, `compose_music`, `convert_file`) et
+# leurs façades `add_to_<app>` sont RETIRÉS le 2026-11-26 (`REMOVAL_LEDGER R250`) : chaque app a
+# le créateur DÉRIVÉ de sa card (`_card_creator`), enregistré pour toute app qui déclare sa triade.
 
 
 # ── STUDIO (méta-app) — pipelines sauvegardés : lister, lancer, suivre ────────────
@@ -3164,7 +2054,7 @@ def get_converter_presets(user) -> dict:
     image, a video, an audio file and a document — the table the quick-convert window reads.
 
     Read from the converter's own route (`converter:api_presets`), for an account that may use the
-    converter. Pass the chosen preset as `quality_preset` to add_to_converter or convert_file.
+    converter. Pass the chosen preset as `quality_preset` to add_to_converter.
     """
     if refusal := _signed_in_refusal(user, 'Lecture'):
         return refusal
@@ -6442,23 +5332,11 @@ TOOL_REGISTRY = {
     # Chercher PAR NOM dans tout ce que l'arbre du gestionnaire montre, dossiers connectés
     # compris (2026-10-11, brique `common/services/user_files.py`).
     'find_user_files':       find_user_files,
-    'add_to_avatarizer':     add_to_avatarizer,
-    'add_to_anonymizer':     add_to_anonymizer,
     'sam3_examples':         sam3_examples,
-    'create_image':          create_image,
-    'add_to_imager':         add_to_imager,   # alias canonique §17.2 (runner générique)
-    'add_to_enhancer':           add_to_enhancer,   # ses deux domaines (l'audio : 2026-11-25)
-    'synthesize_text':        synthesize_text,
-    'add_to_synthesizer':     add_to_synthesizer,  # alias canonique §17.2 (runner générique)
-    'compose_music':          compose_music,
-    'add_to_composer':        add_to_composer,   # alias canonique §17.2 (runner générique)
-    'add_to_describer':       add_to_describer,
-    'add_to_transcriber':     add_to_transcriber,
-    'add_to_reader':          add_to_reader,
-    'convert_file':           convert_file,
-    'add_to_converter':       add_to_converter,   # alias canonique §17.2 (runner générique)
-    # `start_<app>` / `get_<app>_status` de TOUTES les apps (et de l'audio de l'enhancer) :
-    # enregistrés par _register_triads() depuis TRIAD_SPECS (marche A4, soldée le 2026-10-12).
+    # La TRIADE de toutes les apps — réelles, jumelles, nées d'un manifeste — n'est écrite nulle
+    # part ici : `start_<surface>` / `get_<surface>_status` par _register_triads() depuis
+    # TRIAD_SPECS (marche A4, soldée le 2026-10-12), `add_to_<app>` DÉRIVÉ de la card de l'app
+    # (`_card_creator`, 2026-11-26) par _register_card_creators() / _register_twin_creators().
     'list_media_assets':      list_media_assets,
     'get_media_asset_url':    get_media_asset_url,
     'fold_side_panels':       fold_side_panels,
@@ -6481,15 +5359,11 @@ TOOL_REGISTRY = {
 # que la DÉCISION d'accès et appelle `app_id_for_tool()`.
 _TRIAD = (('add', 'add_to_', ''), ('start', 'start_', ''), ('status', 'get_', '_status'))
 
-# Noms HISTORIQUES (antérieurs aux alias canoniques) + outils dont l'app diffère du suffixe.
-# `None` = outil TRANSVERSE (aucun gating d'app).
+# Outils dont l'app diffère du suffixe (les noms historiques des créateurs sont retirés le
+# 2026-11-26, `REMOVAL_LEDGER R250`). `None` = outil TRANSVERSE (aucun gating d'app).
 TOOL_APP_OVERRIDE = {
     'get_converter_presets': 'converter',
     'get_image_resolutions': 'imager',
-    'create_image':        'imager',
-    'synthesize_text':     'synthesizer',
-    'compose_music':       'composer',
-    'convert_file':        'converter',
     'sam3_examples':       'anonymizer',
     'list_media_assets':   'media_library',
     'get_media_asset_url': 'media_library',
@@ -7072,51 +5946,41 @@ def _register_triads():
 
 
 def _register_twin_creators():
-    """`add_to_<jumelle>` DÉRIVÉ de l'outil de sa source (2026-10-29, décision de Fabien : « le même
-    mécanisme qu'`importer_for` ») — jamais une ligne écrite au registre pour une jumelle. La règle
-    est celle des importeurs (`sandbox.retarget_callable`) : `app_label` FIXÉ, et une source qui ne
-    sait pas être re-ciblée ne donne pas d'outil. Le paramètre est interne
-    (`INTERNAL_TOOL_PARAMS`) : un appelant ne peut pas viser une autre app. Avec lui, la jumelle a
-    sa triade entière, et son nœud du Studio (`generic_runner._twin_can_create`). Une app NÉE D'UN
-    MANIFESTE, sans source, reçoit le sien de la vue de dépôt de sa card (`_born_creator`)."""
-    from wama.common.sandbox import load_registry, retarget_callable, sandbox_labels
+    """`add_to_<app du bac à sable>` DÉRIVÉ de SA card (`_card_creator`) — jamais une ligne écrite au
+    registre pour une jumelle ni pour une app née d'un manifeste. Jusqu'au 2026-11-26 une jumelle
+    recevait l'outil de sa source RE-CIBLÉ (`sandbox.retarget_callable`, 2026-10-29) : il rejouait la
+    glu de la source, pas la card de la jumelle. Avec lui, la jumelle a sa triade entière, et son
+    nœud du Studio (`generic_runner._twin_can_create`)."""
+    from wama.common.sandbox import load_registry, sandbox_labels
     installed = set(sandbox_labels())
     for entry in load_registry():
         label = entry.get('label')
         name = f'add_to_{label}'
-        if label not in installed or name in TOOL_REGISTRY:
+        if label not in installed or name in TOOL_REGISTRY or _creator_origin(entry) is None:
             continue
-        origin = _creator_origin(entry)
-        if origin == 'twin':
-            creator = retarget_callable(TOOL_REGISTRY[f"add_to_{entry['generated_from']}"], label)
-        elif origin == 'born':
-            creator = _born_creator(label)
-        else:
-            creator = None
-        if creator is not None:
-            creator.__name__ = creator.__qualname__ = name
-            globals()[name] = TOOL_REGISTRY[name] = creator
+        creator = _card_creator(label)
+        creator.__name__ = creator.__qualname__ = name
+        globals()[name] = TOOL_REGISTRY[name] = creator
 
 
 def _creator_origin(entry: dict):
-    """D'où vient l'outil de création d'une app du bac à sable — `'twin'` (l'outil de sa source,
-    re-ciblable), `'born'` (née d'un manifeste qui déclare sa triade, et sert sa vue de dépôt),
-    sinon None. LA règle, que `_register_twin_creators` applique et que le Studio lit
-    (`creator_derivable`) : il ne la recompose pas, et ne dépend pas de l'ORDRE de chargement.
+    """L'app du bac à sable a-t-elle un outil de création dérivé de sa card — `'twin'` (jumelle
+    d'une app réelle), `'born'` (née d'un manifeste), sinon None : il lui faut sa TRIADE déclarée
+    (sans elle, un créateur seul ferait une famille sans lancement ni suivi) et une vue de dépôt.
+    LA règle, que `_register_twin_creators` applique et que le Studio lit (`creator_derivable`) : il
+    ne la recompose pas, et ne dépend pas de l'ORDRE de chargement.
 
     ⚠ Vécu le 2026-11-01 : construire le créateur d'une app née d'un manifeste lit ses ports
     (`studio_node_ports`), ce qui charge `generic_runner` PENDANT le chargement de ce module — le
     Studio y cherchait `add_to_writer_01` dans un registre où il n'était pas encore, et
     n'offrait pas de nœud du Writer (vu par `tests_born_app_tools`, invisible en shell)."""
-    from wama.common.sandbox import resolves, retarget_callable
+    from wama.common.sandbox import resolves
     label, src = entry.get('label'), entry.get('generated_from')
+    if label not in TRIAD_SPECS:
+        return None
     if src:
-        source = TOOL_REGISTRY.get(f'add_to_{src}')
-        return 'twin' if source is not None and retarget_callable(source, label) else None
-    # Une app née d'un manifeste ENTRE à l'assistant par sa triade déclarée (facette `tool_api`) :
-    # sans elle, un créateur seul ferait une famille sans lancement ni suivi.
-    if (entry.get('from_manifest') and label in TRIAD_SPECS
-            and resolves(f'wama.{label}.views.upload')):
+        return 'twin'
+    if entry.get('from_manifest') and resolves(f'wama.{label}.views.upload'):
         return 'born'
     return None
 
@@ -7131,88 +5995,267 @@ def creator_derivable(label: str) -> bool:
     return entry is not None and _creator_origin(entry) is not None
 
 
-def _born_creator(label: str):
-    """`add_to_<label>` d'une app NÉE D'UN MANIFESTE (2026-11-01, décision de Fabien : « on porte
-    tout, régénérable ») — DÉRIVÉ, comme celui d'une jumelle : elle n'a pas de source dont re-cibler
-    l'outil, mais elle a le GESTE de création de sa card, la vue `upload` que le générateur écrit
-    depuis ses ports (`views_gen`). L'outil POSTE cette vue (`_poster_vue`, la règle de
-    `_preview_face` : réutiliser l'endpoint plutôt que refaire sa logique — sinon deux vérités).
-    Jusque-là le Writer avait un créateur écrit MAIN dans ce fichier, qu'aucune régénération ne
-    reprenait, et `generic_runner._twin_can_create` le disait : « le manque est celui du
-    GÉNÉRATEUR ».
+def _is_text_port(port: dict) -> bool:
+    """Le port porte un TEXTE (une consigne, un contenu à dire…), pas un fichier — lu au
+    vocabulaire des entrées (`app_modes.INPUT_TYPES`, `kind`) et au groupe du port, jamais à un
+    identifiant écrit ici : un jeton texte neuf y entre sans retouche."""
+    from wama.common.utils.app_modes import INPUT_TYPES
+    return (port.get('group') == 'prompt'
+            or (INPUT_TYPES.get(port.get('id')) or {}).get('kind') == 'text')
 
-    Signature : un argument PAR PORT d'entrée, du MÊME NOM (`studio_node_ports`, l'accesseur
-    commun — le contrat du Studio : « un port arrive dans l'argument du même nom »), puis
-    `**params` pour les réglages du schéma (`sanitize_tool_args` les accepte au schéma). Un port de
-    consigne arrive en texte ; un port fichier, en CHEMIN désigné (`find_user_files`), passé par les
-    gardes de la désignation (`designated_file`) et par la liste que la card propose pour CE port
-    (`port_takes`, celle de `port_accept`) AVANT d'écrire : un fichier refusé fait refuser l'appel,
-    rien n'est créé à moitié. Ce que la vue refuse (rien à ajouter…) revient tel qu'elle le dit."""
+
+def _card_creator(label: str):
+    """`add_to_<label>` DÉRIVÉ du dépôt de la card de l'app — LE créateur de toute app, réelle,
+    jumelle ou née d'un manifeste (2026-11-26, décision de Fabien : « parfaitement aligné et
+    schéma-driven, et s'appliquer automatiquement à toute nouvelle application, y compris
+    l'assistant, le Studio »). L'outil POSTE la vue de dépôt du domaine qui reçoit (`_poster_vue`,
+    la règle de `_preview_face` : réutiliser l'endpoint plutôt que refaire sa logique — sinon deux
+    vérités). Né le 2026-11-01 pour les apps nées d'un manifeste (`_born_creator`) ; jusqu'au
+    2026-11-26 chaque app réelle avait le sien écrit à la main, qui divergeait de sa card (lot d'un
+    élément oublié, audio d'une vidéo non extrait, `.glb` refusé, lancement que la card ne fait pas).
+
+    Signature, toute DÉRIVÉE : un argument PAR PORT d'entrée, du MÊME NOM (`studio_node_ports`, le
+    contrat du Studio : « un port arrive dans l'argument du même nom ») ; `domain` quand l'app en
+    déclare plusieurs ; puis `**params`, les réglages du schéma (`sanitize_tool_args`). Le geste :
+      1. le DOMAINE qui reçoit — celui que l'appel nomme, sinon celui de la nature du premier
+         fichier (`app_modes.arrival_domain`, la règle de l'import), sinon le premier déclaré ;
+      2. chaque port FICHIER : une adresse est téléchargée dans le mode du port
+         (`source_ingest.port_mode`), un NOM désigne l'asset de la médiathèque que l'utilisateur
+         voit, de la nature du port (`resolve_visible_asset` — l'avatar nommé de l'avatarizer, pour
+         toute app) ; puis les gardes de la désignation (`designated_file`), la liste que la card
+         propose pour ce port (`port_takes`), et le port du DOMAINE qui prend cette nature (un audio
+         donné sur `work_file` de l'enhancer arrive sur `work_audio`). Un fichier refusé fait refuser
+         l'appel, rien n'est créé à moitié ;
+      3. chaque port TEXTE arrive tel quel, sous l'id du port ;
+      4. les réglages, jugés sur le schéma du domaine (`_domain_settings`), et le champ qui fait
+         naître l'élément dans ce domaine quand deux domaines partagent un modèle
+         (`domain_birth_field` : la vidéo de l'imager) ;
+      5. la vue de dépôt du domaine (`served_route(app, 'upload', prefix=…)`), qui lit chaque port
+         sous son id (`media_paths.received_port`), crée l'élément comme pour la card — lot,
+         mesures, provenance — sans rien retenir au volet (`user_settings.replayed_gesture`) ni
+         rien lancer. Ce qu'elle refuse revient tel qu'elle le dit."""
     import inspect
 
     from wama.common.app_registry import studio_node_ports
+    from wama.common.utils.app_modes import get_domains
 
     ports = [p for p in ((studio_node_ports(label) or {}).get('inputs') or []) if p.get('id')]
+    several = len(get_domains(label)) > 1
 
     @tool_effect(WRITE)
     def creator(user, **kwargs) -> dict:
-        from wama.common.app_registry import port_takes
-        from wama.common.utils.media_paths import InputRefused, designated_file, designation_field
-        if refusal := _refus_app(user, label):
-            return refusal
-        route = _route_dispo(label, 'upload', None)
-        if not route:
-            return {'error': f"{label} ne sert aucune route de dépôt (`upload`)."}
-        post = {}
-        for port in ports:
-            given = kwargs.pop(port['id'], None)
-            values = [v.strip() for v in (given if isinstance(given, (list, tuple)) else [given])
-                      if isinstance(v, str) and v.strip()]
-            if not values:
-                continue
-            # UNE valeur par port et par élément : la vue de dépôt ne garde que la première
-            # (`received[0]`). Les ports FICHIER sont tranchés en amont, pour toute app, réelle ou
-            # née d'un manifeste (`execute_tool` → `_arrival`, 2026-11-18) : plusieurs fichiers de
-            # travail font un élément chacun, un port à un fichier refuse la liste. Reste ici la
-            # CONSIGNE reçue en liste ; jusqu'au 2026-11-17 les suivantes étaient perdues sans un mot.
-            if len(values) > 1:
-                return {'error': f"{port.get('label') or port['id']} : une seule valeur par élément "
-                                 f"({len(values)} reçues)."}
-            if port.get('group') == 'prompt':
-                post[port['id']] = values[0]
-                continue
-            try:
-                values = [_local_input(v, user, label) for v in values]
-            except InputRefused as e:
-                return {'error': f"{port.get('label') or port['id']} : {e}"}
-            for value in values:
-                try:
-                    found = designated_file(value, user)
-                except InputRefused as e:
-                    return {'error': f"{port.get('label') or port['id']} : {e}"}
-                if not port_takes(label, port.get('types'), found):
-                    return {'error': f"{port.get('label') or port['id']} : format non accepté "
-                                     f"par ce port ({Path(found).suffix or 'sans extension'})."}
-            post[designation_field(port['id'])] = values
-        post.update({k: v for k, v in kwargs.items() if v is not None})
-        status, payload = _poster_vue(user, label, route, None, post)
-        if refused := _verdict(status, payload, f'Ajout à {label}'):
-            return refused
-        return {'item_id': payload.get('id'), 'status': payload.get('status'),
-                **({'warning': payload['warning']} if payload.get('warning') else {})}
+        return _deposit_on_card(user, label, ports, kwargs)
 
-    creator.__doc__ = (f"Add an element to `{label}` (app born from a manifest) exactly like a "
-                       f"deposit on its card — it is NOT started: call `start_{label}`.")
+    # Les ports dont l'outil a tiré sa signature (le catalogue à son chargement) : la forme d'entrée
+    # se lit sur EUX quand on juge l'outil (`app_registry.entry_form`), pas sur une autre lecture.
+    creator.wama_ports = ports
+    creator.__doc__ = (
+        f"Add an element to `{label}` exactly like a deposit on its card — one argument per input "
+        f"port of the card, a file by its path (find_user_files), an http(s) URL or the name of a "
+        f"media-library asset" + (", `domain` to name the domain that receives it (empty: the one "
+                                  "its file's nature designates)" if several else "")
+        + f". It is NOT started: call `start_<surface>` (the `surface` returned).")
     creator.__signature__ = inspect.Signature(
         [inspect.Parameter('user', inspect.Parameter.POSITIONAL_OR_KEYWORD)]
         + [inspect.Parameter(p['id'], inspect.Parameter.KEYWORD_ONLY, default='', annotation=str)
            for p in ports]
+        + ([inspect.Parameter('domain', inspect.Parameter.KEYWORD_ONLY, default='', annotation=str)]
+           if several else [])
         + [inspect.Parameter('params', inspect.Parameter.VAR_KEYWORD)],
         return_annotation=dict)
     return creator
 
 
+def _single(given, label: str):
+    """Les valeurs non vides d'un argument (une chaîne, ou une liste) ; lève `ValueError` sur plus
+    d'une : UNE valeur par port et par élément — plusieurs fichiers de travail sont tranchés en amont,
+    un élément chacun (`execute_tool` → `_arrival`)."""
+    values = [v.strip() for v in (given if isinstance(given, (list, tuple)) else [given])
+              if isinstance(v, str) and v.strip()]
+    if len(values) > 1:
+        raise ValueError(f"{label} : une seule valeur par élément ({len(values)} reçues).")
+    return values[0] if values else ''
+
+
+def _port_file(user, app: str, domain: str, port: dict, value: str) -> str:
+    """Le chemin DÉSIGNÉ d'une valeur donnée à un port fichier : une adresse téléchargée dans le
+    mode du port, un chemin qui passe les gardes de la désignation, ou le NOM d'un asset de la
+    médiathèque que l'utilisateur voit, de la nature du port. Lève `InputRefused`."""
+    from wama.common.utils.app_modes import library_nature_for
+    from wama.common.utils.media_paths import InputRefused, check_designation
+    from wama.common.utils.source_ingest import is_remote, port_mode
+    if is_remote(value):
+        return _local_input(value, user, app, port_mode(app, domain, port.get('types')))
+    try:
+        return check_designation(value, user)
+    except InputRefused as refused:
+        from wama.media_library.models import TYPE_GROUPS
+        from wama.media_library.services import resolve_visible_asset
+        natures = [library_nature_for(app, port['id'])]
+        natures += [t for nature in port.get('types') or () for t in (TYPE_GROUPS.get(nature) or ())]
+        for nature in dict.fromkeys(n for n in natures if n):
+            found = resolve_visible_asset(user, nature, value)
+            if found:
+                return found
+        raise refused
+
+
+#: Le geste COMMUN qui pose un port du RÉSULTAT sur une card créée (`app_registry.app_result_ports`,
+#: ouverts par une capacité d'app, jamais par un modèle) — la route que le menu « … » de la card
+#: poste (`app_ports_carried_elsewhere` : « menu « … » de la card »), et ce qui suit la surface dans
+#: son adresse. Deux jetons, deux gestes : la référence attendue, le résultat produit ailleurs.
+_RESULT_GESTURES = {
+    'reference_result': ('common:api_result_reference', ('element',)),
+    'work_result': ('common:api_result_import', ()),
+}
+
+
+def _result_gesture(user, surface: str, item_id, port: str, path: str) -> dict | None:
+    """Pose le fichier `path` (désigné) sur le port du résultat `port` de l'élément créé, par la vue
+    du geste de la card (`_RESULT_GESTURES`) ; le refus de la vue, sinon None."""
+    from django.core.files import File
+
+    from wama.common.utils.media_paths import designated_file
+    route, middle = _RESULT_GESTURES[port]
+    disk = designated_file(path, user)
+    with open(disk, 'rb') as handle:
+        status, payload = _route_view(user, route, [surface, *middle, item_id],
+                                      data={'file': File(handle, name=Path(disk).name)})
+    if status != 200 or not (payload or {}).get('ok'):
+        return {'error': (payload or {}).get('reason') or (payload or {}).get('error')
+                or f'HTTP {status}'}
+    return None
+
+
+def _deposit_on_card(user, app: str, ports: list, kwargs: dict) -> dict:
+    """Le corps du créateur dérivé (`_card_creator`) : le dépôt de la card de `app`, rejoué."""
+    from wama.common.app_registry import (category_of_path, port_takes, ports_for_domain)
+    from wama.common.manifests.codegen.urls_gen import served_route
+    from wama.common.utils import app_modes
+    from wama.common.utils.detail_registry import DetailRegistry
+    from wama.common.utils.media_paths import InputRefused, designated_file, designation_field
+    from wama.common.utils.user_settings import replayed_gesture
+    if refusal := _refus_app(user, app):
+        return refusal
+    served = [d.get('id') for d in app_modes.get_domains(app)]
+    domain = str(kwargs.pop('domain', '') or '').strip()
+    if domain and domain not in served:
+        return {'error': f"Domaine inconnu : '{domain}'. Domaines : {', '.join(served)}"}
+    try:
+        given = {p['id']: _single(kwargs.pop(p['id'], None), p.get('label') or p['id']) for p in ports}
+    except ValueError as e:
+        return {'error': str(e)}
+    given = {pid: value for pid, value in given.items() if value}
+    by_id = {p['id']: p for p in ports}
+    # Les ports du RÉSULTAT (`app_result_ports` : la référence, un résultat existant) ne passent pas
+    # par le dépôt : la card les pose sur l'élément CRÉÉ, par leur geste commun (`_RESULT_GESTURES`).
+    from wama.common.app_registry import app_result_ports
+    result_ports = {p['id'] for p in app_result_ports(app)} & set(given)
+
+    # 1-2. Les fichiers, désignés AVANT de choisir le domaine : une adresse ne dit sa nature
+    # qu'une fois téléchargée (l'audio d'une plateforme vidéo).
+    files, results = {}, {}
+    for pid, value in given.items():
+        if _is_text_port(by_id[pid]):
+            continue
+        try:
+            (results if pid in result_ports else files)[pid] = _port_file(
+                user, app, domain, by_id[pid], value)
+        except InputRefused as e:
+            return {'error': f"{by_id[pid].get('label') or pid} : {e}"}
+    if results and not files:
+        return {'error': f"{', '.join(by_id[p].get('label') or p for p in results)} : ce port porte "
+                         f"sur le résultat d'un élément — donnez aussi le fichier à traiter."}
+    if not domain:
+        first = next(iter(files.values()), None)
+        domain = (app_modes.arrival_domain(app, first) if first else None) or (served[0] if served else '')
+    domain_ports = {p['id']: p for p in ports_for_domain(app, domain, ports)}
+    posted = {}
+    for pid, path in files.items():
+        found = designated_file(path, user)
+        target = pid if pid in domain_ports else next(
+            (q for q, p in domain_ports.items() if not _is_text_port(p)
+             and category_of_path(found) in (p.get('types') or ())), None)
+        port = domain_ports.get(target)
+        if port is None:
+            return {'error': f"{by_id[pid].get('label') or pid} : le domaine « {domain} » ne prend pas "
+                             f"ce fichier ({Path(found).suffix or 'sans extension'})."}
+        if not port_takes(app, port.get('types'), found):
+            return {'error': f"{port.get('label') or target} : format non accepté par ce port "
+                             f"({Path(found).suffix or 'sans extension'})."}
+        posted.setdefault(designation_field(target), []).append(path)
+    # 3. Les textes, sous l'id de leur port.
+    for pid, value in given.items():
+        if _is_text_port(by_id[pid]):
+            posted[pid] = value
+
+    # 4. Les réglages, jugés sur le schéma du domaine qui reçoit. Un argument qui n'est ni un port
+    # ni un réglage d'aucun domaine de l'app est refusé : jeté, il changerait le sens de l'appel.
+    from wama.common.utils.param_schema import _pget
+    known = {_pget(p, 'name') for d in (served or ['']) for p in app_modes.domain_schema(app, d)}
+    unknown = sorted(k for k, v in kwargs.items() if k not in known and v not in (None, ''))
+    if unknown:
+        return {'error': f"Argument(s) inconnu(s) pour {app} : {', '.join(unknown)}. Ports : "
+                         f"{', '.join(by_id)} ; réglages : ceux du schéma de l'app."}
+    settings, refused = _domain_settings(app, domain, kwargs)
+    if refused:
+        return {'error': refused}
+    posted.update({k: v for k, v in settings.items() if v is not None})
+    birth = app_modes.domain_birth_field(app, domain) if domain else None
+    if birth and birth[0] not in posted:
+        posted[birth[0]] = birth[1]
+
+    # 5. La vue de dépôt du domaine.
+    prefix = app_modes.route_prefix(app, domain) if domain else ''
+    route = served_route(app, 'upload', prefix=f'{prefix}_' if prefix else '')
+    if not route:
+        return {'error': f"{app} ne sert aucune route de dépôt pour le domaine « {domain} »."}
+    with replayed_gesture():
+        status, payload = _poster_vue(user, app, route, None, posted)
+    if refused := _verdict(status, payload, f'Ajout à {app}'):
+        return refused
+    item_id = (payload or {}).get('id')
+    if item_id in (None, ''):
+        return {'error': f"Ajout à {app} : la vue de dépôt n'a rendu aucun identifiant (`id`)."}
+    surface = app_modes.domain_surface(app, domain) if domain else app
+    model = (DetailRegistry.get(surface) or {}).get('model')
+    element = model.objects.filter(pk=item_id).first() if model is not None else None
+    id_kwarg = (TRIAD_SPECS.get(surface) or {}).get('id_kwarg')
+    kept = {k: v for k, v in (payload or {}).items()
+            if not isinstance(v, (list, dict)) and k not in ('success', 'id')}
+    # 6. Les ports du résultat, posés sur l'élément créé par le geste de la card.
+    for pid, path in results.items():
+        if refused := _result_gesture(user, surface, item_id, pid, path):
+            return {**refused, 'item_id': item_id, 'surface': surface,
+                    'error': f"Élément #{item_id} créé, mais {by_id[pid].get('label') or pid} : "
+                             f"{refused.get('error')}"}
+    return {**kept,
+            **({id_kwarg: item_id} if id_kwarg else {}),
+            'item_id': item_id,      # clé UNIFORME du contrat méta-app (STUDIO_VISION 2026-07-12)
+            'surface': surface,      # la famille de l'élément : celle que suivent start / status
+            'domain': domain,
+            'status': str(getattr(element, 'status', '') or kept.get('status') or 'pending').lower()}
+
+
+def _register_card_creators():
+    """`add_to_<app>` DÉRIVÉ de la card (`_card_creator`) pour toute app RÉELLE qui déclare sa triade
+    — la règle, sans liste d'apps (2026-11-26 : les dix créateurs écrits à la main sont retirés,
+    chacun mesuré à parité avant/après, `REMOVAL_LEDGER R250`). Les jumelles et les apps nées d'un
+    manifeste reçoivent le leur par `_register_twin_creators`."""
+    from wama.common.app_registry import APP_CATALOG
+    from wama.common.sandbox import sandbox_labels
+    from wama.common.utils.app_modes import surface_app
+    sandbox = set(sandbox_labels())
+    for app in sorted({surface_app(surface) for surface in TRIAD_SPECS}):
+        if app in sandbox or app not in APP_CATALOG:
+            continue
+        creator = _card_creator(app)
+        creator.__name__ = creator.__qualname__ = f'add_to_{app}'
+        globals()[creator.__name__] = TOOL_REGISTRY[creator.__name__] = creator
+
+
 _register_triads()
+_register_card_creators()
 _register_twin_creators()
 
 
@@ -7810,9 +6853,13 @@ def relay_next_step(tool_name: str, result: dict) -> dict:
     # L'état est lu dans le VOCABULAIRE COMMUN (`normalize_job_status` + `JOB_STATUS_NOT_STARTED`,
     # domicile `common/models.py`), jamais contre une liste de mots écrite ici : `AWAITING_RESOURCES`
     # en fait partie, et une app qui l'emploierait serait couverte sans qu'on y pense.
+    # Le BROUILLON (`DRAFT`, état d'affichage du transcriber : la card déposée attend son ▶) n'a
+    # rien lancé non plus (`state_presentation.DRAFT`) — l'outil d'ajout dérivé de la card rend
+    # l'état que la card a posé (2026-11-26).
     from wama.common.models import JOB_STATUS_NOT_STARTED, normalize_job_status
+    from wama.common.utils.state_presentation import DRAFT
     if normalize_job_status(result.get('status')) not in (
-            JOB_STATUS_NOT_STARTED | {_LEGACY_QUEUED}):
+            JOB_STATUS_NOT_STARTED | {_LEGACY_QUEUED, DRAFT}):
         return result
 
     # L'élément, lu au CONTRAT (`items_of_step` : la clé uniforme `item_id`, rendue à la source
@@ -8341,8 +7388,10 @@ def get_reader_status_view(request):
 
 @login_required
 @require_POST
-def convert_file_view(request):
-    return _vue_outil(request, 'convert_file')
+def add_to_converter_view(request):
+    # L'adresse historique (`api/tools/converter/convert/`) reste : l'outil `convert_file` est
+    # retiré (2026-11-26, `REMOVAL_LEDGER R250`) — ajouter à la file, comme la card ; ▶ lance.
+    return _vue_outil(request, 'add_to_converter')
 
 
 @login_required

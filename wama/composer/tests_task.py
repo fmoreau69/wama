@@ -162,15 +162,21 @@ class MelodyGivenByUrlTest(TestCase):
 
 
 class TheLauncherSaysRunningTest(TestCase):
-    """« Running » is set by the launcher (`begin_processing`), no longer by the task: the
-    assistant's tool, which sent the task alone, must go through it."""
+    """« Running » is set by the launcher (`begin_processing`), no longer by the task. Since
+    2026-11-26 the assistant's tool ADDS like the card (`_card_creator`) and starts nothing ; its
+    start (`start_composer`, the card's ▶) goes through the launcher."""
 
-    def test_the_assistants_tool_launches_a_running_generation(self):
+    def test_the_assistants_tools_add_then_launch_a_running_generation(self):
         from wama import tool_api
-        user = get_user_model().objects.create_user('composer_tool', password='x')
+        user = get_user_model().objects.create_superuser('composer_tool', password='x')
         with mock.patch('wama.composer.tasks.compose_task.apply_async') as dispatch:
             dispatch.return_value.id = 'task-from-tool'
-            out = tool_api.compose_music(user, prompt='a calm piano', model='musicgen-small')
-        self.assertNotIn('error', out, out)
-        gen = ComposerGeneration.objects.get(pk=out['generation_id'])
+            out = tool_api.execute_tool('add_to_composer', {'prompt': 'a calm piano'}, user)
+            self.assertNotIn('error', out, out)
+            gen = ComposerGeneration.objects.get(pk=out['item_id'])
+            self.assertEqual('PENDING', gen.status, 'an addition starts nothing')
+            start = tool_api.primary_arg_name('start_composer')
+            started = tool_api.execute_tool('start_composer', {start: gen.pk}, user)
+        self.assertNotIn('error', started, started)
+        gen.refresh_from_db()
         self.assertEqual(('RUNNING', 'task-from-tool'), (gen.status, gen.task_id))

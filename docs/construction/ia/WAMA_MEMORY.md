@@ -770,7 +770,10 @@ issue, **voie**). Elle ne nomme personne (décision ② ci-dessus), elle dit la 
 **Constat.** `wama/tool_api.py` (le compte d'outils vit dans `WAMA_LLM.md`, domicile du pivot —
 recopié ici il avait divergé) suit une **triade par app** :
 `add_to_<app>` · `start_<app>` · `get_<app>_status`. Les deux premiers sont irréductiblement
-spécifiques — les paramètres d'une transcription ne sont pas ceux d'une génération d'image. Le
+spécifiques — les paramètres d'une transcription ne sont pas ceux d'une génération d'image *(constat
+corrigé le 2026-11-26 : spécifiques par leurs DÉCLARATIONS, plus par leur code — `start_<app>` est
+généré de `TRIAD_SPECS` depuis le 2026-10-12, `add_to_<app>` est DÉRIVÉ du dépôt de la card de toute
+app depuis le 2026-11-26, `tool_api._card_creator` : un argument par port, les réglages du schéma)*. Le
 troisième, non : `get_transcriber_status` (l.1459 ; *depuis le 2026-10-12, marche A4, plus de
 fonction écrite : la triade est GÉNÉRÉE depuis `TRIAD_SPECS` — `tool_api.py:4294`, `_register_triads`
 `:4696` —, mais chaque app y déclare encore ses propres clés `status_fields`, donc le constat tient ;

@@ -33203,3 +33203,61 @@ worktree.
 **🔚 Suite.** L'emploi par une card (les pistes des fichiers de ses ports, le port nommant l'axe —
 avec la coupe portée par l'entrée, ②fonc) ; la piste sur la partition (axe des mesures) et sur les
 paroles (une clé par nature) ; puis (3) la confirmation des plans par les formes.
+
+---
+
+## §PALIER 2026-11-26, « L'OUTIL D'AJOUT DE TOUTE APP, DÉRIVÉ DU DÉPÔT DE SA CARD » — commit local, non poussé — 🔚 les réglages hors schéma de la card à l'ajout (largeur / hauteur de l'imager, `emotion_intensity`, `classes2blur`) ; le corpus des manifestes (facette `tool_api`)
+
+Fabien, le 2026-11-26 : *« Je croyais qu'on construisait add_to.app. Là, on se retrouve avec des
+fonctions en dur […] On fait du schéma-driven orienté objet »* ; puis le GO : *« parfaitement aligné
+et schéma-driven et s'appliquer automatiquement à toute nouvelle application, y compris l'assistant,
+le studio »*. Le portage de la veille (`256eb0132`, un `add_to_enhancer` de 97 lignes écrites à la
+main) était faux de méthode, comme les neuf autres créateurs.
+- ✅ `tool_api._card_creator` (mécanisme `card_creator`, `WAMA_APP_CONVENTIONS §17.2`) : l'outil
+  d'ajout de TOUTE app qui déclare sa triade — réelle, jumelle, née d'un manifeste. Un argument par
+  port (`studio_node_ports`), `domain` quand l'app en a plusieurs, les réglages du schéma ; le corps
+  (`_deposit_on_card`) POSTE la vue de dépôt du domaine (`served_route(app, 'upload', prefix=…)`) :
+  domaine nommé ou lu à la nature du fichier, adresse téléchargée dans le mode du port
+  (`source_ingest.port_mode`), NOM d'un asset de la médiathèque sur un port fichier, réglages jugés au
+  schéma du domaine (un « automatique » de groupe passe), ports du résultat posés ensuite par le
+  geste de la card (`_RESULT_GESTURES`), volet de l'auteur jamais réécrit
+  (`user_settings.replayed_gesture`), rien lancé.
+- ✅ Les dix vues de dépôt lisent chaque port sous son id (`media_paths.received_work`,
+  `received_port`, `posted_text`, avec repli sur les noms que leurs pages postent) et rendent `id` ;
+  le `generation_mode` de l'imager se dérive dans la vue (`_derived_mode`, la règle de sa card), le
+  synthesizer crée aussi d'un texte seul, le composer REFUSE un morceau que le modèle ne prend pas (la
+  card l'écartait en silence), l'anonymizer lit sa consigne comme la description à flouter et la juge.
+  Le générateur suit (`views_gen`) ; dix jumelles régénérées (diff : la seule lecture du dépôt), les
+  deux jumelles copiées alignées à la main.
+- ✅ Parité mesurée AVANT/APRÈS, app par app (même fichier, mêmes réglages, colonnes comparées) : mêmes
+  réglages et mêmes refus ; écarts = ceux de la card (lot d'un élément du describer, du reader et de
+  l'enhancer ; brouillon et extraction de l'audio du transcriber ; mesures du fichier ; mode
+  « Description » par défaut de l'anonymizer, décision du 24/11 ; plus aucun lancement à l'ajout du
+  composer et du converter).
+- ✅ Retirés (`REMOVAL_LEDGER R250`) : dix créateurs, quatre alias, l'outil de jumelle re-ciblé,
+  `input_kwarg` / `fixed_kwargs` / `auto_start` du Studio ; `UNWIRED_PORTS_BUDGET` VIDE (l'image de
+  l'imager, l'audio de l'enhancer, l'avatar, la consigne de l'anonymizer, les résultats du transcriber
+  arrivent à l'élément). L'avatar nommé des deux pipelines enregistrés (« Test », « Test_Avatar »)
+  remplit le port image (`param_ports`) : aucune donnée réécrite. La vidéo de l'imager se crée
+  (`domain='video'`).
+- ⚠ Changements DITS à l'assistant : les arguments s'appellent comme les ports (`work_file`, `prompt`…
+  — plus `file_path`, `text`, `audio_path`) ; une consigne vide du composer est la génération aléatoire
+  de sa card ; largeur / hauteur de l'imager, `emotion_intensity` du synthesizer, `classes2blur` de
+  l'anonymizer se règlent par `update_item_settings` après l'ajout (la ⚙ de la card) — à décider :
+  les DÉCLARER pour l'ajout.
+- ✅ Tests : batterie de 1 907 tests (assistant, Studio, dix apps, gardes transverses) — sept rouges,
+  dont deux à moi, corrigés (arguments d'arrivée lus sur les ports de l'OUTIL, `wama_ports` ; budget
+  d'identifiants descendu 2546 → 2545, `_champs` retiré avec `convert_file`), les autres étrangers
+  (ci-dessous ; `transcriber.tests_remote_transcription` passe seul). Gardes neuves ou étendues, sans
+  fichier de test neuf : `tests_tool_item_contract` (créateur dérivé pour toute app ; ports du
+  résultat), `tests_birth_settings` (naissance par la card, volet jamais réécrit),
+  `tests_tool_api_designation`, `tests_tool_api_coverage` (chaque port fichier télécharge une adresse),
+  `imager.tests` (mode dérivé), `anonymizer.tests_document_domain` (consigne = description). Neuf
+  contre-épreuves (`mutate_in_process`) toutes ROUGES — l'une a d'abord été verte : la garde
+  reconnaissait l'outil dérivé à un mot que porte aussi `_register_card_creators` (reconnaissance
+  exacte depuis, dans la garde ET dans le critère `tool_api_item_id`).
+- 🔧 Trouvé en chemin, hors de mon fait : la copie de vue de `enhancer_01` cassait son dépôt (R248 :
+  `empty_is_value` encore passé ; `get_input_filename` absent du modèle généré) — corrigée à la main
+  (copie non versionnée) ; `studio.tests_entries.test_an_app_page_is_unchanged` rouge depuis
+  `46155239a` (geste explicite, autre session) ; `tests_turn_bounds` (deux tests) rouges depuis
+  `0b3295118` (le tour n'annonce que les outils du compte).

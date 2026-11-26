@@ -95,22 +95,29 @@ class EveryRouteReadsTheRuleTest(TestCase):
     def test_the_assistant_tool_and_so_the_studio_no_longer_require_a_format(self):
         from django.conf import settings
         from pathlib import Path
-        from wama.tool_api import convert_file
+        from wama.converter.models import ConversionJob
+        from wama.tool_api import TOOL_REGISTRY, primary_arg_name
         rel = f'users/{self.user.id}/temp/studio.png'
         path = Path(settings.MEDIA_ROOT) / rel
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(PNG)
+        # The tool DERIVED from the card (2026-11-26) : the file on its work port.
+        tool, port = TOOL_REGISTRY['add_to_converter'], primary_arg_name('add_to_converter')
+
+        def fmt(result):
+            return ConversionJob.objects.get(pk=result['item_id']).output_format
+
         with mock.patch('wama.converter.tasks.convert_media_task.delay') as delay:
             delay.return_value.id = 'no-task'
-            auto = convert_file(self.user, rel)
+            auto = tool(self.user, **{port: rel})
             self.assertNotIn('error', auto, auto)
-            self.assertEqual(default_output_format('image'), auto['output_format'])
+            self.assertEqual(default_output_format('image'), fmt(auto))
             self.assertEqual('', last_output_format(self.user, 'image'), 'automatique : non retenu')
-            chosen = convert_file(self.user, rel, output_format=_chosen())
-        self.assertEqual(_chosen(), chosen['output_format'])
+            chosen = tool(self.user, **{port: rel}, output_format=_chosen())
+        self.assertEqual(_chosen(), fmt(chosen))
         self.assertEqual(_chosen(), last_output_format(self.user, 'image'),
                          'un format CHOISI sur un nœud devient le dernier employé')
-        self.assertIn('error', convert_file(self.user, rel, output_format='mp4'))
+        self.assertIn('error', tool(self.user, **{port: rel}, output_format='mp4'))
 
     def test_a_file_arriving_by_url_gets_its_format_with_its_nature(self):
         from wama.converter.models import ConversionJob

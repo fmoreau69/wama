@@ -223,8 +223,9 @@ def create_generation(request):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
     try:
-        # Get generation mode
-        generation_mode = request.POST.get('generation_mode', 'txt2img')
+        # Le mode : celui posté, affiné par les entrées données (`_derived_mode`, la règle de la card
+        # tenue pour tout geste, 2026-11-26).
+        generation_mode = _derived_mode(request, user, request.POST.get('generation_mode') or 'txt2img')
 
         # Réglages user — écriture À LA CRÉATION (patron transcriber, brique A5-22) : les
         # valeurs du volet voyagent avec le POST de la card, on les persiste ICI, au point de
@@ -519,12 +520,34 @@ def handle_file2img(request, user):
 
 
 def _reference_image(request, user):
-    """L'image de RÉFÉRENCE reçue par le port — téléversée ou DÉSIGNÉE (médiathèque, arbre),
-    brique `received_inputs` (2026-09-28) : une désignation se POINTE. Rend `(reçue, refus)`."""
-    from wama.common.utils.media_paths import received_inputs
-    received = received_inputs(request, user, 'imager', field='reference_image',
-                               subfolder='input/references')
+    """L'image de RÉFÉRENCE reçue par le port — téléversée ou DÉSIGNÉE (médiathèque, arbre) : sous
+    l'id du port de travail que la card déclare (`work_image`, le contrat du créateur dérivé de la
+    card, 2026-11-26), ou sous `reference_image`, le nom que la page poste
+    (`media_paths.received_work`) : une désignation se POINTE. Rend `(reçue, refus)`."""
+    from wama.common.utils.media_paths import received_work
+    received = received_work(request, user, 'imager', 'reference_image',
+                             subfolder='input/references')
     return (received[0] if received else None), received.refusal
+
+
+def _derived_mode(request, user, posted: str) -> str:
+    """Le `generation_mode` d'une génération NAISSANTE, DÉRIVÉ des entrées données (« le moteur le
+    DÉRIVE de ce qu'on lui donne », `app_modes` IMAGER) : la règle de la card (`input_card.js`,
+    `deriveMode`), tenue ici pour TOUT geste — l'outil d'ajout dérivé de la card ne poste que le
+    mode de son domaine (`domain_birth_field` : `txt2vid` pour la vidéo, rien pour l'image). Un
+    mode déjà affiné (img2img, describe2img, file2img…) reste celui posté.
+      vidéo : une image (fichier ou URL) → img2vid, sinon txt2vid ;
+      image : une image jointe → img2img avec consigne, describe2img sans ; une URL seule → img2img."""
+    from wama.common.utils.media_paths import posted_text, work_posted
+    if posted not in ('txt2img', 'txt2vid'):
+        return posted
+    has_file = work_posted(request, 'imager', 'reference_image')
+    has_ref = has_file or bool((request.POST.get('source_url') or '').strip())
+    if posted == 'txt2vid':
+        return 'img2vid' if has_ref else 'txt2vid'
+    if has_file:
+        return 'img2img' if posted_text(request, 'imager', 'prompt') else 'describe2img'
+    return 'img2img' if has_ref else 'txt2img'
 
 
 def handle_describe2img(request, user):

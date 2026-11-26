@@ -283,8 +283,10 @@ def upload(request):
     # (2026-09-28) : une désignation arrive par cette même vue, avec le même état du volet, et
     # se POINTE au lieu d'être recopiée.
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    from wama.common.utils.media_paths import received_inputs
-    received = received_inputs(request, user, 'transcriber')
+    # Sous l'id du port de travail que la card déclare (le contrat du créateur dérivé de la card,
+    # 2026-11-26), ou sous `file`, le nom que la page poste (`media_paths.received_work`).
+    from wama.common.utils.media_paths import received_work
+    received = received_work(request, user, 'transcriber', 'file')
     if not received:
         return JsonResponse({'error': received.refusal or 'Aucun fichier reçu'}, status=400)
     file = received[0]

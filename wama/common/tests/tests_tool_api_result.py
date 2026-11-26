@@ -81,17 +81,21 @@ class NullArgumentsTakeTheDefaultTest(TestCase):
     """`add_to_reader(mode=None)` écrasait le défaut `'auto'` → `NOT NULL` en base."""
 
     def test_a_null_optional_argument_is_dropped(self):
+        port = T.primary_arg_name('add_to_reader')   # its work port (the tool is derived from the card)
         clean, ignored = T.sanitize_tool_args(
-            'add_to_reader', {'file_path': 'users/1/temp/a.jpg', 'mode': None,
+            'add_to_reader', {port: 'users/1/temp/a.jpg', 'mode': None,
                               'backend': None, 'output_format': None})
-        self.assertEqual(clean, {'file_path': 'users/1/temp/a.jpg'})
+        self.assertEqual(clean, {port: 'users/1/temp/a.jpg'})
         self.assertEqual(ignored, [])
 
     def test_a_null_required_argument_is_kept_for_the_tool_to_refuse(self):
-        """Contre-épreuve : un argument OBLIGATOIRE à `null` n'est pas effacé en silence."""
-        clean, _ = T.sanitize_tool_args('add_to_reader', {'file_path': None})
-        self.assertIn('file_path', clean)
+        """Contre-épreuve : un argument OBLIGATOIRE à `null` n'est pas effacé en silence — un outil
+        qui en a un (la médiathèque : le rôle de l'asset est toujours donné, jamais deviné)."""
+        clean, _ = T.sanitize_tool_args('add_to_media_library', {'file_path': 'a.jpg',
+                                                                  'asset_type': None})
+        self.assertIn('asset_type', clean)
 
     def test_a_real_value_is_never_dropped(self):
-        clean, _ = T.sanitize_tool_args('add_to_reader', {'file_path': 'a.jpg', 'mode': ''})
+        port = T.primary_arg_name('add_to_reader')
+        clean, _ = T.sanitize_tool_args('add_to_reader', {port: 'a.jpg', 'mode': ''})
         self.assertEqual(clean.get('mode'), '')

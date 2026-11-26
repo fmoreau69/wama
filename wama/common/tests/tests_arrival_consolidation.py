@@ -231,8 +231,11 @@ class ArrivalThroughTheAssistantTest(_ArrivalMedia, TestCase):
         wav = b'RIFF\x24\x00\x00\x00WAVEfmt ' + b'\0' * 32
         files = [self._temp('a.png', b'x'), self._temp('a.wav', wav),
                  self._temp('b.png', b'x'), self._temp('b.wav', wav)]
+        # One file port of the tool (derived from the card, 2026-11-26) : each file goes to the port
+        # of the domain that takes its nature.
         out = T.relay_next_step('add_to_enhancer', T.execute_tool(
-            'add_to_enhancer', {'file_path': files}, self.user, model_call=True))
+            'add_to_enhancer', {T.primary_arg_name('add_to_enhancer'): files}, self.user,
+            model_call=True))
         self.assertEqual(4, out.get('count'), out)
         surfaces = [surface for surface, _ in T.items_of_step('add_to_enhancer', {}, out)]
         self.assertEqual(['enhancer', 'audio_enhancer', 'enhancer', 'audio_enhancer'], surfaces)
@@ -299,7 +302,9 @@ class ArrivalArgumentsAreDeclaredTest(TestCase):
 
         from wama.studio.services import generic_runner
         port = {'id': 'work_file', 'group': 'travail', 'types': ['document'], 'label': 'Fichier'}
+        # The ports the TOOL drew its signature from (`_tool_ports`, 2026-11-26) : they judge its
+        # arguments.
         for multi, expected in ((True, {'work_file'}), (False, set())):
             with self.subTest(multi=multi), mock.patch.object(
-                    generic_runner, '_node_ports', return_value=[dict(port, multi=multi)]):
+                    generic_runner, '_tool_ports', return_value=[dict(port, multi=multi)]):
                 self.assertEqual(expected, generic_runner.work_arguments('synthesizer'))

@@ -55,12 +55,29 @@ class IndexView(View):
 
     def post(self, request):
         user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+        # La CONSIGNE posée sur le port texte de la card (le contrat du créateur dérivé de la card,
+        # 2026-11-26) est la description de ce qu'on floute : le réglage `sam3_prompt`
+        # (`ports_carried_elsewhere`), qu'un réglage posté sous son nom l'emporte.
+        from wama.common.utils.media_paths import posted_text
+        post = request.POST.copy()
+        if not (post.get('sam3_prompt') or '').strip():
+            text = posted_text(request, 'anonymizer')
+            if text:
+                post['sam3_prompt'] = text
+        # Une description posée se juge au dépôt, comme à la ⚙ (`apply_media_settings`) : une
+        # description invalide ne fait naître aucun média (l'outil de l'assistant le faisait seul).
+        if (post.get('sam3_prompt') or '').strip():
+            is_valid, error = validate_sam3_prompt(post['sam3_prompt'].strip())
+            if not is_valid:
+                return JsonResponse({'is_valid': False, 'error': f'SAM3 prompt invalide : {error}'},
+                                    status=400)
 
         try:
-            # Un fichier TÉLÉVERSÉ, ou DÉSIGNÉ (médiathèque, arbre) — brique `received_inputs` :
-            # une désignation se POINTE au lieu d'être recopiée, avec le même état du volet.
-            from wama.common.utils.media_paths import received_inputs
-            received = received_inputs(request, user, 'anonymizer')
+            # Un fichier TÉLÉVERSÉ, ou DÉSIGNÉ (médiathèque, arbre) — sous l'id de son port de
+            # travail (le contrat du créateur dérivé de la card, 2026-11-26), ou sous `file`, le nom
+            # que la page poste (`media_paths.received_work`) : une désignation se POINTE.
+            from wama.common.utils.media_paths import received_work
+            received = received_work(request, user, 'anonymizer', 'file')
             media_file = received[0] if received else None
             if received.refusal and not media_file and not request.POST.get('media_url'):
                 raise ValueError(received.refusal)
@@ -83,7 +100,7 @@ class IndexView(View):
                             # La SOURCE est enregistrée, le récepteur commun la télécharge dès
                             # la création hors requête (`source_ingest`, 2026-10-13) — même
                             # geste que `batch_create`.
-                            added.append(_media_from_url(path, user, request.POST))
+                            added.append(_media_from_url(path, user, post))
                             continue
                         else:
                             # Confinement (05/09) : ce site lisait N'IMPORTE QUEL chemin serveur
@@ -103,7 +120,7 @@ class IndexView(View):
                         # Crée Media en DB
                         media = process_media(
                             video_path, user,
-                            post=request.POST,
+                            post=post,
                         )
                         added.append(media)
                         # Provenance : la copie se souvient de sa ligne de lot (brique commune).
@@ -118,16 +135,18 @@ class IndexView(View):
             media_url = (request.POST.get('media_url') or '').strip()
             if not media_file and media_url:
                 return JsonResponse({'success': True,
-                                     'media': _media_from_url(media_url, user, request.POST)})
+                                     'media': _media_from_url(media_url, user, post)})
             video_path = upload_from_url(request, user, media_file)
             media_result = process_media(
                 video_path, user,
-                post=request.POST,
+                post=post,
             )
             if isinstance(media_result, dict) and media_result.get('is_valid'):
                 if media_file:
                     media_file.record(Media.objects.get(pk=media_result['id']), 'file')
-                return JsonResponse({'success': True, 'media': media_result})
+                # `id` à la racine : le contrat commun des vues de dépôt (lu par le créateur dérivé
+                # de la card, 2026-11-26), à côté de l'objet `media` que la page lit.
+                return JsonResponse({'success': True, 'id': media_result['id'], 'media': media_result})
             else:
                 # La copie TÉLÉVERSÉE n'a pas de card : elle ne reste pas sur le disque (2026-11-03,
                 # deux copies orphelines d'un import refusé). Un fichier DÉSIGNÉ n'est jamais

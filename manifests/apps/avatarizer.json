@@ -2004,14 +2004,13 @@
           "type": "select"
         }
       ],
-      "fixed_kwargs": {
-        "avatar_source": "gallery"
-      },
       "input_kinds": [
         "audio"
       ],
-      "input_kwarg": "audio_path",
-      "io_scope": "nœud V1 = audio seul ; l'avatar est NOMMÉ (réglage du nœud, avatars de la médiathèque que l'utilisateur voit), pas relié au port image",
+      "io_scope": "nœud V1 = audio en entrée principale ; l'avatar arrive par son port image, ou NOMMÉ par un réglage du nœud (avatars de la médiathèque que l'utilisateur voit)",
+      "param_ports": {
+        "avatar_gallery_name": "work_image"
+      },
       "params_attr": "PARAMS_JSON",
       "params_module": "wama.avatarizer.params",
       "runnable": true

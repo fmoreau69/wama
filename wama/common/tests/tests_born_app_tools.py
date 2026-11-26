@@ -64,13 +64,22 @@ class BornRegistryInjectionTest(SimpleTestCase):
 
 
 class BornCreatorTest(TestCase):
+    """The creator DERIVED from the card (`_card_creator`) — born for the apps born from a manifest
+    (2026-11-01), the creator of EVERY app since 2026-11-26."""
 
     def setUp(self):
         self.user = User.objects.create_user('born_creator_user', password='x')
         with mock.patch('wama.common.app_registry.studio_node_ports', return_value=PORTS):
-            self.creator = T._born_creator('notes_01')
-        patches = [mock.patch.object(T, '_route_dispo', return_value='upload'),
-                   mock.patch.object(T, '_refus_app', return_value=None)]
+            self.creator = T._card_creator('notes_01')
+        patches = [
+            mock.patch('wama.common.manifests.codegen.urls_gen.served_route', return_value='upload'),
+            mock.patch.object(T, '_refus_app', return_value=None),
+            # The designation guards pass for the paths of these tests (a disk file is not needed).
+            mock.patch('wama.common.utils.media_paths.check_designation', side_effect=lambda p, u: p),
+            # The app's schema : one setting, the document kind.
+            mock.patch('wama.common.utils.param_schema.schema_for_app',
+                       return_value=[{'name': 'document_kind', 'type': 'text'}]),
+        ]
         for p in patches:
             p.start()
             self.addCleanup(p.stop)
@@ -89,7 +98,8 @@ class BornCreatorTest(TestCase):
                                   return_value=(200, {'id': 7, 'status': 'PENDING'})) as post:
             out = self.creator(self.user, prompt=' Mon parcours ',
                                reference_document='users/1/temp/cv.pdf', document_kind='cv')
-        self.assertEqual({'item_id': 7, 'status': 'PENDING'}, out)
+        self.assertEqual({'item_id': 7, 'status': 'pending', 'surface': 'notes_01', 'domain': ''},
+                         out)
         (user, app, route, args, data), _ = post.call_args
         self.assertEqual(('notes_01', 'upload'), (app, route))
         self.assertEqual({'prompt': 'Mon parcours',
@@ -98,7 +108,7 @@ class BornCreatorTest(TestCase):
 
     def test_a_rejected_file_stops_the_call_before_anything_is_posted(self):
         from wama.common.utils.media_paths import InputRefused
-        with mock.patch('wama.common.utils.media_paths.designated_file',
+        with mock.patch('wama.common.utils.media_paths.check_designation',
                         side_effect=InputRefused('fichier introuvable')), \
                 mock.patch.object(T, '_poster_vue') as post:
             out = self.creator(self.user, prompt='x', reference_document='users/9/nope.pdf')

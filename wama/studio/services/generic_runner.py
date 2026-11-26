@@ -12,12 +12,14 @@ Une app est éligible quand sa triade est NORMALISÉE :
      est un POINTEUR vers ce schéma, jamais une copie.
 
 Déclarer une app ici = quelques lignes de manifeste. Vocabulaire optionnel (spécificités
-DÉCLARÉES, pas codées) : `primary_input='prompt'` (entrée = texte) ; `input_kwarg`
-(l'entrée primaire part dans ce kwarg au lieu du 2e positionnel) ; `fixed_kwargs`
-(constantes de création, ex. mode standalone) ; `auto_start` (le créateur dispatche
-déjà — start = no-op) ; `extra_params_spec` (réglages PROPRES AU NŒUD, absents du schéma
-d'app, déclarés sous la forme commune `Param` — 2026-10-12). Le shim `runners.py` se vide en
-miroir. Les réglages d'un nœud se lisent à UN endroit : `services/node_params.node_schema`.
+DÉCLARÉES, pas codées) : `primary_input='prompt'` (entrée = texte) ; `extra_params_spec`
+(réglages PROPRES AU NŒUD, absents du schéma d'app, déclarés sous la forme commune `Param` —
+2026-10-12) ; `param_ports` (`{réglage du nœud: port}` : le réglage REMPLIT ce port quand aucun
+lien n'y arrive — l'avatar nommé de l'avatarizer, 2026-11-26). `input_kwarg`, `fixed_kwargs` et
+`auto_start` sont RETIRÉS le 2026-11-26 (`REMOVAL_LEDGER R250`) : l'outil d'ajout est dérivé de la
+card (`tool_api._card_creator`), il prend chaque port sous son nom et ne lance rien. Le shim
+`runners.py` se vide en miroir. Les réglages d'un nœud se lisent à UN endroit :
+`services/node_params.node_schema`.
 """
 from __future__ import annotations
 
@@ -69,24 +71,19 @@ GENERIC_APPS = {
     'converter': {
         'params_module': 'wama.converter.params',
         'params_attr': 'PARAMS_JSON',
-        'auto_start': True,   # convert_file dispatche à la création (déclaré)
     },
     'avatarizer': {
         'input_kinds': ('audio',),
-        'io_scope': "nœud V1 = audio seul ; l'avatar est NOMMÉ (réglage du nœud, avatars "
-                    "de la médiathèque que l'utilisateur voit), pas relié au port image",
-        'input_kwarg': 'audio_path',                    # signature historique (déclaré)
-        # `mode` n'est plus figé (2026-08-28) : il se DÉRIVE des entrées dans tool_api —
-        # un nœud alimenté en audio sort standalone tout seul.
-        'fixed_kwargs': {'avatar_source': 'gallery'},
+        'io_scope': "nœud V1 = audio en entrée principale ; l'avatar arrive par son port image, ou "
+                    "NOMMÉ par un réglage du nœud (avatars de la médiathèque que l'utilisateur voit)",
         'params_module': 'wama.avatarizer.params',
         'params_attr': 'PARAMS_JSON',
         # L'avatar est une ENTRÉE de la card (port image), pas un réglage : il n'a pas sa place au
-        # schéma de l'app, dont la modale règle un élément. Le nœud V1 ne lit pas ce port
-        # (`io_scope`, `UNWIRED_PORTS_BUDGET`) : il NOMME donc l'avatar par un réglage propre au
-        # nœud — sous la forme commune (`Param`, 2026-10-12), sa liste servie par la source
-        # `avatar_gallery` (les noms que `designate_named_avatar` résout). Il disparaît le jour
-        # où le nœud lit son port image.
+        # schéma de l'app, dont la modale règle un élément. Le nœud le NOMME aussi par un réglage
+        # propre — sous la forme commune (`Param`, 2026-10-12), sa liste servie par la source
+        # `avatar_gallery` (les noms que la médiathèque résout) —, qui REMPLIT le port image quand
+        # aucun lien n'y arrive (`param_ports`, 2026-11-26 : l'outil d'ajout dérivé de la card prend
+        # le nom d'un asset sur un port fichier). Les pipelines enregistrés le portent sous ce nom.
         # ⚠ Un LITTÉRAL, jamais une expression : ce registre est écrit par la facette `studio` du
         # manifeste (`manifests/builtin/app._project_studio`), qui ne relit et n'écrit que des
         # littéraux — un `schema_to_dicts([Param(…)])` y était lu « expression », donc projeté en
@@ -99,6 +96,7 @@ GENERIC_APPS = {
              'help': 'Les avatars de la médiathèque que vous voyez : les vôtres, les partagés, '
                      'la galerie.'},
         ],
+        'param_ports': {'avatar_gallery_name': 'work_image'},
     },
     'anonymizer': {
         'params_module': 'wama.anonymizer.params',
@@ -111,7 +109,7 @@ def _twin_can_create(label: str) -> bool:
     """Un nœud studio CRÉE l'élément par l'outil `add_to_<app>` : une jumelle sans cet outil
     afficherait un nœud qui ne peut pas tourner. Elle n'entre donc au registre que s'il existe —
     le manque est celui du GÉNÉRATEUR, il ne se maquille pas ici. (Une app née d'un manifeste a le
-    sien depuis le 2026-11-01, dérivé de la vue de dépôt de sa card : `tool_api._born_creator`.)
+    sien depuis le 2026-11-01, dérivé de la vue de dépôt de sa card : `tool_api._card_creator`, celui de toute app depuis le 2026-11-26.)
     La règle de dérivation est lue telle quelle (`creator_derivable`) : ce module peut se charger
     PENDANT `tool_api`, avant que l'outil ne soit enregistré."""
     from wama.tool_api import TOOL_REGISTRY, creator_derivable
@@ -210,6 +208,15 @@ def _node_ports(app_id):
     return (studio_node_ports(app_id) or {}).get('inputs', [])
 
 
+def _tool_ports(app_id):
+    """Les ports de L'OUTIL d'ajout quand il les porte (`wama_ports`, l'outil dérivé de la card) :
+    ceux dont il a tiré sa signature, au catalogue de son chargement ; sinon ceux du nœud. Ce qui
+    juge les ARGUMENTS de l'outil (l'entrée principale, les arguments à plusieurs fichiers) les lit
+    ici — le catalogue peut avoir bougé depuis, en base de test il est vide."""
+    from wama.tool_api import TOOL_REGISTRY
+    return getattr(TOOL_REGISTRY.get(f'add_to_{app_id}'), 'wama_ports', None) or _node_ports(app_id)
+
+
 def primary_ports(app_id, ports=None) -> set:
     """Les ports par lesquels arrive l'ENTRÉE PRINCIPALE du nœud (transmise par `create`).
     `ports` : ceux que l'appelant a déjà lus (`_node_ports` relit les capacités des modèles)."""
@@ -245,9 +252,9 @@ def work_arguments(app_id) -> set:
     (`tool_api.arrival_arguments`, 2026-11-17) : ceux d'un port de travail dont le jeton déclare
     `multi` (`app_modes.INPUT_TYPES`) — la déclaration que la card lit pour son `input multiple`
     (2026-11-18 ; un résultat existant, `work_result`, n'en est pas). La règle de `create` et de
-    `port_arguments`, lue ici une fois : l'entrée principale dans `input_kwarg` déclaré (ou le
-    premier argument de l'outil), un autre port dans l'argument du même nom ; un port que l'outil
-    ne lit pas encore (`unwired_ports`) n'en donne aucun."""
+    `port_arguments`, lue ici une fois : l'entrée principale dans son argument
+    (`primary_argument`), un autre port dans l'argument du même nom ; un port que l'outil ne lit
+    pas encore (`unwired_ports`) n'en donne aucun."""
     return _file_arguments(app_id, several=True)
 
 
@@ -266,7 +273,7 @@ def _file_arguments(app_id, *, several: bool) -> set:
         return set()
     from wama.tool_api import tool_arg_names
     accepted = tool_arg_names(f'add_to_{app_id}')
-    ports = _node_ports(app_id)
+    ports = _tool_ports(app_id)
     primary = primary_ports(app_id, ports)
     found = set()
     for port in ports:
@@ -283,11 +290,26 @@ def _file_arguments(app_id, *, several: bool) -> set:
 
 
 def primary_argument(app_id):
-    """L'argument de `add_to_<app>` où arrive l'ENTRÉE PRINCIPALE du nœud : celui que l'app déclare
-    (`input_kwarg`), sinon le premier de l'outil (`primary_arg_name`) — lu par `create` et par
-    `work_arguments`."""
-    from wama.tool_api import primary_arg_name
-    return GENERIC_APPS[app_id].get('input_kwarg') or primary_arg_name(f'add_to_{app_id}')
+    """L'argument de `add_to_<app>` où arrive l'ENTRÉE PRINCIPALE du nœud : le premier de ses ports
+    principaux (`primary_ports`, dans l'ordre des ports) que l'outil prend sous son nom — l'outil
+    dérivé de la card les prend tous (`tool_api._card_creator`, 2026-11-26) —, sinon le premier
+    argument de l'outil de la MÊME nature (un texte pour une entrée consigne, un fichier sinon :
+    la signature de l'outil est tirée du catalogue à son chargement, les ports du nœud à la
+    lecture), sinon le premier argument. Lu par `create` et par `work_arguments`."""
+    from wama.common.utils.app_modes import INPUT_TYPES
+    from wama.tool_api import TOOL_REGISTRY, _tool_signature, primary_arg_name, tool_arg_names
+    accepted = tool_arg_names(f'add_to_{app_id}')
+    ports = _tool_ports(app_id)
+    primary = primary_ports(app_id, ports)
+    found = next((p['id'] for p in ports if p['id'] in primary and p['id'] in accepted), None)
+    if found:
+        return found
+    sig = _tool_signature(TOOL_REGISTRY.get(f'add_to_{app_id}'))
+    wants_text = GENERIC_APPS[app_id].get('primary_input') == 'prompt'
+    same_nature = [n for n, p in (sig.parameters.items() if sig else ())
+                   if p.kind is p.KEYWORD_ONLY and n != 'domain'
+                   and ((INPUT_TYPES.get(n) or {}).get('kind') == 'text') == wants_text]
+    return same_nature[0] if same_nature else primary_arg_name(f'add_to_{app_id}')
 
 
 def unwired_ports(app_id) -> list:
@@ -304,17 +326,12 @@ def unwired_ports(app_id) -> list:
 #: studio »). Ne peut que DESCENDRE : une app qui lit un port de plus retire sa ligne ; un port non
 #: lu qui n'y figure pas fait échouer le geste nocturne `studio.node_ports_wired`.
 #: ⚠ Ne jamais AJOUTER une ligne pour faire passer un port neuf : c'est l'outil qu'on complète.
-UNWIRED_PORTS_BUDGET = {
-    # composer soldé le 2026-10-03 : l'audio du morceau à reprendre (`work_audio`, ex-`reference_melody`)
-    # est lu par `compose_music`, comme la partition (`work_score`).
-    'imager': ['work_image'],
-    'transcriber': ['reference_result', 'work_result'],
-    'enhancer': ['work_audio'],
-    # avatarizer `prompt` soldé le 2026-10-18 : le texte à dire arrive dans `text_content`, le champ
-    # que l'app déclare porter son texte source (`port_argument_name`).
-    'avatarizer': ['work_image', 'work_object3d'],
-    'anonymizer': ['prompt'],
-}
+#: VIDE depuis le 2026-11-26 : l'outil d'ajout de toute app est DÉRIVÉ de sa card
+#: (`tool_api._card_creator`), qui prend chaque port sous son nom — les sept ports restants
+#: (image de l'imager, audio de l'enhancer, avatar de l'avatarizer, consigne de l'anonymizer,
+#: résultats du transcriber) sont soldés du même geste. La garde reste : un outil réécrit à la main
+#: qui oublierait un port la ferait rougir.
+UNWIRED_PORTS_BUDGET = {}
 
 
 def unwired_ports_report(measure=None):
@@ -396,10 +413,15 @@ def build_generic_runner(app_id):
         consumed = {'prompt', 'text', 'text_content'} if conf.get('primary_input') == 'prompt' else set()
         call_args = {k: v for k, v in (params or {}).items()
                      if k not in consumed and v not in (None, '')}
-        call_args.update(conf.get('fixed_kwargs') or {})
+        # Un réglage du nœud qui REMPLIT un port (`param_ports`) y arrive quand aucun lien ne le
+        # porte : l'avatar nommé de l'avatarizer, pris par l'outil sur son port image.
+        for setting, port in (conf.get('param_ports') or {}).items():
+            value = call_args.pop(setting, None)
+            if value not in (None, '') and not extra.get(port):
+                extra[port] = value
 
-        # L'entrée principale est passée PAR NOM : déclaré (`input_kwarg`) ou dérivé de la
-        # signature. Plus de position à deviner, et l'appel devient un appel d'outil normal.
+        # L'entrée principale est passée PAR NOM, celui de son port (`primary_argument`). Plus de
+        # position à deviner, et l'appel devient un appel d'outil normal.
         kwarg = primary_argument(app_id)
         if not kwarg:
             raise ValueError(f"{app_id} : {tool} n'expose aucun paramètre d'entrée (contrat).")
@@ -418,8 +440,7 @@ def build_generic_runner(app_id):
         return res['item_id']
 
     def start(user, item_id):
-        if conf.get('auto_start'):
-            return   # le créateur a déjà dispatché (déclaré au manifeste)
+        # Aucun créateur ne lance plus rien (2026-11-26, `auto_start` retiré) : le ▶ de la card.
         from wama.tool_api import execute_tool, primary_arg_name
         tool = f'start_{app_id}'
         kwarg = primary_arg_name(tool)

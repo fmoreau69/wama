@@ -44,8 +44,11 @@ class ToolApiItemIdCriterionTest(SimpleTestCase):
         source = "def add_to_thing(user):\n    return {'item_id': 3}\n"
         self.assertIs(True, _verdict('thing', source)[0])
 
-    def test_the_real_aliases_keep_the_contract(self):
-        for app in ('synthesizer', 'composer', 'converter', 'imager'):
+    def test_the_creators_derived_from_the_card_keep_the_contract(self):
+        """Every app's creator is DERIVED from its card (2026-11-26) : the criterion reads what is
+        served, and finds the key in the common body."""
+        for app in ('anonymizer', 'composer', 'converter', 'enhancer', 'imager', 'synthesizer'):
             with self.subTest(app=app):
                 state, proof = cc._tool_api_item_id(SimpleNamespace(app=app))
                 self.assertIs(True, state, proof)
+                self.assertIn('_card_creator', proof)

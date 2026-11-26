@@ -87,9 +87,9 @@ def new_synthesis_settings(user, model=None, app='synthesizer', post=None, input
 
 def synthesis_params(user, post, model=None, app='synthesizer', inputs=None) -> dict:
     """Les `params` d'une synthèse NAISSANTE pour `create_synthesis` : la cascade commune, plus ce
-    que `post` porte hors schéma (réglages Higgs, titre). Le dépôt de la card et l'outil de
-    l'assistant (`tool_api.synthesize_text`, 2026-10-29) ; `model`/`app` : une jumelle passe les
-    siens."""
+    que `post` porte hors schéma (réglages Higgs, titre). Le dépôt de la card — que l'outil de
+    l'assistant rejoue depuis le 2026-11-26 (`tool_api._card_creator`) — et le lot ;
+    `model`/`app` : une jumelle passe les siens."""
     posted = post.dict() if hasattr(post, 'dict') else dict(post)
     return {**posted, **new_synthesis_settings(user, model=model, app=app, post=posted, inputs=inputs)}
 
@@ -245,20 +245,31 @@ def upload(request):
     """La card reçoit un FICHIER DE TRAVAIL (téléversé, ou désigné : médiathèque, arbre) — et,
     s'il y en a une, la VOIX DE RÉFÉRENCE. La création est LE chemin unique de l'app
     (`services.create_synthesis`), le même que l'outil du Studio et de l'assistant."""
+    from wama.common.utils.media_paths import posted_text, received_port, received_work
     from .services import SynthesisRefused, create_synthesis
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    received = received_inputs(request, user, 'synthesizer')
-    if not received:
+    # Chaque port sous son id (le contrat du créateur dérivé de la card, 2026-11-26), ou sous le
+    # nom que la page poste : `file` pour le fichier de travail, `voice_reference` pour la voix.
+    # Le TEXTE seul crée aussi (« l'un OU l'autre », la forme mixte de la card) : la page le poste
+    # encore à `upload_text`, l'outil d'ajout ici.
+    received = received_work(request, user, 'synthesizer', 'file')
+    text = '' if received else posted_text(request, 'synthesizer', 'text_content')
+    if not received and not text:
         return JsonResponse({'error': received.refusal or 'Aucun fichier fourni'}, status=400)
-    voice = received_inputs(request, user, 'synthesizer', field='voice_reference')
+    voice = received_port(request, user, 'synthesizer', 'reference_voice', 'voice_reference')
     if not voice and voice.refusal:
         # Une voix désignée et REFUSÉE (fichier d'un autre) faisait naître la card avec la voix
         # par défaut, sans un mot (2026-10-13) : l'ajout est refusé avec son motif.
         return JsonResponse({'error': voice.refusal}, status=400)
     try:
-        synthesis = create_synthesis(user, work_file=received[0],
-                                     reference_voice=voice[0] if voice else None,
-                                     params=_deposit_params(user, request.POST, received[0]))
+        if received:
+            synthesis = create_synthesis(user, work_file=received[0],
+                                         reference_voice=voice[0] if voice else None,
+                                         params=_deposit_params(user, request.POST, received[0]))
+        else:
+            synthesis = create_synthesis(user, prompt=text, title=request.POST.get('title', ''),
+                                         reference_voice=voice[0] if voice else None,
+                                         params=_deposit_params(user, request.POST))
     except (SynthesisRefused, ValueError) as exc:
         return JsonResponse({'error': str(exc)}, status=400)
     return _card_created_response(synthesis)

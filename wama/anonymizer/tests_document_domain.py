@@ -178,6 +178,28 @@ class DocumentBirthTest(TestCase):
         folder = os.path.join(self.root, 'users', str(self.uploader.id), 'anonymizer', 'input')
         return sorted(os.listdir(folder)) if os.path.isdir(folder) else []
 
+    def test_the_text_port_of_the_card_is_the_description_of_what_is_blurred(self):
+        """The anonymizer's text port is carried by a SETTING (`ports_carried_elsewhere` : the
+        description, `sam3_prompt`) : what a gesture posts on the port — the tool derived from the
+        card does (2026-11-26) — is that description ; a description posted under its name wins."""
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from django.urls import reverse
+        from PIL import Image
+        from wama.anonymizer.models import Media
+        path = os.path.join(self.root, 'face.png')
+        Image.new('RGB', (32, 24), (90, 90, 90)).save(path)
+        self.uploader = User.objects.create_user('desc_upload', password='x', is_staff=True,
+                                                 is_superuser=True)
+        self.client.force_login(self.uploader)
+        for posted, expected in (({'prompt': 'all faces'}, 'all faces'),
+                                 ({'prompt': 'all faces', 'sam3_prompt': 'license plates'},
+                                  'license plates')):
+            with open(path, 'rb') as fh:
+                upload = SimpleUploadedFile('face.png', fh.read(), content_type='image/png')
+            response = self.client.post(reverse('anonymizer:upload'), {'file': upload, **posted})
+            self.assertEqual(200, response.status_code, response.content)
+            self.assertEqual(expected, Media.objects.get(pk=response.json()['id']).sam3_prompt)
+
     def test_a_long_file_name_is_imported_whole(self):
         # 91 characters (#2297's neighbour, 2026-11-03): the path did not fit in 100.
         name = ('Can_Iron_Replace_Natural_Gas_Driss_Laraqui_Fenix_Energy_youtube_transcript_'

@@ -188,27 +188,58 @@ class BirthSettingsCriterionTest(SimpleTestCase):
 #: and the file manager's import call (2026-10-29). One row per app : the tool, its call, the birth
 #: function, and one setting the spy adds to what that function returns. The converter is not here:
 #: all its ways in go through `apply_birth_settings`, another shape (it sets an existing job).
+#: Since 2026-11-26 every tool is the creator DERIVED from the card (`_card_creator`), which posts
+#: the card's deposit view : `@<nature>` names the tool's file port of that nature (read at its
+#: signature — the ports come from the catalogue), `@text` its text port.
 TOOL_BIRTHS = (
-    ('anonymizer', 'add_to_anonymizer', {'file_path': 'png', 'precision_level': 60},
+    ('anonymizer', 'add_to_anonymizer', {'@image': 'png', 'precision_level': 60},
      'wama.anonymizer.views.new_media_settings', 'Media', 'blur_ratio', 41),
-    ('avatarizer', 'add_to_avatarizer', {'text_content': 'Bonjour.', 'avatar_source': 'upload',
-                                         'avatar_image_path': 'png', 'language': 'en'},
+    # The AUDIO proposes the avatar job's settings (the card's rule : `create`), the avatar does not.
+    ('avatarizer', 'add_to_avatarizer', {'@audio': 'wav', '@image': 'png', 'language': 'en'},
      'wama.avatarizer.views.new_avatar_settings', 'AvatarJob', 'bbox_shift', 3),
-    ('composer', 'compose_music', {'prompt': 'a calm piano', 'model': 'musicgen-small'},
+    ('composer', 'add_to_composer', {'@text': 'a calm piano'},
      'wama.composer.views.new_generation_settings', 'ComposerGeneration', 'duration', 13.0),
-    ('describer', 'add_to_describer', {'file_path': 'png', 'output_language': 'en'},
+    ('describer', 'add_to_describer', {'@image': 'png', 'output_language': 'en'},
      'wama.describer.views.new_description_settings', 'Description', 'max_length', 321),
-    ('enhancer', 'add_to_enhancer', {'file_path': 'png', 'denoise': True},
+    ('enhancer', 'add_to_enhancer', {'@image': 'png', 'denoise': True},
      'wama.enhancer.views.new_enhancement_settings', 'Enhancement', 'blend_factor', 0.3),
-    ('imager', 'create_image', {'prompt': 'a cat', 'num_images': 2},
+    ('imager', 'add_to_imager', {'@text': 'a cat', 'num_images': 2},
      'wama.imager.views.new_generation_settings', 'ImageGeneration', 'steps', 13),
-    ('reader', 'add_to_reader', {'file_path': 'png', 'mode': 'printed'},
+    ('reader', 'add_to_reader', {'@image': 'png', 'mode': 'printed'},
      'wama.reader.views.new_reading_settings', 'ReadingItem', 'language', 'xx'),
-    ('synthesizer', 'synthesize_text', {'text': 'Bonjour à tous.', 'pitch': 1.2},
+    ('synthesizer', 'add_to_synthesizer', {'@text': 'Bonjour à tous.', 'pitch': 1.2},
      'wama.synthesizer.views.new_synthesis_settings', 'VoiceSynthesis', 'speed', 1.3),
-    ('transcriber', 'add_to_transcriber', {'file_path': 'wav', 'preprocess_audio': True},
+    ('transcriber', 'add_to_transcriber', {'@audio': 'wav', 'preprocess_audio': True},
      'wama.transcriber.views.new_transcript_settings', 'Transcript', 'hotwords', 'zz-sentinel'),
 )
+
+
+def _tool_port(tool_name, role):
+    """The argument of `tool_name` for `@<role>` : its text port (`@text`), or its file port that
+    takes that nature — a port whose token accepts it, else a port of the card that lists it."""
+    import inspect
+
+    from wama import tool_api as T
+    from wama.common.app_registry import studio_node_ports
+    from wama.common.utils.app_modes import INPUT_TYPES
+    names = [n for n, p in inspect.signature(T.TOOL_REGISTRY[tool_name]).parameters.items()
+             if p.kind is p.KEYWORD_ONLY and n != 'domain']
+    if role == 'text':
+        return next(n for n in names if (INPUT_TYPES.get(n) or {}).get('kind') == 'text')
+    by_token = next((n for n in names if (INPUT_TYPES.get(n) or {}).get('accept') == role), None)
+    if by_token:
+        return by_token
+    ports = {p['id']: p for p in (studio_node_ports(tool_name[len('add_to_'):]) or {}).get('inputs') or []}
+    return next(n for n in names if role in ((ports.get(n) or {}).get('types') or ())
+                or (INPUT_TYPES.get(n) or {}).get('kind') == 'file' and not (INPUT_TYPES.get(n) or {}).get('accept'))
+
+
+def _posted(args, kw):
+    """What a birth function was GIVEN as posted : its `post` keyword, or the first dict-like
+    positional (the imager passes the deposit's `request.POST` by position)."""
+    if kw.get('post') is not None:
+        return kw['post']
+    return next((a for a in args[1:] if hasattr(a, 'get') and hasattr(a, 'keys')), {})
 
 _PNG = bytes.fromhex('89504e470d0a1a0a0000000d4948445200000001000000010806000000'
                      '1f15c4890000000d49444154789c6360000000000200015e2b4d6b0000000049454e44ae426082')
@@ -236,7 +267,9 @@ class ToolsAreBornLikeACardDepositTest(TestCase):
 
     def setUp(self):
         from django.conf import settings
-        self.user = get_user_model().objects.create_user('tool_birth_case', password='x')
+        # An account that may use every app : the tool passes the app's gate (`_refus_app`), the
+        # birth is what is measured here.
+        self.user = get_user_model().objects.create_superuser('tool_birth_case', password='x')
         self.temp = Path(settings.MEDIA_ROOT) / f'users/{self.user.id}/temp'
         self.temp.mkdir(parents=True, exist_ok=True)
         self.files = {'png': self.temp / 'tool_birth.png', 'wav': self.temp / 'tool_birth.wav'}
@@ -248,10 +281,13 @@ class ToolsAreBornLikeACardDepositTest(TestCase):
         for path in self.files.values():
             path.unlink(missing_ok=True)
 
-    def _call(self, kwargs):
-        rel = {k: f'users/{self.user.id}/temp/{self.files[v].name}' for k, v in kwargs.items()
-               if isinstance(v, str) and v in self.files}
-        return {**kwargs, **rel}
+    def _call(self, kwargs, tool=None):
+        out = {}
+        for key, value in kwargs.items():
+            if isinstance(value, str) and value in self.files:
+                value = f'users/{self.user.id}/temp/{self.files[value].name}'
+            out[_tool_port(tool, key[1:]) if key.startswith('@') else key] = value
+        return out
 
     def test_each_creation_tool_births_by_its_apps_function(self):
         from importlib import import_module
@@ -265,23 +301,49 @@ class ToolsAreBornLikeACardDepositTest(TestCase):
                 seen = []
 
                 def spy(*args, _original=original, _name=name, _value=value, **kw):
-                    seen.append(kw.get('post') or {})
+                    seen.append(_posted(args, kw))
                     return {**_original(*args, **kw), _name: _value}
 
                 with mock.patch(birth, side_effect=spy), \
                         mock.patch('celery.app.task.Task.apply_async',
                                    return_value=mock.Mock(id='no-task')):
-                    out = getattr(T, tool)(self.user, **self._call(kwargs))
+                    out = T.TOOL_REGISTRY[tool](self.user, **self._call(kwargs, tool))
                 self.assertNotIn('error', out, out)
                 self.assertTrue(seen, f'{tool} does not call {birth}')
-                given = {k: v for k, v in kwargs.items()
-                         if k not in ('file_path', 'text', 'prompt', 'avatar_source',
-                                      'avatar_image_path', 'text_content', 'model')}
+                given = {k: v for k, v in kwargs.items() if not k.startswith('@') and k != 'model'}
                 for key, val in given.items():
-                    self.assertEqual(val, seen[-1].get(key), f'{key} given, not posted to the birth')
+                    # A deposit view gives its birth the POSTED form : the values are its text.
+                    self.assertEqual(str(val), str(seen[-1].get(key)),
+                                     f'{key} given, not posted to the birth')
                 element = django_apps.get_model(app, model_name).objects.get(pk=out['item_id'])
                 self.assertEqual(value, getattr(element, name),
                                  f'{tool} : the element does not carry what its birth returned')
+
+
+class AToolCallLeavesTheAuthorsPanelTest(TestCase):
+    """The tool REPLAYS the card's deposit (`_card_creator`, 2026-11-26), whose view keeps what it
+    receives as the author's panel (`save_panel_settings`). What a call gave is not what the author
+    set on screen : a replayed gesture writes nothing there (`user_settings.replayed_gesture`) — a
+    Studio node creating a hundred elements does not rewrite its author's panel a hundred times."""
+
+    setUp = ToolsAreBornLikeACardDepositTest.setUp
+    tearDown = ToolsAreBornLikeACardDepositTest.tearDown
+    _call = ToolsAreBornLikeACardDepositTest._call
+
+    def _panel(self):
+        from wama.common.models import UserAppSetting
+        return sorted((a, n, repr(v)) for a, n, v in
+                      UserAppSetting.objects.filter(user=self.user).values_list('app', 'name', 'value'))
+
+    def test_no_tool_call_writes_the_authors_panel(self):
+        from wama import tool_api as T
+        for app, tool, kwargs, *_ in TOOL_BIRTHS:
+            with self.subTest(app=app), \
+                    mock.patch('celery.app.task.Task.apply_async', return_value=mock.Mock(id='no-task')):
+                before = self._panel()
+                out = T.TOOL_REGISTRY[tool](self.user, **self._call(kwargs, tool))
+                self.assertNotIn('error', out, out)
+                self.assertEqual(before, self._panel(), f'{tool} wrote the author’s panel')
 
 
 #: A schema that DECLARES a proposal — for the guards below, whatever the app really declares.
@@ -339,8 +401,12 @@ class FilesProposeAtBirthTest(TestCase):
         for app, tool, kwargs, birth, *_ in TOOL_BIRTHS:
             if not any(v in self.files for v in kwargs.values() if isinstance(v, str)):
                 continue
+            # The files alone : the schema is replaced by a proposing one here, and the creator
+            # judges a setting on the schema — a setting of the real schema would be turned down.
+            files = {k: v for k, v in kwargs.items() if k.startswith('@')}
             with self.subTest(app=app):
-                seen = self._seen_inputs(birth, lambda: getattr(T, tool)(self.user, **self._call(kwargs)))
+                seen = self._seen_inputs(birth, lambda: T.TOOL_REGISTRY[tool](
+                    self.user, **self._call(files, tool)))
                 self.assertTrue(seen and seen[-1], f'{tool} : the birth got no file')
                 names = {str(getattr(v, 'name', v)) for v in seen[-1].values()}
                 self.assertTrue(any(n.endswith(('tool_birth.png', 'tool_birth.wav')) for n in names),

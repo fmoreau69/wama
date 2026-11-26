@@ -1998,7 +1998,7 @@ def _born_importer(label):
     """L'importeur d'une app NÉE D'UN MANIFESTE (2026-11-05 — le Writer et le Translator
     n'apparaissaient pas à « Envoyer vers… »). Elle n'a pas de source dont re-cibler l'importeur ;
     elle a l'outil de création que l'assistant et le Studio empruntent déjà
-    (`tool_api.add_to_<label>`, DÉRIVÉ de la vue de dépôt de sa card — `_born_creator`). L'import
+    (`tool_api.add_to_<label>`, DÉRIVÉ de la vue de dépôt de sa card — `_card_creator`). L'import
     l'emprunte aussi : le fichier va au PREMIER port de la card qui prend sa nature
     (`app_registry.file_ports_for`, la lecture de l'intake et des naissances), pointé ou copié
     comme par tout importeur (`reference_or_copy`), puis désigné à ce port. Les gardes et les refus

@@ -72,14 +72,14 @@ class OneCreationPathTest(TestCase):
         self.assertTrue(synthesis.voice_reference, 'la voix de référence branchée est reçue')
 
     def test_the_tool_without_any_input_is_refused(self):
-        from wama.tool_api import synthesize_text
-        self.assertIn('error', synthesize_text(self.user, text='  '))
+        from wama.tool_api import execute_tool
+        self.assertIn('error', execute_tool('add_to_synthesizer', {'prompt': '  '}, self.user))
 
     def test_an_other_users_file_is_refused_by_the_tool_and_the_import(self):
         other = User.objects.create_user('synth_other', password='x')
         foreign = _file_in_home(other, 'synthesizer/input/private.txt', b'secret')
-        from wama.tool_api import synthesize_text
-        self.assertIn('error', synthesize_text(self.user, work_file=foreign))
+        from wama.tool_api import execute_tool
+        self.assertIn('error', execute_tool('add_to_synthesizer', {'work_file': foreign}, self.user))
         response = self.client.post(reverse('synthesizer:import_individual_from_path'),
                                     {'server_path': foreign})
         self.assertEqual(403, response.status_code)

@@ -2948,8 +2948,14 @@ le passé.*
   `sanitize_tool_args`, `primary_arg_name`, cf. ci-dessous — + exige `item_id` en retour). **Le studio ne connaît aucune app en dur.**
   Depuis A4 (2026-08-12) : `start`/`status` d'une app portée sont CONSTRUITS à l'import depuis
   l'entrée déclarative `TRIAD_SPECS` (`tool_api.py:4294`, signature synthétisée — descriptions
-  dérivées inchangées) ; `add_to_<app>` reste de la glu d'app (marche B). ~~Converter + reader portés.~~
+  dérivées inchangées) ; ~~`add_to_<app>` reste de la glu d'app (marche B).~~ ~~Converter + reader portés.~~
   Les 10 apps + l'audio de l'enhancer portés (soldé le 2026-10-12, cf. A4).
+  ✅ **2026-11-26 — `add_to_<app>` n'est plus une glu** : il est DÉRIVÉ du dépôt de la card de
+  toute app qui déclare sa triade, réelle, jumelle ou née d'un manifeste (`tool_api._card_creator`,
+  mécanisme `card_creator`, `WAMA_APP_CONVENTIONS §17.2`) — un argument par port, la vue de dépôt
+  du domaine postée. Les dix créateurs écrits à la main et leurs alias sont retirés
+  (`REMOVAL_LEDGER R250`) ; `input_kwarg`, `fixed_kwargs`, `auto_start` du registre du Studio aussi,
+  et `UNWIRED_PORTS_BUDGET` est VIDE (les sept ports qui restaient sont lus).
 - ✅ **Point d'exécution UNIQUE (2026-08-01, `86889ca`)** — le studio ne court-circuite plus
   `execute_tool` : `create`/`start` passent par lui. La logique que le runner avait ré-implémentée chez
   lui est promue au commun : `sanitize_tool_args()` (coercition par schéma + filtre de signature) et
@@ -3001,9 +3007,9 @@ le passé.*
   **Surface outils courante** (couche factuelle auto-générée, ROADMAP §16.9 ①) :
 
   <!-- WAMA:FAITS(outils) — généré par « python manage.py doc_facts », ne pas éditer -->
-- Outils au registre (`TOOL_REGISTRY`), hors bac à sable : **146** — transverses : 75 · apps de WAMA : 39 · surfaces hors catalogue : 32
-- Outils décrits (`tool_descriptions()`, dérivé) : **146/146**
-- Arguments documentés (types/choix/bornes/défauts) : **560**
+- Outils au registre (`TOOL_REGISTRY`), hors bac à sable : **142** — transverses : 75 · apps de WAMA : 35 · surfaces hors catalogue : 32
+- Outils décrits (`tool_descriptions()`, dérivé) : **142/142**
+- Arguments documentés (types/choix/bornes/défauts) : **477**
 - Les jumelles du bac à sable et les apps nées d'un manifeste (en construction) ajoutent leurs outils là où le bac à sable est installé (gitignoré) : le registre « Outils de l'assistant » (`tools`) les compte à l'exécution, ce fait non
 <!-- /WAMA:FAITS(outils) -->
 - 🔴 **PANNE TROUVÉE ET CORRIGÉE au passage — `describer.output_format`** (signalée par Fabien) :
@@ -4424,7 +4430,8 @@ PROJETABLE ; A4 CLOS** : mesure A0 confirmée — `start_<app>`/`get_<app>_statu
 squelette conventionnel dupliqué par app. **A4a** : entrée déclarative `TRIAD_SPECS`
 (tool_api.py) + `_register_triads()` construit les fonctions à l'import (signature
 SYNTHÉTISÉE `__signature__` : descriptions dérivées, `primary_arg_name`, `sanitize_tool_args`
-strictement inchangés) ; `add_to_<app>` reste de la GLU (marche B) ; converter + reader
+strictement inchangés) ; `add_to_<app>` reste de la GLU (marche B — ✅ dérivé de la card depuis
+le 2026-11-26, `tool_api._card_creator`) ; converter + reader
 portés (TRADUIRE et REMPLACER) — **parité prouvée byte à byte** (baseline avant/après :
 descriptions des 6 outils, signatures, statuts réels, chemins d'erreur) ; critère de grille
 `tool_api` passé au registre RUNTIME (le littéral ne dit plus la vérité — présence ≠ vie).

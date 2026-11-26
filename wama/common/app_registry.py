@@ -1987,7 +1987,7 @@ def port_takes(app_name: str, types, filename: str) -> bool:
     (`port_accept`), lue côté serveur : une extension citée, ou la famille MIME de sa nature.
 
     Ajouté le 2026-11-02 pour l'outil de création d'une app née d'un manifeste
-    (`tool_api._born_creator`), qui filtrait par les extensions de l'APP (`accepts_file`) : un port
+    (`tool_api._card_creator`, ex-`_born_creator`), qui filtrait par les extensions de l'APP (`accepts_file`) : un port
     de référence d'une nature que l'app ne déclare pas (la mélodie du composer) aurait refusé ce
     que la card offre."""
     import os
