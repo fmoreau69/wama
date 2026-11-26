@@ -1152,6 +1152,102 @@
     });
   }
 
+  /** Identifiants d'une réponse d'ajout — scalaire à la racine (`id`, `job_id`, `pk`), objet sous
+   *  `media` (anonymizer, un fichier) ou LISTE (`ids`, `created`, `added`, `items` : reader,
+   *  anonymizer N fichiers). Les vues n'ont jamais eu de contrat commun ; la lecture TOLÉRANTE vivait
+   *  dans `WamaImport` (2026-08-22, 2026-09-05) et passe ici le 2026-11-25 : « Ajouter à la file »
+   *  envoie désormais ce qu'un dépôt envoyait, vers les mêmes vues (décision « geste explicite »). */
+  function responseIds(data) {
+    if (!data || typeof data !== 'object') return [];
+    const one = function (d) {
+      const v = (d.job_id != null) ? d.job_id : (d.id != null) ? d.id : (d.pk != null) ? d.pk : null;
+      return (v === null || v === '') ? null : v;
+    };
+    const root = one(data);
+    if (root != null) return [root];
+    if (data.media && typeof data.media === 'object' && !Array.isArray(data.media)) {
+      const single = one(data.media);
+      if (single != null) return [single];
+    }
+    const list = data.ids || data.created || data.added || data.items;
+    if (!Array.isArray(list)) return [];
+    return list.map(function (x) { return (x && typeof x === 'object') ? one(x) : x; })
+               .filter(function (v) { return v != null && v !== ''; });
+  }
+
+  /** POST d'un formulaire AVEC la progression d'envoi (`XMLHttpRequest.upload` : `fetch` ne l'expose
+   *  pas) — rend la même forme que `fetch` (`ok`, `status`, `statusText`, `json()`). Écrit pour
+   *  `WamaImport` (2026-09-07, une vidéo de 800 Mo restait muette jusqu'au rechargement), partagé
+   *  avec « Ajouter à la file » le 2026-11-25. */
+  function postWithProgress(url, fd, token, onProgress) {
+    return new Promise(function (resolve, reject) {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', url);
+      xhr.setRequestHeader('X-CSRFToken', token);
+      xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+      xhr.upload.addEventListener('progress', function (e) {
+        if (e.lengthComputable && onProgress) onProgress(e.loaded, e.total);
+      });
+      xhr.onload = function () {
+        resolve({
+          ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, statusText: xhr.statusText,
+          json: function () {
+            try { return Promise.resolve(JSON.parse(xhr.responseText)); }
+            catch (e) { return Promise.reject(e); }
+          },
+        });
+      };
+      xhr.onerror = function () { reject(new Error('erreur réseau')); };
+      xhr.send(fd);
+    });
+  }
+
+  /** La barre d'ENVOI commune, posée dans `zone` (classes communes des cards, app_modern.css) :
+   *  « Envoi i/N · nom · p % ». `uploadProgressDone(zone)` la retire. */
+  function uploadProgress(zone, loaded, size, file, index, total) {
+    if (!zone) return;
+    let bloc = zone.querySelector('.wama-upload-progress');
+    if (!bloc) {
+      bloc = document.createElement('div');
+      bloc.className = 'wama-upload-progress';
+      bloc.innerHTML = '<div class="wama-progress-track"><div class="wama-progress-fill active"></div></div>'
+                     + '<small class="wama-upload-progress-label"></small>';
+      zone.appendChild(bloc);
+    }
+    const part = size ? loaded / size : 1;
+    const pct = Math.min(100, Math.round(((index + part) / (total || 1)) * 100));
+    bloc.querySelector('.wama-progress-fill').style.width = pct + '%';
+    const name = (file && file.name) ? file.name : '';
+    bloc.querySelector('.wama-upload-progress-label').textContent =
+      'Envoi ' + (index + 1) + '/' + (total || 1) + (name ? ' · ' + name : '') + ' · ' + pct + ' %';
+  }
+
+  function uploadProgressDone(zone) {
+    const bloc = zone && zone.querySelector('.wama-upload-progress');
+    if (bloc) bloc.remove();
+  }
+
+  /** « LANCER » (2026-11-25) : le ▶ de chaque élément que la card vient de créer, l'un après
+   *  l'autre — la route ▶ de l'app (`startUrl`, id factice `0`), la même que celle de la card. Un
+   *  refus est DIT, il n'arrête pas les autres. Rend le nombre d'éléments lancés. */
+  function startCreated(ids, startUrl, token) {
+    let started = 0;
+    let chain = Promise.resolve();
+    (ids || []).forEach(function (id) {
+      chain = chain.then(function () {
+        return csrfFetch(getUrl(startUrl, id), token || csrfToken(), { method: 'POST' })
+          .then(function (r) {
+            if (r.ok) { started += 1; return null; }
+            return r.json().catch(function () { return {}; }).then(function (d) {
+              toast('Lancement refusé (#' + id + ') : ' + ((d && d.error) || r.statusText || r.status), 'error');
+            });
+          })
+          .catch(function (err) { toast('Lancement : ' + String(err && err.message || err), 'error'); });
+      });
+    });
+    return chain.then(function () { return started; });
+  }
+
   /** AJOUT À LA FILE depuis la card d'entrée — le geste des formes ATTACHE et MIXTE (forme
    *  d'entrée déduite de l'obligation des ports, `app_registry.entry_form`, 2026-10-19).
    *
@@ -1190,16 +1286,32 @@
    *    onAdded:      function (data) — défaut : recharger la page ;
    *    onSettled:    function () — après l'envoi, réussi ou non, bouton rendu (l'app y
    *                  recalcule l'état de son bouton : appariement, entrées requises) ;
-   *    reset:        vider la consigne et les ports après l'ajout (défaut true).
+   *    reset:        vider la consigne et les ports après l'ajout (défaut true) ;
+   *    — LE GESTE EXPLICITE (2026-11-25, décision de Fabien : un dépôt remplit la card, seuls ses
+   *    boutons créent) :
+   *    launchButton: le bouton « Lancer » (élément ou id) — crée PUIS lance chaque élément créé
+   *                  (`startCreated`) ; défaut : le `[data-entry-launch]` de la card du bouton ;
+   *    startUrl:     la route ▶ d'un élément (id factice `0`) ; défaut : le `data-start-url` de la
+   *                  card (`entry_start_url`) ;
+   *    together:     PLUSIEURS fichiers d'un port en UNE requête, sous le champ du port (le reader :
+   *                  son serveur range le lot, et les pages d'un seul document s'y réunissent) ;
+   *    afterAdded:   function (ids, réponses) — la suite propre à l'app après un ajout (la voie
+   *                  d'import y passe la sienne, `afterImport`) ; prime sur `onAdded`.
    *  }
    *  La consigne postée est l'ORIGINALE quand `WamaPromptEnrich` l'a enrichie à l'écran
    *  (invariant `WAMA_LLM` : l'enrichi se recalcule à l'ingestion, jamais figé à la création).
    *  Un lot recharge la page : sa card mère est rendue par le serveur (`onAdded` n'est pas appelé).
-   *  Rend la fonction de soumission (appel programmatique, tests). */
+   *  Lancer recharge la page : les cards lancées sont rendues « en cours » par le serveur.
+   *  Rend la fonction de soumission (appel programmatique, tests) ; `submit(true)` lance. */
   function addToQueue(opts) {
     opts = opts || {};
-    const button = typeof opts.button === 'string' ? document.getElementById(opts.button)
-                                                   : opts.button;
+    const byId = function (b) { return typeof b === 'string' ? document.getElementById(b) : b; };
+    const button = byId(opts.button);
+    const card = button && button.closest ? button.closest('[data-wama-ports]') : null;
+    const launchButton = byId(opts.launchButton)
+      || (card && card.querySelector ? card.querySelector('[data-entry-launch]') : null);
+    const startUrl = opts.startUrl || (card && card.dataset ? card.dataset.startUrl : '') || '';
+    const token = function () { return opts.csrfToken || csrfToken(); };
     const urlOf = function (port) {
       if (port.urlInputId) return document.getElementById(port.urlInputId);
       const pane = port.inputId && document.querySelector('[data-port-input="' + port.inputId + '"]');
@@ -1235,8 +1347,8 @@
       }).filter(function (held) { return held.entries.length > 1; });
     };
 
-    /** `only` : `{inputId, entry}` — le fichier de CE port pour cet élément du lot, au lieu du
-     *  premier de l'input. */
+    /** `only` : `{inputId, entries}` — les fichiers de CE port pour cet envoi (un par élément du
+     *  lot, ou tous avec `together`), au lieu de ceux de l'input. */
     function build(only) {
       const fd = new FormData();
       const host = opts.paramsHostId && document.getElementById(opts.paramsHostId);
@@ -1252,9 +1364,15 @@
       let refusal = '';
       portsOf().forEach(function (port) {
         const input = document.getElementById(port.inputId);
-        const posted = (only && only.inputId === port.inputId)
-          ? appendFile(fd, port.field || 'file', only.entry)
-          : appendInput(fd, input, port.field || 'file');
+        let posted;
+        if (only && only.inputId === port.inputId) {
+          posted = false;
+          only.entries.forEach(function (entry) {
+            posted = appendFile(fd, port.field || 'file', entry) || posted;
+          });
+        } else {
+          posted = appendInput(fd, input, port.field || 'file');
+        }
         if (posted) return;
         const url = urlOf(port);
         const value = url && url.value.trim();
@@ -1281,12 +1399,33 @@
       });
     }
 
+    let active = button;
     const sending = function (label) {
-      if (button) button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> ' + label;
+      if (active) active.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> ' + label;
     };
 
-    function send(fd) {
-      return csrfFetch(opts.url, opts.csrfToken || csrfToken(), { method: 'POST', body: fd })
+    // La barre d'envoi : dans la face « fichiers » du port qui part (celle que l'utilisateur voit).
+    const zoneOf = function (inputId) {
+      const pane = inputId && document.querySelector('[data-port-input="' + inputId + '"]');
+      return pane ? (pane.querySelector('[data-port-face="files"]') || pane) : null;
+    };
+    const firstHeld = function () {
+      const held = portsOf().filter(function (port) {
+        return inputEntries(document.getElementById(port.inputId)).length;
+      })[0];
+      return held ? held.inputId : '';
+    };
+
+    function send(fd, progress) {
+      // Avec la progression d'ENVOI quand le navigateur la donne (`postWithProgress`) : un fichier
+      // lourd ne reste pas muet. Le même contrat de réponse que `fetch`.
+      const zone = progress && zoneOf(progress.inputId);
+      const post = (zone && typeof XMLHttpRequest !== 'undefined')
+        ? postWithProgress(opts.url, fd, token(), function (loaded, size) {
+            uploadProgress(zone, loaded, size, progress.file, progress.index, progress.total);
+          })
+        : csrfFetch(opts.url, token(), { method: 'POST', body: fd });
+      return post
         // Un refus porte son motif en JSON (`{error}`, quel que soit le statut — 400, 403, 409…) :
         // le lire, pas le remplacer. Sans motif lisible (page HTML d'un 502/504), l'explication
         // commune de `jsonOrExplain`.
@@ -1295,24 +1434,40 @@
           return r.json()
             .then(function (j) { if (j && j.error) return j; throw new Error('sans motif'); })
             .catch(function () { return jsonOrExplain(r); });
-        });
+        })
+        .then(function (data) { if (zone) uploadProgressDone(zone); return data; },
+              function (err) { if (zone) uploadProgressDone(zone); throw err; });
+    }
+
+    /** La suite d'un ajout réussi : lancer (puis recharger), sinon la suite de l'app, sinon
+     *  recharger. */
+    function after(ids, responses, launching, fallback) {
+      if (launching && startUrl) {
+        sending('Lancement…');
+        return startCreated(ids, startUrl, token()).then(function () { global.location.reload(); });
+      }
+      if (typeof opts.afterAdded === 'function') { opts.afterAdded(ids, responses); return null; }
+      return fallback();
     }
 
     /** PLUSIEURS FICHIERS = UN LOT : une création par fichier, l'une après l'autre (l'ordre du dépôt
      *  est celui du lot), puis le regroupement. Un refus n'arrête pas les autres : il est DIT, avec
      *  les fichiers qu'il touche. Rend le nombre d'éléments créés. */
-    function submitLot(lot) {
-      const ids = [], refused = [];
+    function submitLot(lot, launching) {
+      const ids = [], refused = [], responses = [];
       let created = 0;
       let chain = Promise.resolve();
       lot.entries.forEach(function (entry, index) {
         chain = chain.then(function () {
           sending('Envoi ' + (index + 1) + '/' + lot.entries.length + '…');
-          return send(build({ inputId: lot.inputId, entry: entry }).fd).then(function (data) {
+          const progress = { inputId: lot.inputId, file: entry, index: index, total: lot.entries.length };
+          return send(build({ inputId: lot.inputId, entries: [entry] }).fd, progress).then(function (data) {
             if (!data || data.error) throw new Error((data && data.error) || 'Ajout refusé.');
             if (data.warning) toast(entry.name + ' : ' + data.warning, 'warning');
             created += 1;
-            if (data.id != null) ids.push(data.id);    // `id` : le contrat d'une vue d'ajout
+            responses.push(data);
+            // L'identifiant, lu comme toute réponse d'ajout (`responseIds`) : `id`, `job_id`…
+            Array.prototype.push.apply(ids, responseIds(data).slice(0, 1));
           }).catch(function (err) {
             refused.push({ name: entry.name, reason: String(err && err.message || err) });
           });
@@ -1328,22 +1483,25 @@
         sending('Création du lot…');
         const body = new FormData();
         ids.forEach(function (id) { body.append('ids', id); });
-        return csrfFetch(opts.consolidateUrl, opts.csrfToken || csrfToken(), { method: 'POST', body: body })
+        return csrfFetch(opts.consolidateUrl, token(), { method: 'POST', body: body })
           .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); })
           .catch(notGrouped);
       }).then(function () {
         refused.forEach(function (r) { toast('Refusé — ' + r.name + ' : ' + r.reason, 'error'); });
-        if (created) {
-          toast(created + ' éléments ajoutés à la file — réglez-les si besoin, puis ▶ pour lancer.', 'success');
-          if (global.WamaFM && global.WamaFM.uploaded) global.WamaFM.uploaded();
-          // Un refus se LIT avant que la page ne se recharge sous lui.
+        if (!created) return created;
+        toast(created + (launching ? ' éléments ajoutés à la file, lancement…'
+                                   : ' éléments ajoutés à la file — réglez-les si besoin, puis ▶ pour lancer.'), 'success');
+        if (global.WamaFM && global.WamaFM.uploaded) global.WamaFM.uploaded();
+        // Un refus se LIT avant que la page ne se recharge sous lui.
+        const reload = function () {
           global.setTimeout(function () { global.location.reload(); }, refused.length ? 4000 : 0);
-        }
-        return created;
+        };
+        return Promise.resolve(after(ids, responses, launching, reload)).then(function () { return created; });
       });
     }
 
-    function submit() {
+    function submit(launching) {
+      launching = launching === true;
       const built = build();
       if (built.refusal) { toast(built.refusal, 'error'); return Promise.resolve(null); }
       // Deux ports portant chacun plusieurs fichiers : rien ne dit comment les apparier — refusé
@@ -1355,16 +1513,26 @@
               + 'les apparier. Gardez un fichier sur l’une d’elles.', 'error');
         return Promise.resolve(null);
       }
-      const idle = button ? button.innerHTML : '';
-      if (button) button.disabled = true;
+      active = (launching && launchButton) ? launchButton : button;
+      const idle = active ? active.innerHTML : '';
+      [button, launchButton].forEach(function (b) { if (b) b.disabled = true; });
       sending('Envoi…');
       const settle = function (data) {
-        if (button) { button.disabled = false; button.innerHTML = idle; }
+        if (active) active.innerHTML = idle;
+        [button, launchButton].forEach(function (b) { if (b) b.disabled = false; });
+        // La card redit ce qu'elle tient, et l'état de ses boutons (`WamaInputSlots.refresh`).
+        if (card && global.WamaInputSlots && global.WamaInputSlots.refresh) global.WamaInputSlots.refresh(card);
         if (typeof opts.onSettled === 'function') opts.onSettled(data);
         return data;
       };
-      if (lots.length) return submitLot(lots[0]).then(settle);
-      return send(built.fd)
+      if (lots.length && !opts.together) return submitLot(lots[0], launching).then(settle);
+      // Tous les fichiers en UNE requête (`together`) : le serveur range le lot lui-même.
+      const fd = (lots.length && opts.together) ? build({ inputId: lots[0].inputId, entries: lots[0].entries }).fd
+                                                : built.fd;
+      const held = lots.length ? lots[0].inputId : firstHeld();
+      const progress = held ? { inputId: held, file: inputEntries(document.getElementById(held))[0],
+                                index: 0, total: 1 } : null;
+      return send(fd, progress)
         .then(function (data) {
           if (!data || data.error) {
             toast((data && data.error) || 'Ajout refusé.', 'error');
@@ -1372,15 +1540,17 @@
           }
           const msg = typeof opts.successMessage === 'function' ? opts.successMessage(data)
                                                                 : opts.successMessage;
-          toast(msg || 'Ajouté à la file — réglez-le si besoin, puis ▶ pour lancer.', 'success');
+          toast(launching ? 'Ajouté à la file, lancement…'
+                          : (msg || 'Ajouté à la file — réglez-le si besoin, puis ▶ pour lancer.'), 'success');
           // Ajouté avec une réserve DITE par le serveur (`warning`, ex. une référence désignée
           // refusée) : jamais lue avant le 2026-10-13, donc jamais montrée.
           if (data.warning) toast(data.warning, 'warning');
           if (global.WamaFM && global.WamaFM.uploaded) global.WamaFM.uploaded();
           if (opts.reset !== false) clear();
-          if (typeof opts.onAdded === 'function') opts.onAdded(data);
-          else global.location.reload();
-          return data;
+          return Promise.resolve(after(responseIds(data), [data], launching, function () {
+            if (typeof opts.onAdded === 'function') opts.onAdded(data);
+            else global.location.reload();
+          })).then(function () { return data; });
         })
         .catch(function (err) { toast(String(err && err.message || err), 'error'); return null; })
         .then(settle);
@@ -1388,7 +1558,11 @@
 
     if (button && !button._wamaAddToQueue) {
       button._wamaAddToQueue = true;
-      button.addEventListener('click', function (e) { e.preventDefault(); submit(); });
+      button.addEventListener('click', function (e) { e.preventDefault(); submit(false); });
+    }
+    if (launchButton && !launchButton._wamaAddToQueue) {
+      launchButton._wamaAddToQueue = true;
+      launchButton.addEventListener('click', function (e) { e.preventDefault(); submit(true); });
     }
     return submit;
   }
@@ -1752,6 +1926,11 @@
     appendInput: appendInput,
     pickFromLibrary: pickFromLibrary,
     addToQueue: addToQueue,
+    responseIds: responseIds,
+    postWithProgress: postWithProgress,
+    uploadProgress: uploadProgress,
+    uploadProgressDone: uploadProgressDone,
+    startCreated: startCreated,
     fetchCard: fetchCard,
     initUrlImport: initUrlImport,
     pauseDomMedia: pauseDomMedia,

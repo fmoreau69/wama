@@ -1206,13 +1206,14 @@ Trois pièges, tous rencontrés :
      traduction (texte · fichiers · voix · API · usage dans les applications d'IA) — chacune a déjà
      son équivalent (`instant_preview`, card d'entrée, `has_live_input`, API REST v1 et MCP tirés de
      `tool_api`).
-   ⏳ **Le NOM de l'onglet** : « Accueil », « Live », « Établi », « Paillasse », « Atelier » écartés
-   par Fabien ; « Studio » est un monde. Concile du 2026-11-25 (six agents, Albert et ILaaS) :
-   **« Direct »** soutenu par quatre avis sur cinq (court, s'oppose à « File d'attente » ; risque
-   relevé : restrictif quand les combinaisons d'apps seront la norme), puis « Instantané »,
-   « Express », « Scène », « Piste », « Pilotage », « Plan de travail ». À trancher par Fabien.
-   ⏳ **Question liée — deux façons de créer une card ?** Cartographie et avis du concile : plus
-   bas, fin de la section « La FORME D'ENTRÉE se déduit des ports ».
+   ✅ **Le NOM de l'onglet : « Direct »** (Fabien, 2026-11-25). « Accueil », « Live », « Établi »,
+   « Paillasse », « Atelier » écartés par lui ; « Studio » est un monde. Concile du même jour (six
+   agents, Albert et ILaaS) : « Direct » soutenu par quatre avis sur cinq (court, s'oppose à
+   « File d'attente » ; risque relevé : restrictif quand les combinaisons d'apps seront la norme),
+   puis « Instantané », « Express », « Scène », « Piste », « Pilotage », « Plan de travail ».
+   ✅ **Question liée — UNE seule façon de créer une card : le geste explicite** (Fabien, même
+   jour). Cartographie, avis du concile et ce que la décision change : plus bas, fin de la section
+   « La FORME D'ENTRÉE se déduit des ports ».
 7. **Les fichiers injectés d'une card doivent pouvoir se REMPLACER** (4ᵉ message, 30/08) :
    aujourd'hui on ne peut remplacer ni le fichier de travail ni la référence d'une card
    existante — dupliquer permet « mêmes entrées, autres réglages » mais JAMAIS « autres
@@ -2042,7 +2043,9 @@ porte l'obligation — garde du 30/09 INVERSÉE), `tests_codegen_templates.Gener
 joint sur une card attache, envoie sur une card qui crée ; `filePorts` ; aucune autre lecture des
 onglets dans `wama/`, `wama_lab/`, `wama_data/`).
 
-⏳ **UNE seule façon de créer une card ? (question de Fabien, 2026-11-25 — NON TRANCHÉE)** —
+✅ **UNE seule façon de créer une card : le GESTE EXPLICITE (question de Fabien, 2026-11-25 ;
+TRANCHÉE le même jour, « Geste explicite »)** — le dossier qui a servi à décider suit, la décision
+et ce qu'elle change sont à la fin du bloc. Question d'origine :
 *« soit l'utilisateur complète l'entrée de l'app et la card se crée d'office, soit il doit cliquer
 sur "Ajouter à la file" […] ça donne deux modes de fonctionnement selon l'app »*. Il envisage les
 deux boutons PARTOUT — « Ajouter à la file » (crée, non lancée) et « Lancer » (crée et lance), qui
@@ -2078,8 +2081,44 @@ transmis mot pour mot) — partagé :
 que la philosophie place en premier, le bouton existe de toute façon pour le temps réel, et le
 dépôt en masse n'y coûte qu'un clic. La règle « par port » ne disparaît pas : elle dit quand
 « Ajouter » et « Lancer » deviennent ACTIFS, plus quand une card naît toute seule. Les autres voies
-(lot, URL, Envoyer vers, assistant, Studio) restent des gestes explicites qui créent. Décision de
-Fabien attendue.
+(lot, URL, Envoyer vers, assistant, Studio) restent des gestes explicites qui créent.
+**✅ Décision de Fabien (2026-11-25) : cette position.** Ce qu'elle change :
+- un dépôt (fichier, dossier, médiathèque) sur la card d'entrée REMPLIT ses ports, il ne crée plus
+  rien — quelle que soit la forme (dépôt, attache, mixte) ;
+- la card d'entrée porte partout « Ajouter à la file » (crée, non lancée) et « Lancer » (crée et
+  lance) ; ils deviennent actifs quand l'obligation des ports est remplie (`entry_form` : la règle
+  « par port » dit QUAND, plus QUOI) ; un dossier de N fichiers donne N cards au clic ;
+- le temps réel de la page « Direct » (§11.8 exigence 6) emprunte les mêmes boutons ;
+- les voies hors card d'entrée (lot, URL, « Envoyer vers », assistant, Studio) ne changent pas.
+✅ **Codé le 2026-11-25, même jour**, sans une ligne de JS d'app :
+- la card v4 rend partout `data-wama-depot="attache"`, « Ajouter à la file » (`[data-entry-add]`)
+  et, quand l'app a une route ▶, « Lancer » (`[data-entry-launch]`, adresse `data-start-url` : la
+  route `start` derrière le préfixe du domaine, `domain_route_prefix` — mesuré, les 24 cards la
+  nomment ainsi) ; l'obligation voyage sur la card (`data-wama-needs`, `entry_form.needs`) ;
+- `data-entry-add` dit QUI câble l'ajout : `page` (la page a nommé son bouton, `primary_btn_id`, et
+  appelle `WamaApp.addToQueue` — imager, composer, avatarizer, synthesizer, jumelles « attache ») ou
+  `import` : la voie d'import de la card (`WamaImport`, sans `attach` déclaré) joint le dépôt aux
+  ports et câble les deux boutons sur `addToQueue` avec CE QU'ELLE ENVOYAIT au dépôt — sa vue
+  d'upload, ses champs (`extraFields`), le champ du fichier, l'envoi en une requête du reader
+  (`multiple` → `together`), « un seul document », le regroupement en lot et sa suite
+  (`afterImport`). Les huit apps dont le dépôt créait n'ont donc rien changé, leurs jumelles
+  générées non plus ;
+- `WamaApp.addToQueue` gagne « Lancer » (`launchButton`, `startUrl`, `startCreated` : le ▶ de
+  chaque élément créé, puis rechargement), `together`, `afterAdded`, la progression d'envoi et la
+  lecture tolérante des identifiants, sorties de `WamaImport` (`postWithProgress`,
+  `uploadProgress`, `responseIds`) ;
+- `WamaInputSlots.checkReady` active ou grise les deux boutons selon l'obligation (le motif dans
+  leur titre) ; une page qui juge son ajout (`page`) le garde, « Lancer » suit son état ;
+- ce qu'aucun port n'admet est refusé et dit, jamais envoyé ; l'URL du port principal d'une card
+  dont le port suffit garde son bouton propre (un lot d'une ligne, déjà un geste explicite).
+Gardes : `tests_designation_js` (dépôt sans envoi, câblage, `multiple`, activation, contre-épreuve
+`page`), `tests_card_lot_from_files.AddToQueueTest` (« Lancer » seul et en lot, `together`,
+`afterAdded`, « Ajouter » ne lance rien), `tests_catalogues.EntryFormComesFromThePortsTest`
+(`needs`, rendu de la card) ; contre-épreuve : cinq neutralisations, cinq rouges. Scénarios
+nocturnes : `<app>.import` dépose PUIS clique « Ajouter » (un envoi au dépôt est rouge), `.add` et
+`.attach_lot` visent `[data-entry-add]`, les montages par dépôt cliquent après (`_add_after_deposit`).
+⏳ Reste : la page « Direct » (§11.8 exigence 6), le Speak ramené à ce bouton, la jauge « dossier »
+de `recursive_import` à remesurer (non applicable aux cards qui joignaient).
 
 > **L'aperçu de voix du synthesizer ne passe par AUCUN chemin commun côté lecture, ni par le
 > chemin de la synthèse côté serveur** (mesuré le 2026-09-28, `synthesizer/views.py::voice_preview`

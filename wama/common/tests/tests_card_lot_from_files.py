@@ -180,7 +180,7 @@ class AddToQueueTest(SimpleTestCase):
     function csrfToken() { return 't'; }
     function jsonOrExplain(r) { return r.json(); }
     function csrfFetch(url, token, init) {
-      var fields = init.body.entries; calls.push([url, fields]);
+      var fields = init.body ? init.body.entries : []; calls.push([url, fields]);
       var file = fields.filter(function (e) { return e[0] === 'work_audio'; })[0];
       var name = file ? file[1] : '';
       if (refuse[name]) return Promise.resolve({ok: false, status: 400,
@@ -191,20 +191,22 @@ class AddToQueueTest(SimpleTestCase):
     window.WamaParams = {read: function () { return {duration: '90', model: 'm'}; }};
     """
 
-    def _submit(self, setup, opts=''):
+    def _submit(self, setup, opts='', call='submit();'):
         ctx = _mini_racer(self)
         ctx.eval(FAKE_ENV + self.STUBS)
         base = (SERVED / 'common/js/wama-app-base.js').read_text(encoding='utf-8')
         ctx.eval(re.search(r"\n  const DESIGNATION_SUFFIX = '[^']+';", base).group(0)
                  + ''.join(_function(base, n) for n in ('designationOf', 'designationsOf', 'clearDesignation',
-                                                        'inputEntries', 'appendFile', 'appendInput', 'addToQueue')))
+                                                        'inputEntries', 'appendFile', 'appendInput', 'getUrl', 'responseIds',
+                                                        'postWithProgress', 'uploadProgress', 'uploadProgressDone',
+                                                        'startCreated', 'addToQueue')))
         ctx.eval("el('work', 'audio/*', true); el('score', '.abc'); el('prompt'); el('host');"
                  "elements.prompt.value = 'jazz';"
                  "elements.prompt.dataset = {};" + setup)
         ctx.eval("var submit = addToQueue({url: '/add/', csrfToken: 't', prompt: {inputId: 'prompt', field: 'prompt'},"
                  " paramsHostId: 'host', ports: [{inputId: 'work', field: 'work_audio'},"
                  " {inputId: 'score', field: 'work_score'}], onAdded: function () { window.added = true; }"
-                 + opts + "}); submit();")
+                 + opts + "}); " + call)
         return ctx
 
     LOT = ", consolidateUrl: '/lot/'"
@@ -304,6 +306,41 @@ class AddToQueueTest(SimpleTestCase):
         self.assertEqual([], self._calls(ctx))
         errors = [m for level, m in json.loads(ctx.eval('JSON.stringify(toasts)')) if level == 'error']
         self.assertEqual(1, len(errors))
+
+    # ── LE GESTE EXPLICITE (2026-11-25, décision de Fabien) : « Lancer » crée PUIS lance ──────────
+    START = ", startUrl: '/start/0/'"
+
+    def test_launch_creates_then_starts_the_element(self):
+        ctx = self._submit("elements.work.files = [{name: 'a.mp3'}];", self.LOT + self.START, call='submit(true);')
+        self.assertEqual(['/add/', '/start/40/'], [c[0] for c in self._calls(ctx)])
+        self.assertTrue(ctx.eval('window.added !== true'), 'la page se recharge : la card est rendue « en cours »')
+        self.assertEqual(1, ctx.eval('window.location.reloaded'))
+
+    def test_launch_starts_every_element_of_the_lot_after_grouping_it(self):
+        ctx = self._submit(self.TWO_FILES, self.LOT + self.START, call='submit(true);')
+        self.assertEqual(['/add/', '/add/', '/lot/', '/start/40/', '/start/41/'], [c[0] for c in self._calls(ctx)])
+
+    def test_add_alone_starts_nothing(self):
+        """Contre-épreuve : « Ajouter à la file » n'appelle jamais la route ▶."""
+        ctx = self._submit(self.TWO_FILES, self.LOT + self.START)
+        self.assertEqual(['/add/', '/add/', '/lot/'], [c[0] for c in self._calls(ctx)])
+
+    def test_together_sends_every_file_in_one_request(self):
+        """Le reader : `together` — une requête, le serveur range le lot ; aucun regroupement."""
+        calls = self._calls(self._submit(self.TWO_FILES, self.LOT + ", together: true"))
+        self.assertEqual(['/add/'], [c[0] for c in calls])
+        self.assertEqual(['FILE:a.mp3', 'FILE:b.mp3'], [v for k, v in calls[0][1] if k == 'work_audio'])
+
+    def test_after_added_receives_the_ids_whatever_the_view_answers(self):
+        """La suite de la voie d'import (`afterImport`) reçoit les identifiants lus TOLÉRANTS
+        (`responseIds`) : `job_id` du converter, `created` du reader."""
+        ctx = self._submit("csrfFetch = function (url, token, init) { calls.push([url, init.body.entries]);"
+                           " return Promise.resolve({ok: true, status: 200, json: function () {"
+                           " return Promise.resolve({created: [{id: 8}, {id: 9}]}); }}); };"
+                           "elements.work.files = [{name: 'a.mp3'}];",
+                           ", afterAdded: function (ids) { window.afterIds = ids; }")
+        self.assertEqual([8, 9], json.loads(ctx.eval('JSON.stringify(window.afterIds)')))
+        self.assertTrue(ctx.eval('window.added !== true'), '`afterAdded` prime sur `onAdded`')
 
     def test_a_single_file_is_still_one_element_without_a_lot(self):
         """Contre-épreuve : le geste ordinaire ne change pas — sa card s'insère, sans rechargement."""

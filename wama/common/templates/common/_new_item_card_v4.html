@@ -44,13 +44,19 @@ ports (`ports.entry`, `app_registry.entry_form`).
 accepte (`ports_for_domain`). Nom propre : une variable `domain` du contexte de page aurait fuité.{% endcomment %}
 {% input_slots app_id card_domain as ports %}
 {% lot_slot app_id as lot %}
+{% comment %}La route ▶ d'un élément (id factice 0) — celle que « Lancer » poste pour chaque élément
+créé (geste explicite, 2026-11-25). Nom conventionnel `start` derrière le préfixe du domaine
+(`domain_route_prefix`) : mesuré sur les 24 cards (apps et jumelles), toutes la nomment ainsi. Forme
+`as` : une app sans route ▶ ne rend pas « Lancer », elle ne lève rien.{% endcomment %}
+{% domain_route_prefix app_id card_domain as start_prefix %}
+{% url app_id|add:':'|add:start_prefix|add:'start' 0 as start_url %}
 {% comment %}`data-wama-brick` (2026-10-28, `WAMA_VOLETS §3-ter` étape ④) : la card d'entrée est une
 brique du centre de la page, que l'utilisateur dispose (`wama-panel-layout.js`) — pas celle que le
 Studio rend dans un nœud (`compose_only`).{% endcomment %}
 <div class="card mb-3 shadow-sm wama-new-item-card" id="{{ card_id|default:'newItemCard' }}"
      {% if not compose_only %}data-wama-brick="entry_card"{% if card_domain %} data-wama-brick-domain="{{ card_domain }}"{% endif %}{% endif %}
-     data-wama-depot="{% if ports.entry.drop_creates and not compose_only %}cree{% else %}attache{% endif %}"
-     data-wama-ports="{{ ports|length }}"
+     data-wama-depot="attache"
+     data-wama-ports="{{ ports|length }}" data-wama-needs="{{ ports.needs_json }}"{% if start_url and not compose_only %} data-start-url="{{ start_url }}"{% endif %}
      {% if collapsible %}data-wama-nic{% if ports.entry.prompt %} data-nic-primary="{{ prompt_input_id|default:'promptInput' }}"{% endif %}{% endif %}>
     <div class="card-body py-2">
 
@@ -66,7 +72,7 @@ Studio rend dans un nœud (`compose_only`).{% endcomment %}
         au-dessus de la zone de preview, et c'est le SEUL élément autorisé à grandir (§11.9 C).{% endcomment %}
         <div class="mb-2"{% if prompt_zone_id %} id="{{ prompt_zone_id }}"{% endif %}>
             <textarea class="form-control form-control-sm bg-body text-body-emphasis border-secondary"
-                      id="{{ prompt_input_id|default:'promptInput' }}" rows="{{ prompt_rows|default:2 }}"
+                      id="{{ prompt_input_id|default:'promptInput' }}" data-port-prompt="{{ ports.entry.prompt }}" rows="{{ prompt_rows|default:2 }}"
                       placeholder="{{ prompt_placeholder|default:'Décrivez ce que vous voulez générer…' }}"></textarea>
             {% if prompt_hint %}<small class="text-muted">{{ prompt_hint }}</small>{% endif %}
             {% if prompt_counter_id %}<small class="text-muted d-block"><span id="{{ prompt_counter_id }}">0</span> mots</small>{% endif %}
@@ -370,7 +376,30 @@ Studio rend dans un nœud (`compose_only`).{% endcomment %}
 
         {% if collapsible %}</div>{% endif %}
 
-        {% if primary_btn_id %}
+        {% comment %}LE GESTE EXPLICITE (2026-11-25, décision de Fabien, `CARD_DESIGN` « La FORME
+        D'ENTRÉE se déduit des ports ») : un dépôt REMPLIT la card, il ne crée rien ; « Ajouter à la
+        file » crée l'élément (ou le lot : un élément par fichier), « Lancer » le crée et le lance. Les
+        deux s'activent quand l'obligation des ports est remplie (`data-wama-needs`,
+        `wama-input-slots.js`). Rendus PAR LA CARD, pour toute app : une page qui câble son propre
+        ajout garde son id (`primary_btn_id`, `WamaApp.addToQueue`) ; sinon c'est la voie d'import de la
+        card qui les câble (`WamaImport`, ses réglages d'envoi). « Lancer » n'est rendu qu'avec une
+        route ▶ (`entry_start_url`). La card du Studio (`compose_only`) compose sans rien créer.{% endcomment %}
+        {% if not compose_only %}
+        <div class="d-flex gap-2 mt-2 wama-entry-actions">
+            {% comment %}`data-entry-add` dit QUI câble l'ajout : `page` (la page l'a nommé,
+            `primary_btn_id`, et l'appelle elle-même) ou `import` (la voie d'import de la card).{% endcomment %}
+            <button type="button" class="btn btn-success btn-sm flex-fill" data-entry-add="{% if primary_btn_id %}page{% else %}import{% endif %}"
+                    id="{% firstof primary_btn_id card_id|default:'newItemCard'|add:'-add' %}">
+                <i class="fas {{ primary_btn_icon|default:'fa-plus' }} me-1"></i> {{ primary_btn_label|default:'Ajouter à la file' }}
+            </button>
+            {% if start_url %}
+            <button type="button" class="btn btn-primary btn-sm flex-fill" data-entry-launch
+                    id="{% firstof primary_btn_id card_id|default:'newItemCard' %}-launch" title="Ajouter à la file et lancer tout de suite">
+                <i class="fas fa-play me-1"></i> Lancer
+            </button>
+            {% endif %}
+        </div>
+        {% elif primary_btn_id %}
         <div class="d-grid mt-2">
             <button class="btn btn-success btn-sm" id="{{ primary_btn_id }}">
                 <i class="fas {{ primary_btn_icon|default:'fa-play' }} me-1"></i> {{ primary_btn_label|default:'Lancer' }}

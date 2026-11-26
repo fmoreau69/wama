@@ -105,39 +105,9 @@
       return fetch(url, { method: 'POST', body: fd });
     }
 
-    /**
-     * Envoi AVEC progression (évolution 8, 2026-09-07) : `fetch` n'expose pas la progression
-     * d'ENVOI, seul `XMLHttpRequest.upload` le fait. C'est désormais LE chemin d'envoi de la
-     * brique, pour toutes les apps : l'anonymizer (vidéos lourdes) avait ce retour par une
-     * modale jQuery-file-upload et les six autres n'en avaient aucun — un envoi de 800 Mo y
-     * restait muet jusqu'au rechargement. Uniformisé le 08/09 (demande Fabien) : la barre
-     * COMMUNE ci-dessous s'affiche dans la zone de dépôt, aucune app n'écrit de markup.
-     * Rendu : la même forme que `fetch` (`ok`, `status`, `statusText`, `json()`).
-     */
-    function posterAvecProgression(url, fd, onProgress) {
-      return new Promise(function (resolve, reject) {
-        var xhr = new XMLHttpRequest();
-        xhr.open('POST', url);
-        xhr.setRequestHeader('X-CSRFToken', cfg.csrfToken);
-        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-        xhr.upload.addEventListener('progress', function (e) {
-          if (e.lengthComputable) onProgress(e.loaded, e.total);
-        });
-        xhr.onload = function () {
-          resolve({
-            ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status,
-            statusText: xhr.statusText,
-            json: function () {
-              try { return Promise.resolve(JSON.parse(xhr.responseText)); }
-              catch (e) { return Promise.reject(e); }
-            },
-          });
-        };
-        xhr.onerror = function () { reject(new Error('erreur réseau')); };
-        xhr.send(fd);
-      });
-    }
-
+    // Envoi AVEC progression (évolution 8, 2026-09-07 : `XMLHttpRequest.upload`, une vidéo de 800 Mo
+    // restait muette jusqu'au rechargement) : `WamaApp.postWithProgress`, partagé depuis le
+    // 2026-11-25 avec « Ajouter à la file », qui envoie désormais ce qu'un dépôt envoyait.
 
     /**
      * Les ports d'ATTACHE de l'instance. `attach: 'card'` (2026-10-19) : les ports FICHIER de la
@@ -148,11 +118,25 @@
      * générateur d'apps écrivaient chacun ce relevé. Une LISTE d'ids reste lue telle quelle.
      */
     function attachInputs() {
-      if (cfg.attach !== 'card') return cfg.attach || [];
-      var zone = el(cfg.dropZoneId) || el(cfg.fileInputId);
-      var card = zone && zone.closest('[data-wama-ports]');
-      if (!card || card.getAttribute('data-wama-depot') !== 'attache' || !global.WamaInputSlots) return [];
+      var mode = cfg.attach || (entryCard() ? 'card' : null);
+      if (mode !== 'card') return mode || [];
+      var card = entryCard();
+      if (!card || !global.WamaInputSlots) return [];
       return WamaInputSlots.filePorts(card).map(function (port) { return port.inputId; });
+    }
+
+    /**
+     * La card d'entrée v4 de l'instance, quand un dépôt y JOINT (`data-wama-depot="attache"`) — null
+     * sinon. LE GESTE EXPLICITE (2026-11-25, décision de Fabien) : sur une telle card, un dépôt
+     * REMPLIT ses ports et n'envoie RIEN ; « Ajouter à la file » et « Lancer » créent. La card les
+     * rend pour toute app (`_new_item_card_v4.html`) : sans `attach` déclaré, l'instance joint aux
+     * ports de sa card (`attach: 'card'` implicite), et câble ses boutons quand la page ne le fait
+     * pas elle-même (`data-entry-add="import"`, `wireEntryButtons`).
+     */
+    function entryCard() {
+      var zone = el(cfg.dropZoneId) || el(cfg.fileInputId);
+      var card = zone && zone.closest ? zone.closest('[data-wama-ports]') : null;
+      return (card && card.getAttribute('data-wama-depot') === 'attache') ? card : null;
     }
 
     /** L'input porte-t-il déjà CE fichier (même nom, taille, date) ? */
@@ -178,82 +162,19 @@
       else console.error('[WamaImport]', msg);
     }
 
-    /**
-     * Barre de progression d'ENVOI commune — dans la zone de dépôt, classes communes des cards
-     * (`wama-progress-track` / `wama-progress-fill`, app_modern.css chargé par base.html).
-     * Créée au premier octet envoyé, retirée à la fin (`finCommune`), ids créés ou non.
-     * Une app peut la REMPLACER (`onProgress` + `onSettled`) — aucune ne le fait au 08/09 :
-     * c'est le même retour partout, c'est le but.
-     */
+    // Barre de progression d'ENVOI commune, dans la zone de dépôt (`WamaApp.uploadProgress`, classes
+    // communes des cards) ; une app peut la REMPLACER (`onProgress` + `onSettled`) — aucune ne le
+    // fait : c'est le même retour partout, c'est le but.
     function progressionCommune(loaded, size, file, index, total) {
-      var dz = el(cfg.dropZoneId);
-      if (!dz) return;
-      var bloc = dz.querySelector('.wama-upload-progress');
-      if (!bloc) {
-        bloc = document.createElement('div');
-        bloc.className = 'wama-upload-progress';
-        bloc.innerHTML = '<div class="wama-progress-track"><div class="wama-progress-fill active"></div></div>'
-                       + '<small class="wama-upload-progress-label"></small>';
-        dz.appendChild(bloc);
-      }
-      var part = size ? loaded / size : 1;
-      var pct = Math.min(100, Math.round(((index + part) / (total || 1)) * 100));
-      bloc.querySelector('.wama-progress-fill').style.width = pct + '%';
-      var nom = (file && file.name) ? file.name : '';
-      bloc.querySelector('.wama-upload-progress-label').textContent =
-        'Envoi ' + (index + 1) + '/' + (total || 1) + (nom ? ' · ' + nom : '') + ' · ' + pct + ' %';
+      global.WamaApp.uploadProgress(el(cfg.dropZoneId), loaded, size, file, index, total);
     }
 
-    function finCommune() {
-      var dz = el(cfg.dropZoneId);
-      var bloc = dz && dz.querySelector('.wama-upload-progress');
-      if (bloc) bloc.remove();
-    }
+    function finCommune() { global.WamaApp.uploadProgressDone(el(cfg.dropZoneId)); }
 
-    /**
-     * Lecture TOLÉRANTE de l'identifiant renvoyé par l'endpoint d'upload.
-     *
-     * Les vues n'ont jamais eu de contrat commun : converter renvoie `job_id`, le gabarit
-     * de génération renvoie `id`, d'autres `pk`. Mesuré le 2026-08-22 : converter.js lisait
-     * `data.job_id` là où la vue générée renvoyait `data.id` — l'identifiant sortait
-     * `undefined`, la liste restait vide, le rechargement n'avait jamais lieu et AUCUNE card
-     * n'apparaissait, sans la moindre erreur. On accepte donc les trois graphies plutôt que
-     * de faire dépendre l'affichage d'un nom de clé. La normalisation des vues reste
-     * souhaitable — mais elle ne doit plus être ce qui décide si l'utilisateur voit sa card.
-     */
-    function identifiant(data) {
-      if (!data || typeof data !== 'object') return null;
-      var v = (data.job_id != null) ? data.job_id
-            : (data.id != null) ? data.id
-            : (data.pk != null) ? data.pk : null;
-      return (v === null || v === '' ) ? null : v;
-    }
-
-    /**
-     * Identifiants d'une réponse — scalaire à la racine OU LISTE (2026-09-05, ROUTE
-     * « Portage F2 » évolution 1). Deux apps en place répondent une liste : reader
-     * `{created:[…], multi}` (N fichiers en une requête) et anonymizer `{added:[…]}`. Avec la
-     * lecture scalaire seule, `ids` restait VIDE et `handleFiles` sortait sans reload ni
-     * message — le mode de panne le plus silencieux qui soit, précisément celui que l'en-tête
-     * de cette brique dit vouloir éviter. Éléments de liste : objets à id, ou scalaires.
-     */
-    function identifiants(data) {
-      if (!data || typeof data !== 'object') return [];
-      var un = identifiant(data);
-      if (un != null) return [un];
-      // Un OBJET unique sous `media` (anonymizer, dépôt d'UN fichier : `{success, media:{id…}}`
-      // — le même endpoint répond `added:[…]` pour plusieurs). Mesuré le 2026-09-07 à
-      // l'adoption : sans cette forme, `ids` restait vide, aucun reload, aucune card — le
-      // scénario `anonymizer.import` disait « 200 mais aucun élément n'apparaît ».
-      if (data.media && typeof data.media === 'object' && !Array.isArray(data.media)) {
-        var seul = identifiant(data.media);
-        if (seul != null) return [seul];
-      }
-      var liste = data.ids || data.created || data.added || data.items;
-      if (!Array.isArray(liste)) return [];
-      return liste.map(function (x) { return (x && typeof x === 'object') ? identifiant(x) : x; })
-                  .filter(function (v) { return v != null && v !== ''; });
-    }
+    // Identifiants d'une réponse — lecture TOLÉRANTE (`id`/`job_id`/`pk`, `media`, listes `ids`/
+    // `created`/`added`) : `WamaApp.responseIds` depuis le 2026-11-25 (elle vivait ici, « Ajouter à
+    // la file » en a besoin pour les mêmes vues). Sa raison : converter répondait `job_id` là où la
+    // vue générée répond `id`, et l'identifiant sortait `undefined`, sans card ni erreur.
 
     /**
      * Envoie UN fichier, ou TOUS (`cfg.multiple` : une seule requête, champ répété — reader
@@ -274,7 +195,7 @@
         // TOUJOURS par XHR (08/09) : la progression d'envoi est un retour COMMUN, pas une
         // option d'app. `poster` (fetch) ne sert plus qu'aux requêtes sans fichier (consolidation).
         // `onProgress(loaded, size, fichier, index, total)` : la part de CE fichier et sa place.
-        var resp = await posterAvecProgression(cfg.uploadUrl, fd, function (loaded, size) {
+        var resp = await global.WamaApp.postWithProgress(cfg.uploadUrl, fd, cfg.csrfToken, function (loaded, size) {
           afficher(loaded, size, fichiers[0], index || 0, total || 1);
         });
         var data = {};
@@ -287,7 +208,7 @@
         // Ajouté, mais avec une réserve que le serveur DIT (`warning` : une désignation refusée,
         // une nature hors vocabulaire) — jamais lue avant le 2026-10-13, donc jamais montrée.
         if (data.warning) signaler('Import : ' + data.warning, 'warning');
-        return { ids: identifiants(data), data: data };
+        return { ids: global.WamaApp.responseIds(data), data: data };
       } catch (err) {
         signaler('Import : ' + (err && err.message ? err.message : 'erreur réseau'));
         return { ids: [], data: null };
@@ -408,7 +329,9 @@
         files = restes;
         if (!files.length) return;
       }
-      if (!cfg.uploadUrl) {
+      // Sur une card d'entrée qui joint, ce qu'aucun port n'admet est REFUSÉ et dit — jamais envoyé
+      // à côté des boutons de la card (geste explicite, 2026-11-25).
+      if (!cfg.uploadUrl || entryCard()) {
         signaler('Fichier non attendu ici : ' + files.map(function (f) { return f.name; }).join(', '), 'warning');
         return;
       }
@@ -489,10 +412,40 @@
       dz.appendChild(wrap);
     }
 
+    /**
+     * « Ajouter à la file » et « Lancer » d'une card d'entrée dont la page ne câble pas l'ajout
+     * (`data-entry-add="import"`) — par la brique commune `WamaApp.addToQueue`, avec CE QUE
+     * l'instance envoyait au dépôt : sa vue d'upload, ses champs (`extraFields`), le champ du
+     * fichier (`fieldName`, `file` ou `files`), l'envoi en une requête (`multiple`), la case « un
+     * seul document », le regroupement en lot et sa suite (`afterImport`). Le moment change, pas
+     * l'envoi (geste explicite, 2026-11-25).
+     */
+    function wireEntryButtons() {
+      var card = entryCard();
+      var add = card && card.querySelector('[data-entry-add="import"]');
+      if (!add || !cfg.uploadUrl || !global.WamaApp || !global.WamaApp.addToQueue) return;
+      var portOptions = {};
+      if (cfg.fileInputId) portOptions[cfg.fileInputId] = { field: cfg.fieldName || (cfg.multiple ? 'files' : 'file') };
+      global.WamaApp.addToQueue({
+        url: cfg.uploadUrl, csrfToken: cfg.csrfToken, button: add,
+        ports: 'card', portOptions: portOptions,
+        consolidateUrl: cfg.consolidateUrl, together: !!cfg.multiple,
+        extraFields: function (fd) {
+          if (typeof cfg.extraFields === 'function') cfg.extraFields(fd);
+          if (joinPagesWanted()) fd.append('join_pages', '1');
+        },
+        afterAdded: function (ids, reponses) {
+          if (typeof cfg.afterImport === 'function') cfg.afterImport(ids, reponses);
+          else global.location.reload();
+        },
+      });
+    }
+
     function brancher() {
       var dz = el(cfg.dropZoneId);
       var fi = el(cfg.fileInputId);
       placeJoinPagesBox(dz);
+      wireEntryButtons();
 
       if (dz) {
         // Repères posés sur l'élément : un second branchement (batch-import pose les siens)

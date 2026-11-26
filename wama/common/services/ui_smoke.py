@@ -1117,6 +1117,22 @@ def _test_session_key(app: str | None = None):
     return s.session_key
 
 
+def _add_after_deposit(page, field) -> bool:
+    """LE GESTE EXPLICITE (2026-11-25, décision de Fabien) : un dépôt REMPLIT la card d'entrée, il ne
+    crée plus rien ; son « Ajouter à la file » câblé par la voie d'import (`[data-entry-add="import"]`)
+    crée ce que le dépôt créait. Les scénarios qui MONTENT un élément par un dépôt (duplication,
+    réglages, démarrage, lot, dossier) cliquent donc ce bouton après leur dépôt — rien de plus.
+    `field` : le champ déposé (sélecteur ou élément). Rend True si le bouton a été cliqué ; False
+    sans bouton câblé par l'import (une page qui câble son ajout : `.add`) ou bouton encore grisé."""
+    handle = page.query_selector(field) if isinstance(field, str) else field
+    if handle is None:
+        return False
+    page.wait_for_timeout(300)               # la voie d'import joint le fichier (asynchrone)
+    return bool(handle.evaluate("""(e) => { const c = e.closest('[data-wama-ports]');
+        const b = c && c.querySelector('[data-entry-add="import"]');
+        if (!b || b.disabled) return false; b.click(); return true; }"""))
+
+
 def _settle_posts(page, outstanding, floor_ms: int = 4500, deadline_s: float = 90.0):
     """Attend que chaque POST ÉMIS ait sa réponse (ou son échec), borné — `outstanding()` rend
     le nombre de POST encore sans réponse.
@@ -1218,9 +1234,13 @@ def check_app_import(app: str, url_path: str):
         // joint au formulaire et c'est le bouton primaire qui crée l'élément.
         const carteDepot = (dz && dz.closest('[data-wama-depot]')) || carte
                 || root.querySelector('[data-wama-depot]');
+        // « Ajouter à la file » câblé par la voie d'import de la card (geste explicite, 2026-11-25) :
+        // c'est LUI qui crée ce que le dépôt créait.
+        const ajout = carteDepot && carteDepot.querySelector('[data-entry-add="import"]');
         return {cable: !!window._import || typeof window.WamaImport === 'function',
                 instancie: !!window._import,
                 depot: (carteDepot && carteDepot.getAttribute('data-wama-depot')) || 'cree',
+                ajout: ajout ? ajout.id : '',
                 dropzone: !!dz, champ: !!fi,
                 accept: fi ? (fi.getAttribute('accept') || '') : '',
                 champ_id: fi ? (fi.id || '(sans id)') : '',
@@ -1306,7 +1326,7 @@ def check_app_import(app: str, url_path: str):
                     # barrière qui crie au loup sur des cas hors périmètre ne serait pas relue.
                     raise SkipScenario("aucune card d'entrée sur cette surface — "
                                        "scénario d'import non applicable")
-                if etat.get('depot') == 'attache':
+                if etat.get('depot') == 'attache' and not etat.get('ajout'):
                     # DÉCLARÉ : ici le dépôt joint le fichier au formulaire de la card, et
                     # c'est le bouton primaire qui crée l'élément (avatarizer : audio +
                     # avatar + réglages ; imager : prompt + image de référence). Exiger une
@@ -1330,9 +1350,23 @@ def check_app_import(app: str, url_path: str):
                 avant = etat['cards']
                 cible = etat['champ_id']
                 sel = f"#{cible}" if cible and cible != '(sans id)' else 'input[type=file]'
+                posts_before_deposit = len(emitted)
                 page.set_input_files(sel, str(temoin))
                 outstanding = lambda: len(emitted) - len(posts) - len(failed)  # noqa: E731
                 _settle_posts(page, outstanding)
+                if etat.get('ajout'):
+                    # LE GESTE EXPLICITE (2026-11-25) : le dépôt REMPLIT la card et n'envoie rien ;
+                    # « Ajouter à la file » crée. Un envoi au dépôt est le défaut que la décision retire.
+                    if len(emitted) > posts_before_deposit:
+                        return False, (f"le dépôt sur {etat['champ_id']} a envoyé {len(emitted) - posts_before_deposit} "
+                                       "requête(s) AVANT « Ajouter à la file » — un dépôt ne crée plus rien")
+                    add_button = page.locator(f"#{etat['ajout']}")
+                    if add_button.is_disabled():
+                        return False, (f"fichier déposé, « Ajouter à la file » (#{etat['ajout']}) reste GRISÉ "
+                                       f"({add_button.get_attribute('title') or 'sans motif'})")
+                    add_button.click()
+                    page.wait_for_timeout(300)
+                    _settle_posts(page, outstanding)
                 confirmations = _confirm_proposals(page, sel, outstanding)
                 apres = page.evaluate("(document.querySelector('.tab-pane[data-domain].active') || document).querySelectorAll('.wama-card').length")
                 dit = _messages_a_l_ecran(page)
@@ -1410,7 +1444,7 @@ def register_import_scenarios():
     for label, path, key in discoverable_pages():
         register(
             id=f"{key}.import", app=label, stage="ui",
-            description=f"Card d'entrée {label} : un dépôt crée un élément",
+            description=f"Card d'entrée {label} : un dépôt remplit la card, « Ajouter à la file » crée un élément",
             run=(lambda p=path, a=label: (lambda ctx: check_app_import(a, p)))(),
             timeout_s=180, vram_gb=0.0,
         )
@@ -1426,11 +1460,11 @@ def register_import_scenarios():
 # ▶ lance) — et c'est précisément ce que le scénario VÉRIFIE, car c'est ce qui l'autorise à
 # tourner chaque nuit sur un GPU partagé.
 _ADD_PROBE = """(() => {
-    // La card d'entrée qui porte un BOUTON PRIMAIRE (`primary_btn_id` de la card commune,
-    // rendu dans `.d-grid`) — en mode attache (imager, avatarizer, composer, apps générées) ou
-    // non (synthesizer : le dépôt crée ET le bouton ajoute le texte saisi).
+    // La card d'entrée et son « Ajouter à la file » (`[data-entry-add]`) — rendu par la card commune
+    // pour TOUTE app depuis le geste explicite (2026-11-25, décision de Fabien : un dépôt remplit la
+    // card, seuls ses boutons créent), câblé par la page (`page`) ou par sa voie d'import (`import`).
     for (const card of (document.querySelector('.tab-pane[data-domain].active') || document).querySelectorAll('[data-wama-depot]')) {
-        const btn = card.querySelector('.d-grid > button.btn-success');
+        const btn = card.querySelector('[data-entry-add]');
         if (!btn || !btn.id) continue;
         const prompt = card.querySelector('textarea');
         return {btn_id: btn.id, prompt_id: prompt ? prompt.id : '',
@@ -2924,6 +2958,7 @@ def check_app_folder_import(app: str, url_path: str):
                     avant_cards = etat['cards']
                     # UN chemin de dossier, pas une liste : voir l'encadré ⚠⚠ ci-dessus.
                     page.set_input_files(f"#{etat['input_id']}", str(dossier))
+                    _add_after_deposit(page, f"#{etat['input_id']}")
                     # Certaines apps font passer un dépôt multiple par l'APERÇU DE LOT (même
                     # chaîne que le fichier de lot et l'URL) : on ne présume pas, on regarde.
                     try:
@@ -3122,7 +3157,7 @@ def check_app_attach_lot(app: str, url_path: str):
                 prompt = page.locator(f"#{card['card']} textarea")
                 if prompt.count():
                     prompt.first.fill('witness')    # sans consigne, l'imager décrirait chaque image
-                button = page.locator(f"#{card['card']} .d-grid button").first
+                button = page.locator(f"#{card['card']} [data-entry-add]").first
                 for port in card['ports']:          # les autres ports requis (l'avatar)
                     if button.is_enabled() or port is main:
                         continue
@@ -3329,6 +3364,7 @@ def check_app_duplicate_delete(app: str, url_path: str):
                     temoin_fixture = _fichier_temoin(champ.get_attribute('accept') or '')
                     try:
                         champ.set_input_files(str(temoin_fixture))
+                        _add_after_deposit(page, champ)
                         page.wait_for_timeout(4500)
                         ids0 = page.evaluate(IDS)
                         monte.update(int(i) for i in ids0 if str(i).isdigit())
@@ -3772,6 +3808,7 @@ def check_app_settings(app: str, url_path: str):
                     temoin = _fichier_temoin(champ.get_attribute('accept') or '')
                     try:
                         champ.set_input_files(str(temoin))
+                        _add_after_deposit(page, champ)
                         page.wait_for_timeout(4500)
                         ids0 = page.evaluate(IDS)
                     finally:
@@ -4364,7 +4401,11 @@ def _monter_un_lot(page, app: str = '', n: int = 2):
     depot = page.evaluate("""((s) => {
         const c = document.querySelector(s + '[data-wama-depot]');
         return c ? c.getAttribute('data-wama-depot') : 'cree'; })""", scope)
-    if not champ or depot == 'attache':
+    # Geste explicite (2026-11-25) : une card qui joint, mais dont « Ajouter à la file » est câblé par
+    # la voie d'import, crée ce que le dépôt créait — N fichiers, un lot de N, au clic.
+    wired_add = bool(champ) and bool(champ.evaluate(
+        "(e) => { const c = e.closest('[data-wama-ports]'); return !!(c && c.querySelector('[data-entry-add=\"import\"]')); }"))
+    if not champ or (depot == 'attache' and not wired_add):
         raison = ("la card DÉCLARE `data-wama-depot=attache` (le dépôt n'y crée rien)"
                   if depot == 'attache' else
                   "aucun champ d'import au contrat de la card commune")
@@ -4374,12 +4415,14 @@ def _monter_un_lot(page, app: str = '', n: int = 2):
     try:
         if champ.get_attribute('multiple') is not None:
             champ.set_input_files([str(t) for t in temoins])
+            _add_after_deposit(page, champ)
             page.wait_for_timeout(6000 + 1500 * (len(temoins) - 2))
         else:
             for t in temoins:
                 champ = page.query_selector(
                     f'{_page_scope(page)}[data-wama-nic] input[type=file]:not({exclus})') or champ
                 champ.set_input_files(str(t))
+                _add_after_deposit(page, champ)
                 page.wait_for_timeout(4000)
         lots = page.evaluate(_LOTS_EN_FILE)
     finally:
@@ -6925,6 +6968,7 @@ def check_app_processing(app: str, url_path: str):
             temoin = _fichier_temoin(champ.get_attribute('accept') or '')
             try:
                 champ.set_input_files(str(temoin))
+                _add_after_deposit(page, champ)
                 page.wait_for_timeout(5000)
             finally:
                 try:
@@ -7269,6 +7313,7 @@ def check_app_batch_processing(app: str, url_path: str):
             temoins = [_fichier_temoin(champ.get_attribute('accept') or '') for _ in range(2)]
             try:
                 champ.set_input_files([str(x) for x in temoins])
+                _add_after_deposit(page, champ)
                 page.wait_for_timeout(6000)
             finally:
                 for x in temoins:

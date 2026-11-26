@@ -89,6 +89,7 @@
             : ((input && input.files) ? Array.prototype.slice.call(input.files) : []);
         var designation = files.length > 0 && !!files[0].designation;
         if (tab) tab.textContent = files.length ? '· ' + files.length : '';
+        checkReady(card);
         if (!list) return;
         list.textContent = '';
         if (!files.length) { showFace(pane, 'mods'); if (meta) meta.textContent = ''; return; }
@@ -323,10 +324,87 @@
         });
     }
 
+    /** Le port `id` de la card est-il REMPLI ? Un port fichier : un fichier joint ou désigné, ou
+     *  l'URL que son onglet poste à l'ajout (`[data-port-url]`) ; la consigne : du texte. `null` :
+     *  le port n'est pas rendu sur cette card (domaine restreint, porté par un réglage). */
+    function portFilled(card, id) {
+        var prompt = card.querySelector('[data-port-prompt="' + id + '"]');
+        if (prompt) return !!(prompt.value || '').trim();
+        var pane = card.querySelector('[data-port-pane="' + id + '"][data-port-kind="file"]');
+        if (!pane) return null;
+        var input = inputOf(pane);
+        var held = (global.WamaApp && WamaApp.inputEntries) ? WamaApp.inputEntries(input)
+            : ((input && input.files) ? Array.prototype.slice.call(input.files) : []);
+        if (held.length) return true;
+        var url = pane.querySelector('[data-port-url]');
+        return !!(url && (url.value || '').trim());
+    }
+
+    function portLabel(card, id) {
+        if (card.querySelector('[data-port-prompt="' + id + '"]')) return 'le texte saisi';
+        var tab = card.querySelector('[data-port-tab="' + id + '"]');
+        return tab ? (tab.getAttribute('title') || id).split(' — ')[0] : id;
+    }
+
+    /** LE GESTE EXPLICITE (2026-11-25, décision de Fabien) : « Ajouter à la file » et « Lancer »
+     *  s'activent quand l'obligation des ports est remplie — `data-wama-needs`, l'obligation que
+     *  la forme d'entrée déduit des ports (`app_registry.entry_form`), un groupe par exigence, dont
+     *  au moins un port doit être rempli. Un groupe qu'aucun port rendu ne porte ne se juge pas ici
+     *  (le serveur dira). Seul l'ajout câblé par la card (`data-entry-add="import"`) est jugé : une
+     *  page qui câble le sien le juge elle-même (l'appariement de l'imager, la voix ET l'avatar de
+     *  l'avatarizer), et « Lancer » suit alors son état (`mirrorLaunch`). */
+    function checkReady(card) {
+        var add = card.querySelector('[data-entry-add="import"]');
+        if (!add) return true;
+        var needs = [];
+        try { needs = JSON.parse(card.getAttribute('data-wama-needs') || '[]'); } catch (e) { needs = []; }
+        var missing = [];
+        needs.forEach(function (group) {
+            var states = group.map(function (id) { return portFilled(card, id); });
+            if (states.every(function (s) { return s === null; })) return;
+            if (states.some(function (s) { return s === true; })) return;
+            missing.push(group.filter(function (id, i) { return states[i] !== null; })
+                .map(function (id) { return portLabel(card, id); }).join(' ou '));
+        });
+        var ready = !missing.length;
+        var why = ready ? '' : 'À fournir : ' + missing.join(' ; ');
+        card.querySelectorAll('[data-entry-add="import"], [data-entry-launch]').forEach(function (b) {
+            b.disabled = !ready;
+            if (why) b.setAttribute('data-entry-why', why); else b.removeAttribute('data-entry-why');
+            b.title = why || (b.hasAttribute('data-entry-launch') ? 'Ajouter à la file et lancer tout de suite' : '');
+        });
+        return ready;
+    }
+
+    /** Une page qui câble son ajout (`data-entry-add="page"`) en tient l'état : « Lancer » le suit. */
+    function mirrorLaunch(card) {
+        var add = card.querySelector('[data-entry-add="page"]');
+        var launch = card.querySelector('[data-entry-launch]');
+        if (!add || !launch) return;
+        var follow = function () { launch.disabled = add.disabled; };
+        follow();
+        if (typeof global.MutationObserver === 'function') {
+            new global.MutationObserver(follow).observe(add, { attributes: true, attributeFilter: ['disabled'] });
+        }
+    }
+
+    /** La card redit ce qu'elle tient (chips, compteurs) et l'état de ses boutons — après un ajout,
+     *  quand la brique de l'envoi a vidé ses ports sans `change` (`WamaApp.addToQueue`). */
+    function refresh(node) {
+        var card = node && node.closest ? node.closest('[data-wama-ports]') : node;
+        if (!card || !card.querySelectorAll) return;
+        card.querySelectorAll('[data-port-pane][data-port-kind="file"]').forEach(function (p) { renderFiles(card, p); });
+        checkReady(card);
+    }
+
     function wire(card) {
         if (card.dataset.slotsWired === '1') return;
         card.dataset.slotsWired = '1';
         wireUrl(card);
+        card.querySelectorAll('[data-port-prompt], [data-port-url]').forEach(function (field) {
+            field.addEventListener('input', function () { checkReady(card); });
+        });
+        mirrorLaunch(card);
         card.querySelectorAll('[data-port-tab]').forEach(function (tab) {
             tab.addEventListener('click', function (e) {
                 e.stopPropagation();   // ne pas replier la card
@@ -337,6 +415,7 @@
             if (p.dataset.portKind === 'file') wirePane(card, p);
             else if (p.dataset.portKind === 'lot') wireLot(card, p);
         });
+        checkReady(card);
     }
 
     function boot() { document.querySelectorAll('[data-wama-ports]').forEach(wire); }
@@ -347,5 +426,6 @@
     // qu'une card du Studio alimente, dans sa modale — se câble comme celles de la page
     // (la garde `data-slots-wired` empêche un second câblage).
     global.WamaInputSlots = { renderFiles: renderFiles, showFace: showFace, activate: activate,
-                              filePorts: filePorts, wire: wire, restrict: restrict };
+                              filePorts: filePorts, wire: wire, restrict: restrict,
+                              refresh: refresh, checkReady: checkReady };
 })(window);

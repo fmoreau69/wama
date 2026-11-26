@@ -699,9 +699,12 @@ def entry_form(ports) -> dict:
     dit déjà ce qu'il exige (`required`) et avec quels autres il s'échange (`one_of`, « l'un OU
     l'autre ») : `app_input_ports` (l'union des MODÈLES), plus les ports que l'app consomme elle-même.
     Un port SUFFIT À CRÉER un élément quand il remplit seul toute l'obligation. D'où :
-      • `drop_creates` — le port de travail PRINCIPAL (le premier) suffit : un dépôt CRÉE l'élément
+      • `drop_creates` — le port de travail PRINCIPAL (le premier) suffit : un dépôt CRÉAIT l'élément
         (anonymizer, converter…) ; sinon le fichier se JOINT et « Ajouter » crée (imager, composer,
-        avatarizer) ;
+        avatarizer). ⚠ Depuis le 2026-11-25 (geste explicite, décision de Fabien), un dépôt ne crée
+        plus rien sur la card v4 : le drapeau dit seulement que le port de travail suffit SEUL — la
+        card en tire l'URL à bouton propre (un lot d'une ligne) et la consigne qui reste un
+        réglage ; son nom date d'avant la décision ;
       • `prompt` — l'id du port de consigne si la card le porte : quand il suffit (synthesizer,
         Translator : l'un OU l'autre, la forme MIXTE) ou quand le dépôt ne crée pas. Une consigne
         qui ne suffit pas, sur une card dont le dépôt crée, ne peut pas accompagner la création :
@@ -742,8 +745,18 @@ def entry_form(ports) -> dict:
     creating = [i for i, p in by_id.items() if p.get('group') in ('travail', 'prompt')
                 and all(i in need for need in needs)]
     drop_creates = bool(work) and work in creating
+    # `needs` (2026-11-25, décision de Fabien « geste explicite ») : l'obligation elle-même, un
+    # groupe par exigence — chaque groupe doit compter au moins un port rempli. La card en déduit
+    # QUAND « Ajouter à la file » et « Lancer » deviennent actifs (`wama-input-slots.js`) ; un
+    # dépôt ne crée plus rien. Sans obligation déclarée : l'entrée principale seule.
+    groups = []
+    for need in needs:
+        group = sorted(need)
+        if group and group not in groups:
+            groups.append(group)
     return {'creating': creating, 'drop_creates': drop_creates, 'work': work,
-            'prompt': prompt if prompt and (prompt in creating or not drop_creates) else ''}
+            'prompt': prompt if prompt and (prompt in creating or not drop_creates) else '',
+            'needs': groups}
 
 
 def principal_entry(ports) -> dict:

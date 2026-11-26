@@ -80,7 +80,15 @@ class DesignationJsTest(SimpleTestCase):
     def _import(self, extra_cfg=''):
         ctx = _mini_racer(self)
         src = (SERVED / 'common/js/wama-import.js').read_text(encoding='utf-8')
-        ctx.eval(FAKE_ENV + src)
+        ctx.eval(FAKE_ENV)
+        # L'envoi et la lecture des identifiants sont ceux de la brique commune (2026-11-25) : les
+        # VRAIES fonctions, servies, sur le faux XHR ci-dessus.
+        base = (SERVED / 'common/js/wama-app-base.js').read_text(encoding='utf-8')
+        ctx.eval(''.join(re.search(r'\n  function ' + n + r'\(.*?\n  }\n', base, re.S).group(0)
+                         for n in ('responseIds', 'postWithProgress', 'uploadProgress', 'uploadProgressDone'))
+                 + "WamaApp.responseIds = responseIds; WamaApp.postWithProgress = postWithProgress;"
+                   " WamaApp.uploadProgress = uploadProgress; WamaApp.uploadProgressDone = uploadProgressDone;")
+        ctx.eval(src)
         ctx.eval("el('dz'); el('fi'); el('port', 'audio/*');"
                  "var api = WamaImport({uploadUrl: '/up/', csrfToken: 't', dropZoneId: 'dz',"
                  " fileInputId: 'fi', afterImport: function () {},"
@@ -198,6 +206,103 @@ class DesignationJsTest(SimpleTestCase):
         attached, posted = self._on_a_card('cree')
         self.assertEqual([], attached)
         self.assertEqual(1, posted)
+
+    # ── LE GESTE EXPLICITE (2026-11-25, décision de Fabien) ─────────────────────────────────────
+    # Les huit apps dont le dépôt créait déclarent leur voie d'import SANS `attach` (vue d'upload,
+    # champs, suite) : sur leur card v4 — qui joint désormais partout —, le dépôt remplit le port et
+    # « Ajouter à la file » envoie ce que le dépôt envoyait.
+
+    def _entry_card(self, extra_cfg='', owner='import'):
+        """Une instance déclarée comme celles des apps dont le dépôt créait, construite SUR sa card
+        v4 : `[ports joints, requêtes envoyées, options passées à addToQueue ou null]`."""
+        ctx = _mini_racer(self)
+        ctx.eval(FAKE_ENV)
+        self._load_slots(ctx)
+        ctx.eval("var addBtn = {id: 'card-add'}; var wired = null;"
+                 "WamaApp.addToQueue = function (o) { wired = o; return function () {}; };"
+                 "el('dz'); el('fi', 'audio/*'); el('port', 'audio/*');"
+                 "var card = fakeCard('attache', [fakePane('work_audio', 'file', 'fi')]);"
+                 "card.querySelector = function (sel) {"
+                 "  return (sel === '[data-entry-add=\"import\"]' && '" + owner + "' === 'import') ? addBtn : null; };"
+                 "elements.dz.closest = function () { return card; };")
+        base = (SERVED / 'common/js/wama-app-base.js').read_text(encoding='utf-8')
+        ctx.eval(''.join(re.search(r'\n  function ' + n + r'\(.*?\n  }\n', base, re.S).group(0)
+                         for n in ('responseIds', 'postWithProgress'))
+                 + "WamaApp.responseIds = responseIds; WamaApp.postWithProgress = postWithProgress;")
+        ctx.eval((SERVED / 'common/js/wama-import.js').read_text(encoding='utf-8'))
+        ctx.eval("var after = []; var api = WamaImport({uploadUrl: '/up/', consolidateUrl: '/lot/',"
+                 " csrfToken: 't', dropZoneId: 'dz', fileInputId: 'fi',"
+                 " extraFields: function (fd) { fd.append('output_format', 'mp3'); },"
+                 " afterImport: function (ids, r) { after.push(ids); }" + extra_cfg + "});")
+        return ctx
+
+    def test_on_an_entry_card_a_drop_joins_the_port_and_sends_nothing(self):
+        ctx = self._entry_card()
+        ctx.eval("api.handleDesignations([{path: 'users/3/temp/talk.wav', type: 'audio/wav'}]);")
+        self.assertEqual([['fi', 'users/3/temp/talk.wav']], json.loads(ctx.eval('JSON.stringify(attached)')))
+        self.assertEqual(0, ctx.eval('posted.length'), 'un dépôt ne crée plus rien : « Ajouter » crée')
+
+    def test_a_file_no_port_admits_is_refused_never_sent(self):
+        ctx = self._entry_card()
+        ctx.eval("var said = []; WamaApp.toast = function (m, l) { said.push(l); };"
+                 "api.handleFiles([{name: 'notes.pdf', type: 'application/pdf'}]);")
+        self.assertEqual(0, ctx.eval('posted.length'))
+        self.assertEqual(['warning'], json.loads(ctx.eval('JSON.stringify(said)')))
+
+    def test_the_card_add_button_sends_what_the_drop_sent(self):
+        ctx = self._entry_card()
+        got = json.loads(ctx.eval(
+            "var fd = new FormData(); wired.extraFields(fd); wired.afterAdded([4, 5], [{}]);"
+            "JSON.stringify({url: wired.url, button: wired.button === addBtn, ports: wired.ports,"
+            " field: wired.portOptions.fi.field, together: wired.together, lot: wired.consolidateUrl,"
+            " fields: fd.entries, after: after});"))
+        self.assertEqual({'url': '/up/', 'button': True, 'ports': 'card', 'field': 'file', 'together': False,
+                          'lot': '/lot/', 'fields': [['output_format', 'mp3']], 'after': [[4, 5]]}, got)
+
+    def test_a_multiple_import_sends_all_its_files_in_one_request(self):
+        """Le reader : son serveur range le lot lui-même (`multiple`, champ `files`)."""
+        ctx = self._entry_card(", multiple: true")
+        self.assertEqual(['files', True], json.loads(ctx.eval(
+            "JSON.stringify([wired.portOptions.fi.field, wired.together])")))
+
+    def _ready_card(self, owner='import'):
+        """Une card dont l'obligation est `[["work_audio"]]`, ses boutons, et `WamaInputSlots.checkReady`."""
+        ctx = _mini_racer(self)
+        ctx.eval(FAKE_ENV)
+        self._load_slots(ctx)
+        ctx.eval("el('fi', 'audio/*');"
+                 "var add = {disabled: false, title: '', attrs: {}, hasAttribute: function (k) { return k in this.attrs; },"
+                 "  setAttribute: function (k, v) { this.attrs[k] = v; }, removeAttribute: function (k) { delete this.attrs[k]; }};"
+                 "var launch = {disabled: false, title: '', attrs: {'data-entry-launch': ''},"
+                 "  hasAttribute: add.hasAttribute, setAttribute: add.setAttribute, removeAttribute: add.removeAttribute};"
+                 "var pane = {dataset: {portInput: 'fi', portPane: 'work_audio'}, querySelector: function () { return null; }};"
+                 "var card = {getAttribute: function (k) { return k === 'data-wama-needs' ? '[[\"work_audio\"]]' : null; },"
+                 "  querySelector: function (sel) {"
+                 "    if (sel === '[data-entry-add=\"import\"]') return '" + owner + "' === 'import' ? add : null;"
+                 "    if (sel === '[data-port-pane=\"work_audio\"][data-port-kind=\"file\"]') return pane;"
+                 "    return null; },"
+                 "  querySelectorAll: function () { return [add, launch]; }};")
+        return ctx
+
+    def test_add_and_launch_wait_for_the_obligation_then_activate(self):
+        ctx = self._ready_card()
+        self.assertEqual([False, True, True], json.loads(ctx.eval(
+            "JSON.stringify([WamaInputSlots.checkReady(card), add.disabled, launch.disabled])")))
+        self.assertIn('work_audio', ctx.eval('add.title'), 'le bouton dit ce qui manque')
+        self.assertEqual([True, False, False], json.loads(ctx.eval(
+            "elements.fi.files = [{name: 'a.wav'}];"
+            "JSON.stringify([WamaInputSlots.checkReady(card), add.disabled, launch.disabled])")))
+
+    def test_a_page_that_judges_its_own_add_is_left_alone(self):
+        """Contre-épreuve : `data-entry-add="page"` (l'appariement de l'imager) — rien n'est touché."""
+        ctx = self._ready_card(owner='page')
+        self.assertEqual([True, False], json.loads(ctx.eval(
+            "JSON.stringify([WamaInputSlots.checkReady(card), launch.disabled])")))
+
+    def test_a_page_that_wires_its_own_add_keeps_it(self):
+        """Contre-épreuve : `data-entry-add="page"` (imager, composer…) — la voie d'import ne câble rien."""
+        ctx = self._entry_card(owner='page')
+        self.assertTrue(ctx.eval('wired === null'))
 
     def test_a_card_finds_its_import_route_by_either_id(self):
         ctx = self._import()

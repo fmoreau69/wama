@@ -396,8 +396,15 @@ class CardSlots(list):
     """Les slot-rows d'une card d'entrée, plus sa FORME D'ENTRÉE (`entry`, `app_registry.entry_form`)
     — calculée sur les MÊMES ports et la MÊME obligation que les onglets, en une lecture : le gabarit
     lit `ports.entry.drop_creates` et `ports.entry.prompt` au lieu des littéraux de page
-    `depot_cree` / `show_prompt` (2026-10-19)."""
-    entry = {'creating': [], 'drop_creates': True, 'prompt': ''}
+    `depot_cree` / `show_prompt` (2026-10-19). `needs_json` (2026-11-25) : l'obligation de la forme
+    (`entry['needs']`) en JSON, posée sur la card (`data-wama-needs`) pour que ses boutons « Ajouter
+    à la file » et « Lancer » ne s'activent qu'une fois remplie."""
+    entry = {'creating': [], 'drop_creates': True, 'prompt': '', 'needs': []}
+
+    @property
+    def needs_json(self):
+        import json
+        return json.dumps((self.entry or {}).get('needs') or [])
 
 
 @register.simple_tag
