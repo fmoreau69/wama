@@ -2973,7 +2973,13 @@ MECHANISMS = (
               "`ports: 'card'` (05/10) : les ports relus sur la card v4 à chaque envoi, chacun "
               "posté sous son nom — le relevé que le composer et le générateur écrivaient chacun ; "
               "lus par la brique de la card (`WamaInputSlots.filePorts`, 2026-10-20), la seule "
-              "lecture des onglets hors d'elle",
+              "lecture des onglets hors d'elle. GESTE EXPLICITE (Fabien, 2026-11-25) : un dépôt "
+              "REMPLIT la card v4 de toute app, seuls « Ajouter à la file » et « Lancer » (crée "
+              "puis ▶, `startCreated`, route `start` de la card) créent ; rendus par la card, actifs "
+              "quand l'obligation est remplie (`entry_form.needs`, `WamaInputSlots.checkReady`) ; "
+              "câblés par la page (`data-entry-add=\"page\"`) ou par la voie d'import avec ses "
+              "réglages d'envoi (`WamaImport`, `data-entry-add=\"import\"`) — progression d'envoi, "
+              "identifiants tolérants et envoi groupé (`together`) partagés",
               'wama/common/static/common/js/wama-app-base.js', 'docs/construction/ui/CARD_DESIGN.md',
               annexes=('wama/common/manifests/codegen/templates_gen.py',
                        'wama/common/manifests/codegen/views_gen.py'),

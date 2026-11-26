@@ -2103,6 +2103,19 @@ class EntryFormComesFromThePortsTest(TestCase):
         return ('mixed' if e['drop_creates'] and e['prompt'] else 'drop' if e['drop_creates']
                 else 'attach'), e
 
+    def test_the_needs_are_the_obligation_one_group_per_requirement(self):
+        """`needs` (2026-11-25, geste explicite) : ce qui active « Ajouter » et « Lancer » — un groupe
+        par exigence, au moins un port rempli par groupe ; l'« un OU l'autre » dans les deux sens."""
+        p = self._port
+        self.assertEqual([['work_audio'], ['work_image', 'work_object3d']], self._form(
+            p('prompt', 'prompt', False), p('work_audio', 'travail', True),
+            p('work_image', 'travail', False, ['work_object3d']),
+            p('work_object3d', 'travail', False, ['work_image']))[1]['needs'])
+        self.assertEqual([['prompt', 'work_file']], self._form(
+            p('prompt', 'prompt', False), p('work_file', 'travail', False, ['prompt']))[1]['needs'])
+        self.assertEqual([['work']], self._form(p('work', 'travail'))[1]['needs'],
+                         'sans obligation déclarée : l’entrée principale')
+
     def test_the_ten_apps_get_the_form_their_pages_wrote_by_hand(self):
         p = self._port
         cases = {
@@ -2166,8 +2179,16 @@ class EntryFormComesFromThePortsTest(TestCase):
         describer = render_to_string('common/_new_item_card_v4.html', {
             'app_id': 'describer', 'drop_zone_id': 'z', 'file_input_id': 'f',
             'prompt_input_id': 'describerPrompt'})
-        self.assertIn('data-wama-depot="cree"', describer, 'contre-épreuve : le dépôt crée')
-        self.assertNotIn('id="describerPrompt"', describer)
+        # Geste explicite (Fabien, 2026-11-25) : même là où le port de travail suffit, le dépôt JOINT
+        # — la card porte « Ajouter à la file » (câblé par sa voie d'import) et « Lancer » (sa
+        # route ▶), et l'obligation qui les active.
+        self.assertIn('data-wama-depot="attache"', describer, 'un dépôt ne crée plus rien')
+        self.assertNotIn('data-wama-depot="cree"', describer + html)
+        self.assertIn('data-entry-add="import"', describer)
+        self.assertIn('data-entry-launch', describer)
+        self.assertIn('data-start-url="/describer/', describer)
+        self.assertIn('data-wama-needs="[[&quot;', describer)
+        self.assertNotIn('id="describerPrompt"', describer, 'la consigne non suffisante reste un réglage')
 
     def test_no_page_writes_the_entry_form_by_hand(self):
         """Les littéraux `depot_cree` / `show_prompt` ne sont plus lus par aucune card commune : une
