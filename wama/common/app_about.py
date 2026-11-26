@@ -81,9 +81,10 @@ ABOUT: dict = {
                      "flou épouse le contour de l'objet plutôt qu'un rectangle."},
             # verified: wama/anonymizer/params.py:122 (intent_param step=5) ; wama/anonymizer/params.py:124 (« à partir de 50, segmentation fine »)
             {'title': "Trop de fausses alertes ?",
-             'text': "Relevez le seuil de détection : seuls les objets détectés avec plus de "
-                     "confiance seront floutés."},
-            # verified: wama/anonymizer/params.py:127 (detection_threshold 0–1)
+             'text': "Relevez le seuil de floutage, ou celui d'une seule classe sous « Ce qu'on "
+                     "floute » : seuls les objets détectés avec plus de confiance seront floutés, "
+                     "sans refaire la détection."},
+            # verified: wama/anonymizer/params.py:210 (detection_threshold, stales floutage) ; wama/anonymizer/params.py:220 (blur_class_thresholds, seuil par classe)
             {'title': "Corriger une détection",
              'text': "Le bouton ✎ de la card s'active sur une image dont la détection est faite. "
                      "Les vidéos ne se corrigent pas encore à la main."},

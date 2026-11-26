@@ -1606,8 +1606,9 @@ class WhatTheCardShowsTest(TestCase):
                 self.assertEqual([['face', 'face · 1'], ['logo', 'logo · 0']],
                                  pp.item_schema_choices(schema, item)[0]['choices'],
                                  'a class with nothing above stays offered, its threshold can go down')
-        self.assertEqual(('blur_class_thresholds', 'detection_threshold'), pp.declared_thresholds('anonymizer'),
-                         'the anonymizer declares its thresholds')
+                item.own = {'face': 'beaucoup', 'logo': 0.95}
+                self.assertEqual((0.5, {'logo': 0.95}), pp.item_thresholds('demo_pipeline', item),
+                                 'an unreadable value follows the common threshold, the others stay')
 
     def test_the_requested_model_is_declared_once_and_read_by_the_card(self):
         """Each app told the strip, the progress view and the ▶ of a process which model the

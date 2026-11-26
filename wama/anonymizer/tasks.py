@@ -396,16 +396,11 @@ def understand_description(media, user) -> str:
 
 
 def blur_thresholds(media) -> tuple:
-    """`(seuil commun, {classe: seuil propre})` du floutage de la card (2026-11-25) — le seuil
-    commun est `detection_threshold`, nom gardé ; ceux des classes, `blur_class_thresholds`."""
-    common = float(media.detection_threshold if media.detection_threshold is not None else 0.0)
-    own = {}
-    for label, value in (getattr(media, 'blur_class_thresholds', None) or {}).items():
-        try:
-            own[str(label)] = float(value)
-        except (TypeError, ValueError):
-            continue
-    return common, own
+    """`(seuil commun, {classe: seuil propre})` du floutage de la card (2026-11-25) — lus de ce que
+    le schéma DÉCLARE (`process_pipeline.item_thresholds` : la correspondance `role: threshold` et
+    son `default_field`), la même lecture que la bande, les choix et le dessin."""
+    from wama.common.services.process_pipeline import item_thresholds
+    return item_thresholds('anonymizer', media) or (0.0, {})
 
 
 def detection_floor(media) -> float:

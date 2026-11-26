@@ -525,15 +525,25 @@ section qui la concerne et dans le CHANGELOG.
    profondeurs, pas la distance MÉTRIQUE : confronter d'abord aux références du cam (`placement_spread`,
    `depth_distance_report`, stationnés ancrés, GPS) ; pistes — médiane sous le masque (limite n°3),
    sous la moitié basse de la boîte, ou les deux en A/B derrière ⚑ `depth_estimation`.
-   (b) **Seuil de floutage par classe** — `display_anonymization.confident` passe au commun
-   (`common/utils/detections`) au chantier anonymizer `ROADMAP §17quater` étape 2 ; le cam y DÉLÈGUE.
+   (b) **Seuil de floutage par classe** — ✅ `display_anonymization.confident` DÉLÈGUE à
+   `common/utils/detections.confident` depuis `769d82d9d` (2026-11-25) : sorties identiques mesurées
+   avant le déport (4 documents réels, 117 182 boîtes, seuils des 4 profils, 3 000 cas tirés), suite
+   du cam verte. ⏳ RESTE au cam, à sa session : (i) son panneau « Anonymisé » refait la règle dans
+   le navigateur (`static/cam_analyzer/js/index.js:901-920`, `_anonClassOf` / seuils du profil) —
+   la jumelle commune est `WamaPreviewOverlay.belowThreshold` lue sur `detections.threshold_payload` ;
+   (ii) son profil garde sa forme (`anonymize_min_confidence` + `anonymize_class_min_confidence`,
+   bornés par `clean_class_floors`) quand l'anonymizer a la forme commune `mapping` à
+   `numeric_values` (`INPUT_MODEL_MATCHING §7ter`, bornes au serveur `param_schema._coerce_mapping`) ;
+   (iii) sa confiance de stockage `_STORAGE_CONF` (`tasks.py:1043`) vaut le plancher commun
+   `detections.DETECTION_FLOOR` (0,10) mais reste déclarée à part, pour qu'une mesure du plancher
+   (anonymizer, étape 2b) ne change pas le cam sans A/B.
    (c) **Suivi** — un suivi commun a posteriori sur le document de détections (tout détecteur, pas
    seulement YOLO) est en conception au même chantier ; les pièces du tracker [7] qui valent en
    espace IMAGE (recollage de pistes coupées, fusion des doublons `duplicate_chain_merges`, vote de
    classe `dominant_family`) sont candidates au commun, le MONDE (GPS, sol, navette) reste ici.
-   ⚠ Mesuré dans `ultralytics/trackers/track.py:96-97` : en `.track()`, une boîte que le BoT-SORT
+   ⚠ Mesuré dans `venv_linux/lib/python3.12/site-packages/ultralytics/trackers/track.py:96-97` : en `.track()`, une boîte que le BoT-SORT
    n'associe pas est JETÉE (nouvelle piste ≥ `new_track_thresh` 0,25, second appariement ≥ 0,1,
-   `cfg/trackers/botsort.yaml:7-9`) — un seuil de détection plus bas que 0,25 n'agit qu'à moitié.
+   `venv_linux/lib/python3.12/site-packages/ultralytics/cfg/trackers/botsort.yaml:7-9`) — un seuil de détection plus bas que 0,25 n'agit qu'à moitié.
 
 ---
 

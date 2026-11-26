@@ -416,12 +416,18 @@ def item_thresholds(app: str, item):
     if declared is None:
         return None
     own_name, common_name = declared
-    common = getattr(item, common_name, None) if common_name else None
-    own = getattr(item, own_name, None) or {}
     try:
-        return (float(common or 0.0), {str(k): float(v) for k, v in dict(own).items()})
+        common = float(getattr(item, common_name, None) or 0.0) if common_name else 0.0
     except (TypeError, ValueError):
-        return None
+        common = 0.0
+    own = {}
+    raw = getattr(item, own_name, None)
+    for key, value in (raw.items() if isinstance(raw, dict) else ()):
+        try:
+            own[str(key)] = float(value)
+        except (TypeError, ValueError):
+            continue                # une valeur illisible : sa classe suit le seuil commun
+    return common, own
 
 
 #: Ce que la déclaration d'un process AJOUTÉ par une card ne peut pas porter (`AppPipeline.extended`) :

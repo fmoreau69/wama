@@ -4892,9 +4892,9 @@ sont souvent les mêmes »*) ; puis B.
   par image (`MAX_DETECTIONS = 5000`, `anonymize.py:17`) que la qualification, le suivi et chaque
   lecture paient. Le document le DIT (`conf_floor`) et c'est aussi le bas du curseur d'affichage.
   Filtrer après coup rend exactement ce qu'aurait rendu la détection au seuil (la NMS garde la
-  boîte la plus sûre), sauf ce que le SUIVI jetait : ⚠ `ultralytics/trackers/track.py:96-97`
+  boîte la plus sûre), sauf ce que le SUIVI jetait : ⚠ `venv_linux/lib/python3.12/site-packages/ultralytics/trackers/track.py:96-97`
   garde les seules boîtes associées par BoT-SORT (nouvelle piste ≥ 0,25, second appariement ≥ 0,1,
-  `botsort.yaml:7-9`).
+  `venv_linux/lib/python3.12/site-packages/ultralytics/cfg/trackers/botsort.yaml:7-9`).
 - **SUIVI COMMUN** (« profite-t-on du tracking comme dans le cam analyzer ? ») : aujourd'hui YOLO
   suit par le BoT-SORT d'ultralytics réglé par défaut, les autres détecteurs (EgoBlur, RT-DETR,
   SAM3 image, LocateAnything) ne suivent rien — d'où SEQ08-01 sans aucune piste et la chaîne de
@@ -4920,7 +4920,7 @@ sont souvent les mêmes »*) ; puis B.
   devraient passer après le filtre du seuil ? ») : deux seuils. Le PLANCHER (à la détection) — sous
   lui rien n'existe, rien n'est traité. Le SEUIL DE FLOUTAGE (par classe, réglable en direct) —
   jugé par OBJET (sa meilleure confiance), il vient donc APRÈS le suivi, qui a besoin des boîtes
-  peu sûres pour prolonger un objet sûr (BYTETrack : `ultralytics/trackers/byte_tracker.py:292-294`,
+  peu sûres pour prolonger un objet sûr (BYTETrack : `venv_linux/lib/python3.12/site-packages/ultralytics/trackers/byte_tracker.py:292-294`,
   une boîte faible ne fonde jamais une piste). La qualification se fait au-dessus du PLANCHER : la
   profondeur est une carte PAR IMAGE quel que soit le nombre de boîtes
   (`detection_attributes.py:164`), le reste quelques ms par boîte — sans quoi baisser le curseur
@@ -4933,7 +4933,7 @@ sont souvent les mêmes »*) ; puis B.
   (`detections._links`, gloutonne, même libellé exigé) ; le cam_analyzer suit en deux étages —
   BoT-SORT d'ultralytics par caméra pendant la détection (`cam_analyzer/tasks.py:1189`, à 0,10 :
   le « stockage exhaustif » de `tasks.py:1039` ne l'est pas sous 0,25 pour un objet NOUVEAU,
-  `track.py:96-97`), puis le suivi global en repère monde (`multicam_tracker.annotate_global_tracks`)
+  `venv_linux/lib/python3.12/site-packages/ultralytics/trackers/track.py:96-97`), puis le suivi global en repère monde (`multicam_tracker.annotate_global_tracks`)
   dont quatre pièces valent en espace image : recollement un pour un (`one_to_one_stitches`),
   doublons d'une même image (`duplicate_chain_merges`), vote de famille (`dominant_family`), boîte
   distincte (`claims_distinct_box`). Plan (étape 2c) : ces pièces passent TELLES QUELLES dans
@@ -4941,7 +4941,7 @@ sont souvent les mêmes »*) ; puis B.
   `trajectory_twins`) et le cam_analyzer les importe de là, prouvé par une comparaison
   ancienne/nouvelle version sur ses vraies entrées ; un suivi COMMUN après détection sur le
   document (le même traceur de la librairie, sur l'union des modèles, les boîtes non suivies
-  GARDÉES — il rend l'indice de chaque boîte, `byte_tracker.py:224`), puis ces pièces en pixels ;
+  GARDÉES — il rend l'indice de chaque boîte, `venv_linux/lib/python3.12/site-packages/ultralytics/trackers/byte_tracker.py:224`), puis ces pièces en pixels ;
   `_links` lit ces pistes. Le cam_analyzer ne change pas de comportement : son adoption est une A/B
   de sa session (n°9 c).
 - ✅ **Étape 2a livrée (2026-11-25, soir)** — le seuil de floutage PAR CLASSE :
