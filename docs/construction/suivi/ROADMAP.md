@@ -4958,6 +4958,57 @@ sont souvent les mêmes »*) ; puis B.
   dessous. ⏳ 2b mesure (plancher, défauts par classe), 2c suivi commun puis seuil jugé par OBJET
   (aujourd'hui la bande compte l'objet à sa meilleure confiance, le floutage juge encore chaque
   boîte).
+- 🔄 **Étape 2b (2026-11-26) — mesurer le plancher et les seuils, et une régression de 2a
+  rattrapée.**
+  - **Régression de 2a, corrigée** : EgoBlur garde son seuil MESURÉ (0,1 à son échelle, « ses
+    scores n'ont pas l'échelle de YOLO » : 59,5 % des plaques à 0,1, 50 % à 0,25,
+    `egoblur_backend.py:4-7`) ; depuis le seuil de floutage commun, ses boîtes entre 0,1 et 0,25
+    auraient été écartées au floutage (`anonymizer/tasks.py` `_blur` → `detections.confident`).
+    Aucun document réel n'en portait (mesuré, lecture seule : 0 document EgoBlur), la prochaine
+    card de plaques aurait perdu ~10 points. ✅ L'ÉCHELLE des scores entre au contrat commun des
+    détecteurs (`FrameDetectionBackend.own_scale_threshold` / `to_common_score` / `to_own_score`,
+    `common/backends/detection_base.py`) : un modèle qui déclare son seuil mesuré voit ses scores
+    ramenés à l'échelle commune (ce seuil vaut `DEFAULT_THRESHOLD`, linéaire par morceaux) et
+    reçoit le plancher de la card à SON échelle — le seuil par défaut floute ce que son seuil
+    gardait, et le plancher s'applique à lui. SAM3 garde le sien (0,3 > 0,25 : rien de perdu ;
+    son échelle reste à mesurer). ⚠ Faster R-CNN d'EgoBlur ne rend rien sous ≈ 0,125 commun (son
+    seuil interne) : son `conf_floor` dit 0,10, le balayage montre des crans 0,02–0,10 identiques.
+  - ✅ **Le balayage de seuils au banc** (`bench --task detect-boxes|detect-recall --sweep`,
+    `model_manager/services/bench.py` `SWEEP_THRESHOLDS`, `at_thresholds`, `sweep_rows`) : les
+    détecteurs passent UNE fois au plus bas cran, chaque seuil se lit par la règle commune
+    `confident` ; rappel, précision, détections par cran, gardés au détail d'une mesure
+    (`detail['sweep']`) ; un cran sous le plancher réellement appliqué n'est pas rendu.
+    Honnêteté de la lecture : `yolov9s-face-lindevs` sur 400 images, passe directe à 0,25 contre
+    ligne 0,25 du balayage — rappel 0,733 des deux côtés, 4 595 contre 4 598 détections (+0,07 %,
+    les deux échelles de l'image ne sont pas strictement préfixe-stables ; côté du flou en plus).
+  - **Mesuré, WIDER FACE val, 400 images régulières, IoU 0,5** (rappel / précision / détections) :
+
+    | seuil | yolov9e-lindevs | yolov12l-face | yolov9s-lindevs | egoblur-face |
+    |---|---|---|---|---|
+    | 0,02 | 0,874 / 0,41 / 11 400 | 0,874 / 0,42 / 11 065 | 0,842 / 0,45 / 10 104 | 0,509 / 0,81 / 3 348 |
+    | 0,05 | 0,856 / 0,56 / 8 222 | 0,854 / 0,57 / 8 071 | 0,818 / 0,61 / 7 141 | (idem) |
+    | **0,10** | 0,833 / 0,67 / 6 636 | 0,831 / 0,69 / 6 482 | 0,793 / 0,73 / 5 821 | 0,509 / 0,81 / 3 348 |
+    | 0,15 | 0,813 / 0,73 / 5 947 | 0,813 / 0,75 / 5 762 | 0,774 / 0,79 / 5 239 | 0,506 / 0,83 / 3 270 |
+    | 0,20 | 0,799 / 0,78 / 5 505 | 0,796 / 0,80 / 5 326 | 0,755 / 0,83 / 4 878 | 0,502 / 0,85 / 3 150 |
+    | **0,25** | 0,784 / 0,81 / 5 180 | 0,783 / 0,83 / 5 033 | 0,733 / 0,85 / 4 598 | 0,497 / 0,87 / 3 057 |
+    | 0,30 | 0,770 / 0,84 / 4 918 | 0,766 / 0,86 / 4 751 | 0,718 / 0,88 / 4 362 | 0,487 / 0,90 / 2 896 |
+    | 0,40 | 0,738 / 0,88 / 4 464 | 0,732 / 0,91 / 4 322 | 0,682 / 0,92 / 3 962 | 0,469 / 0,94 / 2 666 |
+    | 0,50 | 0,704 / 0,92 / 4 107 | 0,685 / 0,94 / 3 910 | 0,645 / 0,95 / 3 634 | 0,454 / 0,96 / 2 536 |
+
+    Lecture : la courbe NE s'aplatit PAS à 0,10 pour les visages YOLO (+2,3 points de rappel à
+    0,05, +4 à 0,02, au prix de +24 % puis +72 % de détections et d'une précision à 0,41) ; le
+    SURCOÛT de la qualification au plancher 0,10 = **+27 à +29 % d'objets** suivis et qualifiés
+    au-delà de ceux floutés à 0,25 (+55 à +60 % à 0,05) ; la passe à 0,02 coûte aussi du temps de
+    détection (130 contre 88 ms/image pour `yolov9s`, NMS sur plus de candidats). Rien rangé
+    (`--record` aurait remplacé les mesures du jeu complet, 3 226 images, par un échantillon).
+  - ⏳ **Plaques non mesurées** : la référence de contenants du banc des plaques (320 images, 4
+    caméras, `containment_v1`, empreinte `9170b4b5…`) n'est plus nulle part — ni sous
+    `benchmarks/` du partage des jeux, ni dans les dossiers de session ; seules ses 16 mesures à
+    0,25 restent en base. La reconstruire (boîtes des véhicules suivis par le cam_analyzer) et la
+    poser en banc déclaré sous `benchmarks/` est le préalable — décision attendue.
+  - ⏳ **Décisions attendues** : le plancher (0,10 garde ; 0,05 gagne 2 points de rappel des
+    visages pour +24 % d'objets à qualifier) ; le seuil de floutage par défaut des visages (0,25 :
+    78 % / 81 % ; 0,15 : 81 % / 73 %).
 
 **Restes nommés (2026-11-25)** : ✅ B : attributs tirés de la DESCRIPTION, relations et rang
 (ci-dessus) ; ✅ le rang par objet sur une vidéo (sans attendre D : piste ou chaîne) ; ✅ un texte

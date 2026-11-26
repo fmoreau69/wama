@@ -22,6 +22,12 @@ ecartee) sur un echantillon regulier d'un banc « vraies boites ». Comme `detec
 materiel) — le curseur rapide/qualite de toutes les apps le lit (`eta_estimator.comparable_speeds`).
     python manage.py bench --task detect-speed --benchmark faces_wider_val_v1
 
+`--sweep` (2026-11-26, `ROADMAP §17quater` 2b) : `detect-boxes` et `detect-recall` lus aussi a
+chaque cran de `SWEEP_THRESHOLDS`, sur UNE passe des detecteurs au plus bas cran — rappel,
+precision (ou detections dans un contenant) et nombre de detections par seuil : le plancher, les
+seuils par defaut d'une classe et le surcout de la qualification au-dessus du plancher.
+    python manage.py bench --task detect-boxes --benchmark faces_wider_val_v1 --sweep --limit 400
+
 `upscale` (2026-10-14) : agrandissement PAR CONSTRUCTION — chaque image nette est reduite du
 facteur du modele, agrandie, puis comparee a l'original (LPIPS, plus bas = mieux). `--record` la
 range (`ResultEvaluation`) ; la vitesse va dans la boucle d'ETA (secondes par megapixel).
@@ -36,7 +42,7 @@ import os
 from django.core.management.base import BaseCommand, CommandError
 
 from wama.model_manager.services.bench import (
-    CANDIDATES, RECORDING, SAMPLING, available_tasks, models_for_task, run_bench,
+    CANDIDATES, RECORDING, SAMPLING, SWEEPING, available_tasks, models_for_task, run_bench,
 )
 
 
@@ -64,6 +70,9 @@ class Command(BaseCommand):
                             help="detect-boxes / upscale : echantillon regulier de N images (0 = tout "
                                  "le jeu) ; "
                                  "detect-speed : idem, 0 = SPEED_SAMPLE images.")
+        parser.add_argument('--sweep', action='store_true',
+                            help="detect-boxes / detect-recall : lit aussi chaque seuil de "
+                                 "SWEEP_THRESHOLDS sur une seule passe des detecteurs.")
 
     def handle(self, *args, **options):
         task, media = options['task'], options['media']
@@ -90,6 +99,10 @@ class Command(BaseCommand):
             protocol_options['record'] = options['record']
         if task in SAMPLING:
             protocol_options['limit'] = options['limit']
+        if task in SWEEPING:
+            protocol_options['sweep'] = options['sweep']
+        elif options['sweep']:
+            raise CommandError(f"--sweep : protocoles {', '.join(SWEEPING)} seulement")
 
         try:
             measures = run_bench(task, media,
@@ -141,6 +154,11 @@ class Command(BaseCommand):
                 line += (f"  rappel {m.get('recall')}  dans-contenant {m.get('inside_rate')}"
                          f"  {m.get('ms_per_frame')} ms/img")
             self.stdout.write(self.style.WARNING(line + "  ⚠ saturé") if m['saturated'] else line)
+            for threshold, row in (m.get('sweep') or {}).items():
+                quality = (f"precision {row['precision']}" if 'precision' in row
+                           else f"dans-contenant {row.get('inside_rate')}")
+                self.stdout.write(f"      seuil {threshold}  rappel {row['recall']}  {quality}"
+                                  f"  detections {row['detections']}")
 
         self.stdout.write(self.style.NOTICE(
             "\nCe sont des mesures COMPARABLES, pas des notes de qualite : compter des sorties ne "

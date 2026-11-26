@@ -58,6 +58,60 @@ class MatchTest(SimpleTestCase):
         self.assertEqual({'tiny': 1}, counts['hit_buckets'])
 
 
+class ThresholdSweepTest(SimpleTestCase):
+    """2026-11-26 (`ROADMAP §17quater` 2b) : the detectors go ONCE, at the lowest step ; each
+    threshold is read by the common blur rule — the floor, the per-class defaults and the cost of
+    qualifying what is not blurred are measured without running the model again."""
+
+    def _run(self, floor):
+        from wama.common.utils import detections as dets
+        from wama.model_manager.services import bench
+
+        def detect(**kw):
+            doc = dets.new_document(media='image', width=200, height=200)
+            doc['conf_floor'] = floor
+            dets.add(doc, 0, [d for d in (
+                dets.detection(box=[0, 0, 10, 10], label='face', conf=0.9),
+                dets.detection(box=[50, 50, 60, 60], label='face', conf=0.12),
+                dets.detection(box=[100, 100, 110, 110], label='face', conf=0.3))
+                if d['conf'] >= floor])
+            calls.append(kw['detection_threshold'])
+            return doc
+        calls = []
+        ref = {'class': 'face', 'images': '/x', 'iou': 0.5,
+               'entries': [{'path': 'a.jpg', 'boxes': [[0, 0, 10, 10], [50, 50, 60, 60]],
+                            'ignore': []}]}
+        detectors = mock.Mock()
+        detectors.detect.side_effect = detect
+        entry = mock.Mock(model_key='m', pk=1)
+        with mock.patch.object(bench, 'read_boxes_reference', return_value=ref), \
+                mock.patch('wama.common.services.detection_ensemble.DetectorSet',
+                           return_value=detectors), \
+                mock.patch.object(bench, '_bench_descriptor', return_value={}), \
+                mock.patch.object(bench._SpeedClock, 'detect',
+                                  lambda self, d, path, **kw: d.detect(media_path=path, **kw)):
+            return bench._bench_boxes(entry, 'ref.json', conf=0.25, sweep=True), calls
+
+    def test_one_pass_at_the_lowest_step_reads_every_threshold(self):
+        from wama.model_manager.services import bench
+        measure, calls = self._run(floor=0.02)
+        self.assertEqual([bench.SWEEP_THRESHOLDS[0]], calls, 'one pass, at the lowest step')
+        sweep = measure['sweep']
+        self.assertEqual((1.0, 0.6667, 3), (sweep['0.10']['recall'], sweep['0.10']['precision'],
+                                            sweep['0.10']['detections']))
+        self.assertEqual((0.5, 0.5, 2), (sweep['0.25']['recall'], sweep['0.25']['precision'],
+                                         sweep['0.25']['detections']))
+        self.assertEqual((0.5, 0.5), (measure['recall'], measure['precision']),
+                         'the main measure is the row of its threshold')
+
+    def test_the_steps_under_the_applied_floor_are_not_reported(self):
+        measure, _calls = self._run(floor=0.3)        # a model that keeps its own threshold
+        self.assertNotIn('0.25', measure['sweep'], 'nothing was kept under 0.3 : not measured')
+        self.assertEqual('0.30', min(measure['sweep']))
+        self.assertEqual(0.5, measure['recall'],
+                         'the main measure under the floor is the document as it is')
+
+
 class ContainmentCountsTest(SimpleTestCase):
     """The recall bench on containers (moved here from `tests_detection_ensemble`, 2026-10-12 :
     a test of the bench is part of the bench, not a consumer of it)."""

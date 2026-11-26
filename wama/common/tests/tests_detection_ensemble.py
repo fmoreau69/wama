@@ -112,6 +112,30 @@ class FrameDetectionLoopTest(SimpleTestCase):
                          (doc['engine'], doc['media'], doc['frame_count'], doc['tag']))
         self.assertEqual(5, done[-1])
 
+    def test_a_model_with_its_own_score_scale_is_blurred_at_its_measured_threshold(self):
+        """2026-11-26 (`ROADMAP §17quater` 2b) : EgoBlur's 0.1 is YOLO's 0.25. A model that
+        declares its measured threshold gets the card's floor at ITS scale, and its scores come
+        back at the common scale, that threshold worth the default : the common blur threshold
+        blurs what its measured threshold kept — before, a raw 0.1 plate was dropped at 0.25."""
+        seen = []
+
+        def results(call, k):
+            return [dets.detection(box=[1, 1, 9, 9], label='plate', conf=0.1),
+                    dets.detection(box=[20, 1, 29, 9], label='plate', conf=0.05)]
+        detector = _FakeDetector.make(results)
+        type(detector).own_scale_threshold = lambda self: 0.1
+        original = type(detector).detect_frames
+        type(detector).detect_frames = lambda self, images, t: seen.append(t) or original(self, images, t)
+        doc = detector.detect(media_path=self.video, classes2blur=['plate'],
+                              detection_threshold=dets.DETECTION_FLOOR)
+        self.assertAlmostEqual(0.04, seen[0], 6, 'the floor 0.10 reaches the model at its scale')
+        self.assertEqual({0.25, 0.125}, {d['conf'] for f in doc['frames'] for d in f['d']})
+        self.assertEqual(5, dets.count(dets.confident(doc, 0.25)),
+                         'the measured threshold blurs at the default threshold')
+        self.assertAlmostEqual(0.3, detector.to_own_score(detector.to_common_score(0.3)), 6)
+        plain = _FakeDetector.make(results)
+        self.assertEqual(0.3, plain.to_common_score(0.3), 'a common-scale model is left as is')
+
     def test_a_failing_batch_leaves_its_frames_empty_and_the_media_goes_on(self):
         def results(call, k):
             if call == 1:

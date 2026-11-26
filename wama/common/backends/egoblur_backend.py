@@ -101,9 +101,14 @@ class EgoBlurBackend(FrameDetectionBackend):
     def prepare(self, **kwargs) -> None:
         self.load()
 
-    def threshold_for(self, **kwargs) -> float:
-        """Le seuil MESURÉ du modèle : le seuil de la card est à l'échelle des scores YOLO."""
-        return float(self._spec['threshold'])
+    def own_scale_threshold(self):
+        """Le seuil MESURÉ du modèle, à SON échelle : il vaut le seuil par défaut de l'échelle
+        commune (`FrameDetectionBackend.to_common_score`). Jusqu'au 2026-11-26 il REMPLAÇAIT le
+        seuil de la card (`threshold_for`) ; depuis le seuil de floutage commun (étape 2a), un
+        score brut entre 0,1 et 0,25 aurait été écarté au floutage — les plaques que ce seuil
+        mesuré était là pour garder."""
+        spec = self._spec or self.SUPPORTED_MODELS.get(self._model_id()) or {}
+        return float(spec['threshold']) if spec.get('threshold') else None
 
     def document_meta(self, **kwargs) -> dict:
         return {'engine': 'egoblur', 'models': [self.catalogue_key or self._model_id()]}

@@ -338,13 +338,15 @@ def containment_counts(doc: dict, ref: dict) -> dict:
 
 
 def _bench_recall(entry: AIModel, sample: str, *, conf: float = 0.25, record: bool = False,
-                  **_) -> dict:
+                  sweep: bool = False, **_) -> dict:
     """Le rappel d'UN modele sur une reference de contenants ; `record` range la mesure
-    (`ResultEvaluation`, une ligne par modele — l'etage 3 de l'echelle des signaux)."""
+    (`ResultEvaluation`, une ligne par modele — l'etage 3 de l'echelle des signaux) ; `sweep` le
+    lit aussi à chaque cran de `SWEEP_THRESHOLDS` (une seule passe du modèle)."""
     import hashlib
 
     from wama.common.services.detection_ensemble import DetectorSet
     from wama.common.services.model_coverage import miss_metric
+    from wama.common.utils.detections import floor_of
 
     ref = read_recall_reference(sample)
     frames = max(len(ref['containers']), 1)
@@ -353,15 +355,19 @@ def _bench_recall(entry: AIModel, sample: str, *, conf: float = 0.25, record: bo
     # passe de chauffe : sur une vidéo elle doublerait le banc — la première image porte donc
     # l'initialisation du GPU, une part négligeable sur des centaines d'images.
     detectors = DetectorSet([_bench_descriptor(entry, ref['class'])])
+    grid = sweep_grid(conf, sweep)
     clock = _SpeedClock(warm_up=False)
     try:
         doc = clock.detect(detectors, ref['media'], classes2blur=[ref['class']],
-                           detection_threshold=conf)
+                           detection_threshold=grid[0])
     finally:
         clock.close()
     elapsed = clock.total
-    clock.record(entry.model_key, frames)
-    counts = containment_counts(doc, ref)
+    if not sweep:          # un balayage ne détecte pas au seuil de l'app : hors boucle d'ETA
+        clock.record(entry.model_key, frames)
+    by_threshold = {t: containment_counts(kept, ref) for t, kept in at_thresholds(doc, grid).items()}
+    swept = sweep_rows(by_threshold, floor_of(doc)) if sweep else None
+    counts = by_threshold[round(float(conf), 3)]
     miss = round(counts['missed'] / counts['near'], 4) if counts['near'] else None
     if record and miss is not None:
         from wama.common.models import ResultEvaluation
@@ -376,7 +382,8 @@ def _bench_recall(entry: AIModel, sample: str, *, conf: float = 0.25, record: bo
                       'detail': {'errors': counts['missed'], 'reference_length': counts['near'],
                                  'unit': 'object', 'detections': counts['detections'],
                                  'inside': counts['inside'], 'threshold': conf,
-                                 'ms_per_frame': round(1000 * elapsed / frames, 1)}})
+                                 'ms_per_frame': round(1000 * elapsed / frames, 1),
+                                 **({'sweep': swept} if swept else {})}})
     return {
         'outputs': counts['detections'],
         'mean_confidence': None,
@@ -386,7 +393,7 @@ def _bench_recall(entry: AIModel, sample: str, *, conf: float = 0.25, record: bo
         'recall': round(1 - miss, 3) if miss is not None else None,
         'inside_rate': round(counts['inside'] / counts['detections'], 3)
         if counts['detections'] else None,
-        'ms_per_frame': round(1000 * elapsed / frames, 1),
+        'ms_per_frame': round(1000 * elapsed / frames, 1), 'sweep': swept,
     }
 
 
@@ -503,6 +510,56 @@ def _iou(a, b) -> float:
     return iou(a, b)
 
 
+# ── Balayage de SEUILS (2026-11-26, `ROADMAP §17quater` étape 2b) ─────────────────────────────────
+# Les détecteurs passent UNE fois, au plus bas seuil de la grille ; chaque seuil se lit ensuite par
+# la règle commune du seuil de floutage (`detections.confident`), sans repasser le modèle. C'est ce
+# qui mesure le PLANCHER (ce que l'on gagne encore en dessous de `DETECTION_FLOOR`), les seuils par
+# défaut d'une classe (rappel et précision à chaque cran) et le SURCOÛT de la qualification (les
+# objets entre le plancher et le seuil sont suivis et qualifiés sans être floutés).
+# ⚠ Un détecteur qui garde son PROPRE seuil (EgoBlur, SAM3 : `threshold_for`) ignore la grille sous
+# lui : son document le dit (`conf_floor`), et ces crans-là ne sont pas rendus — on ne mesure pas
+# ce qui n'a pas été gardé.
+#: La grille d'un balayage ; son premier cran est le seuil auquel les détecteurs passent.
+SWEEP_THRESHOLDS = (0.02, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.40, 0.50)
+
+
+def sweep_grid(conf: float, sweep: bool) -> list:
+    """Les seuils lus : `conf` seul, ou `conf` et la grille du balayage."""
+    return sorted({round(float(conf), 3)} | (set(SWEEP_THRESHOLDS) if sweep else set()))
+
+
+def at_thresholds(doc: dict, grid) -> dict:
+    """Le document à chaque seuil de `grid` — la règle du seuil de floutage, une copie par
+    seuil. Sous son `conf_floor`, il est rendu tel quel (tout ce qu'il garde est au-dessus) ; le
+    balayage ne rend pas ces crans-là (`sweep_rows`)."""
+    from wama.common.utils.detections import confident
+    return {t: confident(doc, t) for t in grid}
+
+
+def _found(doc: dict) -> list:
+    return [(d['box'], d.get('conf', 1.0)) for f in doc.get('frames') or [] for d in f['d']]
+
+
+def sweep_rows(totals: dict, floor=None) -> dict:
+    """Les comptes d'un balayage, cran par cran ({seuil: comptes}), en rappel / précision /
+    détections — la forme gardée au détail d'une mesure (`detail['sweep']`). Les crans sous le
+    plancher réellement appliqué (`floor`) ne sont pas rendus : rien n'y a été gardé."""
+    rows = {}
+    for t, c in sorted(totals.items()):
+        if floor is not None and t < floor - 1e-9:
+            continue
+        truth = c.get('truth') or c.get('near') or 0
+        hits = c['tp'] if 'tp' in c else c.get('found', 0)
+        detections = c['tp'] + c['fp'] if 'tp' in c else c.get('detections', 0)
+        row = {'recall': round(hits / truth, 4) if truth else None, 'detections': detections}
+        if 'tp' in c:
+            row['precision'] = round(c['tp'] / detections, 4) if detections else None
+        elif detections:
+            row['inside_rate'] = round(c.get('inside', 0) / detections, 4)
+        rows[f'{t:.2f}'] = row
+    return rows
+
+
 def _bucket(box) -> str:
     h = box[3] - box[1]
     return next(name for ceiling, name in SIZE_BUCKETS if h < ceiling)
@@ -551,36 +608,50 @@ def match_boxes(found, truth, ignore, iou: float = 0.5) -> dict:
 
 
 def _bench_boxes(entry: AIModel, sample: str, *, conf: float = 0.25, record: bool = False,
-                 limit: int = 0, **_) -> dict:
-    """Rappel et precision d'UN modele sur un jeu annote (par le chemin de l'anonymizer)."""
+                 limit: int = 0, sweep: bool = False, **_) -> dict:
+    """Rappel et precision d'UN modele sur un jeu annote (par le chemin de l'anonymizer) ;
+    `sweep` les lit aussi à chaque cran de `SWEEP_THRESHOLDS` (une seule passe du modèle)."""
     import hashlib
 
     from wama.common.services.detection_ensemble import DetectorSet
     from wama.common.services.model_coverage import miss_metric
+    from wama.common.utils.detections import floor_of
 
     ref = read_boxes_reference(sample)
     entries = _sampled(ref['entries'], limit)
     detectors = DetectorSet([_bench_descriptor(entry, ref['class'])])
+    grid = sweep_grid(conf, sweep)
     totals = {'truth': 0, 'tp': 0, 'fp': 0}
+    by_threshold = {}
     buckets = {}
+    floors = set()
     clock = _SpeedClock()
     start = time.perf_counter()
     try:
         for item in entries:
             doc = clock.detect(detectors, os.path.join(ref['images'], item['path']),
-                               classes2blur=[ref['class']], detection_threshold=conf)
-            found =[(d['box'], d.get('conf', 1.0)) for f in doc.get('frames') or [] for d in f['d']]
-            counts = match_boxes(found, item['boxes'], item['ignore'], ref['iou'])
-            for k in totals:
-                totals[k] += counts[k]
-            for name, n in counts['truth_buckets'].items():
-                b = buckets.setdefault(name, [0, 0])
-                b[1] += n
-                b[0] += counts['hit_buckets'].get(name, 0)
+                               classes2blur=[ref['class']], detection_threshold=grid[0])
+            floors.add(floor_of(doc))
+            for t, kept in at_thresholds(doc, grid).items():
+                counts = match_boxes(_found(kept), item['boxes'], item['ignore'], ref['iou'])
+                row = by_threshold.setdefault(t, {'truth': 0, 'tp': 0, 'fp': 0})
+                for k in row:
+                    row[k] += counts[k]
+                if t != round(float(conf), 3):
+                    continue
+                for k in totals:
+                    totals[k] += counts[k]
+                for name, n in counts['truth_buckets'].items():
+                    b = buckets.setdefault(name, [0, 0])
+                    b[1] += n
+                    b[0] += counts['hit_buckets'].get(name, 0)
     finally:
         clock.close()
     elapsed = time.perf_counter() - start
-    ms_per_item = clock.record(entry.model_key)
+    # Un balayage ne détecte pas au seuil de l'app : son temps n'entre pas dans la boucle d'ETA.
+    ms_per_item = clock.ms_per_item() if sweep else clock.record(entry.model_key)
+    floor = max((f for f in floors if f is not None), default=None)
+    swept = sweep_rows(by_threshold, floor) if sweep else None
     missed = totals['truth'] - totals['tp']
     miss = round(missed / totals['truth'], 4) if totals['truth'] else None
     detections = totals['tp'] + totals['fp']
@@ -601,13 +672,14 @@ def _bench_boxes(entry: AIModel, sample: str, *, conf: float = 0.25, record: boo
                                  'unit': 'object', 'images': len(entries),
                                  'false_positives': totals['fp'], 'precision': precision,
                                  'by_size': by_size, 'threshold': conf,
-                                 'ms_per_image': round(1000 * elapsed / max(len(entries), 1), 1)}})
+                                 'ms_per_image': round(1000 * elapsed / max(len(entries), 1), 1),
+                                 **({'sweep': swept} if swept else {})}})
     return {
         'outputs': detections, 'mean_confidence': None, 'load_s': None,
         'inference_s': round(elapsed, 2), 'saturated': False,
         'recall': round(1 - miss, 3) if miss is not None else None,
         'precision': precision, 'by_size': by_size,
-        'ms_per_frame': ms_per_item,
+        'ms_per_frame': ms_per_item, 'sweep': swept,
     }
 
 
@@ -851,6 +923,8 @@ CANDIDATES = {'detect-recall': recall_candidates, 'detect-boxes': boxes_candidat
 #: Protocoles qui savent RANGER leur mesure (`--record`) et échantillonner (`--limit`).
 RECORDING = ('detect-recall', 'detect-boxes', 'detect-speed', ModelTask.UPSCALE.value)
 SAMPLING = ('detect-boxes', 'detect-speed', ModelTask.UPSCALE.value)
+#: Protocoles qui savent BALAYER les seuils (`--sweep`, `SWEEP_THRESHOLDS`).
+SWEEPING = ('detect-recall', 'detect-boxes')
 
 
 def available_tasks() -> list:

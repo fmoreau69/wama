@@ -131,8 +131,42 @@ class FrameDetectionBackend(DetectionBackend):
     DEFAULT_THRESHOLD = 0.25
 
     def detect_frames(self, images, threshold: float) -> list:
-        """Les détections de chaque image du lot : une liste par image, même ordre."""
+        """Les détections de chaque image du lot : une liste par image, même ordre. `threshold`
+        est à l'échelle PROPRE du modèle (`own_scale_threshold`), ses `conf` aussi."""
         raise NotImplementedError
+
+    # ── L'ÉCHELLE des scores (2026-11-26, `ROADMAP §17quater` étape 2b) ──────────────────────────
+    # Le seuil de floutage est COMMUN à tous les détecteurs d'une card (`detections.confident`),
+    # or certains modèles n'ont pas l'échelle de scores de YOLO : le 0,1 d'EgoBlur vaut le 0,25 de
+    # YOLO (mesuré au banc des plaques : 59,5 % de rappel à 0,1, 50 % à 0,25). Un tel modèle
+    # DÉCLARE son seuil mesuré (`own_scale_threshold`) : la base ramène ses scores à l'échelle
+    # commune, linéaire par morceaux, ce seuil valant `DEFAULT_THRESHOLD` (0 → 0, 1 → 1), et lui
+    # passe le seuil de la card à SON échelle. Le seuil de floutage par défaut floute donc ce que
+    # son seuil mesuré gardait, et le plancher s'applique à lui comme aux autres.
+    def own_scale_threshold(self):
+        """Le seuil MESURÉ du modèle à sa propre échelle, équivalent de `DEFAULT_THRESHOLD` ; None
+        quand ses scores ont déjà l'échelle commune (YOLO, RT-DETR)."""
+        return None
+
+    def to_common_score(self, score: float) -> float:
+        """Un score du modèle, à l'échelle commune."""
+        own, common = self.own_scale_threshold(), self.DEFAULT_THRESHOLD
+        score = float(score)
+        if not own or own >= 1.0:
+            return score
+        if score <= own:
+            return score * common / own
+        return common + (score - own) * (1.0 - common) / (1.0 - own)
+
+    def to_own_score(self, score: float) -> float:
+        """Un seuil de l'échelle commune, à l'échelle du modèle (l'inverse de `to_common_score`)."""
+        own, common = self.own_scale_threshold(), self.DEFAULT_THRESHOLD
+        score = float(score)
+        if not own or own >= 1.0:
+            return score
+        if score <= common:
+            return score * own / common
+        return own + (score - common) * (1.0 - own) / (1.0 - common)
 
     def document_meta(self, **kwargs) -> dict:
         """`engine`, `models`, `prompt` du document — ce que le détecteur dit de lui-même."""
@@ -199,15 +233,25 @@ class FrameDetectionBackend(DetectionBackend):
             return [d for d in found if d.get('conf', 1.0) >= threshold
                     and (not accepted or normaliser_classe(d.get('label')) in accepted)]
 
+        own_scale = self.own_scale_threshold() is not None
+
+        def _common(found):
+            if own_scale:
+                for d in found:
+                    if 'conf' in d:
+                        d['conf'] = round(self.to_common_score(d['conf']), 3)
+            return found
+
         def _batch(start, images):
             try:
-                results = self.detect_frames(images, threshold)
+                results = self.detect_frames(
+                    images, self.to_own_score(threshold) if own_scale else threshold)
             except Exception as error:
                 # Une frame ratée n'arrête pas le média : elle reste sans détection, et le
                 # journal le dit (règle reprise de SAM3).
                 logger.warning(f"[{type(self).__name__}] frames {start}+{len(images)} : {error}")
                 results = [[] for _ in images]
-            return [_kept(found) for found in results]
+            return [_kept(_common(found)) for found in results]
 
         meta = self.document_meta(**kwargs)
         if is_image(source):
