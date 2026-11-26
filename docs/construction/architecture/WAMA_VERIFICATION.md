@@ -2206,6 +2206,23 @@ pour ce que `themes.py` déclare autrement.
   (`wama-input-match.js`) a TROIS modules V8 par sujet — `tests_input_match_capability`,
   `tests_input_match_modality`, `tests_input_match_card_match` (ajouté le 09/11) —, chacun avec sa
   copie de `_v8` : un module de la brique, une fixture commune.
+- *2026-11-26, les deux PRÉALABLES du système de mesure (`WAMA_QUALITE §10.9`), remesurés sur les
+  rapports de novembre (lecture seule, aucun test lancé)* :
+  ① **Le délai d'un scénario n'est toujours pas appliqué** (`nightly_tests.run_one`, docstring
+  « timeout dur = TODO prod », `nightly_tests.py:430`) : un scénario se joue DANS le processus de
+  la campagne, et rien ne sait interrompre proprement un navigateur, une requête de base ou un
+  modèle en cours. Mesuré : **un seul** scénario dépasse son délai déclaré, chaque jour —
+  `common.contrast`, 600 s déclarées (`ui_smoke_contrast.py:195`), **810 à 990 s** mesurées du 20
+  au 25/11. `common.layout.screens` (444 à 518 s) tient dans ses 1 200 s
+  (`ui_smoke_layout.py:1785`). Les suites Django, elles, tournent en sous-processus et leur délai
+  est appliqué (`nightly_suite.TIMEOUT_S = 2400`, `nightly_suite.py:45`). Le préalable est donc
+  surtout un écart entre délai déclaré et durée réelle. Une forme possible, à décider : dire le
+  dépassement au rapport (un scénario hors délai est signalé, sans être tué), plutôt qu'une
+  interruption dure.
+  ② **La suite du commun n'a rendu aucun verdict de novembre** : « dépassé 2400 s » les 1ᵉʳ, 8,
+  15 et 22/11 — c'est le point 1 de 11.3, toujours ouvert. Le 22/11, la campagne hebdomadaire a
+  aussi eu **406 échecs sur 442** (surtout des erreurs 500 sur les pages des jumelles) ; le
+  quotidien du 24/11 en compte 24. Non attribué ici.
 
 ⚠ Les limites mesurées ici évoluent : chaque chiffre est daté et se REMESURE à l'ouverture de la
 session dédiée (les rapports nocturnes le permettent sans rien relancer).
