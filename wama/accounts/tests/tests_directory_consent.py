@@ -50,6 +50,61 @@ class DirectoryDataShapeTests(SimpleTestCase):
         self.assertLessEqual(set(account_ldap.ORG_ATTRIBUTES), set(allowed))
 
 
+@override_settings(SECRET_KEY='a-long-enough-test-key-that-is-not-the-public-development-one')
+class PersonalFieldsAtRestTests(TestCase):
+    """L'établissement et la qualité d'une personne sont chiffrés en base, par la clé des secrets."""
+
+    FIELDS = ('establishment', 'ldap_affiliation')
+
+    def _stored(self, profile):
+        from django.db import connection
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT establishment, ldap_affiliation FROM accounts_userprofile '
+                           'WHERE id = %s', [profile.pk])
+            return cursor.fetchone()
+
+    def test_the_database_holds_a_token_and_the_model_reads_the_value(self):
+        from wama.common.utils import secret_crypto
+        profile = User.objects.create_user('at.rest', password='x').profile
+        profile.establishment, profile.ldap_affiliation = '{UAI}0000000X', 'member, researcher'
+        profile.save()
+        for raw, clear in zip(self._stored(profile), ('{UAI}0000000X', 'member, researcher')):
+            self.assertTrue(raw.startswith(secret_crypto.TOKEN_PREFIX))
+            self.assertNotIn(clear, raw)
+        fresh = User.objects.get(username='at.rest').profile
+        self.assertEqual(('{UAI}0000000X', 'member, researcher'),
+                         (fresh.establishment, fresh.ldap_affiliation))
+        # La rotation de la clé les trouve seule, comme tout champ chiffré.
+        found = {(m._meta.label, f.name) for m, f in secret_crypto.encrypted_columns()}
+        self.assertLessEqual({('accounts.UserProfile', name) for name in self.FIELDS}, found)
+
+    def test_a_value_stored_before_the_encryption_reads_as_it_is_and_the_migration_encrypts_it(self):
+        import importlib
+
+        from django.apps import apps
+        from django.db import connection
+
+        from wama.common.utils import secret_crypto
+        profile = User.objects.create_user('from.before', password='x').profile
+        with connection.cursor() as cursor:
+            cursor.execute("UPDATE accounts_userprofile SET establishment = %s WHERE id = %s",
+                           ['{UAI}BEFORE', profile.pk])
+        self.assertEqual('{UAI}BEFORE', User.objects.get(username='from.before').profile.establishment)
+        migration = importlib.import_module(
+            'wama.accounts.migrations.0036_encrypt_stored_directory_fields')
+        migration.encrypt_stored(apps, None)
+        self.assertTrue(self._stored(profile)[0].startswith(secret_crypto.TOKEN_PREFIX))
+        self.assertEqual('{UAI}BEFORE', User.objects.get(username='from.before').profile.establishment)
+
+    def test_without_a_safe_key_a_profile_still_saves_in_clear(self):
+        with override_settings(SECRET_KEY='django-insecure-development-key'):
+            profile = User.objects.create_user('no.key', password='x').profile
+            profile.establishment = '{UAI}PLAIN'
+            profile.save()
+            self.assertEqual('{UAI}PLAIN', self._stored(profile)[0])
+            self.assertEqual('{UAI}PLAIN', User.objects.get(username='no.key').profile.establishment)
+
+
 @override_settings(**DIRECTORY_SETTINGS)
 class DirectoryConsentTests(TestCase):
     """Le minimum à la création, rien de neuf sans accord, une donnée retirée ne revient pas."""
@@ -101,8 +156,8 @@ class DirectoryConsentTests(TestCase):
         legacy.org_affiliations = ['LAB-A', 'OLD-A']        # ce qu'un profil d'avant portait
         legacy.save()
         rows = directory_consent.decide(zoe, accept=['status'], decline=['main_unit'])
-        self.assertEqual({'main_unit': 'declined', 'establishment': 'undecided', 'status': 'accepted'},
-                         {row['key']: row['choice'] for row in rows})
+        self.assertEqual({'main_unit': 'declined', 'site': 'undecided', 'establishment': 'undecided',
+                          'status': 'accepted'}, {row['key']: row['choice'] for row in rows})
         profile = self._profile('zoe.martin')
         # Ajoutée : lue de l'annuaire à l'instant. Retirée : effacée — le nom, la hiérarchie et
         # les anciens codes de rattachement avec elle.
@@ -159,8 +214,10 @@ class DirectoryConsentTests(TestCase):
                          tuple(rows['main_unit'][k] for k in ('choice', 'stored', 'value')))
         self.assertEqual(('undecided', False, '', '0000000X'),
                          tuple(rows['establishment'][k] for k in ('choice', 'stored', 'value', 'offer')))
-        self.assertEqual({'main_unit', 'establishment', 'status'}, set(rows),
+        self.assertEqual({'main_unit', 'site', 'establishment', 'status'}, set(rows),
                          "une seule appartenance : les autres codes d'une fiche ne se proposent pas")
+        self.assertEqual(('undecided', False, 'Ville-A'),
+                         tuple(rows['site'][k] for k in ('choice', 'stored', 'offer')))
         self.assertEqual('member, researcher', rows['status']['offer'])
         self.assertTrue(all(row['opens'] for row in told['data']))
         self.assertFalse(told['answered'])
@@ -308,7 +365,8 @@ class DirectoryConsentTests(TestCase):
         from wama import tool_api
         zoe = self._came('zoe.martin')
         told = tool_api.get_my_directory_data(zoe)
-        self.assertEqual({'main_unit': 'undecided', 'establishment': 'undecided', 'status': 'undecided'},
+        self.assertEqual({'main_unit': 'undecided', 'site': 'undecided', 'establishment': 'undecided',
+                          'status': 'undecided'},
                          {row['key']: row['choice'] for row in told['data']})
         self.assertNotIn('offer', told['data'][0], "l'outil dit ce que WAMA garde, il n'interroge pas l'annuaire")
         done = tool_api.set_my_directory_data(zoe, add=['establishment'], remove=['main_unit'])

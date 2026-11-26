@@ -1312,7 +1312,10 @@ MECHANISMS = (
               "`SECRET_KEY` par HKDF avec une étiquette d'usage (décision Fabien : pas de clé de "
               "plus dans `.env`) — on ne chiffre pas avec la valeur qui signe les sessions. "
               "⚠ La rotation de `SECRET_KEY` est le piège : le déchiffrement essaie la courante "
-              "puis les `SECRET_KEY_FALLBACKS`, dont `rotate_secrets` ne garde que TROIS",
+              "puis les `SECRET_KEY_FALLBACKS`, dont `rotate_secrets` ne garde que TROIS. "
+              "Depuis le 2026-11-25 la même clé chiffre aussi des DONNÉES PERSONNELLES du profil "
+              "(`EncryptedPersonalField` : établissement, qualité — jamais un champ que WAMA "
+              "cherche en SQL) ; une valeur d'avant le chiffrement se lit telle quelle",
               'wama/common/utils/secret_crypto.py',
               'docs/construction/suivi/ROADMAP.md §8d',
               annexes=('wama/accounts/tests/tests_api_keys.py',)),
@@ -3825,7 +3828,9 @@ MECHANISMS = (
               "Une lecture (`lookup`) et une borne par passage pour ses trois surfaces : la "
               "commande `preregister_accounts` (sans effet sans `--apply`), la page des "
               "utilisateurs (« Importer depuis l'annuaire », « Activer la sélection ») et "
-              "l'assistant (`list_directory_accounts`, `preregister_accounts`, `activate_accounts`)",
+              "l'assistant (`list_directory_accounts`, `preregister_accounts`, `activate_accounts`). "
+              "`reconcile` et la tâche quotidienne `common.reconcile_directory_accounts` disent aux "
+              "administrateurs les arrivées des unités suivies et les départs, sans rien créer",
               'wama/accounts/directory.py',
               'docs/construction/exploitation/PROFILES_PERMISSIONS.md',
               annexes=('wama/accounts/management/commands/preregister_accounts.py',

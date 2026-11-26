@@ -1088,7 +1088,7 @@ Lit le certificat présenté par une vraie poignée de main avec le frontal et r
 
 ### Chiffrement RÉVERSIBLE des secrets d'utilisateur
 
-Les clés d'API de fournisseurs cloud sont chiffrées en base, pas hachées : WAMA doit les RELIRE pour appeler le fournisseur à la place de l'utilisateur. Clé DÉRIVÉE de `SECRET_KEY` par HKDF avec une étiquette d'usage (décision Fabien : pas de clé de plus dans `.env`) — on ne chiffre pas avec la valeur qui signe les sessions. ⚠ La rotation de `SECRET_KEY` est le piège : le déchiffrement essaie la courante puis les `SECRET_KEY_FALLBACKS`, dont `rotate_secrets` ne garde que TROIS
+Les clés d'API de fournisseurs cloud sont chiffrées en base, pas hachées : WAMA doit les RELIRE pour appeler le fournisseur à la place de l'utilisateur. Clé DÉRIVÉE de `SECRET_KEY` par HKDF avec une étiquette d'usage (décision Fabien : pas de clé de plus dans `.env`) — on ne chiffre pas avec la valeur qui signe les sessions. ⚠ La rotation de `SECRET_KEY` est le piège : le déchiffrement essaie la courante puis les `SECRET_KEY_FALLBACKS`, dont `rotate_secrets` ne garde que TROIS. Depuis le 2026-11-25 la même clé chiffre aussi des DONNÉES PERSONNELLES du profil (`EncryptedPersonalField` : établissement, qualité — jamais un champ que WAMA cherche en SQL) ; une valeur d'avant le chiffrement se lit telle quelle
 
 - **Domicile** : `wama/common/utils/secret_crypto.py` · **doc** : [docs/construction/suivi/ROADMAP.md §8d](../construction/suivi/ROADMAP.md)
 - **Module** : Chiffrement RÉVERSIBLE des secrets d'utilisateur stockés en base — clés d'API de fournisseurs cloud (ROADMAP §8d Phase 3, étape 4 ; décisions de Fabien du 2026-09-15).
@@ -1100,6 +1100,7 @@ Les clés d'API de fournisseurs cloud sont chiffrées en base, pas hachées : WA
   - `decrypt(token: str) -> str` — Déchiffre par la clé courante, puis par les `SECRET_KEY_FALLBACKS`.
   - `reencrypt(token: str, new_secret: str, old_secrets) -> str` — Rechiffre `token` avec la clé dérivée de `new_secret`, en le lisant par `new_secret` ou
   - `class EncryptedTextField(models.TextField)` — Champ texte CHIFFRÉ au repos : l'ORM lit et écrit le CLAIR, la base ne voit que le jeton.
+  - `class EncryptedPersonalField(EncryptedTextField)` — Une DONNÉE PERSONNELLE chiffrée au repos, par la même clé tournante que les secrets
   - `encrypted_columns() -> list` — (modèle, champ) de chaque `EncryptedTextField` des modèles installés. La rotation les trouve
   - `reencrypt_stored_secrets(new_secret: str, old_secrets, using: str='default') -> dict` — Rechiffre en base chaque secret stocké vers la clé dérivée de `new_secret`.
 
@@ -3452,7 +3453,7 @@ REGISTRE des registres : une page catalogue déclare la CLÉ de son registre et 
 
 ### Annuaire lu par unité et comptes pré-inscrits
 
-Retrouve les personnes d'une unité de l'annuaire, avec l'état de leur compte (sans compte, ou l'état lu par `moderation.account_states` : actif, pré-inscrit, en attente, désactivé), et PRÉ-INSCRIT celles qui n'en ont pas : compte inactif, sans mot de passe local ni rôle, créé par le moteur de connexion lui-même — un administrateur peut l'activer avant la première venue. Lecture seule côté annuaire, liste FERMÉE d'attributs, le minimum sur le compte (identité, unité principale), personne de prévenu ; la liaison est aussi celle de `org_sync`. Une lecture (`lookup`) et une borne par passage pour ses trois surfaces : la commande `preregister_accounts` (sans effet sans `--apply`), la page des utilisateurs (« Importer depuis l'annuaire », « Activer la sélection ») et l'assistant (`list_directory_accounts`, `preregister_accounts`, `activate_accounts`)
+Retrouve les personnes d'une unité de l'annuaire, avec l'état de leur compte (sans compte, ou l'état lu par `moderation.account_states` : actif, pré-inscrit, en attente, désactivé), et PRÉ-INSCRIT celles qui n'en ont pas : compte inactif, sans mot de passe local ni rôle, créé par le moteur de connexion lui-même — un administrateur peut l'activer avant la première venue. Lecture seule côté annuaire, liste FERMÉE d'attributs, le minimum sur le compte (identité, unité principale), personne de prévenu ; la liaison est aussi celle de `org_sync`. Une lecture (`lookup`) et une borne par passage pour ses trois surfaces : la commande `preregister_accounts` (sans effet sans `--apply`), la page des utilisateurs (« Importer depuis l'annuaire », « Activer la sélection ») et l'assistant (`list_directory_accounts`, `preregister_accounts`, `activate_accounts`). `reconcile` et la tâche quotidienne `common.reconcile_directory_accounts` disent aux administrateurs les arrivées des unités suivies et les départs, sans rien créer
 
 - **Domicile** : `wama/accounts/directory.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : L'annuaire lu PAR UNITÉ, et les comptes préparés AVANT une première connexion (2026-11-25, demande de Fabien). Doc : `PROFILES_PERMISSIONS.md §1.12`.
@@ -3584,10 +3585,12 @@ Ce que l'annuaire propose d'ajouter à un profil (unité — la principale, la s
   - `applies(user) -> bool` — Ce compte reçoit-il des données de l'annuaire ? Un compte d'annuaire
   - `pending(user) -> bool` — La personne doit-elle encore voir le panneau d'accueil ? Elle n'a jamais choisi.
   - `choice(profile, key: str) -> str` — Le choix de la personne pour la donnée `key`.
-  - `writable(profile, org: dict, *, created: bool=False) -> dict` — Ce que l'annuaire vient de rendre (`org`, clés de `ldap._parse_org`) et que le profil a le
+  - `writable(profile, org: dict, *, with_minimum: bool=False) -> dict` — Ce que l'annuaire vient de rendre (`org`, clés de `ldap._parse_org`) et que le profil a le
   - `offer(user) -> dict` — Ce que l'annuaire porte AUJOURD'HUI pour ce compte (champs de profil), ou {} — annuaire
   - `state(user, proposed: dict=None) -> list` — Une ligne par donnée, pour le panneau d'accueil, le profil et l'assistant :
   - `decide(user, accept=(), decline=()) -> list` — Enregistre le choix de la personne : les données `accept` sont ajoutées (leur valeur LUE de
+  - `refresh(user, *, apply: bool=True, conn=None) -> dict` — Met le profil d'un compte d'annuaire À JOUR de ce que l'annuaire porte aujourd'hui, sans
+  - `refresh_all(*, apply: bool=True) -> dict` — `refresh` pour chaque compte d'annuaire de la base, sur UNE liaison. Rend
   - `acknowledge(user) -> None` — La personne a VU le panneau et ne change rien (« Garder ainsi ») : on ne le lui remontre
 
 ### Durées lisibles
@@ -4564,6 +4567,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `list_directory_accounts(user, unit: str) -> dict` — List the people of a unit of the institution's directory (a laboratory, a department, a team
   - `preregister_accounts(user, unit: str='', usernames: list=None, confirm: bool=False) -> dict` — Prepare the WAMA accounts of people who have none, from the institution's directory: every
   - `activate_accounts(user, usernames: list, confirm: bool=False) -> dict` — Activate inactive WAMA accounts (preregistered, pending or disabled) so that their holders can
+  - `get_account_details(user, username: str) -> dict` — Read the record of one WAMA account, as the right panel of the accounts page shows it: its
   - `get_my_directory_data(user) -> dict` — Tell which data of the institution's directory WAMA keeps on your own profile (main unit,
   - `set_my_directory_data(user, add: list=None, remove: list=None) -> dict` — Add to your own profile, or remove from it, data of the institution's directory. A removed
   - `request_role(user, role: str, reason: str='') -> dict` — Ask for a business role, which opens the applications of that trade. The administrators are

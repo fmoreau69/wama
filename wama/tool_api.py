@@ -5485,6 +5485,45 @@ def activate_accounts(user, usernames: list, confirm: bool = False) -> dict:
     return {**activate(accounts, protected=[user]), 'unknown': unknown, **_accounts_page()}
 
 
+@tool_effect(READ)
+def get_account_details(user, username: str) -> dict:
+    """
+    Read the record of one WAMA account, as the right panel of the accounts page shows it: its
+    state, level and business roles, which directory data its profile keeps, and counts of its
+    projects, shares, contributions and activity. Reserved to administrators.
+
+    Args:
+        username: the username of the account.
+
+    Returns:
+        {"username", "state", "level", "roles", "directory": [{"key", "choice", "stored"}],
+         "unit", "projects", "shares_given", "shares_received", "contributions", "activity",
+         "page", "link"} or {"error"}
+    """
+    if refusal := _account_admin_refusal(user, "Lecture d'un compte"):
+        return refusal
+    from wama.accounts import directory_consent, role_requests
+    from wama.accounts.constellation import person_card
+    from wama.accounts.directory import accounts_named
+    account = accounts_named([username]).get((username or '').strip().lower())
+    card = person_card(account.pk) if account is not None else None
+    if card is None:
+        return {'error': f"Compte inconnu : {username!r}."}
+    # Ni nom, ni adresse, ni le nom des personnes liées : des états et des comptes.
+    kept = (directory_consent.state(account, proposed={})
+            if directory_consent.applies(account) else [])
+    return {'username': card['username'], 'state': card['state'], 'level': card['tier_label'],
+            'roles': [r['key'] + ('' if r['held'] else ' (requested)')
+                      for r in role_requests.requestable_roles(account) if r['held'] or r['pending']],
+            'directory': [{'key': row['key'], 'choice': row['choice'], 'stored': row['stored']}
+                          for row in kept],
+            'unit': [u['name'] for u in card['units']],
+            'projects': len(card['projects']), 'shares_given': len(card['shares_given']),
+            'shares_received': len(card['shares_received']),
+            'contributions': sum(c['count'] for c in card['contributions']),
+            'activity': sum(a['total'] for a in card['activity']), **_accounts_page()}
+
+
 # MES DONNÉES D'ANNUAIRE et MON MÉTIER (2026-11-25, `accounts.directory_consent`,
 # `accounts.role_requests`) : la personne choisit ce que l'annuaire ajoute à son profil, et demande
 # le rôle métier qui est le sien ; un administrateur répond. Les fonctions de la page de profil.
@@ -6279,6 +6318,7 @@ TOOL_REGISTRY = {
     'list_directory_accounts': list_directory_accounts,
     'preregister_accounts':    preregister_accounts,
     'activate_accounts':       activate_accounts,
+    'get_account_details':     get_account_details,
     # Mes données d'annuaire et mon métier (2026-11-25) : choisir ce que le profil garde,
     # demander un rôle ; un administrateur répond (garde dans `role_requests.answer`).
     'get_my_directory_data':   get_my_directory_data,

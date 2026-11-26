@@ -73,7 +73,10 @@ STATUS_ATTRIBUTES = ('eduPersonPrimaryAffiliation', 'eduPersonAffiliation')
 
 #: La liste FERMÉE de ce que `_parse_org` lit d'une fiche — celle que la lecture d'une personne
 #: hors connexion réclame (`directory.person_org`), et rien de plus.
-ORG_ATTRIBUTES = (ESTABLISHMENT_ATTRIBUTE, MAIN_UNIT_ATTRIBUTE, *STATUS_ATTRIBUTES)
+#: Le SITE de la personne : la ville où elle travaille (2026-11-26, demande de Fabien). Ni son
+#: bâtiment ni son bureau, que la fiche porte aussi : rien ne s'en sert.
+SITE_ATTRIBUTE = 'l'
+ORG_ATTRIBUTES = (ESTABLISHMENT_ATTRIBUTE, MAIN_UNIT_ATTRIBUTE, SITE_ATTRIBUTE, *STATUS_ATTRIBUTES)
 
 #: Ce qu'un compte reçoit de l'annuaire À SA CRÉATION (pré-inscription comme première connexion),
 #: avant tout choix de sa titulaire : son unité principale, rien d'autre. Le reste s'ajoute AVEC
@@ -97,6 +100,7 @@ def _parse_org(attrs):
     return {
         'establishment': _first(attrs, ESTABLISHMENT_ATTRIBUTE),  # forme `{UAI}0772894C`
         'org_entity_code': _first(attrs, MAIN_UNIT_ATTRIBUTE),
+        'site': _first(attrs, SITE_ATTRIBUTE),
         'ldap_affiliation': status[:64],
     }
 
@@ -129,7 +133,7 @@ def _apply_ldap_org(sender, instance, created=False, **kwargs):
         from .directory_consent import writable
         from .models import UserProfile
         prof, _ = UserProfile.objects.get_or_create(user=instance)
-        apply_org(prof, writable(prof, org, created=created))
+        apply_org(prof, writable(prof, org, with_minimum=created))
     except Exception:
         logger.warning('application org au profil échouée', exc_info=True)
 

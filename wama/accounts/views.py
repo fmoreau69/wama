@@ -1057,6 +1057,7 @@ def user_management(request):
             # La qualité de la personne (chercheur, personnel, étudiant…), si elle la garde sur
             # son profil : elle aide à lui proposer un rôle.
             'status': profile.ldap_affiliation if profile else '',
+            'site': profile.site if profile else '',
             'role': get_user_role(user),
             'groups': [g.name for g in user.groups.all()],
             'metier_cells': [{'key': k, 'label': label, 'active': k in active_metier,
@@ -1088,7 +1089,9 @@ def user_management(request):
         'available_roles': ['admin', 'dev', 'user'],
         # Catalogue des métiers pour l'en-tête de colonnes (tooltip = description).
         'metier_roles': [(k, label, ROLE_DESCRIPTIONS.get(k, '')) for k, label in ROLES.items()],
-        'volet': VOLET_AUCUN,                   # tableau d'administration, cf. login_view
+        # Le volet droit porte la FICHE du compte choisi (bloc de tête, 2026-11-26) ; ni médias,
+        # ni paramètres, ni actions sur ce tableau d'administration.
+        'volet': volet(tete=True, medias=False, parametres=False, actions=False),
     }
     return render(request, 'accounts/user_management.html', context)
 
@@ -1468,6 +1471,29 @@ def _json_list(request, key: str):
     except (json.JSONDecodeError, AttributeError):
         return None
     return values if isinstance(values, list) else None
+
+
+@admin_required
+def user_details(request, user_id):
+    """AJAX : la FICHE d'un compte, pour le volet droit de la page des utilisateurs (2026-11-26,
+    demande de Fabien) — son état, ce que son profil garde de l'annuaire et ce qu'il en a
+    choisi, ses rôles (tenus, demandés), puis les faits de la constellation : unité, projets,
+    partages, apports, activité, et ce qui le relie aux autres (`constellation.person_card`)."""
+    from .constellation import person_card
+    from .directory_consent import applies, state
+    from .role_requests import requestable_roles
+    user = get_object_or_404(User.objects.select_related('profile'), id=user_id)
+    card = person_card(user.pk)
+    if card is None:
+        return JsonResponse({'success': False, 'error': 'compte introuvable'}, status=404)
+    return JsonResponse({
+        'success': True, 'card': card, 'email': user.email,
+        # `proposed={}` : la fiche dit ce que WAMA GARDE, elle n'interroge pas l'annuaire.
+        'directory': state(user, proposed={}) if applies(user) else [],
+        'directory_account': applies(user),
+        'roles': [role for role in requestable_roles(user) if role['held'] or role['pending']],
+        'constellation_url': reverse('accounts:user-constellation'),
+    })
 
 
 @admin_required

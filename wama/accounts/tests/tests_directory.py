@@ -38,6 +38,7 @@ PEOPLE = [
     {'uid': 'zoe.martin', 'givenName': 'Zoé', 'sn': 'Martin', 'mail': 'zoe.martin@univ.test',
      'supannEntiteAffectationPrincipale': 'LAB-A', 'supannEntiteAffectation': ['LAB-A', 'OLD-A'],
      'supannEtablissement': '{UAI}0000000X', 'eduPersonAffiliation': ['member', 'researcher'],
+     'l': 'Ville-A',
      'telephoneNumber': '0102030405', 'title': 'Chercheuse'},
     {'uid': 'Adam.Petit', 'givenName': 'Adam', 'sn': 'Petit', 'mail': 'adam.petit@univ.test',
      'supannEntiteAffectationPrincipale': 'LAB-A-T1', 'supannEntiteAffectation': ['LAB-A-T1'],
@@ -532,6 +533,48 @@ class AccountsPageTests(TestCase):
         self.assertEqual(('nodes', False), (layers['preregistered']['role'], layers['preregistered']['on']))
         self.assertLessEqual({p['layer'] for p in people.values()} - {None}, set(layers))
 
+    # ── La fiche d'un compte, dans le volet droit ───────────────────────────────────────────
+
+    def test_the_right_panel_reads_the_record_of_an_account_and_what_links_it_to_others(self):
+        import json
+
+        from wama import tool_api
+        from wama.common.models import OrgUnit
+        OrgUnit.objects.create(code='LAB-A', name='Laboratoire A', unit_type='labo')
+        directory.preregister(['zoe.martin', 'lea.roux', 'tom.blanc'])
+        zoe = User.objects.get(username='zoe.martin')
+        zoe.profile.site = 'Ville-A'
+        zoe.profile.save()
+        self.client.force_login(self.admin)
+        page = self.client.get(reverse('accounts:user-management')).content.decode()
+        self.assertIn('id="userDetails"', page)
+        self.assertIn('data-url="%s"' % reverse('accounts:user-details', args=[0]), page)
+        self.assertIn('Ville-A</small>', page, "le site gardé par la personne, sous son unité")
+        told = self.client.get(reverse('accounts:user-details', args=[zoe.pk])).json()
+        card = told['card']
+        self.assertEqual(('zoe.martin', 'preregistered', 'Pré-inscrit'),
+                         (card['username'], card['state'], card['state_label']))
+        self.assertEqual(['Laboratoire A'], [unit['name'] for unit in card['units']])
+        # Léa a la même unité principale, Tom non : un seul autre compte dans l'unité.
+        self.assertEqual({'count': 1, 'names': ['Léa Roux']}, card['colleagues'])
+        self.assertEqual(([], [], []), (card['projects'], card['shares_given'], card['shares_received']))
+        rows = {row['key']: row for row in told['directory']}
+        self.assertEqual((True, 'Ville-A'), (rows['site']['stored'], rows['site']['value']))
+        self.assertTrue(told['directory_account'])
+        self.assertEqual(404, self.client.get(reverse('accounts:user-details', args=[999999])).status_code)
+        local = self.client.get(reverse('accounts:user-details', args=[self.plain.pk])).json()
+        self.assertEqual((False, []), (local['directory_account'], local['directory']))
+        # L'assistant : les mêmes faits, sans nom ni adresse.
+        said = tool_api.get_account_details(self.admin, 'ZOE.MARTIN')
+        self.assertEqual(('zoe.martin', 'preregistered', ['Laboratoire A']),
+                         (said['username'], said['state'], said['unit']))
+        for private in ('@univ.test', 'Zoé', 'Léa', 'Ville-A'):
+            self.assertNotIn(private, json.dumps(said, ensure_ascii=False))
+        self.assertIn('administrateur', tool_api.get_account_details(self.plain, 'zoe.martin')['error'])
+        self.assertIn('error', tool_api.get_account_details(self.admin, 'no.body'))
+        self.client.force_login(self.plain)
+        self.assertEqual(302, self.client.get(reverse('accounts:user-details', args=[zoe.pk])).status_code)
+
     # ── Les restes : la demande close, la qualité, le rapprochement ─────────────────────────
 
     def test_activating_an_account_closes_the_request_still_waiting_with_the_others(self):
@@ -570,7 +613,8 @@ class AccountsPageTests(TestCase):
         report = directory.reconcile(['LAB-A'])
         self.assertEqual({'units': ['LAB-A', 'LAB-A-T1'], 'arrivals': ['Adam.Petit', 'lea.roux'],
                           'departures': ['tom.blanc']}, report)
-        self.assertEqual({'units': [], 'arrivals': [], 'departures': []}, directory.reconcile())
+        with override_settings(WAMA_DIRECTORY_FOLLOWED_UNITS=[]):       # aucune unité suivie
+            self.assertEqual({'units': [], 'arrivals': [], 'departures': []}, directory.reconcile())
         asked = Notification.objects.filter(kind=directory.DIRECTORY_CHANGES_KIND)
         self.assertEqual(1, directory.report_reconciliation(report))
         self.assertEqual(0, directory.report_reconciliation(report), "une notification attend déjà")
@@ -582,12 +626,30 @@ class AccountsPageTests(TestCase):
 
     def test_the_nightly_task_reads_nothing_without_followed_units_and_reports_with_them(self):
         from wama.common.tasks import reconcile_directory_accounts_task
-        with mock.patch.object(directory, 'reconcile') as read:
+        with mock.patch.object(directory, 'reconcile') as read, \
+                override_settings(AUTH_LDAP_SERVER_URI=''):
             self.assertEqual({'units': 0}, reconcile_directory_accounts_task())
             read.assert_not_called()
+        # Un compte d'annuaire déjà en base, que l'annuaire ne connaît plus : un départ, même
+        # hors de toute unité suivie. Un autre, à jour de rien : remis à jour sans rien demander.
+        gone = User.objects.create_user('gone.away')
+        gone.set_unusable_password()
+        gone.save()
+        directory.preregister(['zoe.martin'])
+        stale = User.objects.get(username='zoe.martin').profile
+        stale.org_entity_code, stale.org_affiliations = 'OLD-A', ['OLD-A', 'LAB-A']
+        stale.save()
         with override_settings(WAMA_DIRECTORY_FOLLOWED_UNITS=['LAB-B']):
             done = reconcile_directory_accounts_task()
-        self.assertEqual({'units': 1, 'arrivals': 1, 'departures': 0, 'notified': 1}, done)
+        self.assertEqual({'units': 1, 'arrivals': 1, 'departures': 1, 'updated': 1, 'notified': 1}, done)
+        fresh = User.objects.get(username='zoe.martin').profile
+        self.assertEqual(('LAB-A', [], ''), (fresh.org_entity_code, fresh.org_affiliations,
+                                             fresh.establishment),
+                         "l'unité suit l'annuaire, l'ancienne liste part, rien de neuf ne s'ajoute")
+        self.assertIn('gone.away', Notification.objects.get(kind=directory.DIRECTORY_CHANGES_KIND).body)
+        out = io.StringIO()
+        call_command('refresh_directory_profiles', stdout=out)
+        self.assertIn("2 compte(s) d'annuaire : 0 à mettre à jour, 1 inconnu(s)", out.getvalue())
         out, err = io.StringIO(), io.StringIO()
         call_command('reconcile_directory_accounts', '--code', 'LAB-B', stdout=out, stderr=err)
         self.assertIn('1 arrivée(s), sans compte', out.getvalue())

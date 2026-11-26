@@ -59,6 +59,8 @@ urlpatterns = [
     path('users/new/', views.user_add, name='user-add'),
     # Sélection de comptes et annuaire (2026-11-25) : activer en lot, lire une unité, pré-inscrire.
     path('users/activate/', views.users_activate, name='users-activate'),
+    # La fiche d'un compte, pour le volet droit de la page (2026-11-26).
+    path('users/<int:user_id>/details/', views.user_details, name='user-details'),
     path('users/directory/', views.directory_lookup, name='directory-lookup'),
     path('users/directory/preregister/', views.directory_preregister, name='directory-preregister'),
     path('users/<int:user_id>/delete/', views.user_delete, name='user-delete'),

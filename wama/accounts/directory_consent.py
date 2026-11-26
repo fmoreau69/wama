@@ -37,6 +37,11 @@ DIRECTORY_DATA = {
         'opens': "Partager avec votre unité et lire ce qu'elle partage ; elle s'affiche à "
                  "côté de votre nom pour les administrateurs.",
     },
+    'site': {
+        'label': 'Site (ville)',
+        'fields': ('site',), 'derived': (),
+        'opens': "Affiché sur votre profil et aux administrateurs, à côté de votre unité.",
+    },
     'establishment': {
         'label': 'Établissement',
         'fields': ('establishment',), 'derived': (),
@@ -50,6 +55,8 @@ DIRECTORY_DATA = {
 }
 
 ACCEPTED, DECLINED, UNDECIDED = 'accepted', 'declined', 'undecided'
+#: Le choix de la personne, tel qu'on le DIT à qui lit sa fiche (page des utilisateurs).
+CHOICE_LABELS = {ACCEPTED: 'gardée', DECLINED: 'retirée', UNDECIDED: 'pas encore choisi'}
 
 
 def applies(user) -> bool:
@@ -75,11 +82,11 @@ def _stored(profile, datum) -> bool:
     return any(getattr(profile, field, None) for field in datum['fields'])
 
 
-def writable(profile, org: dict, *, created: bool = False) -> dict:
+def writable(profile, org: dict, *, with_minimum: bool = False) -> dict:
     """Ce que l'annuaire vient de rendre (`org`, clés de `ldap._parse_org`) et que le profil a le
     droit de recevoir : une donnée AJOUTÉE par la personne ; une donnée sur laquelle elle n'a pas
-    encore choisi, si le profil la porte déjà ou, à la création du compte, si elle est du minimum.
-    Jamais une donnée retirée."""
+    encore choisi, si le profil la porte déjà ou — `with_minimum` : à la création du compte et à
+    sa remise à jour depuis l'annuaire — si elle est du minimum. Jamais une donnée retirée."""
     allowed = {}
     for key, datum in DIRECTORY_DATA.items():
         chosen = choice(profile, key)
@@ -87,7 +94,7 @@ def writable(profile, org: dict, *, created: bool = False) -> dict:
             continue
         kept = chosen == ACCEPTED or _stored(profile, datum)
         for field in datum['fields']:
-            if field in org and (kept or (created and field in MINIMUM_FIELDS)):
+            if field in org and (kept or (with_minimum and field in MINIMUM_FIELDS)):
                 allowed[field] = org[field]
     return allowed
 
@@ -130,7 +137,8 @@ def state(user, proposed: dict = None) -> list:
         field = datum['fields'][0]
         rows.append({
             'key': key, 'label': datum['label'], 'opens': datum['opens'],
-            'choice': choice(profile, key), 'stored': _stored(profile, datum),
+            'choice': choice(profile, key), 'choice_label': CHOICE_LABELS[choice(profile, key)],
+            'stored': _stored(profile, datum),
             'value': _display(field, getattr(profile, field, None)),
             'offer': _display(field, proposed.get(field)),
         })
@@ -167,6 +175,54 @@ def decide(user, accept=(), decline=()) -> list:
     logger.info("données d'annuaire de %s : %s ajoutée(s), %s retirée(s)",
                 user.get_username(), len(accept), len(decline))
     return state(user, proposed if accept else None)
+
+
+def refresh(user, *, apply: bool = True, conn=None) -> dict:
+    """Met le profil d'un compte d'annuaire À JOUR de ce que l'annuaire porte aujourd'hui, sans
+    attendre sa prochaine connexion : ce que la personne garde (`writable`), le minimum compris,
+    et rien qu'elle n'ait pas choisi. L'ancienne liste de codes de rattachement
+    (`org_affiliations`, plus lue depuis l'appartenance unique) est vidée au passage.
+
+    Rend `{'known': bool, 'changed': [champs]}` — `known` faux : l'annuaire ne connaît plus cet
+    identifiant, rien n'est touché. `apply=False` : dit ce qui changerait, n'écrit rien. Lève
+    `directory.DirectoryUnavailable` si l'annuaire ne répond pas."""
+    from . import directory
+    proposed = directory.person_org(user.get_username(), conn=conn)
+    if not proposed:
+        return {'known': False, 'changed': []}
+    profile = user.profile
+    allowed = writable(profile, proposed, with_minimum=True)
+    changed = [field for field, value in allowed.items() if value and getattr(profile, field) != value]
+    stale = bool(profile.org_affiliations)
+    if apply:
+        if stale:
+            profile.org_affiliations = []
+            profile.save(update_fields=['org_affiliations'])
+        apply_org(profile, allowed)
+    return {'known': True, 'changed': changed + (['org_affiliations'] if stale else [])}
+
+
+def refresh_all(*, apply: bool = True) -> dict:
+    """`refresh` pour chaque compte d'annuaire de la base, sur UNE liaison. Rend
+    `{'accounts', 'updated': [identifiants], 'unknown': [identifiants]}` — `unknown` : les
+    comptes que l'annuaire ne connaît plus (des départs)."""
+    from django.contrib.auth import get_user_model
+
+    from . import directory
+    report = {'accounts': 0, 'updated': [], 'unknown': []}
+    with directory.session() as conn:
+        for user in get_user_model().objects.select_related('profile').order_by('username'):
+            if not applies(user):
+                continue
+            report['accounts'] += 1
+            done = refresh(user, apply=apply, conn=conn)
+            if not done['known']:
+                report['unknown'].append(user.get_username())
+            elif done['changed']:
+                report['updated'].append(user.get_username())
+    logger.info("profils d'annuaire : %s compte(s), %s mis à jour, %s inconnu(s) de l'annuaire",
+                report['accounts'], len(report['updated']), len(report['unknown']))
+    return report
 
 
 def acknowledge(user) -> None:

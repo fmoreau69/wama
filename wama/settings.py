@@ -470,6 +470,7 @@ if ENABLE_LDAP:
         'givenName', 'sn', 'mail', 'uid',
         'supannEtablissement', 'supannEntiteAffectationPrincipale',
         'eduPersonPrimaryAffiliation', 'eduPersonAffiliation',
+        'l',    # le site (ville) — `accounts.ldap.SITE_ATTRIBUTE`
     ]
     # Unités SUIVIES par le rapprochement quotidien des comptes (`accounts.directory.reconcile`) :
     # codes exacts séparés par « ; ». Propres à l'instance — dans son environnement, jamais ici.

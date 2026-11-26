@@ -264,6 +264,62 @@ def _uncarried_families():
             for r in REGISTRIES.values() if r.provenance == TO_CARRY]
 
 
+#: Plafond de personnes NOMMÉES dans la fiche d'un compte (collègues d'unité) — le compte, lui,
+#: est toujours exact.
+CARD_NAMES_LIMIT = 8
+
+
+def person_card(user_id) -> dict | None:
+    """Les faits de la constellation pour UNE personne, prêts à lire dans le volet de la page des
+    utilisateurs (2026-11-26) : son unité, ses projets, ses partages, ses apports, son activité,
+    et ce qui la RELIE aux autres. None si le compte n'existe pas.
+
+    Les mêmes faits que la scène (`constellation`), aucun recalculé ici. La DISTANCE entre deux
+    personnes, elle, reste calculée par la scène, où ses poids se règlent : la fiche dit les
+    liens, la constellation les pèse."""
+    facts = constellation()
+    people = {p['id']: p for p in facts['users']}
+    me = people.get(user_id)
+    if me is None:
+        return None
+
+    def who(person_id):
+        other = people.get(person_id)
+        return {'username': other['username'], 'name': other['name']} if other else None
+
+    def partners(mine, theirs):
+        return sorted(({**who(edge[theirs]), 'count': edge['count']}
+                       for edge in facts['shares'] if edge[mine] == user_id and who(edge[theirs])),
+                      key=lambda row: -row['count'])
+
+    units = {u['id']: u for u in facts['units']}
+    mine = set(me['units'])
+    colleagues = sorted((p['name'] for p in facts['users']
+                         if p['id'] != user_id and p['kind'] == 'person' and mine & set(p['units'])),
+                        key=str.lower)
+    families = {f['key']: f['label'] for f in facts['families']}
+    return {
+        'username': me['username'], 'name': me['name'], 'tier_label': me['tier_label'],
+        'state': me['state'], 'state_label': me['state_label'],
+        'joined': me['joined'], 'last_login': me['last_login'],
+        'units': [{'name': units[uid]['name'], 'type_label': units[uid]['type_label']}
+                  for uid in me['units'] if uid in units],
+        'unit_path': me['org']['path'],
+        'colleagues': {'count': len(colleagues), 'names': colleagues[:CARD_NAMES_LIMIT]},
+        'projects': [{'name': project['name'], 'role': member['role_label'],
+                      'members': len(project['members'])}
+                     for project in facts['projects'] for member in project['members']
+                     if member['user'] == user_id],
+        'shares_given': partners('from', 'to'), 'shares_received': partners('to', 'from'),
+        'scope_shares': sum(row['count'] for row in me['scope_shares']),
+        'contributions': [{'family': families.get(key, key),
+                           'count': fam['owned'] + fam['shared'] + fam['promoted']}
+                          for key, fam in me['contributions'].items()],
+        'activity': [{'label': row['label'], 'total': row['total']} for row in me['activity']],
+        'apps': len(me['apps']),
+    }
+
+
 def constellation():
     """Les FAITS de la constellation, pour la page `accounts:user-constellation`."""
     from django.contrib.auth.models import User

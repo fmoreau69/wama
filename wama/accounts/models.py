@@ -6,7 +6,7 @@ from django.dispatch import receiver
 from django import forms
 
 from wama.common.tts.constants import LANGUAGE_CHOICES
-from wama.common.utils.secret_crypto import EncryptedTextField
+from wama.common.utils.secret_crypto import EncryptedPersonalField, EncryptedTextField
 from wama.accounts.permissions import TIER_CHOICES
 
 #: L'IDENTITÉ d'un compte : ce que modifient son titulaire (`UserEdit`, « Modifier mon profil »)
@@ -183,9 +183,13 @@ class UserProfile(models.Model):
     # Axe C — APPARTENANCE ORGANISATIONNELLE (remontée du LDAP/SUPANN au login).
     # Colonne vertébrale : mêmes unités que l'héritage RAG + les scopes de partage
     # médiathèque (labo/service/département/université). Voir docs/construction/mondes/WAMA_VISION_COMPLET.md §Les quatre mondes.
-    establishment = models.CharField(
-        max_length=128, blank=True, default='',
-        verbose_name='Établissement', help_text='supannEtablissement (université).')
+    # Chiffrés au repos par la clé tournante des secrets (`EncryptedPersonalField`, décision de
+    # Fabien du 2026-11-25) : l'établissement et la qualité de la personne. WAMA ne les cherche
+    # jamais en SQL. L'unité principale, elle, reste en clair : le partage et le rapprochement
+    # la filtrent.
+    establishment = EncryptedPersonalField(
+        blank=True, default='', verbose_name='Établissement',
+        help_text='supannEtablissement (université). Chiffré au repos.')
     org_entity_code = models.CharField(
         max_length=64, blank=True, default='', db_index=True,
         verbose_name='Entité principale (code)',
@@ -202,10 +206,13 @@ class UserProfile(models.Model):
         verbose_name='Hiérarchie organisationnelle',
         help_text='Chaîne institut→département→labo→équipe résolue depuis ou=structures '
                   '[{code, name, type}], du plus large au plus fin.')
-    ldap_affiliation = models.CharField(
-        max_length=64, blank=True, default='',
-        verbose_name='Affiliation LDAP',
-        help_text='eduPersonPrimaryAffiliation (researcher/faculty/staff/student…) — aide au rôle.')
+    site = EncryptedPersonalField(
+        blank=True, default='', db_default='', verbose_name='Site',
+        help_text="Ville du site de la personne, d'après l'annuaire. Chiffré au repos.")
+    ldap_affiliation = EncryptedPersonalField(
+        blank=True, default='', verbose_name='Affiliation LDAP',
+        help_text='eduPersonPrimaryAffiliation (researcher/faculty/staff/student…) — '
+                  'aide au rôle. Chiffré au repos.')
 
     # Les données d'annuaire sont ajoutées AVEC la personne (décision de Fabien, 2026-11-25 —
     # `accounts/directory_consent.py`) : ce qu'elle a choisi, donnée par donnée, et quand.

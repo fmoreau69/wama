@@ -230,20 +230,28 @@ def purge_access_log_task(dry_run=False):
 
 @shared_task(name='common.reconcile_directory_accounts')
 def reconcile_directory_accounts_task():
-    """Rapprochement quotidien des comptes avec l'annuaire, pour les unités que l'instance suit
-    (`accounts.directory.reconcile`, 2026-11-25) : arrivées et départs sont DITS aux
-    administrateurs, rien n'est créé ni fermé. Sans unité suivie, ou annuaire muet : rien."""
-    from wama.accounts import directory
-    if not directory.followed_units():
+    """Rapprochement quotidien des comptes avec l'annuaire (2026-11-25), en deux temps :
+    les comptes d'annuaire DÉJÀ en base sont remis à jour (`directory_consent.refresh_all` — ce
+    que chaque personne garde, rien de plus ; ceux que l'annuaire ne connaît plus sont des
+    départs), puis les unités que l'instance SUIT sont lues pour leurs arrivées
+    (`directory.reconcile`). Arrivées et départs sont DITS aux administrateurs ; aucun compte
+    n'est créé ni fermé. Annuaire muet ou non réglé : rien."""
+    from django.conf import settings
+
+    from wama.accounts import directory, directory_consent
+    if not getattr(settings, 'AUTH_LDAP_SERVER_URI', ''):
         return {'units': 0}
     try:
+        refreshed = directory_consent.refresh_all()
         report = directory.reconcile()
     except directory.DirectoryUnavailable as exc:
         logger.info("[annuaire] rapprochement impossible : %s", exc)
         return {'units': 0, 'unavailable': True}
+    report['departures'] = sorted(set(report['departures']) | set(refreshed['unknown']))
     notified = directory.report_reconciliation(report)
     return {'units': len(report['units']), 'arrivals': len(report['arrivals']),
-            'departures': len(report['departures']), 'notified': notified}
+            'departures': len(report['departures']), 'updated': len(refreshed['updated']),
+            'notified': notified}
 
 
 @shared_task(name='common.clear_expired_sessions')

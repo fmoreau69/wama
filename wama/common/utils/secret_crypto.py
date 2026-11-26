@@ -134,6 +134,33 @@ class EncryptedTextField(models.TextField):
             return ''
 
 
+#: Tout jeton produit par `encrypt` commence ainsi (octet de version de Fernet, en base64).
+TOKEN_PREFIX = 'gAAAA'
+
+
+class EncryptedPersonalField(EncryptedTextField):
+    """Une DONNÉE PERSONNELLE chiffrée au repos, par la même clé tournante que les secrets
+    (décision de Fabien, 2026-11-25) : la base, ses exports et ses sauvegardes n'en voient que le
+    jeton ; la rotation de la clé la rechiffre comme les autres (`encrypted_columns`).
+
+    Deux écarts avec le champ des secrets, parce qu'ici la colonne EXISTAIT en clair :
+      - une valeur qui n'est pas un jeton se lit telle quelle — c'est une ligne d'avant le
+        chiffrement, que son prochain enregistrement (ou la migration de données) chiffrera ;
+      - sans clé sûre (poste de développement, tests), la valeur s'écrit en clair plutôt que de
+        refuser l'enregistrement d'un profil.
+    ⚠ Comme tout champ chiffré : aucune recherche SQL sur la valeur, sauf le vide."""
+
+    def get_prep_value(self, value):
+        if value in (None, '') or not storage_available():
+            return models.TextField.get_prep_value(self, value)
+        return super().get_prep_value(value)
+
+    def from_db_value(self, value, expression, connection):
+        if not value or not str(value).startswith(TOKEN_PREFIX):
+            return value
+        return super().from_db_value(value, expression, connection)
+
+
 def encrypted_columns() -> list:
     """(modèle, champ) de chaque `EncryptedTextField` des modèles installés. La rotation les trouve
     SEULE : un champ chiffré ajouté demain n'a rien à déclarer ailleurs."""
