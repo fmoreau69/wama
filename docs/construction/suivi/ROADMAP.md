@@ -8781,6 +8781,18 @@ Les questions posées, telles quelles :
   (`WAMA_APP_PROCESSES` vide), le rendu par GROUPES de `WamaParams.render` range un réglage
   `advanced` qui a un `group` dans son groupe, à plat — seul l'avancé SANS groupe forme l'accordéon
   (branche `groups` du rendu) ; avec des étapes, il va dans l'« Avancé » de son étape.
+  ⏳ *Revérification du 2026-11-26 — le générateur ne suit pas encore :* côté SERVEUR, la
+  déclinaison du curseur est du code du converter (`converter/views.py` : `apply_birth_settings`,
+  `_remembered_drop`, `_apply_quality_gesture`, la vue `api_presets` ; `converter/tasks.py` :
+  `_derive_media_type`). Régénérée, la jumelle recevrait la déclaration (`effect_source`, par son
+  schéma) et donc la note — servie par la route du converter RÉEL, que le registre JS
+  `EFFECT_SOURCES` nomme par son URL —, mais sa naissance n'appliquerait pas le curseur
+  (`converter_01/views.py:84`, `_element_settings` sans couche préréglage) et sa propre vue
+  `api_presets` est un trou de glu (501, l.168). Remède, avant la régénération des jumelles : une source d'effet
+  DÉCLARÉE côté serveur (clé `effect_source` → déclinaison, enregistrée par l'app), lue par la
+  cascade commune (`new_element_settings`), par la mémoire du volet (`save_panel_settings` : ce que
+  le curseur a écrit n'est pas un geste), par le geste sur un élément, et servie par une route
+  commune, que le JS interroge par la clé seule.
 - **Les profils de réglages de l'utilisateur, et leur ÉDITION** : l'alignement n'est peut-être pas
   terminé. *Mesuré :* la table commune `common.UserAppSetting` (avec `ElementPreference`) cohabite
   avec TROIS modèles propres à une app — `converter.ConversionProfile`, `cam_analyzer.AnalysisProfile`,

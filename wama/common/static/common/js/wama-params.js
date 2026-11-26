@@ -1993,7 +1993,7 @@
   // le volet montre est ce qu'il postera, et la naissance applique la même déclinaison
   // (`apply_birth_settings`). La déclinaison ne vit qu'au serveur — la source rend `{effect}` pour une
   // position et les porteurs de l'élément (`hidden` : sa nature) ; rien n'est recopié ici. Les
-  // `change` qu'elle émet ne sont pas des gestes (`isGesture`) : aucun enregistrement au geste.
+  // valeurs s'écrivent par `apply`, sans événement : aucun enregistrement au geste (`isGesture`).
   var EFFECT_SOURCES = global.WAMA_EFFECT_SOURCES || {
     converter: '/converter/api/presets/',
   };
@@ -2033,19 +2033,6 @@
       (Object.keys(current).length ? ' — à retoucher dans « Avancé ».' : '.');
   }
 
-  function _writeEffect(container, effect) {
-    Object.keys(effect || {}).forEach(function (name) {
-      var el = _effectField(container, name);
-      if (!el) return;
-      // Le geste du curseur décide aussi d'un réglage TENU (un lot sans valeur commune).
-      if (el.dataset && el.dataset.unset) releaseField(el);
-      if (el.type === 'checkbox') el.checked = !!effect[name];
-      else el.value = String(effect[name]);
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-      el.dispatchEvent(new Event('change', { bubbles: true }));
-    });
-  }
-
   function _bindIntentEffects(container, schema, ctx) {
     (schema || []).forEach(function (p) {
       if (p.type !== 'intent' || !p.effect_source) return;
@@ -2067,11 +2054,19 @@
             // Une position plus récente a été demandée entre-temps : c'est elle qui parlera.
             if (!data || String(slider.value) !== asked || !slider.isConnected) return;
             var effect = data.effect || {};
-            if (write) _writeEffect(container, effect);
-            var current = {};
+            // Écrire = le geste commun qui pose des valeurs dans le formulaire (`apply` : celui d'un
+            // profil, de « ↺ Par défaut ») — il rend un réglage TENU, resynchronise curseurs,
+            // conditions et bornes. Il redit l'effet de chaque curseur : pas celui-ci, qui le dit
+            // juste après.
+            if (write) {
+              slider._wpWriting = true;
+              try { apply(container, effect); } finally { slider._wpWriting = false; }
+            }
+            // Ce que le formulaire posterait (`read`), sinon ce qu'il montre (un réglage tenu).
+            var posted = read(container), current = {};
             Object.keys(effect).forEach(function (n) {
               var el = _effectField(container, n);
-              if (el) current[n] = el.type === 'checkbox' ? el.checked : el.value;
+              if (el) current[n] = (n in posted) ? posted[n] : _fieldValue(el);
             });
             _inputNote(slider, effectText(effect, schema, current));
             slider.dispatchEvent(new CustomEvent('wama:intent-effect', {
@@ -2735,7 +2730,7 @@
     _syncIntentSliders(container);   // curseur d'intention : hidden → position + tricolore
     // Ce que pose le curseur, REDIT sur les valeurs posées (une card inspectée) — sans rien écrire.
     container.querySelectorAll('.wama-intent-slider').forEach(function (s) {
-      if (s._wpTellEffect) s._wpTellEffect(false, false);
+      if (s._wpTellEffect && !s._wpWriting) s._wpTellEffect(false, false);
     });
     _syncTemperature(container);     // température : champ caché → case, position, libellé
     _bindConditional(container);
