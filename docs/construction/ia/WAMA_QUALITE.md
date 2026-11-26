@@ -2014,7 +2014,8 @@ Le transcriber n'est qu'UN adoptant. Le relevé, par famille de mesure (où la v
   classes, splits, comptes, format, provenance »). Les références du banc (WIDER FACE, DIV2K) ne sont
   que des `reference.json` sous la racine des jeux, sans manifeste.
 - **Manifeste `model`** : `quality.defect` seulement ; les faits mesurés en sont exclus exprès.
-- **Registres** : aucun registre de mesures dans `registries_builtin` (dix-neuf clés) ; trois
+- **Registres** : aucun registre de mesures dans `registries_builtin` (dix-neuf clés ; vingt au
+  2026-11-26, `tracks` ajouté le 24/11 — toujours aucun de mesures ni de jeux) ; trois
   dictionnaires hors registre (`result_evaluation._REGISTRY`, `CHECKS`, contrat `quality-metric`).
 - **Intention de la vision** (`WAMA_VISION_COMPLET §10.3`) : *« chaque capacité déclarée référence
   son jeu de test interne et ses métriques ; la veille ne propose un remplacement qu'avec un delta
@@ -2173,7 +2174,7 @@ Transposée à la mesure :
 à l'inverse (« je suis quasiment sûr que c'est déjà le cas »). Le code :
 - il est ouvert par une CAPACITÉ D'APP (`app_registry.app_result_ports`, `:771-810`, docstring :
   « entrées que l'APP consomme elle-même — jamais un modèle ») ;
-- cette capacité est déclarée dans `APP_CATALOG` (transcriber, `has_reference_result`, `:1849`) et
+- cette capacité est déclarée dans `APP_CATALOG` (transcriber, `has_reference_result`, `:1849` — `:1868` au 2026-11-26) et
   exportée au manifeste (`manifests/apps/transcriber.json:17-18`) ;
 - c'est la décision écrite le 2026-09-23 (`INPUT_MODEL_MATCHING §6.7` : « la seule famille
   d'entrées qu'aucun modèle ne peut déclarer »).
@@ -2200,10 +2201,10 @@ déjà.** Champ par champ (déclaration du transcriber, `transcriber/apps.py:65-
 | champ d'`EvaluationSpec` | ce qui le porte DÉJÀ | verdict |
 |---|---|---|
 | `reference_field` (`reference_result`) | le jeton du port (`app_modes.INPUT_TYPES`), même nom que le champ de l'élément | dérivable |
-| `model_key` | la ligne du process mesuré : `ProcessRun.model_key` (`common/models.py:1523`) — c'est déjà ce que lisent les mesures sans référence (`result_evaluation.py:456`) | dérivable |
+| `model_key` | la ligne du process mesuré : `ProcessRun.model_key` (`common/models.py:1523` — `:1543` au 2026-11-26) — c'est déjà ce que lisent les mesures sans référence (`result_evaluation.py:456`) | dérivable |
 | `segment_model_key` (le diariseur) | la ligne du process `diarize` (`function_specs.py:228`) : son `model_key` | dérivable — la mesure se range sous le process qui l'a produite |
-| `config_params` (réglages qui changent le résultat) | ce que chaque réglage PÉRIME (`Param.stales`, `transcriber/params.py`) et les interrupteurs des process amont (`ProcessSpec.toggle`, `depends_on`) — réunis par `AppPipeline.watched_of` (`process_pipeline.py:513`). La liste de l'`EvaluationSpec` en est la recopie, marquée `wama:redondance-ok` (`apps.py:165`) | doublon |
-| `input_identity` (l'audio) | `AppPipeline.input_of` (`process_pipeline.py:1263`), déjà lu par `speech_coverage` | dérivable |
+| `config_params` (réglages qui changent le résultat) | ce que chaque réglage PÉRIME (`Param.stales`, `transcriber/params.py`) et les interrupteurs des process amont (`ProcessSpec.toggle`, `depends_on`) — réunis par `AppPipeline.watched_of` (`process_pipeline.py:513` — `:550` au 2026-11-26). La liste de l'`EvaluationSpec` en est la recopie, marquée `wama:redondance-ok` (`apps.py:165`) | doublon |
+| `input_identity` (l'audio) | `AppPipeline.input_of` (`process_pipeline.py:1263` — `:1300` au 2026-11-26), déjà lu par `speech_coverage` | dérivable |
 | `result_text`, `result_segments` | le résultat lisible de chaque process (`ProcessSpec.result`, `result_format`, `function_specs.py:222`, `:231`) | **PAS dérivable tel quel**, vérifié : `transcription_text` rend `transcript.text` (`transcript_documents.py:244-245`, `:311-313`), que la correction humaine ÉCRASE — `_asr_text` lit exprès les segments PRODUITS. La mesure doit lire ce que le PRODUCTEUR a rendu, pas l'état courant de l'élément. La révision fait déjà cette distinction (origine `process` / `manual`), mais elle ne garde pas un texte qui n'est pas un fichier. Question ouverte : où lire la sortie d'un producteur |
 | `result_field`, `import_result` | le process `import` et son port (ci-dessus) | doublon |
 | `disagreement` (M1) | c'est une MESURE (`divergence`), pas une propriété d'app | va au registre des mesures |
@@ -2216,7 +2217,7 @@ reste propre à l'app que la lecture d'une référence dans son format. Le trou 
 jumelle qui a perdu `register_evaluation`) disparaît : il n'y a plus de déclaration d'app à émettre.
 
 **Un gisement gratuit pour la répétabilité, relevé au passage.**
-- Chaque résultat produit crée une révision de l'élément (`ItemRevision`, `common/models.py:1381` ;
+- Chaque résultat produit crée une révision de l'élément (`ItemRevision`, `common/models.py:1381` — `:1401` au 2026-11-26 ;
   `revisions.record_revision`, posée une fois dans le squelette de tâche). Elle garde l'origine
   (traitement, correction à la main, fichier fourni), les modèles, la photo des réglages et
   l'empreinte de chaque fichier de sortie.
@@ -2247,12 +2248,12 @@ ce ne sont pas des décisions de Fabien.
 | **Q2** — la RÉVISION est le support de « ce que le producteur a rendu », unanime. Condition : en garder le CONTENU pour toute étape mesurable ; puis surveiller le volume | ✅ C'est la condition de faisabilité, et elle n'est pas remplie aujourd'hui : le contenu n'est gardé que pour les apps qui déclarent `keep_outputs`, et seulement s'il est un FICHIER. Le texte d'une transcription n'en est pas un. La purge existe déjà (les `keep` dernières révisions et les publiées gardent leurs fichiers, `revisions.py:9-13`) |
 | **Q3** — stocker la mesure PRIMAIRE (`ResultEvaluation` contre référence, la ligne d'étape sans référence), CALCULER à la lecture ce qui se dérive (accord, agrégats, caractérisation). Trois avis contre un | ✅ C'est le patron d'`internal_scores` (calculé à la lecture, rien d'écrit au catalogue). L'avis isolé qui voulait tout stocker n'est pas retenu |
 | **Q3 bis** — les indicateurs du Lab sont des mesures SANS référence ; pas de magasin à part pour eux | ✅ Ils iraient sur la ligne de leur étape, comme les `checks` ; aujourd'hui ils restent dans `results_summary`. Aucun magasin à part n'avait été proposé : le décideur prête cette idée à tort |
-| **Q4** — unir les mondes par un CONTRAT commun dans le substrat (famille, sens, unité, incertitude, agrégation, lecture, population, coût, protocole versionné). La facette estimateur (Lab, Data) et la déclaration des Médias en deviennent des adoptants. « On n'unit pas les mondes, on unit le contrat » ; les calculs ne s'unifient pas | ✅ Juste. Le domicile reste à vérifier : `common/catalog/` (la glu inter-mondes) ou un registre de plus dans `registries_builtin`, qui en compte dix-neuf sans aucun de mesures (10.3). C'est une décision de Fabien |
+| **Q4** — unir les mondes par un CONTRAT commun dans le substrat (famille, sens, unité, incertitude, agrégation, lecture, population, coût, protocole versionné). La facette estimateur (Lab, Data) et la déclaration des Médias en deviennent des adoptants. « On n'unit pas les mondes, on unit le contrat » ; les calculs ne s'unifient pas | ✅ Juste. Le domicile reste à vérifier : `common/catalog/` (la glu inter-mondes) ou un registre de plus dans `registries_builtin`, qui en compte dix-neuf sans aucun de mesures (10.3). C'est une décision de Fabien. ⚠ *Corrigé le 2026-11-26* : ce n'est pas une alternative, le patron existant fait les deux. Le catalogue des fonctions se déclare dans `common/catalog/function_catalog.py` et se montre comme registre `functions` (`registries_builtin.py:202`, nature redéclaration). Voir 10.11 |
 | **Q5** — le COÛT est déclaré par la MESURE (nul, CPU ou GPU, et un temps estimé). Une campagne refuse ce qui dépasse son créneau. On commence à coût GPU nul. **D'abord, appliquer le délai des scénarios**, qui ne l'est pas (`nightly_tests`, TODO) | ✅ Le coût est sur la mesure, au registre, pas sur l'app. Le créneau mesuré et le refus existent pour la planification (`BEAT_WINDOWS`, `scheduled_actions.place`) ; l'admission scénario par scénario n'existe pas. Le délai non appliqué et la suite du commun sans verdict sont des PRÉALABLES (`WAMA_VERIFICATION §11`), pas des à-côtés |
 | **Q5 bis** — ce qui est gratuit d'abord : le déterminisme par les révisions, le rejeu des `checks`, l'accord sur les lots existants, la confiance des moteurs déjà écrite, la conformité d'une sortie à sa forme déclarée | ✅ Cela recoupe le premier tri de 10.5. « Conformité de forme » est une idée de mesure sans référence de plus, à instruire |
 | **Q6** — une mesure est « éprouvée » si elle est stable sur ses répétitions, CORRÉLÉE au jugement humain là où il existe, et **SENSIBLE** : elle bouge dans le bon sens quand on dégrade la sortie (deepseek) | ✅ Les trois sont retenus. Le dernier est la contre-épreuve appliquée à une métrique : il prolonge le « rapport de sensibilité » du concile du 12/11 (§0). ❌ « Sur trois jeux distincts » est un seuil inventé ; « documentée et au manifeste » n'est pas un critère d'épreuve |
 | Une mesure qui RÉFUTE un fait déclaré (`reproducible`) : qui gagne ? (deepseek) | ✅ La mesure gagne, et les deux restent visibles. C'est la forme de la dérivation du moteur (un moteur déclaré, réfuté, garde sa trace) |
-| MANQUE : le sort des mesures quand un élément est supprimé, ou qu'un modèle est retiré ou remplacé | ✅ C'est une vraie question, non vérifiée au code : la ligne `ResultEvaluation` vit avec son élément ; on ignore ce que la succession (`succession.py`) fait des notes d'un modèle remplacé. À instruire |
+| MANQUE : le sort des mesures quand un élément est supprimé, ou qu'un modèle est retiré ou remplacé | ✅ C'est une vraie question, non vérifiée au code : la ligne `ResultEvaluation` vit avec son élément ; on ignore ce que la succession (`succession.py`) fait des notes d'un modèle remplacé. À instruire. *Instruit et tranché le 2026-11-26 : 10.11* |
 | ❌ « Le manifeste de l'app doit porter sa capacité à lire une référence » ; et le décideur, en résumé : « commencer par déclarer les mesures dans les manifestes » | Contraire à la décision de Fabien (10.8) dans sa forme ; juste sur le fond, sur UN point : lire une référence dans SON format reste propre à l'app (10.8, dernière ligne de la table). Ce n'est pas un champ de mesure, c'est un lecteur du format de sortie de l'app. ⏳ À vérifier : il pourrait se ranger à côté de l'écrivain d'export qu'elle déclare déjà (`register_export_builder`, `transcriber/apps.py:63`), qui en est l'inverse |
 | ❌ « Le port de référence par capacité d'app est une anomalie confirmée par le responsable » (un avis) | Faux. C'était une décision écrite (23/09, `INPUT_MODEL_MATCHING §6.7`), que la règle du producteur RÉVISE (10.8) |
 
@@ -2292,6 +2293,69 @@ universel). Les besoins se consignent ici à mesure qu'ils arrivent.
   une référence d'une autre nature que le texte, et une comparaison de configurations plutôt que de
   modèles.
 
+### 10.11 Le catalogue des jeux de test et des mesures, et le sort des mesures d'une card supprimée (2026-11-26)
+
+> Fabien, 2026-11-26 : *« Concernant les tests, il me semble que c'était déjà prévu de les ajouter
+> dans un catalogue. Peux-tu vérifier tout ce qui est déjà consigné à ce sujet ? Je pense que la
+> mesure d'une card supprimée peut continuer à compter tant que c'est rattaché correctement au bon
+> modèle. »* Relevé en lecture seule. Rien d'implémenté.
+
+**Ce qui est déjà consigné.** Le mot « tests » recouvre trois objets, et chacun a déjà sa trace :
+
+| objet | ce qui est écrit | état mesuré le 2026-11-26 |
+|---|---|---|
+| les **jeux de test** d'une capacité (corpus, références) | la vision : *« chaque capacité déclarée référence son jeu de test interne et ses métriques ; […] les tests nocturnes tirent ces jeux »* (`WAMA_VISION_COMPLET §10.3`) ; `ROADMAP` H2, point 5 (« jeux de test par capacité ») ; un jeu se déclare en manifeste `dataset` (`WAMA_APPRENTISSAGE §8bis`, points 2 et 4 ; ici 10.5 point 3) ; ses sources vont au registre `external_sources`, famille `corpus` (§8bis, décision du 2026-10-10) | ⏳ quatre manifestes `dataset` (`manifests/datasets/` : cfpp, fleurs-cs, summ-re, madison-simulateur). Les références du banc (WIDER FACE val) se lisent par leur NOM (`bench.benchmark_reference`, `bench.py:471`), sans manifeste. Aucune capacité ne nomme son jeu. Aucun registre de jeux dans `registries_builtin` |
+| les **mesures** elles-mêmes | 10.3 (trois dictionnaires hors registre) ; 10.8, table : `disagreement`, `metrics` et `protocol` « vont au registre des mesures » ; 10.9 Q4 : un contrat commun dans le substrat | côté Lab et Data, les mesures sont DÉJÀ au catalogue des fonctions (`FunctionCategory.INDICATOR`, `function_catalog.py:22`, et la facette estimateur). Côté Médias, elles vivent hors catalogue : `result_evaluation._REGISTRY` (`:158`), `CHECKS` (`:426`), la tâche `quality-metric` du catalogue des modèles (`model_manager/models.py:166`), les protocoles du banc (`bench.PROTOCOLS`, `:827`) |
+| les **tests de WAMA** (suite Django, scénarios nocturnes) | Fabien, 2026-09-19 : ni registre ni page des tests, *« c'est le résultat des tests qui importe »* (`WAMA_VERIFICATION §2`) ; les scénarios ont leur registre (`nightly_tests.register`) ; `WAMA_VERIFICATION §11.3` point 5 : les gardes « exige son absence » pourraient vivre dans UN registre | inchangé |
+
+**Ce que cela dit du domicile (10.9 Q4).** Le catalogue est bien la route déjà écrite, et la
+question « catalogue OU registre » était fausse : le patron existant fait les deux. Le catalogue
+des fonctions se déclare dans `common/catalog/function_catalog.py` et se montre comme registre
+(`functions`, `registries_builtin.py:202`, nature redéclaration). Proposition qui en découle :
+- le contrat commun des mesures suit ce patron ;
+- il absorbe l'`INDICATOR` du Lab et de Data plutôt que de le doubler (10.5 point 2) ;
+- les jeux de test restent des manifestes `dataset` : une mesure ne les recopie pas, elle nomme sa
+  population (règle du §4.1) ;
+- le lien « capacité → son jeu de test » de la vision devient, sous la règle du producteur (10.8),
+  « mesure portée par le producteur → population sur laquelle elle a été prise ».
+
+⏳ Rien n'est construit. Le registre de jeux (que lit le banc, que tirent les campagnes) n'a pas
+de domicile décidé. Avant d'en proposer un, relire `WAMA_DATA_WORLD §9decies` : `DATASET_SOURCES`
+(`manifests/builtin/dataset.py`) est un vocabulaire de PROVENANCE gardé exprès, pas un registre de
+jeux. Le rapprocher des lecteurs de données était une glose fausse de G1.
+
+**Le sort des mesures — décision de Fabien (2026-11-26) : la mesure d'une card supprimée continue
+de compter, tant qu'elle reste rattachée au bon modèle.** Vérifié au code, c'est déjà le
+comportement. Il n'y a rien à changer :
+- une ligne `ResultEvaluation` nomme son modèle par sa CLÉ (`model_key`, `common/models.py:1705`)
+  et son élément par son nom et son identifiant (`object_type`, `object_id`, `:1698-1699`), sans
+  lien de base. Supprimer la card ne la touche pas : `release_card_files` n'oublie que les lignes
+  de process et les pipelines de la card (`queue_duplication.py:198`) ;
+- l'indice interne la lit sans repasser par la card (`internal_quality.internal_scores`,
+  `:60-78`) : elle compte ;
+- « le bon modèle » est tenu par la succession. Un changement de clé (mêmes poids) emporte les
+  évaluations (`succession.rekey`, `:209`, `:220`). Un remplacement par d'autres poids les laisse
+  à l'ancien modèle (`supersede`, `:231`, qui n'y touche pas), et c'est juste ;
+- une ligne décrit le résultat COURANT de son élément (une par élément et par métrique, `:1729`).
+  Une card supprimée garde donc la mesure du dernier modèle qui l'a produite.
+
+Deux conséquences à garder pour la construction (⏳, rien de changé) :
+1. **Les mesures SANS référence partent avec la card.** Elles sont rangées sur la ligne du
+   process (`run_checks` → `process_runs.annotate`, `result_evaluation.py:462`), et cette ligne
+   est oubliée à la suppression (`process_runs.forget`, `process_runs.py:405-408`). Aujourd'hui,
+   aucune note de modèle ne les lit : rien ne se perd pour l'indice. Le jour où elles compteront
+   (Q3 : la mesure primaire sur la ligne d'étape), la même règle devra valoir pour elles :
+   supprimer la card n'emporte pas la mesure.
+2. **Les révisions d'une card supprimée restent en base** (`ItemRevision`) ; seule la jumelle les
+   purge (`app_sandbox.py:1664`). Ce ne sont pas des mesures. Mais si leur contenu devient le
+   support de la répétabilité (décision 3, Q2), il faudra dire si une révision orpheline se garde
+   comme une mesure ou part avec sa card. Question ouverte, liée à la décision 3.
+
+**Décisions encore ouvertes au 2026-11-26** : l'ordre de 10.9 (décision 1 — ses deux préalables
+sont toujours ouverts : le délai d'un scénario n'est pas appliqué, `nightly_tests.py:430`, et la
+suite du commun n'a rendu aucun verdict les 1ᵉʳ, 8, 15 et 22 novembre) ; la rétention du contenu
+pour les étapes mesurables (décision 3) et, avec elle, les révisions orphelines.
+
 ---
 
 ## Voir aussi
@@ -2328,3 +2392,8 @@ universel). Les besoins se consignent ici à mesure qu'ils arrivent.
   de référence est une capacité d'app (à dériver) ; `EvaluationSpec` redéclare le pipeline ; la
   révision garde les passes répétées. §10.9 : concile relancé sur le §10 complet, avis confronté.
   Rien d'implémenté.
+- **2026-11-26** — §10.11 : ce qui est déjà consigné sur un catalogue des jeux de test et des
+  mesures (vision §10.3, `ROADMAP` H2.5, manifestes `dataset`, `INDICATOR` du catalogue des
+  fonctions) ; le domicile « catalogue OU registre » était une fausse alternative. Décision de
+  Fabien : la mesure d'une card supprimée continue de compter, rattachée à son modèle — vérifié au
+  code, c'est déjà le cas. Citations de §10.8 recalées. Rien d'implémenté.
