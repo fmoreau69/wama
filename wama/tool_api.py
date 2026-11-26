@@ -4268,11 +4268,17 @@ def _account_admin_refusal(user, action: str) -> dict | None:
     return None
 
 
-def _accounts_page() -> dict:
+def _page_link(route: str) -> dict:
+    """La page où le geste se fait aussi, pour la réponse d'un outil : `{page, link}` (l'adresse
+    relative, et l'adresse publique que l'assistant donne à l'utilisateur)."""
     from django.urls import reverse
     from wama.common.services.navigation import absolute_url
-    url = reverse('accounts:user-management')
+    url = reverse(route)
     return {'page': url, 'link': absolute_url(url)}
+
+
+def _accounts_page() -> dict:
+    return _page_link('accounts:user-management')
 
 
 def _counts_by_state(people) -> dict:
@@ -4419,10 +4425,7 @@ def get_account_details(user, username: str) -> dict:
 # le rôle métier qui est le sien ; un administrateur répond. Les fonctions de la page de profil.
 
 def _profile_page() -> dict:
-    from django.urls import reverse
-    from wama.common.services.navigation import absolute_url
-    url = reverse('accounts:profile')
-    return {'page': url, 'link': absolute_url(url)}
+    return _page_link('accounts:profile')
 
 
 def _directory_data_rows(rows) -> list:
