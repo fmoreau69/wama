@@ -201,7 +201,6 @@ def _affilier(user, *codes):
     comme des codes que plus rien ne lit."""
     prof = user.profile
     prof.org_entity_code = codes[0] if codes else ''
-    prof.org_affiliations = list(codes)
     prof.save()
 
 
@@ -507,7 +506,6 @@ class RattachementMultipleTests(TestCase):
         self.u = User.objects.create_user('multi', password='x')
         prof = self.u.profile
         # Trois codes, dont un FANTÔME absent de l'annuaire — exactement le profil mesuré.
-        prof.org_affiliations = ['{IFSTTAR}LESCOT', 'CFR - LESCOT', '{EIFFEL}CFR - LESCOT']
         # …et son unité PRINCIPALE, la seule qui le rattache depuis le 2026-11-25 (décision de
         # Fabien : « une seule appartenance […] la principale/officielle ») — le blocage que
         # cette classe protégeait disparaît avec le choix entre trois codes d'une même unité.
@@ -535,29 +533,10 @@ class RattachementMultipleTests(TestCase):
         self.assertEqual(chunk.visibility, ScopedVisibility.VIS_UNIT)
         self.assertEqual(chunk.scope_org_unit_id, self.actuel.id)
 
-    def test_a_default_unit_left_from_before_no_longer_decides_anything(self):
-        """Un profil qui avait nommé le code HÉRITÉ comme cible : le partage va quand même à
-        l'unité principale, au lieu d'être refusé ou de partir ailleurs."""
-        prof = self.u.profile
-        prof.rag_unite_defaut = '{IFSTTAR}LESCOT'
-        prof.save()
-        r = self._ajouter()
-        self.assertEqual(r.status_code, 200)
-        self.assertEqual(RagChunk.objects.filter(user=self.u).first().scope_org_unit_id,
-                         self.actuel.id)
-
     def test_the_page_offers_the_main_unit_and_no_other_code_of_the_record(self):
         r = self.client.get('/common/rag/')
         self.assertEqual({'CFR - LESCOT'}, {u['code'] for u in r.context['unites']})
 
-    def test_a_unit_that_is_not_the_main_one_cannot_be_named(self):
-        OrgUnit.objects.create(code='AUTRE-LABO', name='Autre labo', unit_type='labo')
-        for code in ('AUTRE-LABO', '{IFSTTAR}LESCOT'):
-            r = self.client.post('/common/api/rag/preference/',
-                                 {'unite_soumise': '1', 'unite_defaut': code})
-            self.assertEqual(r.status_code, 400)
-        self.u.profile.refresh_from_db()
-        self.assertEqual(self.u.profile.rag_unite_defaut, '')
 
 
 class SyncOrgUnitsTests(TestCase):
@@ -732,3 +711,69 @@ class FileToRagTest(TestCase):
                         lambda *a, **k: real(*a, **dict(k, semantic=False))):
             hits = tool_api.memory_recall(self.u, 'chevaux miniatures', include_memory=False)
         self.assertIn(rel, [h['reference'] for h in hits.get('results', [])], hits)
+
+
+class UrlToRagTest(TestCase):
+    """« Ajouter une page web » au RAG par son adresse (2026-11-26, demande de Fabien) : la MÊME
+    porte que les cards et l'arbre (`/common/api/rag/ajouter/`, `url`), la MÊME brique pour
+    l'assistant (`add_url_to_rag`), la lecture gardée de `read_web_page`. La page lue est simulée
+    au point où la brique la lit ; la garde contre les adresses internes, elle, est la vraie."""
+
+    PAGE = {'url': 'https://lab.example/equipe', 'final_url': 'https://lab.example/equipe/',
+            'text': "Le laboratoire étudie la conduite et l'attention.", 'truncated': False}
+
+    def setUp(self):
+        from unittest import mock
+
+        from wama.common.utils import web_search
+        self.u = User.objects.create_user('rag_url_a', password='x')
+        self.client.force_login(self.u)
+        self.real_read = web_search.read_web_page
+        reading = mock.patch.object(web_search, 'read_web_page', return_value=dict(self.PAGE))
+        self.read = reading.start()
+        self.addCleanup(reading.stop)
+
+    def _add(self, url):
+        return self.client.post('/common/api/rag/ajouter/', {'url': url})
+
+    def test_a_page_enters_my_rag_under_its_final_address_and_a_second_add_reads_it_again(self):
+        r = self._add('https://lab.example/equipe')
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(('page web', False), (r.json()['origine'], r.json()['tronque']))
+        chunk = RagChunk.objects.get(user=self.u)
+        self.assertEqual(chunk.source_ref, 'https://lab.example/equipe/')    # ce que le rappel cite
+        self.assertTrue(chunk.source_id.startswith(f'url:{self.u.pk}:'))
+        self.assertLessEqual(len(chunk.source_id), 64)
+        self.assertEqual((chunk.source_kind, chunk.visibility), ('doc', ScopedVisibility.VIS_PRIVATE))
+        self.assertIsNone(chunk.embedding)
+        self.assertEqual('inchangé', self._add('https://lab.example/equipe').json()['etat'])
+        self.read.return_value = dict(self.PAGE, text='La page a changé depuis.')
+        self.assertEqual('réindexé', self._add('https://lab.example/equipe').json()['etat'])
+        self.assertEqual(['La page a changé depuis.'],
+                         list(RagChunk.objects.filter(user=self.u).values_list('content', flat=True)))
+        self.assertContains(self.client.get('/common/rag/'), 'id="ragAddPage"')
+
+    def test_what_is_not_a_readable_public_page_is_refused_and_said(self):
+        self.assertIn('http', self._add('ftp://lab.example/x').json()['erreur'])
+        self.read.return_value = {'url': 'x', 'error': 'Type non lisible ici : image/png'}
+        self.assertIn('non lisible', self._add('https://lab.example/logo.png').json()['erreur'])
+        self.read.return_value = dict(self.PAGE, text='   ')
+        self.assertIn('aucun texte', self._add('https://lab.example/vide').json()['erreur'])
+        self.read.side_effect = ConnectionError('down')
+        self.assertIn('ConnectionError', self._add('https://lab.example/down').json()['erreur'])
+        # La VRAIE garde (aucune sortie réseau : elle refuse avant) : une adresse interne n'est
+        # jamais lue, et rien n'entre au RAG.
+        self.read.side_effect = self.real_read
+        r = self._add('http://127.0.0.1:8000/admin/')
+        self.assertEqual(403, r.status_code)
+        self.assertIn('refusée', r.json()['erreur'])
+        self.assertEqual(0, RagChunk.objects.count())
+
+    def test_the_assistant_tool_is_the_same_gesture(self):
+        from wama import tool_api
+        out = tool_api.execute_tool('add_url_to_rag', {'url': 'https://lab.example/equipe'}, user=self.u)
+        self.assertNotIn('error', out, out)
+        self.assertIn('vectorisation', out['message'])
+        self.assertTrue(RagChunk.objects.filter(user=self.u, source_ref='https://lab.example/equipe/').exists())
+        self.assertEqual({'error'}, set(tool_api.add_url_to_rag(self.u, 'pas une adresse')))
+        self.assertIsNone(tool_api.app_id_for_tool('add_url_to_rag'))

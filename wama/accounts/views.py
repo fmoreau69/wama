@@ -1057,7 +1057,9 @@ def user_management(request):
             # La qualité de la personne (chercheur, personnel, étudiant…), si elle la garde sur
             # son profil : elle aide à lui proposer un rôle.
             'status': profile.ldap_affiliation if profile else '',
-            'site': profile.site if profile else '',
+            # Le lieu de travail (site, bâtiment, bureau) : du minimum, sauf masquage par la personne.
+            'place': ' · '.join(v for v in (profile.site, profile.building, profile.office) if v)
+            if profile else '',
             'role': get_user_role(user),
             'groups': [g.name for g in user.groups.all()],
             'metier_cells': [{'key': k, 'label': label, 'active': k in active_metier,

@@ -302,6 +302,56 @@ def add_file_to_rag(user, path, *, level='', org_unit=''):
     return res
 
 
+#: Le texte d'une PAGE web gardé au plus : une page, pas un site (au-delà, il est tronqué et le
+#: résultat le dit).
+WEB_PAGE_MAX_CHARS = 200_000
+
+
+def add_url_to_rag(user, url, *, level='', org_unit=''):
+    """Ajoute au RAG le texte d'une PAGE WEB publique, désignée par son adresse (2026-11-26,
+    demande de Fabien : « fournir l'url du site du laboratoire pour l'ajouter directement au RAG
+    sans devoir passer par une application »). Une page à la fois ; un site entier viendra après.
+
+    La lecture est celle de l'assistant (`web_search.read_web_page`) : garde contre les adresses
+    internes à chaque redirection (`url_guard`), proxy sortant commun, taille bornée, HTML rendu en
+    texte lisible. Un média ou un document n'est pas une page : il se dépose dans une app, ou dans
+    le gestionnaire de fichiers puis « Ajouter au RAG ». `source_id` = `url:<uid>:<empreinte de
+    l'adresse>` : re-ajouter la même adresse RELIT la page et met le document à jour ;
+    `source_ref` = l'adresse finale, ce que « Mon RAG » affiche et que le rappel cite."""
+    from wama.common.utils.url_guard import UrlRefusee
+    from wama.common.utils.web_search import read_web_page
+
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return _refusal('utilisateur requis', 403)
+    url = (url or '').strip()
+    if not url.lower().startswith(('http://', 'https://')):
+        return _refusal("une adresse web commence par http:// ou https://")
+    level, unit = _gesture_level(user, level, org_unit)
+    if level not in WRITE_LEVELS:
+        return _refusal(f"niveau non ouvert : {level}")
+    try:
+        page = read_web_page(url, max_chars=WEB_PAGE_MAX_CHARS)
+    except UrlRefusee as e:
+        return _refusal(f"adresse refusée : {e}", 403)
+    except Exception as e:                   # réseau, statut HTTP, encodage : on le DIT
+        logger.warning('[memory.index] page illisible : %s (%s)', url, e)
+        return _refusal(f"la page n'a pas pu être lue ({type(e).__name__})")
+    if page.get('error'):
+        return _refusal(page['error'])
+    text = (page.get('text') or '').strip()
+    if not text:
+        return _refusal("la page ne porte aucun texte lisible")
+    fingerprint = hashlib.sha256(url.encode('utf-8')).hexdigest()[:16]
+    res = add_to_rag(user, text, source_ref=page.get('final_url') or url,
+                     source_id=f'url:{user.pk}:{fingerprint}', source_kind='doc',
+                     niveau=level, org_unit=unit)
+    if res.get('erreur'):
+        return _refusal(res['erreur'])
+    res['origine'] = 'page web'
+    res['tronque'] = bool(page.get('truncated'))
+    return res
+
+
 def remove_from_rag(user, source_id):
     """
     Retire un document du RAG — tous ses fragments. Rend le nombre de lignes supprimées.

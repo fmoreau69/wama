@@ -1156,7 +1156,9 @@ MECHANISMS = (
               "brique (`memory.index.add_item_to_rag` / `add_file_to_rag`, 2026-10-14) : un "
               "élément par son texte canonique, un FICHIER remonté à l'élément dont il est la "
               "sortie, sinon lu s'il porte déjà du texte (`reference_comprehension.read_document_text`) "
-              "et refusé, en le disant, s'il n'en porte pas",
+              "et refusé, en le disant, s'il n'en porte pas. Depuis le 2026-11-26, une PAGE WEB par "
+              "son adresse (`add_url_to_rag`, « Ajouter une page web » de « Mon RAG » et outil de "
+              "l'assistant), lue par la lecture gardée de `web_search.read_web_page`",
               'wama/common/static/common/js/wama-card-menu.js', 'docs/construction/ia/WAMA_MEMORY.md §7ter',
               # Le domicile est le JS : c'est LUI qui rend le geste universel (menu « … » global).
               # Les vues sont l'annexe serveur — la seule porte d'écriture offerte à l'UI.

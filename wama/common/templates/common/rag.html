@@ -62,7 +62,6 @@ du 2026-08-21 (le balayage a été purgé), pas une fonctionnalité oubliée.
   <form class="rag-prefs" method="post" action="{% url 'common:rag_preference' %}">
     {% csrf_token %}
     <input type="hidden" name="rappel_soumis" value="1">
-    <input type="hidden" name="unite_soumise" value="1">
     <div class="row g-3">
       <div class="col-md-5">
         <h2>Niveau de mes ajouts</h2>
@@ -73,27 +72,11 @@ du 2026-08-21 (le balayage a été purgé), pas une fonctionnalité oubliée.
           {% endfor %}
         </select>
         {% if unites %}
-          {% comment %}Le choix d'unité n'apparaît qu'à partir de DEUX : avec une seule,
-          `_resolve_unit` la déduit et un sélecteur à une entrée serait du bruit. Avec
-          plusieurs il est OBLIGATOIRE — on ne devine pas une cible de partage.{% endcomment %}
-          {% if unites|length > 1 %}
-          <p class="hint mt-3 mb-1">
-            Vous avez plusieurs rattachements : indiquez lequel reçoit vos partages.
-          </p>
-          <select class="form-select form-select-sm" name="unite_defaut">
-            <option value="">— choisir une unité —</option>
-            {% for u in unites %}
-            <option value="{{ u.code }}" {% if u.code == unite_defaut %}selected{% endif %}>
-              {{ u.nom }} ({{ u.type }})
-            </option>
-            {% endfor %}
-          </select>
-          {% else %}
-          <input type="hidden" name="unite_defaut" value="{{ unites.0.code }}">
+          {% comment %}UNE unité par personne, sa principale (décision de Fabien du 2026-11-25) :
+          plus rien à choisir — le sélecteur d'unité cible est retiré (`REMOVAL_LEDGER R251`).{% endcomment %}
           <p class="hint mt-2 mb-0">
             <i class="fas fa-building-columns"></i> Unité de partage : {{ unites.0.nom }}.
           </p>
-          {% endif %}
         {% else %}
         <p class="hint mt-2 mb-0">
           <i class="fas fa-circle-info"></i>
@@ -121,6 +104,23 @@ du 2026-08-21 (le balayage a été purgé), pas une fonctionnalité oubliée.
         </div>
       </div>
     </div>
+  </form>
+
+  {% comment %}Ajouter une PAGE WEB par son adresse (2026-11-26, demande de Fabien) : la même porte
+  d'écriture que les cards et l'arbre de fichiers (`common:rag_ajouter`, `url`), au niveau des
+  ajouts choisi ci-dessus. Une page à la fois ; re-ajouter une adresse relit la page.{% endcomment %}
+  <form id="ragAddPage" class="rag-prefs d-flex flex-wrap align-items-center gap-2"
+        data-url="{% url 'common:rag_ajouter' %}">
+    <label class="mb-0 small text-body-emphasis" for="ragPageUrl">
+      <i class="fas fa-globe me-1"></i>Ajouter une page web
+    </label>
+    <input type="url" id="ragPageUrl" class="form-control form-control-sm flex-grow-1"
+           style="min-width:16rem; max-width:40rem;" placeholder="https://…" required>
+    <button type="submit" class="btn btn-sm btn-primary">Ajouter au RAG</button>
+    <span class="small text-body-secondary w-100" data-rag-page-message>
+      Le texte de la page est lu et confié à l'IA, au niveau de vos ajouts. Un média ou un document
+      se dépose dans une application ou dans le gestionnaire de fichiers.
+    </span>
   </form>
 
   {% comment %}Barre COMMUNE (`common/_filter_bar.html`) en mode `server` — même geste que le
@@ -187,8 +187,8 @@ du 2026-08-21 (le balayage a été purgé), pas une fonctionnalité oubliée.
       {% else %}
         Vous n'avez encore confié aucun document à l'IA.<br>
         <span class="geste">
-          Pour en ajouter un : ouvrez un élément dans une application, puis
-          « Ajouter au RAG » dans le volet de droite.
+          Pour en ajouter un : donnez l'adresse d'une page web ci-dessus, ou ouvrez un élément dans
+          une application puis « Ajouter au RAG » dans le volet de droite.
         </span>
       {% endif %}
     </div>
@@ -220,6 +220,27 @@ du 2026-08-21 (le balayage a été purgé), pas une fonctionnalité oubliée.
       }).catch(function () { btn.disabled = false; });
     });
   });
+
+  // Ajouter une page web : la porte commune, puis la liste relue. Le message du serveur s'écrit
+  // par `textContent`.
+  var addPage = document.getElementById('ragAddPage');
+  if (addPage) {
+    var said = addPage.querySelector('[data-rag-page-message]');
+    addPage.addEventListener('submit', function (event) {
+      event.preventDefault();
+      var button = addPage.querySelector('button');
+      var fd = new FormData();
+      fd.append('url', document.getElementById('ragPageUrl').value.trim());
+      button.disabled = true;
+      said.textContent = 'Lecture de la page…';
+      fetch(addPage.dataset.url, {
+        method: 'POST', body: fd, headers: { 'X-CSRFToken': cookie('csrftoken') },
+      }).then(function (r) { return r.json(); }).then(function (j) {
+        if (j.erreur) { said.textContent = j.erreur; button.disabled = false; return; }
+        window.location.reload();
+      }).catch(function () { said.textContent = "La page n'a pas pu être ajoutée."; button.disabled = false; });
+    });
+  }
 })();
 </script>
 {% endblock %}

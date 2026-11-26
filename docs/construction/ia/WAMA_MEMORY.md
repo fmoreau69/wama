@@ -913,6 +913,27 @@ reste à faire, avec son alignement sur le menu commun (`PROJECT_STATUS`, verdic
 > `common.tree_item_menu` étendu (le geste JOUÉ sur un texte témoin, fragment constaté en base),
 > 8/8 sur le code neuf.
 
+> ✅ **5ᵉ SURFACE, la PAGE WEB par son adresse — livrée le 2026-11-26** (Fabien : *« fournir l'url
+> du site du laboratoire pour l'ajouter directement au RAG sans devoir passer par une
+> application »*). Mesuré avant : les cards, l'arbre de fichiers et l'assistant (`add_item_to_rag`,
+> `add_file_to_rag`) avaient leur porte ; une adresse n'en avait aucune — il fallait passer par le
+> Describer. **Ce qui a été réutilisé, sans rien recopier** :
+> - **le même endpoint** `/common/api/rag/ajouter/`, qui reçoit `url` ; le geste vit dans la brique
+>   (`memory.index.add_url_to_rag`), que l'outil de l'assistant `add_url_to_rag` appelle aussi, et
+>   finit dans `add_to_rag` ;
+> - **la lecture de page de l'assistant** (`web_search.read_web_page`) : garde contre les adresses
+>   internes à chaque redirection (`url_guard`), proxy sortant commun, taille bornée, HTML rendu en
+>   texte lisible (`url_ingest.html_to_readable_text`). Un média ou un document à une adresse est
+>   refusé en le disant ;
+> - **le niveau** : celui des ajouts du profil, comme pour les autres surfaces.
+>
+> UNE page à la fois (texte gardé jusqu'à 200 000 caractères, au-delà tronqué et DIT). `source_id`
+> = `url:<uid>:<empreinte de l'adresse>` : re-ajouter la même adresse RELIT la page et met le
+> document à jour ; `source_ref` = l'adresse finale, ce que « Mon RAG » affiche et le rappel cite.
+> Surface : « Ajouter une page web » en tête de « Mon RAG ». **Attesté** : `tests_memory.UrlToRagTest`
+> (adresse finale citée, relecture, refus dits, vraie garde sur une adresse interne, outil).
+> ⏳ Ensuite : plusieurs pages, ou un site borné (profondeur, nombre de pages, règles des robots).
+
 > ⏳ **4ᵉ SURFACE décidée le 2026-09-30 (Fabien) : le fichier de CONTEXTE d'une card ou d'une
 > conversation.** Le contexte « jetable » (`WAMA_LLM.md`, « CONTEXTE JETABLE ») n'entre PAS dans
 > le RAG : il est lu pour l'appel, puis suit sa card ou sa conversation. L'utilisateur peut

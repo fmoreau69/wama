@@ -48,7 +48,6 @@ class AffiliationBlockTest(TestCase):
 
     def test_a_single_recognised_unit_is_named_as_the_share_target(self):
         self._unit('CFR - LESCOT', 'LESCOT')
-        self.profile.org_affiliations = ['CFR - LESCOT']
         self.profile.org_entity_code = 'CFR - LESCOT'
         self.profile.save()
 
@@ -62,8 +61,6 @@ class AffiliationBlockTest(TestCase):
         page ne montre qu'elle et le partage y va sans rien demander."""
         self._unit('CFR - LESCOT', 'LESCOT')
         self._unit('{IFSTTAR}LESCOT', '{IFSTTAR}LESCOT', 'autre')
-        self.profile.org_affiliations = ['{IFSTTAR}LESCOT', 'CFR - LESCOT',
-                                         '{EIFFEL}CFR - LESCOT']
         self.profile.org_entity_code = 'CFR - LESCOT'
         self.profile.save()
 

@@ -145,25 +145,23 @@ class DirectoryConsentTests(TestCase):
         self._sign_in_again('zoe.martin')
         self._sign_in_again('zoe.martin')
         profile = self._profile('zoe.martin')
-        self.assertEqual(('LAB-A', [], '', ''),
-                         (profile.org_entity_code, profile.org_affiliations, profile.establishment,
+        self.assertEqual(('LAB-A', 'Ville-A', '', ''),
+                         (profile.org_entity_code, profile.site, profile.establishment,
                           profile.ldap_affiliation))
         self.assertTrue(directory_consent.pending(profile.user))
 
     def test_an_added_datum_is_refreshed_and_a_removed_one_never_comes_back(self):
         zoe = self._came('zoe.martin')
-        legacy = zoe.profile
-        legacy.org_affiliations = ['LAB-A', 'OLD-A']        # ce qu'un profil d'avant portait
-        legacy.save()
         rows = directory_consent.decide(zoe, accept=['status'], decline=['main_unit'])
-        self.assertEqual({'main_unit': 'declined', 'site': 'undecided', 'establishment': 'undecided',
-                          'status': 'accepted'}, {row['key']: row['choice'] for row in rows})
+        self.assertEqual({'main_unit': 'declined', 'site': 'undecided', 'building': 'undecided',
+                          'office': 'undecided', 'establishment': 'undecided', 'status': 'accepted'},
+                         {row['key']: row['choice'] for row in rows})
         profile = self._profile('zoe.martin')
         # Ajoutée : lue de l'annuaire à l'instant. Retirée : effacée — le nom, la hiérarchie et
         # les anciens codes de rattachement avec elle.
         self.assertEqual('member, researcher', profile.ldap_affiliation)
-        self.assertEqual(('', '', [], []), (profile.org_entity_code, profile.org_entity_name,
-                                            profile.org_hierarchy, profile.org_affiliations))
+        self.assertEqual(('', '', []), (profile.org_entity_code, profile.org_entity_name,
+                                        profile.org_hierarchy))
         self.assertFalse(directory_consent.pending(zoe))
         profile.ldap_affiliation = 'stale'
         profile.save()
@@ -177,19 +175,29 @@ class DirectoryConsentTests(TestCase):
         """Aucun compte existant ne perd rien : ce que le profil portait reste tenu à jour."""
         zoe = self._came('zoe.martin')
         profile = zoe.profile
-        profile.org_affiliations, profile.establishment = ['STALE'], '{UAI}OLD'
+        profile.establishment = '{UAI}OLD'
         profile.save()
         self._sign_in_again('zoe.martin')
         profile = self._profile('zoe.martin')
         self.assertEqual(('{UAI}0000000X', ''), (profile.establishment, profile.ldap_affiliation))
-        # Les autres codes de la fiche ne se lisent plus : ce qu'un profil en portait reste tel
-        # quel (rien n'est effacé sans la personne), et plus rien ne s'en sert.
-        self.assertEqual(['STALE'], profile.org_affiliations)
         rows = {row['key']: row for row in directory_consent.state(zoe, proposed={})}
         self.assertEqual(('undecided', True), (rows['establishment']['choice'], rows['establishment']['stored']))
         self.assertEqual(('undecided', False), (rows['status']['choice'], rows['status']['stored']))
 
     # ── Ce que la personne choisit ──────────────────────────────────────────────────────────
+
+    def test_the_place_of_work_is_there_by_default_and_a_masked_part_never_comes_back(self):
+        """Décision de Fabien du 2026-11-26 : site, bâtiment et bureau sont du MINIMUM — présents
+        d'office pour tout compte d'annuaire, masqués par un geste volontaire de la personne."""
+        zoe = self._came('zoe.martin')
+        profile = self._profile('zoe.martin')
+        self.assertEqual(('Ville-A', 'B1', '101'), (profile.site, profile.building, profile.office))
+        directory_consent.decide(zoe, decline=['office'])
+        self._sign_in_again('zoe.martin')
+        directory_consent.refresh(User.objects.get(pk=zoe.pk))
+        profile = self._profile('zoe.martin')
+        self.assertEqual(('Ville-A', 'B1', ''), (profile.site, profile.building, profile.office),
+                         "le bureau masqué ne revient ni à la connexion ni à la remise à jour")
 
     def test_a_value_always_comes_from_the_directory_never_from_the_browser(self):
         zoe = self._came('zoe.martin')
@@ -214,10 +222,13 @@ class DirectoryConsentTests(TestCase):
                          tuple(rows['main_unit'][k] for k in ('choice', 'stored', 'value')))
         self.assertEqual(('undecided', False, '', '0000000X'),
                          tuple(rows['establishment'][k] for k in ('choice', 'stored', 'value', 'offer')))
-        self.assertEqual({'main_unit', 'site', 'establishment', 'status'}, set(rows),
+        self.assertEqual({'main_unit', 'site', 'building', 'office', 'establishment', 'status'},
+                         set(rows),
                          "une seule appartenance : les autres codes d'une fiche ne se proposent pas")
-        self.assertEqual(('undecided', False, 'Ville-A'),
-                         tuple(rows['site'][k] for k in ('choice', 'stored', 'offer')))
+        # Le lieu de travail est du minimum : présent d'office, la personne le masquera si elle veut.
+        for key, value in (('site', 'Ville-A'), ('building', 'B1'), ('office', '101')):
+            self.assertEqual(('undecided', True, value),
+                             tuple(rows[key][k] for k in ('choice', 'stored', 'value')))
         self.assertEqual('member, researcher', rows['status']['offer'])
         self.assertTrue(all(row['opens'] for row in told['data']))
         self.assertFalse(told['answered'])
@@ -365,7 +376,8 @@ class DirectoryConsentTests(TestCase):
         from wama import tool_api
         zoe = self._came('zoe.martin')
         told = tool_api.get_my_directory_data(zoe)
-        self.assertEqual({'main_unit': 'undecided', 'site': 'undecided', 'establishment': 'undecided',
+        self.assertEqual({'main_unit': 'undecided', 'site': 'undecided', 'building': 'undecided',
+                          'office': 'undecided', 'establishment': 'undecided',
                           'status': 'undecided'},
                          {row['key']: row['choice'] for row in told['data']})
         self.assertNotIn('offer', told['data'][0], "l'outil dit ce que WAMA garde, il n'interroge pas l'annuaire")

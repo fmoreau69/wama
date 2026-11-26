@@ -196,9 +196,10 @@ PREREGISTERED_WELCOME = (
     "d'être activé. WAMA est la plateforme de traitement de médias et d'IA de votre laboratoire. "
     "Vous pouvez vous y connecter avec vos identifiants habituels de l'établissement{address}.\n\n"
     "Ce que ce compte enregistre aujourd'hui, repris de l'annuaire de l'établissement : votre "
-    "identifiant, votre prénom, votre nom, votre adresse électronique et votre unité de "
-    "rattachement. Rien d'autre : à votre première connexion, WAMA vous montrera ce que "
-    "l'annuaire peut y ajouter, et c'est vous qui choisirez — y compris de retirer votre unité.\n\n"
+    "identifiant, votre prénom, votre nom, votre adresse électronique, votre unité de "
+    "rattachement et votre lieu de travail (site, bâtiment, bureau). Rien d'autre : à votre "
+    "première connexion, WAMA vous montrera ce que l'annuaire peut y ajouter, et c'est vous qui "
+    "choisirez — y compris de masquer votre unité ou votre lieu de travail.\n\n"
     "Vous n'avez rien à faire si vous ne souhaitez pas vous en servir. Pour faire supprimer ce "
     "compte et ces informations, ou pour toute question, {contact}.\n")
 

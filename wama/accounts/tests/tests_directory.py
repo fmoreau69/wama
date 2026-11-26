@@ -38,7 +38,7 @@ PEOPLE = [
     {'uid': 'zoe.martin', 'givenName': 'Zoé', 'sn': 'Martin', 'mail': 'zoe.martin@univ.test',
      'supannEntiteAffectationPrincipale': 'LAB-A', 'supannEntiteAffectation': ['LAB-A', 'OLD-A'],
      'supannEtablissement': '{UAI}0000000X', 'eduPersonAffiliation': ['member', 'researcher'],
-     'l': 'Ville-A',
+     'l': 'Ville-A', 'buildingName': 'B1', 'roomNumber': '101',
      'telephoneNumber': '0102030405', 'title': 'Chercheuse'},
     {'uid': 'Adam.Petit', 'givenName': 'Adam', 'sn': 'Petit', 'mail': 'adam.petit@univ.test',
      'supannEntiteAffectationPrincipale': 'LAB-A-T1', 'supannEntiteAffectation': ['LAB-A-T1'],
@@ -226,8 +226,9 @@ class PreregisterTests(TestCase):
         self.assertEqual('utilisateur', zoe.profile.account_tier)
         # Le MINIMUM : l'unité principale, et rien de ce que la fiche porte d'autre.
         self.assertEqual('LAB-A', zoe.profile.org_entity_code)
-        self.assertEqual(([], '', ''), (zoe.profile.org_affiliations, zoe.profile.establishment,
-                                        zoe.profile.ldap_affiliation))
+        self.assertEqual(('', ''), (zoe.profile.establishment, zoe.profile.ldap_affiliation))
+        # …et son lieu de travail, qui est du minimum (elle le masquera si elle veut).
+        self.assertEqual('Ville-A', zoe.profile.site)
         # Personne n'a rien demandé : ni cloche, ni email.
         self.assertFalse(self._pending(zoe).exists())
         self.assertEqual([], mail.outbox)
@@ -258,7 +259,7 @@ class PreregisterTests(TestCase):
         self.assertFalse(user.is_active)
         self.assertEqual({self.admin}, {n.recipient for n in self._pending(user)})
         profile = User.objects.get(pk=user.pk).profile
-        self.assertEqual(('LAB-B', []), (profile.org_entity_code, profile.org_affiliations))
+        self.assertEqual(('LAB-B', ''), (profile.org_entity_code, profile.establishment))
 
     def test_a_preregistered_person_who_comes_learns_it_waits_and_the_moderators_are_asked(self):
         directory.preregister(['zoe.martin'])
@@ -549,7 +550,8 @@ class AccountsPageTests(TestCase):
         page = self.client.get(reverse('accounts:user-management')).content.decode()
         self.assertIn('id="userDetails"', page)
         self.assertIn('data-url="%s"' % reverse('accounts:user-details', args=[0]), page)
-        self.assertIn('Ville-A</small>', page, "le site gardé par la personne, sous son unité")
+        self.assertIn('Ville-A · B1 · 101</small>', page,
+                      "le lieu de travail, du minimum, sous son unité")
         told = self.client.get(reverse('accounts:user-details', args=[zoe.pk])).json()
         card = told['card']
         self.assertEqual(('zoe.martin', 'preregistered', 'Pré-inscrit'),
@@ -637,15 +639,14 @@ class AccountsPageTests(TestCase):
         gone.save()
         directory.preregister(['zoe.martin'])
         stale = User.objects.get(username='zoe.martin').profile
-        stale.org_entity_code, stale.org_affiliations = 'OLD-A', ['OLD-A', 'LAB-A']
+        stale.org_entity_code = 'OLD-A'
         stale.save()
         with override_settings(WAMA_DIRECTORY_FOLLOWED_UNITS=['LAB-B']):
             done = reconcile_directory_accounts_task()
         self.assertEqual({'units': 1, 'arrivals': 1, 'departures': 1, 'updated': 1, 'notified': 1}, done)
         fresh = User.objects.get(username='zoe.martin').profile
-        self.assertEqual(('LAB-A', [], ''), (fresh.org_entity_code, fresh.org_affiliations,
-                                             fresh.establishment),
-                         "l'unité suit l'annuaire, l'ancienne liste part, rien de neuf ne s'ajoute")
+        self.assertEqual(('LAB-A', ''), (fresh.org_entity_code, fresh.establishment),
+                         "l'unité suit l'annuaire, rien de neuf ne s'ajoute")
         self.assertIn('gone.away', Notification.objects.get(kind=directory.DIRECTORY_CHANGES_KIND).body)
         out = io.StringIO()
         call_command('refresh_directory_profiles', stdout=out)

@@ -998,7 +998,7 @@ Programmer le lancement d'une card, d'une sélection ou d'un lot — menu commun
 
 ### Ajout au RAG (geste explicite)
 
-Entrée « Ajouter au RAG » du menu « … » (card, sélection, arbre de fichiers) + page « Mon RAG » ; texte pris au schéma canonique, aucune ligne par app. Pas de balayage : l'entrée au RAG est un geste, par décision. Surfaces : menu « … » des cards, arbre de fichiers et assistant (outils `add_item_to_rag` / `add_file_to_rag`) — le bouton de l'INSPECTEUR, doublon du menu, est retiré le 2026-11-01 (décision de Fabien). UN endpoint, deux gestes de la brique (`memory.index.add_item_to_rag` / `add_file_to_rag`, 2026-10-14) : un élément par son texte canonique, un FICHIER remonté à l'élément dont il est la sortie, sinon lu s'il porte déjà du texte (`reference_comprehension.read_document_text`) et refusé, en le disant, s'il n'en porte pas
+Entrée « Ajouter au RAG » du menu « … » (card, sélection, arbre de fichiers) + page « Mon RAG » ; texte pris au schéma canonique, aucune ligne par app. Pas de balayage : l'entrée au RAG est un geste, par décision. Surfaces : menu « … » des cards, arbre de fichiers et assistant (outils `add_item_to_rag` / `add_file_to_rag`) — le bouton de l'INSPECTEUR, doublon du menu, est retiré le 2026-11-01 (décision de Fabien). UN endpoint, deux gestes de la brique (`memory.index.add_item_to_rag` / `add_file_to_rag`, 2026-10-14) : un élément par son texte canonique, un FICHIER remonté à l'élément dont il est la sortie, sinon lu s'il porte déjà du texte (`reference_comprehension.read_document_text`) et refusé, en le disant, s'il n'en porte pas. Depuis le 2026-11-26, une PAGE WEB par son adresse (`add_url_to_rag`, « Ajouter une page web » de « Mon RAG » et outil de l'assistant), lue par la lecture gardée de `web_search.read_web_page`
 
 - **Domicile** : `wama/common/static/common/js/wama-card-menu.js` · **doc** : [docs/construction/ia/WAMA_MEMORY.md §7ter](../construction/ia/WAMA_MEMORY.md)
 
@@ -2390,6 +2390,7 @@ Mesure les 8 facettes F1–F8 des apps par analyse du code réel
   - `clear_my_queue(user, app: str, confirm: bool=False) -> dict` — Empty the user's WHOLE queue for one app — every item, at once.
   - `add_item_to_media_library(user, app: str, pk: int, asset_type: str='', name: str='', output_format: str='') -> dict` — Keep the RESULT of one of the user's items in their media library, so it can be reused as
   - `add_file_to_rag(user, path: str, level: str='', org_unit: str='') -> dict` — Add one of the user's FILES to their RAG, so `memory_recall` (and the lab context of every
+  - `add_url_to_rag(user, url: str, level: str='', org_unit: str='') -> dict` — Add the text of one public WEB PAGE to the user's RAG, given its address — for instance the
   - `add_item_to_rag(user, app: str, pk: int, level: str='', org_unit: str='') -> dict` — Add the TEXT of one of the user's items (a transcription, an OCR, a description…) to their
   - `list_registries(user) -> dict` — List what WAMA knows how to NAME: its registries (apps, models, backends, functions,
   - `get_my_access(user) -> dict` — What the current user is allowed to do: account tier, business roles, and which apps they
@@ -3751,7 +3752,7 @@ Ce que l'annuaire propose d'ajouter à un profil (unité — la principale, la s
   - `applies(user) -> bool` — Ce compte reçoit-il des données de l'annuaire ? Un compte d'annuaire
   - `pending(user) -> bool` — La personne doit-elle encore voir le panneau d'accueil ? Elle n'a jamais choisi.
   - `choice(profile, key: str) -> str` — Le choix de la personne pour la donnée `key`.
-  - `writable(profile, org: dict, *, with_minimum: bool=False) -> dict` — Ce que l'annuaire vient de rendre (`org`, clés de `ldap._parse_org`) et que le profil a le
+  - `writable(profile, org: dict) -> dict` — Ce que l'annuaire vient de rendre (`org`, clés de `ldap._parse_org`) et que le profil a le
   - `offer(user) -> dict` — Ce que l'annuaire porte AUJOURD'HUI pour ce compte (champs de profil), ou {} — annuaire
   - `state(user, proposed: dict=None) -> list` — Une ligne par donnée, pour le panneau d'accueil, le profil et l'assistant :
   - `decide(user, accept=(), decline=()) -> list` — Enregistre le choix de la personne : les données `accept` sont ajoutées (leur valeur LUE de
@@ -4728,6 +4729,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `clear_my_queue(user, app: str, confirm: bool=False) -> dict` — Empty the user's WHOLE queue for one app — every item, at once.
   - `add_item_to_media_library(user, app: str, pk: int, asset_type: str='', name: str='', output_format: str='') -> dict` — Keep the RESULT of one of the user's items in their media library, so it can be reused as
   - `add_file_to_rag(user, path: str, level: str='', org_unit: str='') -> dict` — Add one of the user's FILES to their RAG, so `memory_recall` (and the lab context of every
+  - `add_url_to_rag(user, url: str, level: str='', org_unit: str='') -> dict` — Add the text of one public WEB PAGE to the user's RAG, given its address — for instance the
   - `add_item_to_rag(user, app: str, pk: int, level: str='', org_unit: str='') -> dict` — Add the TEXT of one of the user's items (a transcription, an OCR, a description…) to their
   - `list_registries(user) -> dict` — List what WAMA knows how to NAME: its registries (apps, models, backends, functions,
   - `get_my_access(user) -> dict` — What the current user is allowed to do: account tier, business roles, and which apps they

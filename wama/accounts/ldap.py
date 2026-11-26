@@ -73,15 +73,17 @@ STATUS_ATTRIBUTES = ('eduPersonPrimaryAffiliation', 'eduPersonAffiliation')
 
 #: La liste FERMÉE de ce que `_parse_org` lit d'une fiche — celle que la lecture d'une personne
 #: hors connexion réclame (`directory.person_org`), et rien de plus.
-#: Le SITE de la personne : la ville où elle travaille (2026-11-26, demande de Fabien). Ni son
-#: bâtiment ni son bureau, que la fiche porte aussi : rien ne s'en sert.
-SITE_ATTRIBUTE = 'l'
-ORG_ATTRIBUTES = (ESTABLISHMENT_ATTRIBUTE, MAIN_UNIT_ATTRIBUTE, SITE_ATTRIBUTE, *STATUS_ATTRIBUTES)
+#: Le LIEU de travail de la personne (2026-11-26, demande de Fabien) : la ville de son site, son
+#: bâtiment, son bureau.
+SITE_ATTRIBUTE, BUILDING_ATTRIBUTE, OFFICE_ATTRIBUTE = 'l', 'buildingName', 'roomNumber'
+ORG_ATTRIBUTES = (ESTABLISHMENT_ATTRIBUTE, MAIN_UNIT_ATTRIBUTE, SITE_ATTRIBUTE, BUILDING_ATTRIBUTE,
+                  OFFICE_ATTRIBUTE, *STATUS_ATTRIBUTES)
 
-#: Ce qu'un compte reçoit de l'annuaire À SA CRÉATION (pré-inscription comme première connexion),
-#: avant tout choix de sa titulaire : son unité principale, rien d'autre. Le reste s'ajoute AVEC
-#: elle (`accounts/directory_consent.py` — décision de Fabien, 2026-11-25).
-MINIMUM_FIELDS = ('org_entity_code',)
+#: Le MINIMUM : ce qu'un compte d'annuaire porte D'OFFICE — à sa création (pré-inscription comme
+#: première connexion), puis tenu à jour — sauf ce que sa titulaire a MASQUÉ par un geste : son
+#: unité principale et son lieu de travail (site, bâtiment, bureau — décision de Fabien du
+#: 2026-11-26). Le reste s'ajoute AVEC elle (`accounts/directory_consent.py`).
+MINIMUM_FIELDS = ('org_entity_code', 'site', 'building', 'office')
 
 
 def readable(code: str, name: str = ''):
@@ -101,6 +103,8 @@ def _parse_org(attrs):
         'establishment': _first(attrs, ESTABLISHMENT_ATTRIBUTE),  # forme `{UAI}0772894C`
         'org_entity_code': _first(attrs, MAIN_UNIT_ATTRIBUTE),
         'site': _first(attrs, SITE_ATTRIBUTE),
+        'building': _first(attrs, BUILDING_ATTRIBUTE),
+        'office': _first(attrs, OFFICE_ATTRIBUTE),
         'ldap_affiliation': status[:64],
     }
 
@@ -121,10 +125,11 @@ except Exception:
 
 
 @receiver(post_save, sender=User)
-def _apply_ldap_org(sender, instance, created=False, **kwargs):
+def _apply_ldap_org(sender, instance, **kwargs):
     """Applique au profil ce que l'annuaire vient de rendre (juste après une connexion, ou à la
-    création du compte) — et seulement ce que sa titulaire a choisi d'y voir
-    (`directory_consent.writable` : le minimum à la création, rien de NEUF sans son accord)."""
+    création du compte) — et seulement ce que sa titulaire accepte d'y voir
+    (`directory_consent.writable` : le minimum d'office sauf masquage, rien d'autre sans son
+    accord)."""
     org = getattr(instance, '_ldap_org', None)
     if not org:
         return
@@ -133,7 +138,7 @@ def _apply_ldap_org(sender, instance, created=False, **kwargs):
         from .directory_consent import writable
         from .models import UserProfile
         prof, _ = UserProfile.objects.get_or_create(user=instance)
-        apply_org(prof, writable(prof, org, with_minimum=created))
+        apply_org(prof, writable(prof, org))
     except Exception:
         logger.warning('application org au profil échouée', exc_info=True)
 

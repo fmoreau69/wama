@@ -25,8 +25,7 @@ from wama.common.models import LOCAL_AUTHORITY, OrgUnit, user_scope_org_ids
 def _affilier(user, *codes):
     prof = user.profile
     prof.org_entity_code = codes[0]
-    prof.org_affiliations = list(codes)
-    prof.save(update_fields=['org_entity_code', 'org_affiliations'])
+    prof.save(update_fields=['org_entity_code'])
     return prof
 
 

@@ -3007,9 +3007,9 @@ le passé.*
   **Surface outils courante** (couche factuelle auto-générée, ROADMAP §16.9 ①) :
 
   <!-- WAMA:FAITS(outils) — généré par « python manage.py doc_facts », ne pas éditer -->
-- Outils au registre (`TOOL_REGISTRY`), hors bac à sable : **142** — transverses : 75 · apps de WAMA : 35 · surfaces hors catalogue : 32
-- Outils décrits (`tool_descriptions()`, dérivé) : **142/142**
-- Arguments documentés (types/choix/bornes/défauts) : **477**
+- Outils au registre (`TOOL_REGISTRY`), hors bac à sable : **143** — transverses : 76 · apps de WAMA : 35 · surfaces hors catalogue : 32
+- Outils décrits (`tool_descriptions()`, dérivé) : **143/143**
+- Arguments documentés (types/choix/bornes/défauts) : **480**
 - Les jumelles du bac à sable et les apps nées d'un manifeste (en construction) ajoutent leurs outils là où le bac à sable est installé (gitignoré) : le registre « Outils de l'assistant » (`tools`) les compte à l'exécution, ce fait non
 <!-- /WAMA:FAITS(outils) -->
 - 🔴 **PANNE TROUVÉE ET CORRIGÉE au passage — `describer.output_format`** (signalée par Fabien) :

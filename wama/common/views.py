@@ -1700,21 +1700,26 @@ def notification_open(request, pk: int):
 @login_required
 @require_POST
 def rag_ajouter(request):
-    """Ajoute au RAG — LA porte d'écriture des surfaces, pour deux désignations :
+    """Ajoute au RAG — LA porte d'écriture des surfaces, pour trois désignations :
 
       • un ÉLÉMENT d'app (`app` + `pk`) — inspecteur, menu « … » des cards ;
-      • un FICHIER (`path`, chemin du gestionnaire de fichiers) — menu de l'arbre, 2026-10-14.
+      • un FICHIER (`path`, chemin du gestionnaire de fichiers) — menu de l'arbre, 2026-10-14 ;
+      • une PAGE WEB (`url`) — « Mon RAG », 2026-11-26.
 
-    Les gestes vivent dans la brique (`memory.index.add_item_to_rag` / `add_file_to_rag`), que
-    l'outil de l'assistant appelle aussi : cette vue ne fait que lire la requête et rendre le
-    code HTTP du refus. `niveau` / `org_unit` sont optionnels — défauts du profil sinon.
+    Les gestes vivent dans la brique (`memory.index.add_item_to_rag` / `add_file_to_rag` /
+    `add_url_to_rag`), que l'outil de l'assistant appelle aussi : cette vue ne fait que lire la
+    requête et rendre le code HTTP du refus. `niveau` / `org_unit` sont optionnels — défauts du
+    profil sinon.
     """
-    from .memory.index import add_file_to_rag, add_item_to_rag
+    from .memory.index import add_file_to_rag, add_item_to_rag, add_url_to_rag
 
     level = request.POST.get('niveau') or ''
     unit = request.POST.get('org_unit') or ''
     path = (request.POST.get('path') or '').strip()
-    if path:
+    url = (request.POST.get('url') or '').strip()
+    if url:
+        res = add_url_to_rag(request.user, url, level=level, org_unit=unit)
+    elif path:
         res = add_file_to_rag(request.user, path, level=level, org_unit=unit)
     else:
         app_name = (request.POST.get('app') or '').strip()
@@ -1723,7 +1728,7 @@ def rag_ajouter(request):
         except (TypeError, ValueError):
             pk = 0
         if not app_name or not pk:
-            return JsonResponse({'erreur': 'app et pk requis (ou path)'}, status=400)
+            return JsonResponse({'erreur': 'app et pk requis (ou path, ou url)'}, status=400)
         res = add_item_to_rag(request.user, app_name, pk, level=level, org_unit=unit)
     status = res.pop('status', 200)
     return JsonResponse(res, status=status)
@@ -1790,17 +1795,8 @@ def rag_preference(request):
         prof.rag_niveaux_rappel = choisis
         champs.append('rag_niveaux_rappel')
 
-    if request.POST.get('unite_soumise'):
-        # On VALIDE contre les affiliations réelles : accepter un code arbitraire laisserait
-        # croire à un partage possible vers une unité dont l'utilisateur n'est pas membre —
-        # `add_to_rag` le refuserait ensuite, mais seulement au moment du clic.
-        from .models import profile_org_codes
-        code = (request.POST.get('unite_defaut') or '').strip()
-        if code and code not in profile_org_codes(prof):
-            return JsonResponse({'erreur': f"vous n'êtes pas rattaché à « {code} »"}, status=400)
-        prof.rag_unite_defaut = code
-        champs.append('rag_unite_defaut')
-
+    # (L'unité CIBLE ne se règle plus : une personne n'a qu'une unité, sa principale —
+    # `profile_org_codes`, `REMOVAL_LEDGER R251`.)
     if champs:
         prof.save(update_fields=champs)
     return JsonResponse({'niveau_defaut': prof.rag_niveau_defaut,
@@ -1876,7 +1872,6 @@ def rag_view(request):
         # ne liste que les unités RÉSOLUES (une `OrgUnit` existe) : proposer un code que
         # l'annuaire ignore offrirait un choix qui échouerait ensuite.
         'unites': unites_partageables(prof),
-        'unite_defaut': getattr(prof, 'rag_unite_defaut', '') if prof else '',
         # « Mon RAG » : liste de documents, tout est dans le corps (WAMA_VOLETS §2).
         'volet': volet(medias=False, actions=False),
     })

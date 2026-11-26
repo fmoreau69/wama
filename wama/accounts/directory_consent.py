@@ -28,19 +28,30 @@ logger = logging.getLogger(__name__)
 #: avec elle ; `opens` : ce que la donnée OUVRE dans WAMA, dit à la personne avant qu'elle choisisse.
 DIRECTORY_DATA = {
     # L'unité : la PRINCIPALE, et elle seule (`common.models.profile_org_codes`). Les autres codes
-    # d'une fiche ne sont plus lus ; ce qu'un profil en portait (`org_affiliations`) s'efface
-    # avec l'unité si la personne la retire.
+    # d'une fiche ne sont ni lus ni gardés.
     'main_unit': {
         'label': 'Unité',
         'fields': ('org_entity_code',),
-        'derived': ('org_entity_name', 'org_hierarchy', 'org_affiliations'),
+        'derived': ('org_entity_name', 'org_hierarchy'),
         'opens': "Partager avec votre unité et lire ce qu'elle partage ; elle s'affiche à "
                  "côté de votre nom pour les administrateurs.",
     },
+    # Le lieu de travail : trois données du MINIMUM (`ldap.MINIMUM_FIELDS`, décision de Fabien du
+    # 2026-11-26) — présentes d'office, chacune masquée par un geste de la personne.
     'site': {
         'label': 'Site (ville)',
         'fields': ('site',), 'derived': (),
-        'opens': "Affiché sur votre profil et aux administrateurs, à côté de votre unité.",
+        'opens': "Affiché sur votre profil et aux administrateurs de WAMA, à côté de votre unité.",
+    },
+    'building': {
+        'label': 'Bâtiment',
+        'fields': ('building',), 'derived': (),
+        'opens': "Affiché sur votre profil et aux administrateurs de WAMA.",
+    },
+    'office': {
+        'label': 'Bureau',
+        'fields': ('office',), 'derived': (),
+        'opens': "Affiché sur votre profil et aux administrateurs de WAMA.",
     },
     'establishment': {
         'label': 'Établissement',
@@ -82,11 +93,11 @@ def _stored(profile, datum) -> bool:
     return any(getattr(profile, field, None) for field in datum['fields'])
 
 
-def writable(profile, org: dict, *, with_minimum: bool = False) -> dict:
+def writable(profile, org: dict) -> dict:
     """Ce que l'annuaire vient de rendre (`org`, clés de `ldap._parse_org`) et que le profil a le
     droit de recevoir : une donnée AJOUTÉE par la personne ; une donnée sur laquelle elle n'a pas
-    encore choisi, si le profil la porte déjà ou — `with_minimum` : à la création du compte et à
-    sa remise à jour depuis l'annuaire — si elle est du minimum. Jamais une donnée retirée."""
+    encore choisi, si elle est du MINIMUM (`ldap.MINIMUM_FIELDS` : présente d'office) ou si le
+    profil la porte déjà. Jamais une donnée qu'elle a retirée ou masquée."""
     allowed = {}
     for key, datum in DIRECTORY_DATA.items():
         chosen = choice(profile, key)
@@ -94,7 +105,7 @@ def writable(profile, org: dict, *, with_minimum: bool = False) -> dict:
             continue
         kept = chosen == ACCEPTED or _stored(profile, datum)
         for field in datum['fields']:
-            if field in org and (kept or (with_minimum and field in MINIMUM_FIELDS)):
+            if field in org and (kept or field in MINIMUM_FIELDS):
                 allowed[field] = org[field]
     return allowed
 
@@ -116,7 +127,7 @@ def _display(field: str, value) -> str:
     """Une valeur d'annuaire telle qu'on la MONTRE : le nom d'une unité plutôt que son code."""
     if not value:
         return ''
-    if field in ('org_entity_code', 'org_affiliations'):
+    if field == 'org_entity_code':
         from wama.common.models import OrgUnit
         codes = [value] if isinstance(value, str) else list(value)
         names = dict(OrgUnit.local().filter(code__in=codes).values_list('code', 'name'))
@@ -180,8 +191,7 @@ def decide(user, accept=(), decline=()) -> list:
 def refresh(user, *, apply: bool = True, conn=None) -> dict:
     """Met le profil d'un compte d'annuaire À JOUR de ce que l'annuaire porte aujourd'hui, sans
     attendre sa prochaine connexion : ce que la personne garde (`writable`), le minimum compris,
-    et rien qu'elle n'ait pas choisi. L'ancienne liste de codes de rattachement
-    (`org_affiliations`, plus lue depuis l'appartenance unique) est vidée au passage.
+    et rien qu'elle n'ait pas choisi.
 
     Rend `{'known': bool, 'changed': [champs]}` — `known` faux : l'annuaire ne connaît plus cet
     identifiant, rien n'est touché. `apply=False` : dit ce qui changerait, n'écrit rien. Lève
@@ -191,15 +201,11 @@ def refresh(user, *, apply: bool = True, conn=None) -> dict:
     if not proposed:
         return {'known': False, 'changed': []}
     profile = user.profile
-    allowed = writable(profile, proposed, with_minimum=True)
+    allowed = writable(profile, proposed)
     changed = [field for field, value in allowed.items() if value and getattr(profile, field) != value]
-    stale = bool(profile.org_affiliations)
     if apply:
-        if stale:
-            profile.org_affiliations = []
-            profile.save(update_fields=['org_affiliations'])
         apply_org(profile, allowed)
-    return {'known': True, 'changed': changed + (['org_affiliations'] if stale else [])}
+    return {'known': True, 'changed': changed}
 
 
 def refresh_all(*, apply: bool = True) -> dict:

@@ -148,16 +148,9 @@ class UserProfile(models.Model):
         choices=[('user', 'Mon RAG (privé)'), ('unit', 'RAG du labo')],
         verbose_name="Niveau par défaut de mes ajouts au RAG",
     )
-    # UNITÉ CIBLE du partage au labo. Nécessaire dès qu'un utilisateur a PLUSIEURS
-    # rattachements reconnus — cas courant et non exotique : l'annuaire UGE porte les codes
-    # hérités (« {IFSTTAR}LESCOT ») À CÔTÉ des codes actuels (« CFR - LESCOT ») pour le MÊME
-    # laboratoire. `_resolve_unit` refuse alors de deviner (un partage parti dans la mauvaise
-    # entité ne se voit pas) : sans ce réglage, le niveau labo est inatteignable pour eux.
-    rag_unite_defaut = models.CharField(
-        max_length=64, blank=True, default='',
-        verbose_name="Unité cible de mes partages au labo",
-        help_text="Code d'unité (vide = déduit si un seul rattachement).",
-    )
+    # (L'unité CIBLE du partage au labo, `rag_unite_defaut`, et la liste des rattachements,
+    # `org_affiliations`, sont RETIRÉES le 2026-11-26 : une personne n'a qu'une unité, sa
+    # principale — `REMOVAL_LEDGER R251`.)
     # Lire : trois états, pas deux — et c'est la raison du `null=True`.
     #   NULL  = l'utilisateur n'a jamais choisi ⇒ tous les niveaux qu'il a le droit de voir
     #           (comportement historique : on ne prive personne de son RAG par défaut) ;
@@ -197,10 +190,6 @@ class UserProfile(models.Model):
     org_entity_name = models.CharField(
         max_length=192, blank=True, default='',
         verbose_name='Entité principale', help_text='Nom lisible de l\'entité principale.')
-    org_affiliations = models.JSONField(
-        default=list, blank=True,
-        verbose_name='Rattachements',
-        help_text='supannEntiteAffectation — liste de codes (tous les rattachements).')
     org_hierarchy = models.JSONField(
         default=list, blank=True,
         verbose_name='Hiérarchie organisationnelle',
@@ -209,6 +198,12 @@ class UserProfile(models.Model):
     site = EncryptedPersonalField(
         blank=True, default='', db_default='', verbose_name='Site',
         help_text="Ville du site de la personne, d'après l'annuaire. Chiffré au repos.")
+    building = EncryptedPersonalField(
+        blank=True, default='', db_default='', verbose_name='Bâtiment',
+        help_text="Bâtiment de la personne, d'après l'annuaire. Chiffré au repos.")
+    office = EncryptedPersonalField(
+        blank=True, default='', db_default='', verbose_name='Bureau',
+        help_text="Bureau de la personne, d'après l'annuaire. Chiffré au repos.")
     ldap_affiliation = EncryptedPersonalField(
         blank=True, default='', verbose_name='Affiliation LDAP',
         help_text='eduPersonPrimaryAffiliation (researcher/faculty/staff/student…) — '

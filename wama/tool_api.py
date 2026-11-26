@@ -4651,6 +4651,31 @@ def add_file_to_rag(user, path: str, level: str = '', org_unit: str = '') -> dic
 
 
 @tool_effect(WRITE)
+def add_url_to_rag(user, url: str, level: str = '', org_unit: str = '') -> dict:
+    """
+    Add the text of one public WEB PAGE to the user's RAG, given its address — for instance the
+    lab's site — without going through an app. One page per call; adding the same address again
+    reads the page again and updates it.
+
+    Call it only when the user asks to add, keep or index a page in the RAG — never on your own
+    initiative. A media file or a document at an address is not a page: it is added to an app,
+    or saved in the file manager and added with `add_file_to_rag`.
+
+    Args:
+        url:      the page address (http:// or https://).
+        level:    'user' (private, default of the profile) or 'unit' (shared with the lab).
+        org_unit: the lab code; leave empty, the user's main unit is used.
+
+    Returns:
+        {"source_id", "fragments", "etat", "niveau", "origine", "tronque", "message"} or {"error"}
+    """
+    # MÊME geste que « Ajouter une page » de « Mon RAG » (`/common/api/rag/ajouter/`, `url`) : la
+    # lecture gardée, les refus et le niveau vivent dans la brique.
+    from wama.common.memory import index as rag_index
+    return _rag_answer(rag_index.add_url_to_rag(user, url, level=level, org_unit=org_unit))
+
+
+@tool_effect(WRITE)
 def add_item_to_rag(user, app: str, pk: int, level: str = '', org_unit: str = '') -> dict:
     """
     Add the TEXT of one of the user's items (a transcription, an OCR, a description…) to their
@@ -5247,6 +5272,9 @@ TOOL_REGISTRY = {
     # l'utilisateur, jamais un balayage (`WAMA_MEMORY §7ter`).
     'add_file_to_rag': add_file_to_rag,
     'add_item_to_rag': add_item_to_rag,
+    # …et une PAGE WEB par son adresse (2026-11-26), lue par la même brique gardée que
+    # `read_web_page`.
+    'add_url_to_rag': add_url_to_rag,
     # La doc de WAMA elle-même (corpus SYSTÈME, WAMA_MEMORY §7quinquies) — LECTURE SEULE,
     # gardée par le prédicat du lecteur de docs. Jamais les fichiers de l'utilisateur.
     'search_docs':    search_docs,

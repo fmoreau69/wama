@@ -135,7 +135,7 @@ déclare la route ne rend rien, au lieu d'échouer.{% endcomment %}
                                     <td style="overflow-wrap:anywhere; min-width:7rem;">{{ item.user.email|default:"-" }}</td>
                                     <td>{{ item.user.first_name }} {{ item.user.last_name }}</td>
                                     <td title="{{ item.unit_path }}">{{ item.unit|default:"—" }}
-                                        {% if item.site %}<small class="text-body-secondary d-block" title="Site de la personne, d'après l'annuaire"><i class="fas fa-location-dot me-1"></i>{{ item.site }}</small>{% endif %}
+                                        {% if item.place %}<small class="text-body-secondary d-block" title="Lieu de travail (site · bâtiment · bureau), d'après l'annuaire"><i class="fas fa-location-dot me-1"></i>{{ item.place }}</small>{% endif %}
                                         {% if item.status %}<small class="text-body-secondary d-block" title="Qualité de la personne, d'après l'annuaire">{{ item.status }}</small>{% endif %}
                                     </td>
                                     <td>
