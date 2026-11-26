@@ -36,8 +36,13 @@ register(FunctionSpec(
     category=FC.TRANSFORM, binding=Binding.APP, app=_APP, impl=_IMPL,
     tags=['image', 'video', 'gpu'],
     inputs=[PortSpec('prompt', 'prompt', description="La consigne."),
-            PortSpec('reference_image', 'image', optional=True,
-                     description="L'image de référence (img2img, style, image → vidéo).")],
+            # `work_image` (2026-11-25, alignement des vocabulaires) : l'image d'où PART le rendu
+            # (img2img, image → vidéo) — le rôle que ses modèles déclarent (`inputs_*`) et que sa
+            # card offre ; le port disait `reference_image` (une image qui guide sans être
+            # transformée), qu'aucun de ses modèles ne déclare. Sa valeur reste dans la colonne
+            # `reference_image` (`register_port_fields`, `imager/apps.py`).
+            PortSpec('work_image', 'image', optional=True,
+                     description="L'image de départ (img2img, image → vidéo).")],
     outputs=[PortSpec('native', 'image', description="Les images (ou la vidéo) d'origine.")]))
 
 register(FunctionSpec(

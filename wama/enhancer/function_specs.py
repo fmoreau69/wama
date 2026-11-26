@@ -28,7 +28,9 @@ register(FunctionSpec(
                 "(débruitage, amélioration).",
     category=FC.TRANSFORM, binding=Binding.APP, app=_APP, impl=_IMPL,
     tags=['image', 'video', 'audio', 'gpu'],
-    inputs=[PortSpec('work_media', 'video', description="L'image, la vidéo ou l'audio à améliorer.")],
+    # `work_file` (2026-11-25, alignement des vocabulaires) : le fichier de travail de la card, le
+    # jeton que ses modèles déclarent ; le port disait `work_media`, hors vocabulaire.
+    inputs=[PortSpec('work_file', 'video', description="L'image, la vidéo ou l'audio à améliorer.")],
     outputs=[PortSpec('native', 'video', description="Le média amélioré, tel que le moteur l'écrit.")]))
 
 register(FunctionSpec(

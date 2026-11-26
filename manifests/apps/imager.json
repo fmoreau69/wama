@@ -991,7 +991,7 @@
           "id": "image",
           "inputs": [
             "prompt",
-            "reference_image"
+            "work_image"
           ],
           "label": "Image",
           "modes": [],
@@ -1007,7 +1007,7 @@
           "id": "video",
           "inputs": [
             "prompt",
-            "reference_image"
+            "work_image"
           ],
           "label": "Vidéo",
           "modes": [],
@@ -2660,7 +2660,7 @@
           "verbose_name_plural": "Batchs de génération"
         },
         "item": {
-          "input_field": "prompt_file",
+          "input_field": "reference_image",
           "name": "ImageGeneration",
           "ordering": [
             "-created_at"

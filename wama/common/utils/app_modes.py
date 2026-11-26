@@ -149,6 +149,21 @@ INPUT_TYPES = {
     'work_score':      {'label': 'Partition de travail', 'kind': 'file', 'accept': 'score', 'multi': True, 'port': 'travail',
                         'description': "La partition (ABC, MIDI ou MusicXML) du morceau à REPRENDRE : le modèle en "
                                        "rend la mélodie, les accords et la structure dans le style de la consigne (cover)."},
+    # Rôle « travail » × natures `video`, `document`, `archive` (2026-11-25, décision de Fabien :
+    # « faire coïncider le vocabulaire » des process et des cards). Ce sont les noms que les PROCESS
+    # d'une app donnaient déjà, hors vocabulaire, à l'entrée de la card qu'ils traitent selon sa
+    # nature (describer : `work_video` pour la transcription, `work_document` pour la description ;
+    # reader ; converter) : un process qui reçoit le fichier de travail sous plusieurs natures en
+    # garde un port par nature. Déclarés, le moteur les reconnaît comme des entrées de la card
+    # (`process_pipeline.starved`), et la traduction d'un fichier en son jeton les rend
+    # (`input_match.work_token_for`). Les MODÈLES et les CARDS gardent `work_file` (le fichier de
+    # travail quelle que soit sa nature) : ces jetons ne réécrivent aucune déclaration de modèle.
+    'work_video':      {'label': 'Vidéo de travail', 'kind': 'file', 'accept': 'video', 'multi': True, 'port': 'travail',
+                        'description': "La vidéo que l'app TRAITE : c'est d'elle que part le résultat (transcrite, décrite, convertie…)."},
+    'work_document':   {'label': 'Document de travail', 'kind': 'file', 'accept': 'document', 'multi': True, 'port': 'travail',
+                        'description': "Le document que l'app TRAITE : c'est de lui que part le résultat (lu, décrit, converti…)."},
+    'work_archive':    {'label': 'Archive de travail', 'kind': 'file', 'accept': 'archive', 'multi': True, 'port': 'travail',
+                        'description': "L'archive que l'app TRAITE : c'est d'elle que part le résultat (dépliée, convertie…)."},
     'reference_image': {'label': 'Image de référence (style)', 'kind': 'file', 'accept': 'image', 'multi': False, 'port': 'reference',
                         'description': "Une image qui GUIDE le rendu (style, apparence) sans être transformée."},
     'reference_file':  {'label': 'Fichier de référence', 'kind': 'file', 'multi': False, 'port': 'reference',
@@ -259,14 +274,14 @@ APP_MODES = {
              # dit la SORTIE. Les deux domaines acceptent la même chose et diffèrent par ce
              # qu'ils produisent — la preuve qu'un domaine n'est pas une nature de fichier.
              'accepts': ('prompt', 'image'), 'params_schema': 'IMAGE_PARAMS_JSON',
-             # Slots MESURÉS sur la card réelle (index.html:133) : prompt primaire, image de
-             # référence (`reference_accept='image/*'`), fichier de prompts batch (.txt/.csv).
-             'inputs': ['prompt', 'reference_image'], 'modes': []},
+             # La consigne et l'image d'où part le rendu (`work_image`, le jeton de ses modèles et
+             # de sa card — 2026-11-25 ; la ligne disait `reference_image`, relevé d'une card v3).
+             'inputs': ['prompt', 'work_image'], 'modes': []},
             {'id': 'video', 'label': 'Vidéo', 'icon': 'fa-film', 'variant': 'success',
              'description': "Générer une vidéo à partir d'un texte ou d'une image de départ.",
              'accepts': ('prompt', 'image'), 'params_schema': 'VIDEO_PARAMS_JSON',
-             # Card vidéo (index.html:175) : prompt + image de DÉPART (i2v) — pas de batch file.
-             'inputs': ['prompt', 'reference_image'], 'modes': []},
+             # La consigne et l'image de DÉPART (image → vidéo) : `work_image` (2026-11-25).
+             'inputs': ['prompt', 'work_image'], 'modes': []},
         ],
     },
 

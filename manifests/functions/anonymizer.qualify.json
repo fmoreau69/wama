@@ -11,7 +11,7 @@
         "data_type": "video",
         "description": "L'image ou la vidéo détectée.",
         "group": "travail",
-        "key": "work_media",
+        "key": "work_file",
         "optional": false,
         "produced_fields": [],
         "required_fields": []

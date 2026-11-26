@@ -29,6 +29,9 @@ from wama.common.services.output_process import output_spec
 from wama.common.services.process_pipeline import ProcessSpec, register_app_pipeline
 
 _APP = 'anonymizer'
+# Le fichier de travail s'appelle `work_file` dans tous les process (2026-11-25, alignement des
+# vocabulaires) : le jeton de la card et de ses modèles ; les process image/vidéo disaient
+# `work_media`, hors vocabulaire, là où ceux du document disaient déjà `work_file`.
 _IMPL = 'anonymizer.tasks:process_single_media'
 
 register(FunctionSpec(
@@ -38,7 +41,7 @@ register(FunctionSpec(
                 "contours (segmentation) et pistes, frame par frame.",
     category=FC.TRANSFORM, binding=Binding.APP, app=_APP, impl=_IMPL,
     tags=['image', 'video', 'detection', 'gpu'],
-    inputs=[PortSpec('work_media', 'video', description="L'image ou la vidéo à anonymiser.")],
+    inputs=[PortSpec('work_file', 'video', description="L'image ou la vidéo à anonymiser.")],
     outputs=[PortSpec('detections', 'detections',
                       description="Les objets détectés, frame par frame (boîte, contour, piste).")]))
 
@@ -50,7 +53,7 @@ register(FunctionSpec(
                 "floutage choisit sans redétecter.",
     category=FC.TRANSFORM, binding=Binding.APP, app=_APP, impl=_IMPL,
     tags=['image', 'video', 'detection', 'attributes', 'gpu'],
-    inputs=[PortSpec('work_media', 'video', description="L'image ou la vidéo détectée."),
+    inputs=[PortSpec('work_file', 'video', description="L'image ou la vidéo détectée."),
             PortSpec('detections', 'detections', description="Les objets à qualifier.")],
     outputs=[PortSpec('detections', 'detections',
                       description="Les mêmes objets, chacun avec ses attributs.")]))
@@ -61,7 +64,7 @@ register(FunctionSpec(
                 "rectangle sinon, trous d'une piste interpolés. Aucun modèle n'est chargé.",
     category=FC.TRANSFORM, binding=Binding.APP, app=_APP, impl=_IMPL,
     tags=['image', 'video', 'blur'],
-    inputs=[PortSpec('work_media', 'video', description="L'image ou la vidéo à anonymiser."),
+    inputs=[PortSpec('work_file', 'video', description="L'image ou la vidéo à anonymiser."),
             PortSpec('detections', 'detections', description="Ce qu'il faut flouter.")],
     outputs=[PortSpec('native', 'video', description="Le média flouté, tel que le floutage "
                                                      "l'écrit.")]))

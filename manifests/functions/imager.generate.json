@@ -19,9 +19,9 @@
       {
         "cardinality": "one",
         "data_type": "image",
-        "description": "L'image de référence (img2img, style, image → vidéo).",
+        "description": "L'image de départ (img2img, image → vidéo).",
         "group": "travail",
-        "key": "reference_image",
+        "key": "work_image",
         "optional": true,
         "produced_fields": [],
         "required_fields": []

@@ -1249,6 +1249,38 @@ class FunctionCatalogConformiteTest(TestCase):
                     with self.subTest(fonction=cle, sens=sens, port=p.key):
                         self.assertIn(valeur, connus)
 
+    def test_an_app_process_names_a_card_entry_with_a_token_of_the_input_vocabulary(self):
+        """One vocabulary for the entries of a card (2026-11-25, decision of Fabien : « faire
+        coïncider le vocabulaire ») : a port of an APP process that no process of its app produces
+        receives an entry of the card — when it carries a media file or a typed text, it is named by
+        a token of `app_modes.INPUT_TYPES`, the names the cards, the models and the common inputs
+        table use. The pipeline engine recognises a card entry by that name
+        (`process_pipeline.starved`). Ports that carry a DATA type (cam_analyzer, the Data world)
+        name their type instead (rule of 2026-09-17) and are not judged here."""
+        from wama.common.app_registry import APP_CATALOG
+        from wama.common.catalog.function_catalog import spec_app
+        from wama.common.utils.app_modes import INPUT_TYPES
+        # A port named after a ROLE (`work_*`, `reference_*`, `prompt`) is a card entry ; an internal
+        # link (`native`, `animated`…) names what flows between two steps and is not judged.
+        role_named = ('work_', 'reference_', 'prompt')
+        # Not settled : the form of `work_text` waits for Fabien's decision (2026-11-26). Only lowers.
+        declared_gaps = {'synthesizer.generate.work_text'}
+        judged, wrong = 0, []
+        for key, spec in self.catalogue.items():
+            app = spec_app(spec)
+            # Twins are not versioned : they align at their regeneration.
+            if spec.binding != self.Binding.APP or (APP_CATALOG.get(app) or {}).get('generated_from'):
+                continue
+            for port in spec.inputs:
+                if not port.key.startswith(role_named):
+                    continue
+                judged += 1
+                if port.key not in INPUT_TYPES and f'{key}.{port.key}' not in declared_gaps:
+                    wrong.append(f'{key}.{port.key}')
+        self.assertGreater(judged, 20, 'the entries of the app processes are read')
+        self.assertEqual([], wrong, 'name the entry with a token of INPUT_TYPES (declare the token '
+                                    'there if the role × nature is new)')
+
     def test_une_fonction_APP_declare_son_implementation_et_son_app(self):
         """`binding='app'` n'a pas de `fn` : `impl` est le SEUL moyen de la retrouver."""
         for cle, spec in self.catalogue.items():
