@@ -549,7 +549,9 @@ class CouncilTest(TestCase):
         )
         line, spec = assistant_engine._delegate_tool()
         # 2026-11-16 : + les chapeaux de De Bono (blanc, rouge, jaune, vert ; le noir est `critique`).
-        for key in ('critique', 'methodology', 'facts', 'intuition', 'benefits', 'ideas'):
+        # 2026-11-26 : + le bibliographe (les publications scientifiques, depuis le concile).
+        for key in ('critique', 'methodology', 'facts', 'intuition', 'benefits', 'ideas',
+                    'bibliography'):
             self.assertEqual(key, resolve_domain(key).key)
             self.assertTrue(role_instructions(key))
             self.assertIn(key, spec['function']['parameters']['properties']['agents']['items']['enum'])

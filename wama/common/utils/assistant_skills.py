@@ -89,6 +89,13 @@ DOMAINES = (
     AssistantDomain('methodology', 'Méthodologie', 'assistant-methodology', rag=True,
                      announced=False,
                      help_text="Protocole, biais, validité, travaux existants d'une question de recherche."),
+    # Le BIBLIOGRAPHE (2026-11-26, demande de Fabien) : aller au-delà d'une recherche web, vers les
+    # publications scientifiques, depuis le concile. rag=False comme `investigation` : son substrat
+    # est externe. Aujourd'hui il lit le web visé (arXiv, HAL, doi.org) ; l'outil de recherche de
+    # publications du futur Bibliographer (`ROADMAP §33`, M1) lui reviendra sans câblage — les
+    # outils d'un sous-agent DÉRIVENT des marques de lecture (`tool_api.sub_agent_tools`).
+    AssistantDomain('bibliography', 'Bibliographe', 'assistant-bibliography', announced=False,
+                     help_text="Publications scientifiques d'un sujet : fondatrices, récentes, sourcées par DOI."),
     # Les SIX CHAPEAUX de De Bono (2026-11-16, décision de Fabien : six postures déclarées comme
     # les deux ci-dessus). Quatre entrées suffisent : le chapeau NOIR est le Contradicteur
     # (`critique`), le BLEU est le décideur d'un council (`decide` de l'outil `delegate`), qui

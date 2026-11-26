@@ -772,6 +772,29 @@ un council figé » tient. S'il répond seul (l'abonnement n'en réunit pas, ou 
 réponse le DIT. Les autres commandes de l'assistant et leur domicile : `WAMA_LLM §A` (« Commandes de
 l'assistant »). Garde `tests_assistant_commands`.
 
+**Le BIBLIOGRAPHE, un agent du concile (2026-11-26, demande de Fabien : « aller au-delà d'une
+simple recherche web et pouvoir explorer des publications scientifiques directement depuis le
+concile, en réutilisant si nécessaire la future application Bibliographer »).** Un rôle de plus au
+registre, comme les chapeaux : `bibliography` (`assistant_skills.DOMAINES`, `announced=False`,
+`rag=False` comme `investigation` — son substrat est externe) et sa consigne
+`prompt_skills/assistant-bibliography.md` : facettes de recherche FR ↔ EN, sources savantes
+visées, chaque travail identifié par son DOI (sinon arXiv ou HAL), prépublication et version
+publiée réunies, fondateurs / revues / récents, ce que l'ensemble ne couvre pas ; **jamais une
+référence ni un DOI inventés** (une référence plausible qui n'existe pas est la faute type d'un
+modèle de langue) ; ni Google Scholar ni ResearchGate (conditions d'usage). Le concile le compose
+comme les autres : `delegate(task, agents=[…, "bibliography"], …)`, ou `/concile`. Garde : le test
+des rôles déclarés (`tests_delegation.test_the_specialised_agents_are_declared_roles`).
+✅ Ce qu'il a aujourd'hui : `search_web` et `read_web_page` (mesuré le 26/11 : `read_web_page` ne
+lit que le HTML et le texte brut, `web_search.py:97` — pas le JSON des API d'OpenAlex ou de HAL, ni
+l'Atom d'arXiv ; il lit donc les pages de résumé, `arxiv.org/abs/…`, les notices HAL, `doi.org`).
+⏳ Ce qu'il recevra **sans câblage** : l'outil de recherche de publications du Bibliographer
+(`ROADMAP §33`, marche M1) — les outils d'un sous-agent DÉRIVENT des marques de lecture
+(`tool_api.sub_agent_tools`, `tool_api.py:193-198`) ; la consigne le dit déjà (« quand un outil de
+recherche de publications est dans ta liste, l'employer d'abord »), et nommera l'outil quand il
+existera. ⏳ Pour cartographier un champ entier (des dizaines de travaux, proximités, groupes), il
+recommande une EXPLORATION du Bibliographer, que l'assistant lance — un sous-agent ne lance aucune
+tâche (§7.4, « deux limites voulues »). ⚠ Non éprouvé par un vrai modèle à cette date.
+
 **La réflexion des agents suit le curseur, distants compris (2026-11-02).** Agents, relecteurs et
 décideur sont des tours de la même boucle (`_delegate`, `_peer_review`, `_synthesise` →
 `run_assistant_turn`) : depuis que le curseur règle aussi la réflexion d'un modèle distant
