@@ -1357,9 +1357,17 @@ def check_app_import(app: str, url_path: str):
                 if etat.get('ajout'):
                     # LE GESTE EXPLICITE (2026-11-25) : le dépôt REMPLIT la card et n'envoie rien ;
                     # « Ajouter à la file » crée. Un envoi au dépôt est le défaut que la décision retire.
-                    if len(emitted) > posts_before_deposit:
-                        return False, (f"le dépôt sur {etat['champ_id']} a envoyé {len(emitted) - posts_before_deposit} "
-                                       "requête(s) AVANT « Ajouter à la file » — un dépôt ne crée plus rien")
+                    # Jugé sur les CARDS, pas sur la moindre requête : un dépôt peut interroger le
+                    # serveur sans rien créer (la détection d'un fichier de lot, mesurée le 2026-11-26
+                    # sur reader et anonymizer). Ce qui est interdit, c'est un élément né au dépôt.
+                    cards_after_deposit = page.evaluate(
+                        "(document.querySelector('.tab-pane[data-domain].active') || document)"
+                        ".querySelectorAll('.wama-card').length")
+                    if cards_after_deposit > avant:
+                        sent = [u.split('://', 1)[-1].split('/', 1)[-1] for u in emitted[posts_before_deposit:]]
+                        return False, (f"le dépôt sur {etat['champ_id']} a créé {cards_after_deposit - avant} "
+                                       f"card(s) AVANT « Ajouter à la file » (envoyé : {sent}) — un dépôt ne "
+                                       "crée plus rien")
                     add_button = page.locator(f"#{etat['ajout']}")
                     if add_button.is_disabled():
                         return False, (f"fichier déposé, « Ajouter à la file » (#{etat['ajout']}) reste GRISÉ "
@@ -1467,7 +1475,15 @@ _ADD_PROBE = """(() => {
         const btn = card.querySelector('[data-entry-add]');
         if (!btn || !btn.id) continue;
         const prompt = card.querySelector('textarea');
-        return {btn_id: btn.id, prompt_id: prompt ? prompt.id : '',
+        // Câblé par la voie d'import : le port PRINCIPAL requis est celui que le dépôt remplissait
+        // (`_fill_required_ports` ne vise que les autres) — le geste le remplit avant de cliquer.
+        let work = '';
+        if (btn.dataset.entryAdd === 'import') {
+            const pane = [...card.querySelectorAll('.wama-port-pane.is-required[data-port-kind="file"]')]
+                .find(p => !p.querySelector('[data-port-import-self]'));
+            work = pane ? (pane.dataset.portInput || '') : '';
+        }
+        return {btn_id: btn.id, prompt_id: prompt ? prompt.id : '', work_input: work,
                 depot: card.getAttribute('data-wama-depot'),
                 cards: (document.querySelector('.tab-pane[data-domain].active') || document).querySelectorAll('.wama-card').length};
     }
@@ -1525,6 +1541,11 @@ def check_app_add(app: str, url_path: str):
                     raise SkipScenario("aucune card d'entrée à bouton primaire sur cette surface — "
                                        "la création y passe par le dépôt (`<app>.import`)")
                 witnesses = _fill_required_ports(page)
+                if probe.get('work_input'):
+                    work = page.locator(f"#{probe['work_input']}")
+                    witness = _fichier_temoin(work.get_attribute('accept') or '')
+                    witnesses.append(witness)
+                    work.set_input_files(str(witness))
                 if probe['prompt_id']:
                     page.fill(f"#{probe['prompt_id']}", _ADD_TEXT)
                     page.dispatch_event(f"#{probe['prompt_id']}", 'input')
