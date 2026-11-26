@@ -933,7 +933,15 @@ writer, translator) — l'anonymizer seul en est exclu, son port étant porté p
     moteur sur les vraies cards (225), HEAD rejoué en mémoire contre l'arbre — 0 écart hors les ports
     visés. Garde : `tests_catalogues.FunctionCatalogConformiteTest` (un port qui nomme un rôle est
     un jeton ; écart listé : `work_text` du synthesizer).
-- **Plan, dans l'ordre** (⏳ confirmation) : 1. jeton `work_text` ; 2. section Entrée générée de la
+- **Décisions de Fabien (2026-11-26)** : Q1 — on remplace une entrée seulement une fois le process
+  ARRÊTÉ (le résultat existant devient périmé) ; Q4 — l'exclusivité « un seul à la fois » (l'avatar)
+  devient une DÉCLARATION commune, lue par le rangement et la card ; Q5 — le composer SÉPARE paroles
+  et description (style…), modale et volet ajustés en conséquence ; Q6 — l'ordre consigne → texte →
+  fichiers et le « tapé / envoyé » côte à côte, acquis ; Q7 — description de l'anonymizer = entrée de
+  la card, classes cochées en réglage avancé qui la complètent (un seul mode, l'intention de
+  `ROADMAP §17quater` point 2 ; le livré a deux modes, `params.py:82`) — transmis à la session de
+  l'anonymizer SEULEMENT après avoir vérifié et mesuré le prompt d'entrée de bout en bout.
+- **Plan, dans l'ordre** (confirmé le 2026-11-26) : 1. jeton `work_text` ; 2. section Entrée générée de la
   modale ⚙ et du volet (prompt, texte) ; 3. remplacement des fichiers dans cette section (rangée de
   port de la v4, lecteur commun, péremption) ; 4. description de l'anonymizer dans la v4 (transmise à
   la session de l'anonymizer).
